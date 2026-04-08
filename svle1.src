@@ -31,7 +31,7 @@ C
 C VERS:  11.07.85 (HW)  : SVLE1 AUS BFROIK ABGELEITET
 C        07.08.85 (HW)  : IN DER I=1 - EBENE WERDEN DIE GESCHWINDIG-
 C                         KEITSKOMP. ABGESPEICHERT. (DO 200 ...)
-C        17.02.86 (HW)  : SVLE1R IDENTISCH ZU SVLE1; STATT RANF()
+C        17.02.86 (HW)  : SVLE1R IDENTISCH ZU SVLE1 STATT RANF()
 C                         WIRD DIE FUNCTION RANEQU VERWENDET
 C        30.06.86 (HW)  : SVLE1R IN SVLE1 UMBENANNT.
 C        27.02.92 (MM)  : VORBELEGUNG VON RINDEF 
@@ -54,6 +54,7 @@ C        FUNCTION RANEQU
 C
 C*STARLET***************************************************************
 C
+#include "shear.h"
 #include "mgpar.h"
 #include "cophyspar.h"
 C
@@ -261,6 +262,8 @@ C
             W(K,J,I) = WCON
    70   CONTINUE
 C
+C
+
       IF (MTURB .EQ. 1) THEN
         DO I=3,IM2
         DO J=3,JM2
@@ -275,6 +278,35 @@ C
 
 C
       RETURN
+C
+C
+C                                       SHEAR FLOW CONDITION BY ZHIYONG HUANG
+C
+C
+C       ELSEIF(CIDUFR(1:5).EQ.'SHEAR') THEN
+C          DO 770 I=2,IM2
+C          DO 770 J=3,JM2
+C          DO 770 K=3,KM2
+C             U(K,J,I) = VC_MEAN+A_GRAD*(Z(K)-Z_CENTER)
+C             V(K,J,I) = VCON
+C             W(K,J,I) = WCON
+C  770   CONTINUE   
+C
+C
+C      IF (MTURB .EQ. 1) THEN
+C        DO I=3,IM2
+C        DO J=3,JM2
+C        DO K=3,KM2
+C           U(K,J,I) = U(K,J,I) + VREF*TU_LEVEL*(RANF() - 0.5)
+C           V(K,J,I) = V(K,J,I) + VREF*TU_LEVEL*(RANF() - 0.5)
+C           W(K,J,I) = W(K,J,I) + VREF*TU_LEVEL*(RANF() - 0.5)
+C        ENDDO
+C        ENDDO
+C        ENDDO
+C      ENDIF
+
+C
+C      RETURN
 C
       ELSEIF(CIDUFR(1:7).EQ.'CHANNEL') THEN
 C
@@ -489,7 +521,7 @@ c------------------------------------------------------------------------
       ELSEIF(CIDUFR(1:10).EQ.'TAYLORVORT') THEN
 
       hx=X(2)-X(1)
-      hy=hx;
+      hy=hx
 
       DO I=1,IMX
          DO J=1,JMX
