@@ -1,0 +1,70 @@
+       SUBROUTINE MGPOINT (IP3,IP2,IP1,IBB,IB3,IBU,IGRID)
+
+C*MGLET*****************************************************************
+C      M G P O I N T         MULTIGRID-VERWALTUNG
+C                            LIEFERT ANFANGSPOSITIONEN DES 
+C                            GITTERS IGRID IN EINDIMENSIONALEM FELD
+C*MGLET*****************************************************************
+C
+C PARAM: IP3      : + POINTER FUER 3D-FELDER
+C        IP2      : + POINTER FUER 2D-FELDER
+C        IP1      : + POINTER FUER 1D-FELDER
+C        IPB      : + POINTER FUER BUFFER-FELDER
+C        IB3      : + POINTER FUER BUFFER-FELDER 3*2D
+C        IGRID    : - GITTER, FUER DAS DIE GROESSEN GESETZT WERDEN
+C
+C
+C VERS:   8. 4.93 (MM)  : ORIGINAL
+C         22.04.98 (AO) : IB3 FUER DYNAMISCHES MODELL BUFFER-FELD
+C
+C
+C*MGLET*****************************************************************
+C
+#include "mgpar.h"
+#include "comgrid.h"
+C
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+C                           UEBERPRUEFUNGEN
+
+      IF (IGRID .GT. MAXGRIDS) CALL ERRR (  555 ,'MGPOINT')
+
+C
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+C
+        IP3   =    IP3D(IGRID)
+        IP2   =    IP2D(IGRID)
+        IP1   =    IP1D(IGRID)
+        IBB   =    IPBB(IGRID)
+        IB3   =    IPB3(IGRID)
+        IBU   =    IPBU(IGRID)
+C
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+C
+      IF ( IP3 .EQ. 0 ) then
+         write(6,*)'mgpoint, igrid, ip3, nof3d:',igrid, ip3, nof3d
+         CALL ERRR (  556 ,'MGPOINT')
+      ENDIF
+      IF ( IP2 .EQ. 0 ) CALL ERRR (  557 ,'MGPOINT')
+      IF ( IP1 .EQ. 0 ) CALL ERRR (  558 ,'MGPOINT')
+      IF ( IBB .EQ. 0 ) CALL ERRR (  559 ,'MGPOINT')
+      IF ( IB3 .EQ. 0 ) CALL ERRR (  571 ,'MGPOINT')
+      IF ( IBU .EQ. 0 ) CALL ERRR (  560 ,'MGPOINT')
+C
+C
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+C
+      IF ( IP3 .GT. NOF3D ) then
+          write(6,*)'mgpoint, igrid, ip3, nof3d:',igrid, ip3, nof3d
+         CALL ERRR (  566 ,'MGPOINT')
+      endif
+      IF ( IP2 .GT. NOF2D ) CALL ERRR (  567 ,'MGPOINT')
+      IF ( IP1 .GT. NOF1D ) CALL ERRR (  568 ,'MGPOINT')
+      IF ( IBB .GT. NOFBB ) CALL ERRR (  569 ,'MGPOINT')
+      IF ( IBU .GT. NOFBU ) CALL ERRR (  570 ,'MGPOINT')
+      IF ( IB3 .GT. NOFB3 ) CALL ERRR (  572 ,'MGPOINT')
+C
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+C
+
+      RETURN
+      END

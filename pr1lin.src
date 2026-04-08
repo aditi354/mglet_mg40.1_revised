@@ -1,0 +1,195 @@
+      SUBROUTINE PR1LIN  (PHI,JEB,CAPHI,KKNL,JJAL,ILIMXP,CORD,CABS,
+     $                    CREFOR,CREFAB,K1,KS,K2,JBEG,JEND,IBEG,IEND,
+     $                    SPHI,JJSL,NRRUN,LINPRN,KANAL)
+C*STARLET***************************************************************
+C        P R 1 L I N      AUSGABE DER "LINIEN"-FELDER
+C                         (KORRELATIONSFUNKTIONEN, -KOEFFIZIENTEN,
+C                         LEISTUNGSDICHTESPEKTREN UND HAEUFIGKEITS-
+C                         VERTEILUNGEN)
+C*STARLET***************************************************************
+C
+C PARAM: PHI (KKNL,     - BELIEBIGES "LINIEN"-FELD
+C        JJAL,ILIMXP)
+C        JEB            - GIBT AN, IN WELCHER J-EBENE DIE ABSZISSENWERTE
+C                         STEHEN
+C        CAPHI          - CHARACTER (LEN=16) VARIABLE ZUR BEZEICHNUNG DES
+C                         FELDES
+C        KKNL,JJAL,     - ARRAYDIMENSIONEN
+C        ILIMXP
+C        CORD           - CHARACTER (LEN=16) VARIABLE ZUR KENNZEICHNUNG
+C                         DER ORDINATE
+C        CABS           - CHARACTER (LEN=16) VARIABLE ZUR KENNZEICHNUNG
+C                         DER ABSZISSE
+C        CREFOR         - CHARACTER (LEN=3)2 VARIABLE (REFERENZGROESSE
+C                         FUER DIE ORDINATENWERTE)
+C        CREFAB         - CHARACTER (LEN=3)2 VARIABLE (REFERENZGROESSE
+C                         FUER DIE ABSZISSENWERTE)
+C        K1             - STARTINDEX FUER DIE AUSZUGEBENDE "LINIE"
+C        KS             - INKREMENT FUER DIE AUSZUGEBENDE "LINIE"
+C        K2             + ENDINDEX FUER DIE AUSZUGEBENDE "LINIE"
+C        JBEG,JEND      - GRENZEN D. DO-SCHLEIFEN F. J-RICHTUNG
+C        IBEG,IEND      - GRENZEN D. DO-SCHLEIFEN F. I-RICHTUNG
+C        SPHI(KKNL,     - BELIEBIGES SUMMATIONS-"LINIEN"-FELD
+C        JJSL,ILIMXP)
+C        JJSL           - J-DIMENSION DES SUMMATIONSFELDES
+C        NRRUN          - LAUFNUMMER
+C        LINPRN         - LOGISCHE VARIABLE:
+C                         .FALSE. : ES WERDEN NUR DIE INFORMATIONEN WIE
+C                                   MAXIMA, MINIMA, INTEGRALE LAENGEN-
+C                                   MASSE ETC. AUSGEGEBEN. DAS EIGENT-
+C                                   LICHE FELD WIRD JEDOCH NICHT AUS-
+C                                   GEGEBEN
+C                         .TRUE.  : INFORMATIONEN + FELD WERDEN AUSGE-
+C                                   GEBEN
+C
+C DEFINE DIREKTIVEN     : KEINE
+C
+C UPROG                 : ERRR, PR1LIH
+C
+C        16.12.88 (HW)  : ORIGINAL AUS PR1D (MSTARW3) ABGELEITET
+C        27.12.88 (HW)  : SUMMATIONSFELD WIRD UEBERGEBEN
+C
+C*STARLET***************************************************************
+C
+      CHARACTER (LEN=16)  CAPHI, CORD, CABS
+      CHARACTER (LEN=32)  CREFOR,  CREFAB
+C
+      LOGICAL         LINPRN
+C
+      REAL            PHI (KKNL,JJAL,ILIMXP),  SPHI (KKNL,JJSL,ILIMXP)
+C
+      IF(JEB .NE. 1  .AND.  JEB .NE. 2) CALL ERRR (501,' PR1LIN   ')
+C
+      WRITE(KANAL,6000) (CAPHI,I=1,7)
+C
+      DO 100 IL = IBEG,IEND
+         NPRTOT = IFIX ( PHI (KKNL-13, 1, IL))
+         NPRRUN = IFIX (SPHI (KKNL-13, 1, IL))
+         IF(NPRTOT .GT. 0) THEN
+            WRITE (KANAL,6040) NPRTOT, NRRUN, NPRRUN,
+     $                     CREFOR, CREFAB
+            KAUFP  = IFIX (PHI (KKNL- 1, 1, IL))
+            JAUFP  = IFIX (PHI (KKNL- 2, 1, IL))
+            IAUFP  = IFIX (PHI (KKNL- 3, 1, IL))
+            ZAUFP  =       PHI (KKNL- 6, 1, IL)
+            YAUFP  =       PHI (KKNL- 7, 1, IL)
+            XAUFP  =       PHI (KKNL- 8, 1, IL)
+            NPOINT = IFIX (PHI (KKNL-12, 1, IL))
+            WRITE (KANAL,6050) CAPHI, KAUFP, JAUFP, IAUFP,
+     $                            ZAUFP, YAUFP, XAUFP
+            IF(CAPHI(1:3) .EQ. ' R_') THEN
+               ALINT  =       PHI (KKNL-22, 1, IL)
+               WRITE (KANAL,6060) NPOINT, ALINT
+            END IF
+            IF(CAPHI(1:4) .EQ. ' RC_') THEN
+               ORDMAX =       PHI (KKNL-16, 1, IL)
+               PEAKMA =       PHI (KKNL-20, 1, IL)
+               ORDMIN =       PHI (KKNL-17, 1, IL)
+               PEAKMI =       PHI (KKNL-21, 1, IL)
+               WRITE (KANAL,6065) ORDMAX, PEAKMA, ORDMIN, PEAKMI
+            END IF
+            IF(CAPHI(1:3) .EQ. ' S_') THEN
+               ORDMAX =       PHI (KKNL-16, 1, IL)
+               PEAKMA =       PHI (KKNL-20, 1, IL)
+               WRITE (KANAL,6070) ORDMAX, PEAKMA
+            END IF
+            K2   = NPOINT
+C
+C                                 PLAUSIBILITAETSTEST
+C
+            IF(K1 .LT. 1 .OR. K1 .GT. K2) CALL ERRR(301,' PR1LIN   ')
+            IF(K2 .GT. KKNL)              CALL ERRR(302,' PR1LIN   ')
+            FM   = FLOAT(K2-K1)/FLOAT(KS)
+            KM   = IFIX(FM)+1
+            FM   = FLOAT(KM)/9.
+            KS9  = 9*KS
+            K9   = IFIX(FM)*KS9 + K1 - 1
+            DO 110 J = JBEG,JEND
+               IF(CAPHI(1:8) .EQ. ' H (ATAN') THEN
+                  ORDMAX =       PHI (KKNL-16, J, IL)
+                  PEAKMA =       PHI (KKNL-20, J, IL)
+                  ORDMIN =       PHI (KKNL-17, J, IL)
+                  PEAKMI =       PHI (KKNL-21, J, IL)
+                  IF(J .EQ. 2) THEN
+                     WRITE (KANAL,6080)
+                  END IF
+                  WRITE (KANAL,6090) ORDMAX, PEAKMA, ORDMIN, PEAKMI
+               END IF
+               IF(LINPRN) THEN
+                  WRITE (KANAL,6001)
+                  KANF = K1
+                  IF((K9-K1+1) .GE. KS9) THEN
+                     DO 200 K=K1,K9,KS9
+                        KANF = K
+                        KEND = K + KS9 -1
+                        CALL PR1LIH  (PHI,KKNL,JJAL,ILIMXP,JEB,J,IL,
+     $                                KANF,KS,KEND,CABS,CORD)
+  200                CONTINUE
+                     KANF = KANF + KS9
+                  END IF
+                  IF(KANF .LE. K2) THEN
+                     CALL PR1LIH  (PHI,KKNL,JJAL,ILIMXP,JEB,J,IL,
+     $                             KANF,KS,K2,CABS,CORD)
+                  END IF
+               END IF
+  110       CONTINUE
+         END IF
+  100 CONTINUE
+      RETURN
+C
+ 6000 FORMAT(/,1X,6(A16,2H- ),A16,1H-,/)
+ 6001 FORMAT (/)
+ 6040 FORMAT (/,1X,'GESAMTANZAHL DER STICHPROBEN FUER DIE FOLGENDEN',
+     $        ' ENSEMBLE-MITTELWERTE      : ',I8,/,1X,'DAVON WURDEN',
+     $        ' WAEHREND DES VORLIEGENDEN LAUFES (NRRUN = ',I6,
+     $        ') ERZEUGT',4X,': ',I8,
+     $        /,1X,'ALS  B E Z U G S G R O E S S E  FUER DIE',
+     $        ' ORDINATE WURDE GEWAEHLT          : ',A32,
+     $        /,1X,'ALS  B E Z U G S G R O E S S E  FUER DIE',
+     $        ' ABSZISSE WURDE GEWAEHLT          : ',A32)
+ 6050 FORMAT (  1X,'LAGE DES AUFPUNKTES VON ',A16,'       ',
+     $        '                           : K = ABS(',I5,') J =',
+     $        ' ABS(',I5,') I = ABS(',I5,')',/,75X,
+     $        ': Z = ',1PE10.3,' Y = ',1PE10.3,' X = ',1PE10.3)
+ 6060 FORMAT (  1X,'INTEGRALES LAENGENMASS (TRAPEZREGEL VON M = 1 .',
+     $        ' .. M = ',I4,')              : L_INT = ',1PE12.5)
+ 6065 FORMAT (1X,'MAXIMALWERT DES KORRELATIONSKOEFFIZIENTE',
+     $        'N                                 : ',1PE12.5,
+     $        ' (POSITION = ',1PE12.5,')',/,
+     $        1X,'MINIMALWERT DES KORRELATIONSKOEFFIZIENTE',
+     $        'N                                 : ',1PE12.5,
+     $        ' (POSITION = ',1PE12.5,')')
+ 6070 FORMAT (1X,'MAXIMALWERT DES LEISTUNGSDICHTESPEKTRUMS',
+     $        '                                  : ',1PE12.5,
+     $        ' (WELLENZAHL = ',1PE12.5,')')
+ 6080 FORMAT (1X,'G E W I C H T E T E  HAEUFIGKEITSVERTEILUNG')
+ 6090 FORMAT (1X,'MAXIMALWERT DER RELATIVEN HAEUFIGKEITSVE',
+     $        'RTEILUNG                          : ',1PE12.5,
+     $        ' (WINKEL = ',1PE12.5,')',/,
+     $        1X,'MINIMALWERT DER RELATIVEN HAEUFIGKEITSVE',
+     $        'RTEILUNG                          : ',1PE12.5,
+     $        ' (WINKEL = ',1PE12.5,')')
+      END
+      SUBROUTINE PR1LIH  (PHI,KKNL,JJAL,ILIMXP,JEB,J,IL,K1,KS,K2,
+     $                    CABS,CORD)
+C***********************************************************************
+C  P R 1 L I H            HILFSROUTINE ZUM AUSDRUCKEN DER K-LINIEN
+C                         AUS DEN "LINIEN"-FELDERN
+C************************************************** H.WERNER 16.12.88 **
+C
+      CHARACTER (LEN=16)   CORD, CABS
+      REAL            PHI (KKNL,JJAL,ILIMXP)
+C
+C
+      WRITE (6,6100) CORD, (PHI(K,J,IL),K=K1,K2,KS)
+      WRITE (6,6110) (K,K=K1,K2,KS)
+C
+      WRITE (6,6100) CABS, (PHI(K,JEB,2-JEB+IL*(JEB-1)), K=K1,K2,KS)
+      WRITE (6,6200)
+C
+      RETURN
+C
+ 6100 FORMAT (1X,A16,' : ',9(1PE10.3,1X))
+ 6110 FORMAT (8X,'M',8X,9(4X,I4,3X))
+ 6200 FORMAT (/)
+      END

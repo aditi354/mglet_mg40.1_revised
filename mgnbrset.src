@@ -1,0 +1,144 @@
+         SUBROUTINE MGNBRSET (DDX,DDY,DDZ,DX,DY,DZ,X,Y,Z,BUF,
+     $                        IDIM1D,IDIM2D,NBND)
+C
+C--MGLET----------------------------------------------------------------
+C
+C                   SETZT DIE NACHBARN FUER ALLE VORHANDENEN GITTER
+C                  
+C
+C
+C        16. 2.94 (MM)  : ORIGINAL
+C
+C--MGLET----------------------------------------------------------------
+
+
+#include "mgpar.h"
+#include "colevel.h"
+#include "cobound.h"
+#include "cophyspar.h"
+C
+C
+      REAL    
+     $            X(IDIM1D),     Y(IDIM1D),     Z(IDIM1D),
+     $           DX(IDIM1D),    DY(IDIM1D),    DZ(IDIM1D),
+     $          DDX(IDIM1D),   DDY(IDIM1D),   DDZ(IDIM1D)
+
+      REAL BUF(IDIM2D)
+C
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+C                                    ALLE GITTER JEDES LEVELS WERDEN
+C                                    AUF NACHBARN ABGECHECKT
+C
+      DO ILEVEL = MINLEVEL,MAXLEVEL
+
+        DO I = 1, NOFLEVEL(ILEVEL)
+          IGRID = IGRDOFLEVEL(I,ILEVEL)
+
+C
+C                                    ALLE RICHTUNGEN WERDEN UNTERSUCHT
+C
+
+          DO IDIR = 1,6
+
+C
+C                                    BIS JETZT DUERFEN NUR DIE 
+C                                    DEFINIERTEN RANDBED. EXISTIEREN
+C
+            IF (NBOCONDS(IDIR,IGRID) .NE. NBOCD(IDIR,IGRID)) THEN
+                CALL ERRR (501,'MGNBRSET')
+            ENDIF
+C
+C                                    WO DIE RANDBEDINGUNG "CONNECT"
+C                                    VORKOMMT, MUSS GESUCHT WERDEN
+
+            DO IBOC = 1,NBOCD(IDIR,IGRID)
+              IBOCACT = IBOC
+              IF (ITYPBOCONDS(IBOC,IDIR,IGRID) .EQ. 7) THEN
+C                                    
+                IF (LBOGRIDS(IBOC,IDIR,IGRID) .EQ. -1) THEN
+C
+C                                    HIER SIND NOCH KEINE NACHBARN 
+C                                    EXPLIZIT GESETZT
+
+                  INBRFOUND = 0
+C                                    DAS FELD BUF STELLT DIE RANDFLAECHE
+C                                                                    DAR
+                  CALL DPHI0   (IDIM2D,1,1,IDIM2D,1,1,BUF)
+
+C                                    PERIODIZITAETEN DER GEOMTRIE
+                  DO IPER = 0,NXPER
+                  DO IPM  = -1,1,2
+                  DO JPER = 0,NYPER
+                  DO JPM  = -1,1,2
+                  DO KPER = 0,NZPER
+                  DO KPM  = -1,1,2
+
+                    XSHIFT = FLOAT(IPM*IPER) * XPER
+                    YSHIFT = FLOAT(JPM*JPER) * YPER
+                    ZSHIFT = FLOAT(KPM*KPER) * ZPER
+
+C                                    ALLE GITTER EINES LEVELS, DIE 
+C                                    DRUCKKORREKTUR DURCHLAUFEN, KOENNEN
+C                                    NACHBARN SEIN
+
+                    DO I2 = 1, NOFVPIT(ILEVEL)
+                    IGRID2 = IGRDOFVPIT(I2,ILEVEL)
+
+                    CALL MGNBRCHECK (IGRID,IBOCACT,IDIR,IGRID2,
+     $                               IDIM1D,IDIM2D,
+     $                               NBND,X,Y,Z,XSHIFT,YSHIFT,ZSHIFT,
+     $                               BUF,IFOUND,ICOMPLETE)
+
+C                                      REICHEN DIE NACHBARN AUS ???
+
+                    IF (ICOMPLETE .EQ. 1) GOTO 100
+
+                    IF (IFOUND .EQ. 1) THEN
+
+C
+C                                     ES WURDE EIN NACHBAR GEFUNDEN
+C                                     ABER ES WERDEN NOCH WELCHE 
+C                                     BENOETIGT
+C
+                      NBOCONDS(IDIR,IGRID) = NBOCONDS(IDIR,IGRID)+1
+                      IBOCACT = NBOCONDS(IDIR,IGRID)
+C
+C                                     FUER NEUE RANDBED. MUSS KENNSTRING
+C                                     GESETZT WERDEN
+
+                      IF (IDIR.EQ.1)  FRONT(IBOCACT,IGRID) = 'FRCON'
+                      IF (IDIR.EQ.2)   BACK(IBOCACT,IGRID) = 'BACON'
+                      IF (IDIR.EQ.3)  RIGHT(IBOCACT,IGRID) = 'RICON'
+                      IF (IDIR.EQ.4)   LEFT(IBOCACT,IGRID) = 'LECON'
+                      IF (IDIR.EQ.5) BOTTOM(IBOCACT,IGRID) = 'BOCON'
+                      IF (IDIR.EQ.6)    TOP(IBOCACT,IGRID) = 'TOCON'
+
+
+                    ENDIF
+
+
+                    ENDDO
+                  ENDDO
+                  ENDDO
+                  ENDDO
+                  ENDDO
+                  ENDDO
+
+                  ENDDO
+                ENDIF
+              ENDIF
+
+  100          CONTINUE
+            ENDDO
+          ENDDO
+        ENDDO
+      ENDDO
+C
+C
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+C
+
+      RETURN
+      END
+
+

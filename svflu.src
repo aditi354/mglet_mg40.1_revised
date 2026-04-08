@@ -1,0 +1,62 @@
+      SUBROUTINE SVFLU(KK,JJ,II,UFR,U,HILF,AU,JJA,NBND,
+     $                 Z,ZBANF,DELTA)
+C--MGLET----------------------------------------------------------
+C
+C     ADDS FLUCTUATIONS TO FRONT-BUFFERS FOR 
+C     "STRUKTUR-PERIODISCHE" BOUNDARY CONDITION
+C
+C        UFR(X0)=UFR(X0) + (U(X) - <U>(X))
+C
+C    10.12.96 (MM.):    ORIGINAL
+C
+C-------10--------20--------30--------40--------50--------60--------7072
+
+      REAL
+     $     UFR(KK,JJ, 2),U(KK,JJ),HILF(KK,JJ),Z(KK)
+      REAL AU(KK,JJA)
+
+C---------------------------------------------------------------------72
+      IF (NBND .LT. 1) CALL ERRR(501,"SVFLU")
+
+#ifndef _SVFLU_TIME_AVERAGE_
+C-------------------------------- AVERAGING IN Y ---------------------72
+
+      FAC = 1./FLOAT(JJ - 2*NBND)
+
+C                                        FIRST VALUE
+      DO K=NBND+1,KK-NBND
+         HILF(K,NBND+1) = FAC*U(K,NBND+1)
+      ENDDO
+
+C                                        SUMMING UP
+
+
+      DO J=NBND+2,JJ-NBND
+         DO K= NBND+1,KK-NBND
+            HILF(K,J) = HILF(K,J-1) + FAC*U(K,J)
+         ENDDO
+      ENDDO
+C                                      AVERAGE IS IN HILF(K,JJ-NBND)
+#endif
+C------------------------------------- NOW ADDING FLUCTUATIONS -------72
+
+      DO K=NBND+1,KK-NBND
+        DISTANCE = (ZBANF+DELTA-Z(K))/DELTA
+        FAK = EXP( MIN( 0.0,DISTANCE))**4
+CCC		write (6,*) 'svflu:',z(k),distance,fak
+        DO J=   NBND+1,JJ-NBND
+
+#ifdef _SVFLU_TIME_AVERAGE_
+           JAV = MIN(JJA,J)
+           UFR(K,J,2)=UFR(K,J,2) + (U(K,J)-AU(K,JAV))*FAK
+#else
+           UFR(K,J,2)=UFR(K,J,2) + (U(K,J)-HILF(K,JJ-NBND))*FAK
+#endif
+
+        ENDDO
+      ENDDO
+
+C---------------------------------------------------------------------72
+
+      RETURN
+      END

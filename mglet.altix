@@ -1,0 +1,65 @@
+CPP=cpp
+#
+###############################################################################################################
+#
+#CPPFLAGS= -P -traditional -I/usr/local/sys/mpi_shmem/include
+#CPPFLAGS= -P -traditional -I/usr/local/sys/mpi_shmem/include -I/afs/lrz-muenchen.de/home/a/a283214/PAPI/include
+#CPPFLAGS= -P -traditional -I/usr/local/sys/mpi/include
+#
+#CPPFLAGS= -P -traditional -I/usr/include 
+CPPFLAGS= -P -traditional  -DSHMEM
+
+#
+###############################################################################################################
+#
+#F90=efc
+#F90=ifort
+#F90=/usr/local/sys/intel/compiler70/ia64/bin/ifc
+
+F90=ifort
+F77=ifort
+
+#
+###############################################################################################################
+#
+#FFLAGS= -pad -Zp16  -i8 -r8 -c 
+#FFLAGS= -O2  -r8 -c -fno-alias -ftz -align dcommons
+#FFLAGS= -O3  -r8 -c -save -fno-alias -ftz -align dcommons -override_limits -mP3OPT_ecg_mm_fp_ld_latency=20
+#FFLAGS= -O3  -c -save -ftz -align all -override_limits -mP3OPT_ecg_mm_fp_ld_latency=20
+#FFLAGS= -O3  -c  -save -zero -fno-alias -align all -mp -pad -Zp16 -override_limits -mP3OPT_ecg_mm_fp_ld_latency=20
+FFLAGS= -ftz -O3  -c  -save -zero -fno-alias  -traceback -noalign -align dcommons
+#
+#OPT_mlet= -O1 
+#
+###############################################################################################################
+#
+#OPTIONS    = -O0 -mp -WB
+#OPTIONS    = -O0 -qp
+#OPTIONS    = -O0 -g -mp        
+#OPTIONS    = -O0 -tpp2 -mp
+#OPTIONS    = -O2 -fno-alias -ftz  -check bounds -traceback
+#OPTIONS    = -r8 -O3 -fno-alias -ftz -align dcommons  -override_limits
+#
+#OPTIONS    = -O3 -tpp2 
+#
+#OPTIONS    = -fast
+#
+NOPTIONS   =
+#
+#
+###############################################################################################################
+#
+#LOPTIONS   = -qp -static
+#LOPTIONS   =  -L$(HOME)/mpi.special/lib  -llmpe -lmpe  -lpmpich /afs/lrz-muenchen.de/home/a/a283214/PAPI/lib/libpapi.a -static -Vaxlib
+#LOPTIONS   =  -L$(HOME)/mpi.special/lib   /afs/lrz-muenchen.de/home/a/a283214/PAPI/lib/libpapi.a -mpilog     -Vaxlib -static 
+#LOPTIONS   =  -L$(HOME)/mpi.special/lib    /afs/lrz-muenchen.de/home/a/a283214/PAPI/lib/libpapi.a -lmpich -lfmpich   -Vaxlib -static 
+#LOPTIONS   =  -L$(HOME)/mpi.special/lib    /afs/lrz-muenchen.de/home/a/a283214/PAPI/lib/libpapi.a -lmpich -lfmpich   -Vaxlib -static 
+#LOPTIONS   =  -L/usr/local/sys/mpi_shmem/lib -lmpich -lpmpich -lfmpich -static -mpitrace -Vaxlib
+#LOPTIONS   =  -L/usr/local/sys/mpi_shmem/lib  -lfmpich -llmpe -lmpe   -lpmpich -lm -mpilog /afs/lrz-muenchen.de/home/a/a283214/PAPI/lib/libpapi.a -static -Vaxlib
+#LOPTIONS   =  -L/usr/local/sys/mpi_shmem/lib -lmpich -lpmpich -lfmpich -mpitrace /afs/lrz-muenchen.de/home/a/a283214/PAPI/lib/libpapi.a -static -Vaxlib
+#LOPTIONS   =  -L/usr/local/sys/mpi_shmem/lib -lmpich -lpmpich -lfmpich -mpitrace /afs/lrz-muenchen.de/home/a/a283214/PAPI/lib/libpapi.a -static -Vaxlib
+#LOPTIONS   =  -L$(HOME)/mpi.special/lib   -L/usr/local/sys/vt4/lib -lVT /afs/lrz-muenchen.de/home/a/a283214/PAPI/lib/libpapi.a -lmpich -lfmpich   -Vaxlib -static 
+#
+LOPTIONS   =  -lmpi  -Vaxlib
+#
+LIBRARY    = ./qpack/libQPack.a

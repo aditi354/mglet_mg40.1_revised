@@ -1,0 +1,671 @@
+      SUBROUTINE STMIM1  (DREAD,DCONT,NPRNEU,FPRNEU,
+     $                    ILINT0,ILINTX,ILINTY,ILINTZ,
+#include "cstac1.h"
+C*STARLET***************************************************************
+C        S T M I M 1      IN STMIM1 WERDEN DIE ALTEN ENSEMBLE-
+C                         MITTELWERTE VON KORRELATIONSFUNKTIONEN,
+C                         -KOEFFIZIENTEN, LEISTUNGSDICHTESPEKTREN UND
+C                         HAEUFIGKEITSVERTEILUNGEN (ALLGEMEIN: ALLE
+C                         "LINIEN"-FELDER) VERBESSERT. DIE GEWICHTUNG
+C                         DER ALTEN (WAEHREND DER VORANGEGANGENEN LAEUFE
+C                         ERZEUGT) UND DER NEUEN ENSEMBLE-MITTELWERTE
+C                         (WAEHREND DES MOMENTANEN LAUFES ERZEUGT)
+C                         ERGIBT SICH AUS DEM VERHAELTNIS DER ANZAHL
+C                         DER STICHPROBEN, DIE ZU DEN JEWEILIGEN
+C                         MITTELWERTEN FUEHRTEN.
+C
+C                         STMIM1 DIENT DAZU, DIE FELDER AUSZUWAEHLEN,
+C                         DEREN ENSEMBLE-MITTELWERT VERBESSERT WERDEN
+C                         SOLL. DIE EIGENTLICHE ARITHMET. OPERATION
+C                         FINDET IN SUBR. STMNLI STATT.
+C  A C H T U N G:         DIESE ROUTINE MUSS ERWEITERT WERDEN, FALLS
+C                         DIE STATIST. AUSWERTUNG ERWEITERT WIRD !
+C*STARLET***************************************************************
+C
+C PARAM: DREAD          - DREAD = .T. : DIE WAEHREND DES VORANGEGANGENEN
+C                         LAUFES ERZEUGTEN ENSEMBLE-MITTELWERTE WERDEN
+C                         EINGELESEN.
+C                         DREAD = .F. : ES FINDET EINE VORBELEGUNG MIT
+C                         "BESTMOEGLICHEN" ENSEMBLE-MITTELWERTEN STATT.
+C        DCONT          - DCONT = .T. .AND. DREAD = .T. : DIE GEWICH-
+C                         TUNG DER "ALTEN" ENSEMBLE-MITTELWERTE ERFOLGT
+C                         ENTSPRECHEND DER ANZAHL DER "ALTEN" STICH-
+C                         PROBEN.
+C
+C                         DCONT = .F. .AND. DREAD = .T. : DIE "ALTEN"
+C                         ENSEMBLE-MITTELWERTE WERDEN MIT NPRNEU
+C                         STICHPROBEN GEWICHTET.
+C        NPRNEU         - SIEHE BESCHREIBUNG  "DCONT"
+C        ILINT0         - ANZAHL DER AUFPUNKTE MIT RICHTUNGSINFORMATION
+C                         '0' + 1 (AUFPKT. IN DEN I-LINES 2 ... ILINT0)
+C        ILINTX         - ANZAHL DER AUFPUNKTE MIT RICHTUNGSINFORMATION
+C                         'X' + 1 (AUFPKT. IN DEN I-LINES 2 ... ILINTX)
+C        ILINTY         - ANZAHL DER AUFPUNKTE MIT RICHTUNGSINFORMATION
+C                         'Y' + 1 (AUFPKT. IN DEN I-LINES 2 ... ILINTY)
+C        ILINTZ         - ANZAHL DER AUFPUNKTE MIT RICHTUNGSINFORMATION
+C                         'Z' + 1 (AUFPKT. IN DEN I-LINES 2 ... ILINTZ)
+#include "cstap1.h"
+C
+C UPROG                 : STMNLI
+C
+C DEFINE-DIREKTIVEN     : KEINE
+C
+C        14.12.88 (HW)  : ORIGINAL AUS STMIMP ABGELEITET
+C
+C*STARLET***************************************************************
+C
+      LOGICAL  DREAD,  DCONT
+C
+#include "cstad1.h"
+C
+C                                 STATIST. GROESSEN DER U-KOMPONENTE
+C                                 ----------------------------------
+C
+      IF(ISELEP(1, 14) .EQ. 1 .OR. ISELEP(1, 14) .EQ. 2) THEN
+         NPROLD = ISELEA(2, 14)
+         IF(ISELEP(2, 14) .GT. 0) THEN
+            NPRRUS = ISELEP(2, 14)
+            CALL STMNLI  (ARXUU  ,JJ2L,SRXUU  ,JJ1L,KKXL,ILIMXP,
+     $                    2  ,ILINTX, 1 , 1 , 1 ,KKXL-LINFB,
+     $                    NPROLD,NPRRUS,DREAD,DCONT,NPRNEU)
+         ENDIF
+         ISELEA(2, 14) = NPROLD
+         ISELEP(2, 14) = ISELEP(2, 14) + NPROLD
+      ENDIF
+      IF(ISELEP(1, 16) .EQ. 1 .OR. ISELEP(1, 16) .EQ. 2) THEN
+         NPROLD = ISELEA(2, 16)
+         IF(ISELEP(2, 16) .GT. 0) THEN
+            NPRRUS = ISELEP(2, 16)
+            CALL STMNLI  (ARYUU  ,JJ2L,SRYUU  ,JJ1L,KKYL,ILIMXP,
+     $                    2  ,ILINTY, 1 , 1 , 1 ,KKYL-LINFB,
+     $                    NPROLD,NPRRUS,DREAD,DCONT,NPRNEU)
+         ENDIF
+         ISELEA(2, 16) = NPROLD
+         ISELEP(2, 16) = ISELEP(2, 16) + NPROLD
+      ENDIF
+      IF(ISELEP(1, 18) .EQ. 1 .OR. ISELEP(1, 18) .EQ. 2) THEN
+         NPROLD = ISELEA(2, 18)
+         IF(ISELEP(2, 18) .GT. 0) THEN
+            NPRRUS = ISELEP(2, 18)
+            CALL STMNLI  (ARZUU  ,JJ2L,SRZUU  ,JJ1L,KKZL,ILIMXP,
+     $                    2  ,ILINTZ, 1 , 1 , 1 ,KKZL-LINFB,
+     $                    NPROLD,NPRRUS,DREAD,DCONT,NPRNEU)
+         ENDIF
+         ISELEA(2, 18) = NPROLD
+         ISELEP(2, 18) = ISELEP(2, 18) + NPROLD
+      ENDIF
+      IF(ISELEP(1, 20) .EQ. 1 .OR. ISELEP(1, 20) .EQ. 2) THEN
+         NPROLD = ISELEA(2, 20)
+         IF(ISELEP(2, 20) .GT. 0) THEN
+            NPRRUS = ISELEP(2, 20)
+            CALL STMNLI  (ASXUU  ,JJ1L,SSXUU  ,JJ1L,KSXL,ILIMXP,
+     $                    2  ,ILINTX, 1 , 1 , 1 ,KSXL-LINFB,
+     $                    NPROLD,NPRRUS,DREAD,DCONT,NPRNEU)
+         ENDIF
+         ISELEA(2, 20) = NPROLD
+         ISELEP(2, 20) = ISELEP(2, 20) + NPROLD
+      ENDIF
+      IF(ISELEP(1, 22) .EQ. 1 .OR. ISELEP(1, 22) .EQ. 2) THEN
+         NPROLD = ISELEA(2, 22)
+         IF(ISELEP(2, 22) .GT. 0) THEN
+            NPRRUS = ISELEP(2, 22)
+            CALL STMNLI  (ASYUU  ,JJ1L,SSYUU  ,JJ1L,KSYL,ILIMXP,
+     $                    2  ,ILINTY, 1 , 1 , 1 ,KSYL-LINFB,
+     $                    NPROLD,NPRRUS,DREAD,DCONT,NPRNEU)
+         ENDIF
+         ISELEA(2, 22) = NPROLD
+         ISELEP(2, 22) = ISELEP(2, 22) + NPROLD
+      ENDIF
+      IF(ISELEP(1, 24) .EQ. 1 .OR. ISELEP(1, 24) .EQ. 2) THEN
+         NPROLD = ISELEA(2, 24)
+         IF(ISELEP(2, 24) .GT. 0) THEN
+            NPRRUS = ISELEP(2, 24)
+            CALL STMNLI  (ASZUU  ,JJ1L,SSZUU  ,JJ1L,KSZL,ILIMXP,
+     $                    2  ,ILINTZ, 1 , 1 , 1 ,KSZL-LINFB,
+     $                    NPROLD,NPRRUS,DREAD,DCONT,NPRNEU)
+         ENDIF
+         ISELEA(2, 24) = NPROLD
+         ISELEP(2, 24) = ISELEP(2, 24) + NPROLD
+      ENDIF
+C
+C                                 STATIST. GROESSEN DER V-KOMPONENTE
+C                                 ----------------------------------
+C
+      IF(ISELEP(1, 39) .EQ. 1 .OR. ISELEP(1, 39) .EQ. 2) THEN
+         NPROLD = ISELEA(2, 39)
+         IF(ISELEP(2, 39) .GT. 0) THEN
+            NPRRUS = ISELEP(2, 39)
+            CALL STMNLI  (ARXVV  ,JJ2L,SRXVV  ,JJ1L,KKXL,ILIMXP,
+     $                    2  ,ILINTX, 1 , 1 , 1 ,KKXL-LINFB,
+     $                    NPROLD,NPRRUS,DREAD,DCONT,NPRNEU)
+         ENDIF
+         ISELEA(2, 39) = NPROLD
+         ISELEP(2, 39) = ISELEP(2, 39) + NPROLD
+      ENDIF
+      IF(ISELEP(1, 41) .EQ. 1 .OR. ISELEP(1, 41) .EQ. 2) THEN
+         NPROLD = ISELEA(2, 41)
+         IF(ISELEP(2, 41) .GT. 0) THEN
+            NPRRUS = ISELEP(2, 41)
+            CALL STMNLI  (ARYVV  ,JJ2L,SRYVV  ,JJ1L,KKYL,ILIMXP,
+     $                    2  ,ILINTY, 1 , 1 , 1 ,KKYL-LINFB,
+     $                    NPROLD,NPRRUS,DREAD,DCONT,NPRNEU)
+         ENDIF
+         ISELEA(2, 41) = NPROLD
+         ISELEP(2, 41) = ISELEP(2, 41) + NPROLD
+      ENDIF
+      IF(ISELEP(1, 43) .EQ. 1 .OR. ISELEP(1, 43) .EQ. 2) THEN
+         NPROLD = ISELEA(2, 43)
+         IF(ISELEP(2, 43) .GT. 0) THEN
+            NPRRUS = ISELEP(2, 43)
+            CALL STMNLI  (ARZVV  ,JJ2L,SRZVV  ,JJ1L,KKZL,ILIMXP,
+     $                    2  ,ILINTZ, 1 , 1 , 1 ,KKZL-LINFB,
+     $                    NPROLD,NPRRUS,DREAD,DCONT,NPRNEU)
+         ENDIF
+         ISELEA(2, 43) = NPROLD
+         ISELEP(2, 43) = ISELEP(2, 43) + NPROLD
+      ENDIF
+      IF(ISELEP(1, 45) .EQ. 1 .OR. ISELEP(1, 45) .EQ. 2) THEN
+         NPROLD = ISELEA(2, 45)
+         IF(ISELEP(2, 45) .GT. 0) THEN
+            NPRRUS = ISELEP(2, 45)
+            CALL STMNLI  (ASXVV  ,JJ1L,SSXVV  ,JJ1L,KSXL,ILIMXP,
+     $                    2  ,ILINTX, 1 , 1 , 1 ,KSXL-LINFB,
+     $                    NPROLD,NPRRUS,DREAD,DCONT,NPRNEU)
+         ENDIF
+         ISELEA(2, 45) = NPROLD
+         ISELEP(2, 45) = ISELEP(2, 45) + NPROLD
+      ENDIF
+      IF(ISELEP(1, 47) .EQ. 1 .OR. ISELEP(1, 47) .EQ. 2) THEN
+         NPROLD = ISELEA(2, 47)
+         IF(ISELEP(2, 47) .GT. 0) THEN
+            NPRRUS = ISELEP(2, 47)
+            CALL STMNLI  (ASYVV  ,JJ1L,SSYVV  ,JJ1L,KSYL,ILIMXP,
+     $                    2  ,ILINTY, 1 , 1 , 1 ,KSYL-LINFB,
+     $                    NPROLD,NPRRUS,DREAD,DCONT,NPRNEU)
+         ENDIF
+         ISELEA(2, 47) = NPROLD
+         ISELEP(2, 47) = ISELEP(2, 47) + NPROLD
+      ENDIF
+      IF(ISELEP(1, 49) .EQ. 1 .OR. ISELEP(1, 49) .EQ. 2) THEN
+         NPROLD = ISELEA(2, 49)
+         IF(ISELEP(2, 49) .GT. 0) THEN
+            NPRRUS = ISELEP(2, 49)
+            CALL STMNLI  (ASZVV  ,JJ1L,SSZVV  ,JJ1L,KSZL,ILIMXP,
+     $                    2  ,ILINTZ, 1 , 1 , 1 ,KSZL-LINFB,
+     $                    NPROLD,NPRRUS,DREAD,DCONT,NPRNEU)
+         ENDIF
+         ISELEA(2, 49) = NPROLD
+         ISELEP(2, 49) = ISELEP(2, 49) + NPROLD
+      ENDIF
+C
+C                                 STATIST. GROESSEN DER W-KOMPONENTE
+C                                 ----------------------------------
+C
+      IF(ISELEP(1, 64) .EQ. 1 .OR. ISELEP(1, 64) .EQ. 2) THEN
+         NPROLD = ISELEA(2, 64)
+         IF(ISELEP(2, 64) .GT. 0) THEN
+            NPRRUS = ISELEP(2, 64)
+            CALL STMNLI  (ARXWW  ,JJ2L,SRXWW  ,JJ1L,KKXL,ILIMXP,
+     $                    2  ,ILINTX, 1 , 1 , 1 ,KKXL-LINFB,
+     $                    NPROLD,NPRRUS,DREAD,DCONT,NPRNEU)
+         ENDIF
+         ISELEA(2, 64) = NPROLD
+         ISELEP(2, 64) = ISELEP(2, 64) + NPROLD
+      ENDIF
+      IF(ISELEP(1, 66) .EQ. 1 .OR. ISELEP(1, 66) .EQ. 2) THEN
+         NPROLD = ISELEA(2, 66)
+         IF(ISELEP(2, 66) .GT. 0) THEN
+            NPRRUS = ISELEP(2, 66)
+            CALL STMNLI  (ARYWW  ,JJ2L,SRYWW  ,JJ1L,KKYL,ILIMXP,
+     $                    2  ,ILINTY, 1 , 1 , 1 ,KKYL-LINFB,
+     $                    NPROLD,NPRRUS,DREAD,DCONT,NPRNEU)
+         ENDIF
+         ISELEA(2, 66) = NPROLD
+         ISELEP(2, 66) = ISELEP(2, 66) + NPROLD
+      ENDIF
+      IF(ISELEP(1, 68) .EQ. 1 .OR. ISELEP(1, 68) .EQ. 2) THEN
+         NPROLD = ISELEA(2, 68)
+         IF(ISELEP(2, 68) .GT. 0) THEN
+            NPRRUS = ISELEP(2, 68)
+            CALL STMNLI  (ARZWW  ,JJ2L,SRZWW  ,JJ1L,KKZL,ILIMXP,
+     $                    2  ,ILINTZ, 1 , 1 , 1 ,KKZL-LINFB,
+     $                    NPROLD,NPRRUS,DREAD,DCONT,NPRNEU)
+         ENDIF
+         ISELEA(2, 68) = NPROLD
+         ISELEP(2, 68) = ISELEP(2, 68) + NPROLD
+      ENDIF
+      IF(ISELEP(1, 70) .EQ. 1 .OR. ISELEP(1, 70) .EQ. 2) THEN
+         NPROLD = ISELEA(2, 70)
+         IF(ISELEP(2, 70) .GT. 0) THEN
+            NPRRUS = ISELEP(2, 70)
+            CALL STMNLI  (ASXWW  ,JJ1L,SSXWW  ,JJ1L,KSXL,ILIMXP,
+     $                    2  ,ILINTX, 1 , 1 , 1 ,KSXL-LINFB,
+     $                    NPROLD,NPRRUS,DREAD,DCONT,NPRNEU)
+         ENDIF
+         ISELEA(2, 70) = NPROLD
+         ISELEP(2, 70) = ISELEP(2, 70) + NPROLD
+      ENDIF
+      IF(ISELEP(1, 72) .EQ. 1 .OR. ISELEP(1, 72) .EQ. 2) THEN
+         NPROLD = ISELEA(2, 72)
+         IF(ISELEP(2, 72) .GT. 0) THEN
+            NPRRUS = ISELEP(2, 72)
+            CALL STMNLI  (ASYWW  ,JJ1L,SSYWW  ,JJ1L,KSYL,ILIMXP,
+     $                    2  ,ILINTY, 1 , 1 , 1 ,KSYL-LINFB,
+     $                    NPROLD,NPRRUS,DREAD,DCONT,NPRNEU)
+         ENDIF
+         ISELEA(2, 72) = NPROLD
+         ISELEP(2, 72) = ISELEP(2, 72) + NPROLD
+      ENDIF
+      IF(ISELEP(1, 74) .EQ. 1 .OR. ISELEP(1, 74) .EQ. 2) THEN
+         NPROLD = ISELEA(2, 74)
+         IF(ISELEP(2, 74) .GT. 0) THEN
+            NPRRUS = ISELEP(2, 74)
+            CALL STMNLI  (ASZWW  ,JJ1L,SSZWW  ,JJ1L,KSZL,ILIMXP,
+     $                    2  ,ILINTZ, 1 , 1 , 1 ,KSZL-LINFB,
+     $                    NPROLD,NPRRUS,DREAD,DCONT,NPRNEU)
+         ENDIF
+         ISELEA(2, 74) = NPROLD
+         ISELEP(2, 74) = ISELEP(2, 74) + NPROLD
+      ENDIF
+C
+C                                  HIER: KREUZKORRELATIONSFUNKTIONEN
+C                                  ---------------------------------
+C
+      IF(ISELEP(1,210) .EQ. 1 .OR. ISELEP(1,210) .EQ. 2) THEN
+         NPROLD = ISELEA(2,210)
+         IF(ISELEP(2,210) .GT. 0) THEN
+            NPRRUS = ISELEP(2,210)
+            CALL STMNLI  (ARXUV  ,JJ2L,SRXUV  ,JJ1L,KKXL,ILIMXP,
+     $                    2  ,ILINTX, 1 , 1 , 1 ,KKXL-LINFB,
+     $                    NPROLD,NPRRUS,DREAD,DCONT,NPRNEU)
+         ENDIF
+         ISELEA(2,210) = NPROLD
+         ISELEP(2,210) = ISELEP(2,210) + NPROLD
+      ENDIF
+      IF(ISELEP(1,212) .EQ. 1 .OR. ISELEP(1,212) .EQ. 2) THEN
+         NPROLD = ISELEA(2,212)
+         IF(ISELEP(2,212) .GT. 0) THEN
+            NPRRUS = ISELEP(2,212)
+            CALL STMNLI  (ARYUV  ,JJ2L,SRYUV  ,JJ1L,KKYL,ILIMXP,
+     $                    2  ,ILINTY, 1 , 1 , 1 ,KKYL-LINFB,
+     $                    NPROLD,NPRRUS,DREAD,DCONT,NPRNEU)
+         ENDIF
+         ISELEA(2,212) = NPROLD
+         ISELEP(2,212) = ISELEP(2,212) + NPROLD
+      ENDIF
+      IF(ISELEP(1,216) .EQ. 1 .OR. ISELEP(1,216) .EQ. 2) THEN
+         NPROLD = ISELEA(2,216)
+         IF(ISELEP(2,216) .GT. 0) THEN
+            NPRRUS = ISELEP(2,216)
+            CALL STMNLI  (ARXUW  ,JJ2L,SRXUW  ,JJ1L,KKXL,ILIMXP,
+     $                    2  ,ILINTX, 1 , 1 , 1 ,KKXL-LINFB,
+     $                    NPROLD,NPRRUS,DREAD,DCONT,NPRNEU)
+         ENDIF
+         ISELEA(2,216) = NPROLD
+         ISELEP(2,216) = ISELEP(2,216) + NPROLD
+      ENDIF
+      IF(ISELEP(1,218) .EQ. 1 .OR. ISELEP(1,218) .EQ. 2) THEN
+         NPROLD = ISELEA(2,218)
+         IF(ISELEP(2,218) .GT. 0) THEN
+            NPRRUS = ISELEP(2,218)
+            CALL STMNLI  (ARYUW  ,JJ2L,SRYUW  ,JJ1L,KKYL,ILIMXP,
+     $                    2  ,ILINTY, 1 , 1 , 1 ,KKYL-LINFB,
+     $                    NPROLD,NPRRUS,DREAD,DCONT,NPRNEU)
+         ENDIF
+         ISELEA(2,218) = NPROLD
+         ISELEP(2,218) = ISELEP(2,218) + NPROLD
+      ENDIF
+      IF(ISELEP(1,224) .EQ. 1 .OR. ISELEP(1,224) .EQ. 2) THEN
+         NPROLD = ISELEA(2,224)
+         IF(ISELEP(2,224) .GT. 0) THEN
+            NPRRUS = ISELEP(2,224)
+            CALL STMNLI  (ARYVW  ,JJ2L,SRYVW  ,JJ1L,KKYL,ILIMXP,
+     $                    2  ,ILINTY, 1 , 1 , 1 ,KKYL-LINFB,
+     $                    NPROLD,NPRRUS,DREAD,DCONT,NPRNEU)
+         ENDIF
+         ISELEA(2,224) = NPROLD
+         ISELEP(2,224) = ISELEP(2,224) + NPROLD
+      ENDIF
+C
+C                                  HIER: KORRELATIONSKOEFFIZIENTEN
+C                                  -------------------------------
+C
+      IF(ISELEP(1,234) .EQ. 1 .OR. ISELEP(1,234) .EQ. 2) THEN
+         NPROLD = ISELEA(2,234)
+         IF(ISELEP(2,234) .GT. 0) THEN
+            NPRRUS = ISELEP(2,234)
+            CALL STMNLI  (ACXUW  ,JJ2L,SCXUW  ,JJ1L,KKXL,ILIMXP,
+     $                    2  ,ILINTX, 1 , 1 , 1 ,KKXL-LINFB,
+     $                    NPROLD,NPRRUS,DREAD,DCONT,NPRNEU)
+         ENDIF
+         ISELEA(2,234) = NPROLD
+         ISELEP(2,234) = ISELEP(2,234) + NPROLD
+      ENDIF
+      IF(ISELEP(1,238) .EQ. 1 .OR. ISELEP(1,238) .EQ. 2) THEN
+         NPROLD = ISELEA(2,238)
+         IF(ISELEP(2,238) .GT. 0) THEN
+            NPRRUS = ISELEP(2,238)
+            CALL STMNLI  (ACZUW  ,JJ2L,SCZUW  ,JJ1L,KKZL,ILIMXP,
+     $                    2  ,ILINTZ, 1 , 1 , 1 ,KKZL-LINFB,
+     $                    NPROLD,NPRRUS,DREAD,DCONT,NPRNEU)
+         ENDIF
+         ISELEA(2,238) = NPROLD
+         ISELEP(2,238) = ISELEP(2,238) + NPROLD
+      ENDIF
+C
+C                                  OBERE DREIECKSMATRIX DES TENSORS
+C                                  DER KORRELATIONSFUNKTIONEN DER
+C                                  FLUKTUATIONEN DER VORTICITY
+C                                  --------------------------------
+C
+      IF(ISELEP(1,246) .EQ. 1 .OR. ISELEP(1,246) .EQ. 2) THEN
+         NPROLD = ISELEA(2,246)
+         IF(ISELEP(2,246) .GT. 0) THEN
+            NPRRUS = ISELEP(2,246)
+            CALL STMNLI  (ARXOXX ,JJ2L,SRXOXX ,JJ1L,KKXL,ILIMXP,
+     $                    2  ,ILINTX, 1 , 1 , 1 ,KKXL-LINFB,
+     $                    NPROLD,NPRRUS,DREAD,DCONT,NPRNEU)
+         ENDIF
+         ISELEA(2,246) = NPROLD
+         ISELEP(2,246) = ISELEP(2,246) + NPROLD
+      ENDIF
+      IF(ISELEP(1,248) .EQ. 1 .OR. ISELEP(1,248) .EQ. 2) THEN
+         NPROLD = ISELEA(2,248)
+         IF(ISELEP(2,248) .GT. 0) THEN
+            NPRRUS = ISELEP(2,248)
+            CALL STMNLI  (ARXOXY ,JJ2L,SRXOXY ,JJ1L,KKXL,ILIMXP,
+     $                    2  ,ILINTX, 1 , 1 , 1 ,KKXL-LINFB,
+     $                    NPROLD,NPRRUS,DREAD,DCONT,NPRNEU)
+         ENDIF
+         ISELEA(2,248) = NPROLD
+         ISELEP(2,248) = ISELEP(2,248) + NPROLD
+      ENDIF
+      IF(ISELEP(1,250) .EQ. 1 .OR. ISELEP(1,250) .EQ. 2) THEN
+         NPROLD = ISELEA(2,250)
+         IF(ISELEP(2,250) .GT. 0) THEN
+            NPRRUS = ISELEP(2,250)
+            CALL STMNLI  (ARXOXZ ,JJ2L,SRXOXZ ,JJ1L,KKXL,ILIMXP,
+     $                    2  ,ILINTX, 1 , 1 , 1 ,KKXL-LINFB,
+     $                    NPROLD,NPRRUS,DREAD,DCONT,NPRNEU)
+         ENDIF
+         ISELEA(2,250) = NPROLD
+         ISELEP(2,250) = ISELEP(2,250) + NPROLD
+      ENDIF
+      IF(ISELEP(1,252) .EQ. 1 .OR. ISELEP(1,252) .EQ. 2) THEN
+         NPROLD = ISELEA(2,252)
+         IF(ISELEP(2,252) .GT. 0) THEN
+            NPRRUS = ISELEP(2,252)
+            CALL STMNLI  (ARXOYY ,JJ2L,SRXOYY ,JJ1L,KKXL,ILIMXP,
+     $                    2  ,ILINTX, 1 , 1 , 1 ,KKXL-LINFB,
+     $                    NPROLD,NPRRUS,DREAD,DCONT,NPRNEU)
+         ENDIF
+         ISELEA(2,252) = NPROLD
+         ISELEP(2,252) = ISELEP(2,252) + NPROLD
+      ENDIF
+      IF(ISELEP(1,254) .EQ. 1 .OR. ISELEP(1,254) .EQ. 2) THEN
+         NPROLD = ISELEA(2,254)
+         IF(ISELEP(2,254) .GT. 0) THEN
+            NPRRUS = ISELEP(2,254)
+            CALL STMNLI  (ARXOYZ ,JJ2L,SRXOYZ ,JJ1L,KKXL,ILIMXP,
+     $                    2  ,ILINTX, 1 , 1 , 1 ,KKXL-LINFB,
+     $                    NPROLD,NPRRUS,DREAD,DCONT,NPRNEU)
+         ENDIF
+         ISELEA(2,254) = NPROLD
+         ISELEP(2,254) = ISELEP(2,254) + NPROLD
+      ENDIF
+      IF(ISELEP(1,256) .EQ. 1 .OR. ISELEP(1,256) .EQ. 2) THEN
+         NPROLD = ISELEA(2,256)
+         IF(ISELEP(2,256) .GT. 0) THEN
+            NPRRUS = ISELEP(2,256)
+            CALL STMNLI  (ARXOZZ ,JJ2L,SRXOZZ ,JJ1L,KKXL,ILIMXP,
+     $                    2  ,ILINTX, 1 , 1 , 1 ,KKXL-LINFB,
+     $                    NPROLD,NPRRUS,DREAD,DCONT,NPRNEU)
+         ENDIF
+         ISELEA(2,256) = NPROLD
+         ISELEP(2,256) = ISELEP(2,256) + NPROLD
+      ENDIF
+      IF(ISELEP(1,258) .EQ. 1 .OR. ISELEP(1,258) .EQ. 2) THEN
+         NPROLD = ISELEA(2,258)
+         IF(ISELEP(2,258) .GT. 0) THEN
+            NPRRUS = ISELEP(2,258)
+            CALL STMNLI  (ARYOXX ,JJ2L,SRYOXX ,JJ1L,KKYL,ILIMXP,
+     $                    2  ,ILINTY, 1 , 1 , 1 ,KKYL-LINFB,
+     $                    NPROLD,NPRRUS,DREAD,DCONT,NPRNEU)
+         ENDIF
+         ISELEA(2,258) = NPROLD
+         ISELEP(2,258) = ISELEP(2,258) + NPROLD
+      ENDIF
+      IF(ISELEP(1,260) .EQ. 1 .OR. ISELEP(1,260) .EQ. 2) THEN
+         NPROLD = ISELEA(2,260)
+         IF(ISELEP(2,260) .GT. 0) THEN
+            NPRRUS = ISELEP(2,260)
+            CALL STMNLI  (ARYOXY ,JJ2L,SRYOXY ,JJ1L,KKYL,ILIMXP,
+     $                    2  ,ILINTY, 1 , 1 , 1 ,KKYL-LINFB,
+     $                    NPROLD,NPRRUS,DREAD,DCONT,NPRNEU)
+         ENDIF
+         ISELEA(2,260) = NPROLD
+         ISELEP(2,260) = ISELEP(2,260) + NPROLD
+      ENDIF
+      IF(ISELEP(1,262) .EQ. 1 .OR. ISELEP(1,262) .EQ. 2) THEN
+         NPROLD = ISELEA(2,262)
+         IF(ISELEP(2,262) .GT. 0) THEN
+            NPRRUS = ISELEP(2,262)
+            CALL STMNLI  (ARYOXZ ,JJ2L,SRYOXZ ,JJ1L,KKYL,ILIMXP,
+     $                    2  ,ILINTY, 1 , 1 , 1 ,KKYL-LINFB,
+     $                    NPROLD,NPRRUS,DREAD,DCONT,NPRNEU)
+         ENDIF
+         ISELEA(2,262) = NPROLD
+         ISELEP(2,262) = ISELEP(2,262) + NPROLD
+      ENDIF
+      IF(ISELEP(1,264) .EQ. 1 .OR. ISELEP(1,264) .EQ. 2) THEN
+         NPROLD = ISELEA(2,264)
+         IF(ISELEP(2,264) .GT. 0) THEN
+            NPRRUS = ISELEP(2,264)
+            CALL STMNLI  (ARYOYY ,JJ2L,SRYOYY ,JJ1L,KKYL,ILIMXP,
+     $                    2  ,ILINTY, 1 , 1 , 1 ,KKYL-LINFB,
+     $                    NPROLD,NPRRUS,DREAD,DCONT,NPRNEU)
+         ENDIF
+         ISELEA(2,264) = NPROLD
+         ISELEP(2,264) = ISELEP(2,264) + NPROLD
+      ENDIF
+      IF(ISELEP(1,266) .EQ. 1 .OR. ISELEP(1,266) .EQ. 2) THEN
+         NPROLD = ISELEA(2,266)
+         IF(ISELEP(2,266) .GT. 0) THEN
+            NPRRUS = ISELEP(2,266)
+            CALL STMNLI  (ARYOYZ ,JJ2L,SRYOYZ ,JJ1L,KKYL,ILIMXP,
+     $                    2  ,ILINTY, 1 , 1 , 1 ,KKYL-LINFB,
+     $                    NPROLD,NPRRUS,DREAD,DCONT,NPRNEU)
+         ENDIF
+         ISELEA(2,266) = NPROLD
+         ISELEP(2,266) = ISELEP(2,266) + NPROLD
+      ENDIF
+      IF(ISELEP(1,268) .EQ. 1 .OR. ISELEP(1,268) .EQ. 2) THEN
+         NPROLD = ISELEA(2,268)
+         IF(ISELEP(2,268) .GT. 0) THEN
+            NPRRUS = ISELEP(2,268)
+            CALL STMNLI  (ARYOZZ ,JJ2L,SRYOZZ ,JJ1L,KKYL,ILIMXP,
+     $                    2  ,ILINTY, 1 , 1 , 1 ,KKYL-LINFB,
+     $                    NPROLD,NPRRUS,DREAD,DCONT,NPRNEU)
+         ENDIF
+         ISELEA(2,268) = NPROLD
+         ISELEP(2,268) = ISELEP(2,268) + NPROLD
+      ENDIF
+      IF(ISELEP(1,270) .EQ. 1 .OR. ISELEP(1,270) .EQ. 2) THEN
+         NPROLD = ISELEA(2,270)
+         IF(ISELEP(2,270) .GT. 0) THEN
+            NPRRUS = ISELEP(2,270)
+            CALL STMNLI  (ARZOXX ,JJ2L,SRZOXX ,JJ1L,KKZL,ILIMXP,
+     $                    2  ,ILINTZ, 1 , 1 , 1 ,KKZL-LINFB,
+     $                    NPROLD,NPRRUS,DREAD,DCONT,NPRNEU)
+         ENDIF
+         ISELEA(2,270) = NPROLD
+         ISELEP(2,270) = ISELEP(2,270) + NPROLD
+      ENDIF
+      IF(ISELEP(1,272) .EQ. 1 .OR. ISELEP(1,272) .EQ. 2) THEN
+         NPROLD = ISELEA(2,272)
+         IF(ISELEP(2,272) .GT. 0) THEN
+            NPRRUS = ISELEP(2,272)
+            CALL STMNLI  (ARZOXY ,JJ2L,SRZOXY ,JJ1L,KKZL,ILIMXP,
+     $                    2  ,ILINTZ, 1 , 1 , 1 ,KKZL-LINFB,
+     $                    NPROLD,NPRRUS,DREAD,DCONT,NPRNEU)
+         ENDIF
+         ISELEA(2,272) = NPROLD
+         ISELEP(2,272) = ISELEP(2,272) + NPROLD
+      ENDIF
+      IF(ISELEP(1,274) .EQ. 1 .OR. ISELEP(1,274) .EQ. 2) THEN
+         NPROLD = ISELEA(2,274)
+         IF(ISELEP(2,274) .GT. 0) THEN
+            NPRRUS = ISELEP(2,274)
+            CALL STMNLI  (ARZOXZ ,JJ2L,SRZOXZ ,JJ1L,KKZL,ILIMXP,
+     $                    2  ,ILINTZ, 1 , 1 , 1 ,KKZL-LINFB,
+     $                    NPROLD,NPRRUS,DREAD,DCONT,NPRNEU)
+         ENDIF
+         ISELEA(2,274) = NPROLD
+         ISELEP(2,274) = ISELEP(2,274) + NPROLD
+      ENDIF
+      IF(ISELEP(1,276) .EQ. 1 .OR. ISELEP(1,276) .EQ. 2) THEN
+         NPROLD = ISELEA(2,276)
+         IF(ISELEP(2,276) .GT. 0) THEN
+            NPRRUS = ISELEP(2,276)
+            CALL STMNLI  (ARZOYY ,JJ2L,SRZOYY ,JJ1L,KKZL,ILIMXP,
+     $                    2  ,ILINTZ, 1 , 1 , 1 ,KKZL-LINFB,
+     $                    NPROLD,NPRRUS,DREAD,DCONT,NPRNEU)
+         ENDIF
+         ISELEA(2,276) = NPROLD
+         ISELEP(2,276) = ISELEP(2,276) + NPROLD
+      ENDIF
+      IF(ISELEP(1,278) .EQ. 1 .OR. ISELEP(1,278) .EQ. 2) THEN
+         NPROLD = ISELEA(2,278)
+         IF(ISELEP(2,278) .GT. 0) THEN
+            NPRRUS = ISELEP(2,278)
+            CALL STMNLI  (ARZOYZ ,JJ2L,SRZOYZ ,JJ1L,KKZL,ILIMXP,
+     $                    2  ,ILINTZ, 1 , 1 , 1 ,KKZL-LINFB,
+     $                    NPROLD,NPRRUS,DREAD,DCONT,NPRNEU)
+         ENDIF
+         ISELEA(2,278) = NPROLD
+         ISELEP(2,278) = ISELEP(2,278) + NPROLD
+      ENDIF
+      IF(ISELEP(1,280) .EQ. 1 .OR. ISELEP(1,280) .EQ. 2) THEN
+         NPROLD = ISELEA(2,280)
+         IF(ISELEP(2,280) .GT. 0) THEN
+            NPRRUS = ISELEP(2,280)
+            CALL STMNLI  (ARZOZZ ,JJ2L,SRZOZZ ,JJ1L,KKZL,ILIMXP,
+     $                    2  ,ILINTZ, 1 , 1 , 1 ,KKZL-LINFB,
+     $                    NPROLD,NPRRUS,DREAD,DCONT,NPRNEU)
+         ENDIF
+         ISELEA(2,280) = NPROLD
+         ISELEP(2,280) = ISELEP(2,280) + NPROLD
+      ENDIF
+C
+C                                  LEISTUNGSDICHTESPEKTREN DER
+C                                  FLUKTUATIONEN DER VORTICITY
+C                                  ----------------------------
+C
+      IF(ISELEP(1,282) .EQ. 1 .OR. ISELEP(1,282) .EQ. 2) THEN
+         NPROLD = ISELEA(2,282)
+         IF(ISELEP(2,282) .GT. 0) THEN
+            NPRRUS = ISELEP(2,282)
+            CALL STMNLI  (ASXOXX ,JJ1L,SSXOXX ,JJ1L,KSXL,ILIMXP,
+     $                    2  ,ILINTX, 1 , 1 , 1 ,KSXL-LINFB,
+     $                    NPROLD,NPRRUS,DREAD,DCONT,NPRNEU)
+         ENDIF
+         ISELEA(2,282) = NPROLD
+         ISELEP(2,282) = ISELEP(2,282) + NPROLD
+      ENDIF
+      IF(ISELEP(1,284) .EQ. 1 .OR. ISELEP(1,284) .EQ. 2) THEN
+         NPROLD = ISELEA(2,284)
+         IF(ISELEP(2,284) .GT. 0) THEN
+            NPRRUS = ISELEP(2,284)
+            CALL STMNLI  (ASXOYY ,JJ1L,SSXOYY ,JJ1L,KSXL,ILIMXP,
+     $                    2  ,ILINTX, 1 , 1 , 1 ,KSXL-LINFB,
+     $                    NPROLD,NPRRUS,DREAD,DCONT,NPRNEU)
+         ENDIF
+         ISELEA(2,284) = NPROLD
+         ISELEP(2,284) = ISELEP(2,284) + NPROLD
+      ENDIF
+      IF(ISELEP(1,286) .EQ. 1 .OR. ISELEP(1,286) .EQ. 2) THEN
+         NPROLD = ISELEA(2,286)
+         IF(ISELEP(2,286) .GT. 0) THEN
+            NPRRUS = ISELEP(2,286)
+            CALL STMNLI  (ASXOZZ ,JJ1L,SSXOZZ ,JJ1L,KSXL,ILIMXP,
+     $                    2  ,ILINTX, 1 , 1 , 1 ,KSXL-LINFB,
+     $                    NPROLD,NPRRUS,DREAD,DCONT,NPRNEU)
+         ENDIF
+         ISELEA(2,286) = NPROLD
+         ISELEP(2,286) = ISELEP(2,286) + NPROLD
+      ENDIF
+      IF(ISELEP(1,288) .EQ. 1 .OR. ISELEP(1,288) .EQ. 2) THEN
+         NPROLD = ISELEA(2,288)
+         IF(ISELEP(2,288) .GT. 0) THEN
+            NPRRUS = ISELEP(2,288)
+            CALL STMNLI  (ASYOXX ,JJ1L,SSYOXX ,JJ1L,KSYL,ILIMXP,
+     $                    2  ,ILINTY, 1 , 1 , 1 ,KSYL-LINFB,
+     $                    NPROLD,NPRRUS,DREAD,DCONT,NPRNEU)
+         ENDIF
+         ISELEA(2,288) = NPROLD
+         ISELEP(2,288) = ISELEP(2,288) + NPROLD
+      ENDIF
+      IF(ISELEP(1,290) .EQ. 1 .OR. ISELEP(1,290) .EQ. 2) THEN
+         NPROLD = ISELEA(2,290)
+         IF(ISELEP(2,290) .GT. 0) THEN
+            NPRRUS = ISELEP(2,290)
+            CALL STMNLI  (ASYOYY ,JJ1L,SSYOYY ,JJ1L,KSYL,ILIMXP,
+     $                    2  ,ILINTY, 1 , 1 , 1 ,KSYL-LINFB,
+     $                    NPROLD,NPRRUS,DREAD,DCONT,NPRNEU)
+         ENDIF
+         ISELEA(2,290) = NPROLD
+         ISELEP(2,290) = ISELEP(2,290) + NPROLD
+      ENDIF
+      IF(ISELEP(1,292) .EQ. 1 .OR. ISELEP(1,292) .EQ. 2) THEN
+         NPROLD = ISELEA(2,292)
+         IF(ISELEP(2,292) .GT. 0) THEN
+            NPRRUS = ISELEP(2,292)
+            CALL STMNLI  (ASYOZZ ,JJ1L,SSYOZZ ,JJ1L,KSYL,ILIMXP,
+     $                    2  ,ILINTY, 1 , 1 , 1 ,KSYL-LINFB,
+     $                    NPROLD,NPRRUS,DREAD,DCONT,NPRNEU)
+         ENDIF
+         ISELEA(2,292) = NPROLD
+         ISELEP(2,292) = ISELEP(2,292) + NPROLD
+      ENDIF
+C
+C                                  HAEUFIGKEITSVERTEILUNG DER
+C                                  INKLINATIONSWINKEL DER VORTICITY-
+C                                  VEKTOREN
+C                                  ---------------------------------
+C
+      IF(ISELEP(1,306) .EQ. 1 .OR. ISELEP(1,306) .EQ. 2) THEN
+         NPROLD = ISELEA(2,306)
+         IF(ISELEP(2,306) .GT. 0) THEN
+            NPRRUS = ISELEP(2,306)
+            CALL STMNLI  (AHOZOY ,JJ2L,SHOZOY ,JJ2L,KH0L,ILIMXP,
+     $                    2  ,ILINT0, 1 , 2 , 1 ,KH0L-LINFB,
+     $                    NPROLD,NPRRUS,DREAD,DCONT,NPRNEU)
+         ENDIF
+         ISELEA(2,306) = NPROLD
+         ISELEP(2,306) = ISELEP(2,306) + NPROLD
+      ENDIF
+      IF(ISELEP(1,308) .EQ. 1 .OR. ISELEP(1,308) .EQ. 2) THEN
+         NPROLD = ISELEA(2,308)
+         IF(ISELEP(2,308) .GT. 0) THEN
+            NPRRUS = ISELEP(2,308)
+            CALL STMNLI  (AHOZOX ,JJ2L,SHOZOX ,JJ2L,KH0L,ILIMXP,
+     $                    2  ,ILINT0, 1 , 2 , 1 ,KH0L-LINFB,
+     $                    NPROLD,NPRRUS,DREAD,DCONT,NPRNEU)
+         ENDIF
+         ISELEA(2,308) = NPROLD
+         ISELEP(2,308) = ISELEP(2,308) + NPROLD
+      ENDIF
+      IF(ISELEP(1,310) .EQ. 1 .OR. ISELEP(1,310) .EQ. 2) THEN
+         NPROLD = ISELEA(2,310)
+         IF(ISELEP(2,310) .GT. 0) THEN
+            NPRRUS = ISELEP(2,310)
+            CALL STMNLI  (AHOYOX ,JJ2L,SHOYOX ,JJ2L,KH0L,ILIMXP,
+     $                    2  ,ILINT0, 1 , 2 , 1 ,KH0L-LINFB,
+     $                    NPROLD,NPRRUS,DREAD,DCONT,NPRNEU)
+         ENDIF
+         ISELEA(2,310) = NPROLD
+         ISELEP(2,310) = ISELEP(2,310) + NPROLD
+      ENDIF
+C
+      RETURN
+      END

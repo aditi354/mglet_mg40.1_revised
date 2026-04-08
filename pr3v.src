@@ -1,0 +1,200 @@
+      SUBROUTINE PR3V(KK,JJ,II,V,IV,KSTAG,JSTAG,ISTAG,IC,
+     $                IC1,ICS,IC2,M1,MS,M2,N1,NS,N2,DX,DY,DZ,X,Y,Z,
+     $                KANAL)
+C***********************************************************************
+C   P R 2 V    DRUCKT 2D-EBENE AUS 3D-MATRIX
+C*************************************************** J.FERSTL 19.11.82 *
+C                                                    F.BAETKE 05.10.84 *
+C
+C  PARAMETER  KK,JJ,II  - FELDGRENZEN
+C             V         - VARIABLE DER FORM V(KK,JJ,II)
+C             IV        - CHARACTER-KONSTANTE (CHARACTER (LEN=16)) ZUR IDEN-
+C                         TIFIKATION DES AUSZUGEBENDEN FELDES
+C             K-,J-,ISTAG INFORMATION WIE DIE VARIABLE IM MASCHENGITTER
+C                         VERSCHOBEN IST. (ERLAEUTERUNG SIEHE UNTEN)
+C             IC        - CHARACTER-KONSTANTE DER FORM 'K','J' ODER 'I'
+C             IC1       - ANFANGSWERT FUER KONSTANTEN INDEX
+C             ICS       - SCHRITTWEITE  ""      "        "
+C             IC2       - ENDWERT       ""      "        "
+C             M1        - ANFANGSWERT HORIZONTALER INDEX
+C             MS        - SCHRITTWEITE     "         "
+C             M2        - ENDWERT          "         "
+C             N1        - ANFANGSWERT VERTIKALER INDEX
+C             NS        - SCHRITTWEITE   "         "
+C             N2        - ENDWERT        "         "
+C             DX(II)    - FELD MIT GITTERPUNKTABSTAENDEN IN I-RICHTUNG
+C             DY(JJ)    - FELD MIT GITTERPUNKTABSTAENDEN IN J-RICHTUNG
+C             DZ(KK)    - FELD MIT GITTERPUNKTABSTAENDEN IN K-RICHTUNG
+C             X(II)    - X-KOORDINATEN DER MITTELPUNKTE DES RAUMGITTERS
+C             Y(JJ)    - Y-KOORDINATEN DER MITTELPUNKTE DES RAUMGITTERS
+C             Z(KK)    - Z-KOORDINATEN DER MITTELPUNKTE DES RAUMGITTERS
+C
+C  MELDUNGEN  301 - 316 = NICHT KONSISTENTE EINGABEPARAMETER
+C
+C  VERS: 02.09.86 (HW)  : KSTAG,JSTAG,ISTAG EINGEFUEHRT
+C  VERS: 25.02.92 (MM)  : KANAL  EINGEFUEHRT
+C
+C  UPROG                : ERRR, PR3
+C
+C***********************************************************************
+      CHARACTER (LEN=1)   IC,  IK
+      CHARACTER (LEN=16)  IV
+      INTEGER KK,JJ,II,IC1,ICS,IC2,M1,MS,M2,N1,NS,N2
+      REAL    V(KK,JJ,II), DX(II), DY(JJ), DZ(KK), X(II), Y(JJ), Z(KK)
+C                                 PLAUSIBILITAETSTEST
+      IF(IC1.LT.1 .OR. IC1.GT.IC2) CALL ERRR(301,' PR3V     ')
+      IF(M1.LT.1 .OR. M1.GT.M2)    CALL ERRR(302,' PR3V     ')
+      IF(N1.LT.1 .OR. N1.GT.N2)    CALL ERRR(303,' PR3V     ')
+      IF(IC .NE. 'K') GOTO 2010
+         IF(IC2 .GT. KK)           CALL ERRR(307,' PR3V     ')
+         IF(N2 .GT. JJ)            CALL ERRR(308,' PR3V     ')
+         IF(M2 .GT. II)            CALL ERRR(309,' PR3V     ')
+         GOTO 2030
+ 2010 IF(IC .NE. 'J') GOTO 2020
+         IF(IC2 .GT. JJ)           CALL ERRR(310,' PR3V     ')
+         IF(M2 .GT. II)            CALL ERRR(311,' PR3V     ')
+         IF(N2 .GT. KK)            CALL ERRR(312,' PR3V     ')
+         GOTO 2030
+ 2020 IF(IC .NE. 'I')              CALL ERRR(313,' PR3V     ')
+         IF(IC2 .GT. II)           CALL ERRR(314,' PR3V     ')
+         IF(M2 .GT. JJ)            CALL ERRR(315,' PR3V     ')
+         IF(N2 .GT. KK)            CALL ERRR(316,' PR3V     ')
+ 2030 CONTINUE
+C
+C                   KSTAG=JSTAG=ISTAG = 0  : MITTELPUNKTSKOORDINATEN
+C                               ISTAG = 1  : X(I) = X(I) + DX(I)/2
+C                               JSTAG = 1  : Y(J) = Y(J) + DY(J)/2
+C                               KSTAG = 1  : Z(K) = Z(K) + DZ(K)/2
+C
+      IF (IC .EQ. 'I') IK = 'X'
+      IF (IC .EQ. 'J') IK = 'Y'
+      IF (IC .EQ. 'K') IK = 'Z'
+C
+      WRITE(KANAL,6000) (IV,I=1,7)
+ 6000 FORMAT(/,1X,6(A16,2H- ),A16,1H-,/)
+      LSTART = IC1
+      LEND   = IC2
+      LINK   = ICS
+C
+      DO 10 L=LSTART,LEND,LINK
+         IF(IC .EQ. 'I') AKOORD = X(L) + 0.5*DX(L)*FLOAT(ISTAG)
+         IF(IC .EQ. 'J') AKOORD = Y(L) + 0.5*DY(L)*FLOAT(JSTAG)
+         IF(IC .EQ. 'K') AKOORD = Z(L) + 0.5*DZ(L)*FLOAT(KSTAG)
+C
+         WRITE(KANAL,6010) IV,IC,L,IK,AKOORD
+ 6010    FORMAT(1X,5(1H-),1X,A16,'-FELD ',4H -- ,A1,3H = ,I3,' = CONST '
+     $          ,' -- ',A1,' = ',F9.5,1X,5(1H-)/)
+C
+      FM   = FLOAT(M2-M1)/FLOAT(MS)
+      IM   = IFIX(FM)+1
+      FM   = FLOAT(IM)/16.
+      MS16 = 16*MS
+      M16  = IFIX(FM)*MS16 + M1 - 1
+      MANF = M1
+      IF((M16-M1+1).LT.MS16) GOTO 2100
+      DO 20 I=M1,M16,MS16
+         MANF = I
+         MEND = I + MS16 -1
+         CALL PR3(KK,JJ,II,V,KSTAG,JSTAG,ISTAG,IC,L,MANF,MS,MEND,
+     $            N1,NS,N2,DX,DY,DZ,X,Y,Z,KANAL)
+   20 CONTINUE
+      MANF = MANF + MS16
+      IF(MANF.GT.M2) GOTO 2200
+ 2100 CONTINUE
+      CALL PR3(KK,JJ,II,V,KSTAG,JSTAG,ISTAG,IC,L,MANF,MS,M2,
+     $            N1,NS,N2,DX,DY,DZ,X,Y,Z,KANAL)
+ 2200 CONTINUE
+C
+   10 CONTINUE
+C
+      RETURN
+      END
+      SUBROUTINE PR3(KK,JJ,II,V,KSTAG,JSTAG,ISTAG,IC,L,M1,MS,M2,
+     $            N1,NS,N2,DX,DY,DZ,X,Y,Z,KANAL)
+C***********************************************************************
+C  P R 2   HILFROUTINE ZUM AUSDRUCKEN VON 2D-EBENE AUS 3D-MATRIX
+C************************************************** J.FERSTL 19.11.82 **
+C                                                   H.WERNER 02.09.86
+C
+      CHARACTER (LEN=1) IC
+      INTEGER KK,JJ,II,KSTAG,JSTAG,ISTAG,L,M1,MS,M2,N1,NS,N2
+      REAL    V(KK,JJ,II),DX(II),DY(JJ),DZ(KK),X(II),Y(JJ),Z(KK)
+C
+      NEND = (N2-N1)/NS
+      NEND = N1 + NEND*NS
+C
+      IF(IC.NE.'K') GOTO 2010
+C                                 EBENE K=CONST.
+      NEND = MIN(NEND,JJ)
+      DO 20 NN=N1,NEND,NS
+         N = NEND + N1 - NN
+         IF (JSTAG .EQ. 0) GOTO 1010
+          WRITE(KANAL,6000) Y(N)+DY(N)/2.,DY(N),N,(V(L,N,M),M=M1,M2,MS)
+          GOTO 1020
+ 1010    CONTINUE
+         WRITE(KANAL,6000) Y(N),DY(N),N,(V(L,N,M),M=M1,M2,MS)
+ 1020    CONTINUE
+   20 CONTINUE
+      WRITE(KANAL,6100) (M,M=M1,M2,MS)
+      WRITE(KANAL,6400) (DX(M),M=M1,M2,MS)
+      IF (ISTAG .EQ. 0) GOTO 1030
+         WRITE (KANAL,6500) (X(M)+DX(M)/2.,M=M1,M2,MS)
+         GOTO 2100
+ 1030 CONTINUE
+      WRITE(KANAL,6500) (X(M),M=M1,M2,MS)
+      GOTO 2100
+ 2010 CONTINUE
+      IF(IC.NE.'J') GOTO 2020
+C                                 EBENE J=CONST.
+      NEND = MIN(NEND,KK)
+      DO 30 NN=N1,NEND,NS
+         N = NEND + N1 - NN
+         IF (KSTAG .EQ. 0) GOTO 1040
+          WRITE (KANAL,6000) Z(N)+DZ(N)/2.,DZ(N),N,(V(N,L,M),M=M1,M2,MS)
+          GOTO 1050
+ 1040    CONTINUE
+         WRITE(KANAL,6000) Z(N),DZ(N),N,(V(N,L,M),M=M1,M2,MS)
+ 1050    CONTINUE
+   30 CONTINUE
+      WRITE(KANAL,6200) (M,M=M1,M2,MS)
+      WRITE(KANAL,6400) (DX(M),M=M1,M2,MS)
+      IF (ISTAG .EQ. 0) GOTO 1060
+         WRITE (KANAL,6500) (X(M)+DX(M)/2.,M=M1,M2,MS)
+         GOTO 2100
+ 1060 CONTINUE
+      WRITE(KANAL,6500) (X(M),M=M1,M2,MS)
+      GOTO 2100
+ 2020 CONTINUE
+C                                 EBENE I=CONST.
+      NEND = MIN(NEND,KK)
+      DO 40 NN=N1,NEND,NS
+         N = NEND + N1 - NN
+         IF (KSTAG .EQ. 0) GOTO 1070
+          WRITE (KANAL,6000) Z(N)+DZ(N)/2.,DZ(N),N,(V(N,M,L),M=M1,M2,MS)
+          GOTO 1080
+ 1070    CONTINUE
+         WRITE(KANAL,6000) Z(N),DZ(N),N,(V(N,M,L),M=M1,M2,MS)
+ 1080    CONTINUE
+   40 CONTINUE
+      WRITE(KANAL,6200) (M,M=M1,M2,MS)
+      WRITE(KANAL,6600) (DY(M),M=M1,M2,MS)
+      IF (JSTAG .EQ. 0) GOTO 1090
+         WRITE (KANAL,6700) (Y(M)+DY(M)/2.,M=M1,M2,MS)
+         GOTO 2100
+ 1090 CONTINUE
+      WRITE(KANAL,6700) (Y(M),M=M1,M2,MS)
+C
+ 2100 CONTINUE
+      WRITE(KANAL,6800)
+C
+ 6000 FORMAT(1X,F7.4,1X,F7.5,1X,I3,1X,16F9.5)
+ 6100 FORMAT(/,3X,'Y(J)',3X,'DY(J)',6X,16(2X,I3,2X))
+ 6200 FORMAT(/,3X,'Z(K)',3X,'DZ(K)',6X,16(2X,I3,2X))
+ 6400 FORMAT(/,15X,'DX(I) ',16F7.5)
+ 6500 FORMAT(16X,'X(I) ',16F7.4)
+ 6600 FORMAT(/,15X,'DY(J) ',16F7.5)
+ 6700 FORMAT(16X,'Y(J) ',16F7.4)
+ 6800 FORMAT(/)
+C
+      RETURN
+      END

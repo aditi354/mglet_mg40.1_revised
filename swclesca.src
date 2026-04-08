@@ -1,0 +1,1070 @@
+
+      SUBROUTINE  SWCLESCA(KK,JJ,II,KMX,JMX,IMX,DX,DY,DZ,DDX,DDY,DDZ,
+     $                     U,V,W,T,G,B,WCT,
+     $                     IC1,IC2,JC1,JC2,KC1,KC2,
+     $                     NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB,
+     $                RDDX,RDDY,RDDZ,IGRID,DDS,SM,SPLUS,FTI,FTJ,FTK)
+C*STARLET***************************************************************
+C        S W C L E S C A   WALL-CORRECTION (LAM-TUR) FOR SCALAR TRANSPRT
+C                          THIS ROUTINE CALCULATES THE WALL CORRECTION
+C                          FOR SCALAR TRANSPORT AND SETS THE CALCULATED
+C                          WALL SCALAR FOR SCALAR FLUX BOUNDARIES
+C*STARLET***************************************************************
+C
+C PARAM: GMOL           - MOLECULAR DYNAMIC VISCOSITY (= MUE) ( = MUE)
+C        PRMOL          - MOLECULAR PRANDTL NUMBER
+C        LAMDA          - SPECIFIC HEAT TRANSFER COEFFICIENT
+C        MTURB          - 0 = LAMINAR, 1 = TURBULENT
+C        IC1,JC1,KC1    - LEFT BORDER INDICES OF BOUNDING BOX 
+C                         (BODY + 1 BUFFER LAYER)
+C        IC2,JC2,KC2    - RIGHT BORDER INDICES OF BOUNDING BOX 
+C        QFRO - QCUB:   - CONSTANT WALL HEAT FLUX AT FIXGRADSCA BC
+C                         Q > 0 := FLUX FROM HIGHER WALL LEVEL TO LOWER
+C                                  FLUID LEVEL
+C                         Q < 0 := FLUX FROM HIGHER FLUID LEVEL TO LOWER
+C                                  WALL LEVEL
+C        TFRO - TCUB:   - CONSTANT WALL TEMPERATURE AT FIXSCA BC
+C        ITIME:		- 0: CALCULATE WALL CORRECTION TERM
+C                       - 1: CORRECT WALL TEMPERATURE 
+C
+C        DEFINITION OF WALL HEAT FLUX:
+C        POSITIVE WALL HEAT FLUX = FLUX FROM HOT WALL TO COLD FLUID
+C
+C DEFINE-DIREKTIVEN     :  DNS
+C
+C VERS:  29.10.2002 (TB)  : DERIVED FROM SWCLE1 FOR MOMENTUM CORRECTION
+C
+C*STARLET***************************************************************
+C
+#include "mgpar.h"
+
+#include "conles.h"
+
+#include "konsta.h"
+
+#include "conpot.h"
+
+#include "cobound.h"
+
+#include "cophyspar.h"
+
+      REAL    U(KK,JJ,II), V(KK,JJ,II), W(KK,JJ,II), T(KK,JJ,II), 
+     $        DX(II),      DY(JJ),      DZ(KK),      B(KK,JJ,II),
+     $        DDX(II),     DDY(JJ),     DDZ(KK),     G(KK,JJ,II),
+     $        RDDX(II),    RDDY(JJ),    RDDZ(KK), WCT(KK,JJ,II)
+#if defined _KOMXK_  | defined _PREPROC_
+       REAL FTI(KK,JJ,II)
+#else 
+       REAL FTI(1)
+#endif
+#if defined _KOMYK_ |  defined  _PREPROC_
+       REAL FTJ(KK,JJ,II)
+#else 
+       REAL FTJ(1)
+#endif
+#if defined _KOMZK_ | defined _PREPROC_
+       REAL FTK(KK,JJ,II)
+#else 
+       REAL FTK(1)
+#endif
+#ifdef _TSCAL_
+         KM1  = KMX-1
+         KM2  = KMX-2
+         JM1  = JMX-1
+         JM2  = JMX-2
+         JM3  = JMX-3
+         IM1  = IMX-1
+         IM2  = IMX-2
+         IM3  = IMX-3                   
+C
+         DDS   = 0.0  
+         SM    = 0.0
+         SPLUS = 0.0           
+
+         FXBAC = 0.0
+         FXFRO = 0.0
+         FYRGT = 0.0
+         FYLFT = 0.0
+         FZBOT = 0.0
+         FZTOP = 0.0
+
+
+         DO I=1,II
+            DO J=1,JJ
+               DO K=1,KK
+                  WCT(K,J,I) = 0.0
+               ENDDO
+            ENDDO
+         ENDDO
+C        SWITCH FACTOR CALCULATION 
+         FP= SIGN(0.5,G(K,J,I))+0.5 
+C                    
+C         FXBAC= (-SIGN(0.5,G(K,J,I)*G(K,J,I-1))+0.5)*FP
+C         FXFRO= (-SIGN(0.5,G(K,J,I)*G(K,J,I+1))+0.5)*FP
+C         FYLFT= (-SIGN(0.5,G(K,J,I)*G(K,J-1,I))+0.5)*FP
+C         FYRGT= (-SIGN(0.5,G(K,J,I)*G(K,J+1,I))+0.5)*FP
+C         FZTOP= (-SIGN(0.5,G(K,J,I)*G(K-1,J,I))+0.5)*FP
+C         FZBOT= (-SIGN(0.5,G(K,J,I)*G(K+1,J,I))+0.5)*FP             
+
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC  BOTTOM
+C Default for Zero-Gradient Wall
+         K=2
+         DO I=1,II
+            DO J=1,JJ
+               T(K,J,I) = T(K+1,J,I)
+            ENDDO
+         ENDDO 
+
+C-----FIXED GRADIENT/FLUX-----------------------------------------------    
+      IF ( NBOT .EQ. 15 ) THEN
+
+         ISTART = LARBOCONDS( 1 , 2 , 5 , IGRID )
+         ISTOP  = LARBOCONDS( 2 , 2 , 5 , IGRID )
+         JSTART = LARBOCONDS( 3 , 2 , 5 , IGRID )
+         JSTOP  = LARBOCONDS( 4 , 2 , 5 , IGRID )      
+         K = 3
+         DO I=ISTART,ISTOP
+            DO J=JSTART,JSTOP
+        
+               AXY     = DDX(I)*DDY(J)
+
+               QBOT    = QSCA( 2 , 5 , IGRID)    
+C
+C                                 WALL FUNCTION
+C
+               DS = DZ(K-1)*0.5
+                    
+#ifdef _DNS_
+               WCTZ  = AXY * GMOL/RHO/PRMOL * QBOT/LAMDA 
+C--- Veraendert wegen 4ter Ordnung: 
+C--- Wandtemperatur soll so gesetzt sein, dass 4ter Ordnung mit 
+C-- Wandzelle rechnen kann
+C-- ALT: TW = T(K,J,I) + QBOT/LAMDA * DS
+               TW = T(K,J,I) + QBOT/LAMDA *DS*2
+#else
+C           WALL TANGENTIAL VELOCITIES
+               UQZ = (ABS(V(K,J-1,I)+(V(K,J,I)-V(K,J-1,I)) /
+     $              DDY(J)*DY(J-1)*0.5)**2.0 + 
+     $              ABS(U(K,J,I-1)+(U(K,J,I)-U(K,J,I-1)) /
+     $              DDX(I)*DX(I-1)*0.5)**2.0)**0.5    
+
+        WCTZ  = AXY*QWALLFLUX(UQZ,QBOT,TW,T(K,J,I),DDZ(K),DS,SMP,SP)
+#endif
+C           
+            IF (WCTZ .NE. 0.0) THEN
+               DDS   = DDZ(K)
+               SM    = SMP
+               SPLUS = SP
+            ENDIF
+
+            WCT(K,J,I) = WCT(K,J,I) + WCTZ
+
+            T(K-1,J,I) = TW
+         ENDDO
+      ENDDO
+
+      ENDIF
+
+C-----FIXED SCALAR------------------------------------------------------
+
+      IF ( NBOT .EQ. 16 ) THEN
+
+         ISTART = LARBOCONDS( 1 , 2 , 5 , IGRID )
+         ISTOP  = LARBOCONDS( 2 , 2 , 5 , IGRID )
+         JSTART = LARBOCONDS( 3 , 2 , 5 , IGRID )
+         JSTOP  = LARBOCONDS( 4 , 2 , 5 , IGRID )      
+         K = 3
+
+         DO I=ISTART,ISTOP
+            DO J=JSTART,JSTOP
+            AXY     = DDX(I)*DDY(J)
+            TW = TSCA( 2 , 5 , IGRID)
+C
+C                                 WALL FUNCTION
+C
+            DS = DZ(K-1)*0.5
+#ifdef _DNS_
+C#ifdef _KOMZK_
+C           WCTZ =  -AXY *GMOL/RHO/PRMOL*FTK(K,J,I)
+C#else
+#ifdef _PREPROC_
+       WCTZ  = AXY * GMOL/RHO/PRMOL * (TW - FTK(K,J,I)) / DS
+#else
+       WCTZ  = AXY * GMOL/RHO/PRMOL * (TW - T(K,J,I)) / DS
+#endif
+C#endif
+#else
+C           WALL TANGENTIAL VELOCITIES
+            UQZ = (ABS(V(K,J-1,I)+(V(K,J,I)-V(K,J-1,I)) /
+     $             DDY(J)*DY(J-1)*0.5)**2.0 + 
+     $             ABS(U(K,J,I-1)+(U(K,J,I)-U(K,J,I-1)) /
+     $             DDX(I)*DX(I-1)*0.5)**2.0)**0.5
+       WCTZ  = AXY*QWALLFIX(UQZ,QBOT,TW,T(K,J,I),DDZ(K),DS,SMP,SP)
+#endif
+C
+            IF (WCTZ .NE. 0.0) THEN
+              DDS   = DDZ(K)
+              SM    = SMP
+              SPLUS = SP
+            ENDIF 
+            WCT(K,J,I) = WCT(K,J,I) + WCTZ           
+C     SETTING TEMPERATURE AT WALL
+            T(K-1,J,I) = TW
+         ENDDO
+      ENDDO
+
+      ENDIF
+
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC  TOP
+         K=KMX-1
+         DO I=1,II
+            DO J=1,JJ
+               T(K,J,I) = T(K-1,J,I)
+            ENDDO
+         ENDDO 
+ 
+C-----FIXED GRADIENT/FLUX-----------------------------------------------          
+      IF ( NTOP .EQ. 15 ) THEN
+
+         ISTART = LARBOCONDS( 1 , 2 , 6 , IGRID )
+         ISTOP  = LARBOCONDS( 2 , 2 , 6 , IGRID )
+         JSTART = LARBOCONDS( 3 , 2 , 6 , IGRID )
+         JSTOP  = LARBOCONDS( 4 , 2 , 6 , IGRID )
+         K = KMX-2
+
+         DO I = ISTART,ISTOP
+            DO J =JSTART,JSTOP
+            AXY     = DDX(I)*DDY(J)        
+            QTOP = QSCA( 2 , 6 , IGRID)
+C
+C                                 WALL FUNCTION
+C
+            DS = DZ(K)*0.5 
+#ifdef _DNS_
+            WCTZ  = AXY * GMOL/RHO/PRMOL * QTOP/LAMDA 
+ 	    TW = T(K,J,I) + QTOP/LAMDA * DS*2            
+#else
+C           WALL TANGENTIAL VELOCITIES
+            UQZ = (ABS(V(K,J-1,I)+(V(K,J,I)-V(K,J-1,I)) /
+     $             DDY(J)*DY(J-1)*0.5)**2.0 + 
+     $             ABS(U(K,J,I-1)+(U(K,J,I)-U(K,J,I-1)) /
+     $             DDX(I)*DX(I-1)*0.5)**2.0)**0.5
+       WCTZ  = AXY*QWALLFLUX(UQZ,QTOP,TW,T(K,J,I),DDZ(K),DS,SMP,SP)
+#endif
+C
+            IF (WCTZ .NE. 0.0) THEN
+              DDS   = DDZ(K)
+              SM    = SMP
+              SPLUS = SP
+            ENDIF
+C                       
+            WCT(K,J,I) = WCT(K,J,I) + WCTZ
+
+C        SETTING CORRECTED TEMPERATURE AT WALL
+            T(K+1,J,I) = TW
+         ENDDO
+      ENDDO
+      ENDIF
+C
+C-----FIXED SCALAR------------------------------------------------------ 
+C
+      IF ( NTOP .EQ. 16 ) THEN
+
+         ISTART = LARBOCONDS( 1 , 2 , 6 , IGRID )
+         ISTOP  = LARBOCONDS( 2 , 2 , 6 , IGRID )
+         JSTART = LARBOCONDS( 3 , 2 , 6 , IGRID )
+         JSTOP  = LARBOCONDS( 4 , 2 , 6 , IGRID )
+
+         K = KMX-2
+         DO I = ISTART,ISTOP
+            DO J =JSTART,JSTOP
+            AXY     = DDX(I)*DDY(J)        
+            TW      = TSCA( 2 , 6 , IGRID)       
+C
+C                                 WALL FUNCTION
+C
+            DS = DZ(K)*0.5
+#ifdef _DNS_
+C#ifdef _KOMZK_
+C           WCTZ = AXY *GMOL/RHO/PRMOL*FTK(K+1,J,I)
+C#else
+#ifdef _PREPROC_
+           WCTZ  = AXY * GMOL/RHO/PRMOL * (TW - FTK(K,J,I)) / DS 
+#else
+           WCTZ  = AXY * GMOL/RHO/PRMOL * (TW - T(K,J,I)) / DS 
+#endif
+C#endif
+#else
+C           WALL TANGENTIAL VELOCITIES
+            UQZ = (ABS(V(K,J-1,I)+(V(K,J,I)-V(K,J-1,I)) /
+     $             DDY(J)*DY(J-1)*0.5)**2.0 + 
+     $             ABS(U(K,J,I-1)+(U(K,J,I)-U(K,J,I-1)) /
+     $             DDX(I)*DX(I-1)*0.5)**2.0)**0.5
+       WCTZ  = AXY*QWALLFIX(UQZ,QTOP,TW,T(K,J,I),DDZ(K),DS,SMP,SP)
+#endif
+C
+            IF (WCTZ .NE. 0.0) THEN
+              DDS   = DDZ(K)
+              SM    = SMP
+              SPLUS = SP
+            ENDIF 
+C            
+            WCT(K,J,I) = WCT(K,J,I) + WCTZ
+C        SETTING TEMPERATURE AT WALL
+            T(K+1,J,I) = TW
+         ENDDO
+      ENDDO
+      ENDIF
+C
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC  LEFT 
+         J=JMX-2
+         DO I=1,II
+            DO K=1,KK
+               T(K,J+1,I) = T(K,J,I)
+            ENDDO
+         ENDDO 
+ 
+C-----FIXED GRADIENT/FLUX-----------------------------------------------
+      IF ( NLFT .EQ. 15 ) THEN
+
+         J = JMX-2
+
+         ISTART = LARBOCONDS( 1 , 2 , 4 , IGRID )
+         ISTOP  = LARBOCONDS( 2 , 2 , 4 , IGRID )
+         KSTART = LARBOCONDS( 5 , 2 , 4 , IGRID )
+         KSTOP  = LARBOCONDS( 6 , 2 , 4 , IGRID )
+         
+         DO I=ISTART,ISTOP
+            DO K = KSTART,KSTOP
+            AXZ     = DDX(I)*DDZ(K)
+            QLFT = QSCA( 2 , 4 , IGRID)            
+C
+C                                 WALL FUNCTION
+C
+            DS = DY(J)*0.5
+#ifdef _DNS_
+            WCTY  = AXZ * GMOL/RHO/PRMOL * QLFT/LAMDA 
+	    TW = T(K,J,I) + QLFT/LAMDA * DS*2             
+#else
+C           WALL TANGENTIAL VELOCITIES
+            UQY = (ABS(U(K,J,I-1)+(U(K,J,I)-U(K,J,I-1)) /
+     $             DDX(I)*DX(I-1)*0.5)**2.0 + 
+     $             ABS(W(K-1,J,I)+(W(K,J,I)-W(K-1,J,I)) /
+     $             DDZ(K)*DZ(K-1)*0.5)**2.0)**0.5
+       WCTY  = AXZ*QWALLFLUX(UQY,QLFT,TW,T(K,J,I),DDY(J),DS,SMP,SP)
+#endif
+C
+            IF (WCTY .NE. 0.0) THEN
+              DDS   = DDY(J)
+              SM    = SMP
+              SPLUS = SP
+            ENDIF
+C         
+            WCT(K,J,I) = WCT(K,J,I) + WCTY
+C        SETTING CORRECTED TEMPERATURE AT WALL
+            T(K,J+1,I) = TW
+         ENDDO
+      ENDDO
+      ENDIF
+C
+C-----FIXED SCALAR------------------------------------------------------ 
+C
+      IF ( NLFT .EQ. 16 ) THEN
+         J = JMX-2
+
+         ISTART = LARBOCONDS( 1 , 2 , 4 , IGRID )
+         ISTOP  = LARBOCONDS( 2 , 2 , 4 , IGRID )
+         KSTART = LARBOCONDS( 5 , 2 , 4 , IGRID )
+         KSTOP  = LARBOCONDS( 6 , 2 , 4 , IGRID )
+         
+         DO I=ISTART,ISTOP
+            DO K = KSTART,KSTOP
+            AXZ     = DDX(I)*DDZ(K)
+            TW      = TSCA( 2 , 4 , IGRID) 
+
+C
+C                                 WALL FUNCTION
+C
+            DS = DY(J)*0.5
+#ifdef _DNS_
+C#ifdef _KOMYK_
+C            WCTY = AXZ *GMOL/RHO/PRMOL*FTJ(K+1,J,I)
+C#else            
+            WCTY  = AXZ * GMOL/RHO/PRMOL * (TW - T(K,J,I)) / DS 
+C#endif
+#else
+C           WALL TANGENTIAL VELOCITIES
+            UQY = (ABS(U(K,J,I-1)+(U(K,J,I)-U(K,J,I-1)) /
+     $             DDX(I)*DX(I-1)*0.5)**2.0 + 
+     $             ABS(W(K-1,J,I)+(W(K,J,I)-W(K-1,J,I)) /
+     $             DDZ(K)*DZ(K-1)*0.5)**2.0)**0.5
+       WCTY  = AXZ*QWALLFIX(UQY,QLFT,TW,T(K,J,I),DDY(J),DS,SMP,SP)
+#endif
+C
+            IF (WCTY .NE. 0.0) THEN
+              DDS   = DDY(J)
+              SM    = SMP
+              SPLUS = SP
+            ENDIF 
+C
+            WCT(K,J,I) = WCT(K,J,I) + WCTY
+C        SETTING TEMPERATURE AT WALL
+            T(K,J+1,I) = TW
+         ENDDO
+      ENDDO
+      ENDIF
+
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC  RIGHT 
+
+         J=3
+         DO I=1,II
+            DO K=1,KK
+               T(K,J-1,I) = T(K,J,I)
+            ENDDO
+         ENDDO
+C-----FIXED GRADIENT/FLUX-----------------------------------------------
+      IF ( NRGT .EQ. 15 ) THEN
+
+         ISTART = LARBOCONDS( 1 , 2 , 3 , IGRID )
+         ISTOP  = LARBOCONDS( 2 , 2 , 3 , IGRID )
+         KSTART = LARBOCONDS( 5 , 2 , 3 , IGRID )
+         KSTOP  = LARBOCONDS( 6 , 2 , 3 , IGRID )
+         J = 3
+         DO I=ISTART,ISTOP
+            DO K = KSTART,KSTOP
+            AXZ     = DDX(I)*DDZ(K)
+            QRGT    = QSCA( 2 , 3 , IGRID)  
+C
+C                                 WALL FUNCTION
+C
+            DS = DY(J-1)*0.5
+#ifdef _DNS_
+            WCTY  = AXZ * GMOL/RHO/PRMOL * QRGT/LAMDA 
+	    TW = T(K,J,I) + QRGT/LAMDA * DS *2           
+#else
+C           WALL TANGENTIAL VELOCITIES
+            UQY = (ABS(U(K,J,I-1)+(U(K,J,I)-U(K,J,I-1)) /
+     $             DDX(I)*DX(I-1)*0.5)**2.0 + 
+     $             ABS(W(K-1,J,I)+(W(K,J,I)-W(K-1,J,I)) /
+     $             DDZ(K)*DZ(K-1)*0.5)**2.0)**0.5
+       WCTY  = AXZ*QWALLFLUX(UQY,QRGT,TW,T(K,J,I),DDY(J),DS,SMP,SP)
+#endif
+C
+            IF (WCTY .NE. 0.0) THEN
+              DDS   = DDY(J)
+              SM    = SMP
+              SPLUS = SP
+            ENDIF
+C 
+            WCT(K,J,I) = WCT(K,J,I) + WCTY
+C        SETTING CORRECTED TEMPERATURE AT WALL
+            T(K,J-1,I) = TW
+         ENDDO
+      ENDDO
+      ENDIF
+
+C
+C-----FIXED SCALAR------------------------------------------------------
+C
+      IF ( NRGT .EQ. 16 ) THEN
+         ISTART = LARBOCONDS( 1 , 2 , 3 , IGRID )
+         ISTOP  = LARBOCONDS( 2 , 2 , 3 , IGRID )
+         KSTART = LARBOCONDS( 5 , 2 , 3 , IGRID )
+         KSTOP  = LARBOCONDS( 6 , 2 , 3 , IGRID )
+         J = 3
+         DO I=ISTART,ISTOP
+            DO K = KSTART,KSTOP
+
+            AXZ     = DDX(I)*DDZ(K)
+            TW      = TSCA( 2 , 3 , IGRID) 
+C
+C                                 WALL FUNCTION
+C
+            DS = DY(J-1)*0.5
+#ifdef _DNS_
+C#ifdef _KOMYK_
+C            WCTY = -AXZ *GMOL/RHO/PRMOL*FTJ(K,J,I)
+C#else 
+            WCTY  = AXZ * GMOL/RHO/PRMOL * (TW - T(K,J,I)) / DS 
+C#endif
+#else
+C           WALL TANGENTIAL VELOCITIES
+            UQY = (ABS(U(K,J,I-1)+(U(K,J,I)-U(K,J,I-1)) /
+     $             DDX(I)*DX(I-1)*0.5)**2.0 + 
+     $             ABS(W(K-1,J,I)+(W(K,J,I)-W(K-1,J,I)) /
+     $             DDZ(K)*DZ(K-1)*0.5)**2.0)**0.5
+
+       WCTY  = AXZ*QWALLFIX(UQY,QRGT,TW,T(K,J,I),DDY(J),DS,SMP,SP)
+
+#endif
+C
+            IF (WCTY .NE. 0.0) THEN
+              DDS   = DDY(J)
+              SM    = SMP
+              SPLUS = SP
+            ENDIF 
+C
+            WCT(K,J,I) = WCT(K,J,I) + WCTY
+C        SETTING CORRECTED TEMPERATURE AT WALL
+            T(K,J-1,I) = TW
+         ENDDO
+      ENDDO
+      ENDIF
+
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC  FRONT 
+
+         I=3
+         DO J=1,JJ
+            DO K=1,KK
+               T(K,J,I-1) = T(K,J,I)
+            ENDDO
+         ENDDO
+
+C-----FIXED GRADIENT/FLUX-----------------------------------------------
+      IF ( NFRO .EQ. 15 ) THEN
+         JSTART = LARBOCONDS( 3 , 2 , 1 , IGRID )
+         JSTOP  = LARBOCONDS( 4 , 2 , 1 , IGRID )
+         KSTART = LARBOCONDS( 5 , 2 , 1 , IGRID )
+         KSTOP  = LARBOCONDS( 6 , 2 , 1 , IGRID )
+         I = 3
+
+
+         DO J=JSTART,JSTOP
+            DO K = KSTART,KSTOP
+            AYZ     = DDY(J)*DDZ(K)
+            QFRO    = QSCA( 2 , 1 , IGRID)               
+C
+C                                 WALL FUNCTION
+C
+            DS = DX(I-1)*0.5
+#ifdef _DNS_
+            WCTX  = AYZ * GMOL/RHO/PRMOL * QFRO/LAMDA 
+            TW = T(K,J,I) + QFRO/LAMDA * DS*2            
+#else
+C           WALL TANGENTIAL VELOCITIES
+            UQX = (ABS(V(K,J-1,I)+(V(K,J,I)-V(K,J-1,I)) /
+     $             DDY(J)*DY(J-1)*0.5)**2.0 + 
+     $             ABS(W(K-1,J,I)+(W(K,J,I)-W(K-1,J,I)) /
+     $             DDZ(K)*DZ(K-1)*0.5)**2.0)**0.5
+       WCTX  = AYZ*QWALLFLUX(UQX,QFRO,TW,T(K,J,I),DDX(I),DS,SMP,SP)
+#endif
+C
+            IF (WCTX .NE. 0.0) THEN
+              DDS   = DDX(I)
+              SM    = SMP
+              SPLUS = SP
+            ENDIF 
+C       
+            WCT(K,J,I) = WCT(K,J,I) + WCTX
+C        SETTING CORRECTED TEMPERATURE AT WALL
+            T(K,J,I-1) = TW
+         ENDDO
+      ENDDO
+      ENDIF
+C
+C-----FIXED SCALAR------------------------------------------------------
+C
+      IF ( NFRO .EQ. 16 ) THEN
+
+         JSTART = LARBOCONDS( 3 , 2 , 1 , IGRID )
+         JSTOP  = LARBOCONDS( 4 , 2 , 1 , IGRID )
+         KSTART = LARBOCONDS( 5 , 2 , 1 , IGRID )
+         KSTOP  = LARBOCONDS( 6 , 2 , 1 , IGRID )
+         I = 3
+
+
+         DO J=JSTART,JSTOP
+            DO K = KSTART,KSTOP
+
+            AYZ     = DDY(J)*DDZ(K)
+            TW      = TSCA( 2 , 1 , IGRID) 
+C
+C                                 WALL FUNCTION
+C
+            DS  = DX(I-1)*0.5
+#ifdef _DNS_
+C#ifdef _KOMXK_
+C            WCTX  = -AYZ * GMOL/RHO/PRMOL * FTI(K,J,I)
+C#else
+            WCTX  = AYZ * GMOL/RHO/PRMOL * (TW - T(K,J,I)) / DS 
+C#endif
+#else       
+C           WALL TANGENTIAL VELOCITIES
+            UQX = (ABS(V(K,J-1,I)+(V(K,J,I)-V(K,J-1,I)) /
+     $             DDY(J)*DY(J-1)*0.5)**2.0 + 
+     $             ABS(W(K-1,J,I)+(W(K,J,I)-W(K-1,J,I)) /
+     $             DDZ(K)*DZ(K-1)*0.5)**2.0)**0.5
+       WCTX  = AYZ*QWALLFIX(UQX,QFRO,TW,T(K,J,I),DDX(I),DS,SMP,SP)
+
+#endif      
+C
+            IF (WCTX .NE. 0.0) THEN
+              DDS   = DDX(I)
+              SM    = SMP
+              SPLUS = SP
+            ENDIF  
+C            
+            WCT(K,J,I) = WCT(K,J,I) + WCTX
+C        SETTING CORRECTED TEMPERATURE AT WALL
+            T(K,J,I-1) = TW
+         ENDDO
+      ENDDO
+      ENDIF
+
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC  BACK FXSCAFLUX
+
+         I=II-2
+         DO J=1,JJ
+            DO K=1,KK
+               T(K,J,I+1) = T(K,J,I)
+            ENDDO
+         ENDDO
+
+C-----FIXED GRADIENT/FLUX-----------------------------------------------
+      IF ( NBAC .EQ. 15 ) THEN
+         JSTART = LARBOCONDS( 3 , 2 , 2 , IGRID )
+         JSTOP  = LARBOCONDS( 4 , 2 , 2 , IGRID )
+         KSTART = LARBOCONDS( 5 , 2 , 2 , IGRID )
+         KSTOP  = LARBOCONDS( 6 , 2 , 2 , IGRID )
+         I = IMX-2
+
+         DO J=JSTART,JSTOP
+            DO K=KSTART,KSTOP
+            AYZ     = DDY(J)*DDZ(K)
+            QBAC    = QSCA( 2 , 2 , IGRID)      
+C
+C                                 WALL FUNCTION
+C
+            DS = DX(I)*0.5
+#ifdef _DNS_
+            WCTX  = AYZ * GMOL/RHO/PRMOL * QBAC/LAMDA 
+	    TW = T(K,J,I) + QBAC/LAMDA * DS*2            
+#else       
+C           WALL TANGENTIAL VELOCITIES
+            UQX = (ABS(V(K,J-1,I)+(V(K,J,I)-V(K,J-1,I)) /
+     $             DDY(J)*DY(J-1)*0.5)**2.0 + 
+     $             ABS(W(K-1,J,I)+(W(K,J,I)-W(K-1,J,I)) /
+     $             DDZ(K)*DZ(K-1)*0.5)**2.0)**0.5
+       WCTX  = AYZ*QWALLFLUX(UQX,QBAC,TW,T(K,J,I),DDX(I),DS,SMP,SP)
+#endif      
+C
+            IF (WCTX .NE. 0.0) THEN
+              DDS   = DDX(I)
+              SM    = SMP
+              SPLUS = SP
+            ENDIF  
+C                       
+            WCT(K,J,I) = WCT(K,J,I) + WCTX 
+C        SETTING CORRECTED TEMPERATURE AT WALL
+            T(K,J,I+1) = TW
+         ENDDO
+      ENDDO
+
+      ENDIF
+
+C-----FIXED SCALAR------------------------------------------------------
+C
+      IF ( NBAC .EQ. 16 ) THEN
+         JSTART = LARBOCONDS( 3 , 2 , 2 , IGRID )
+         JSTOP  = LARBOCONDS( 4 , 2 , 2 , IGRID )
+         KSTART = LARBOCONDS( 5 , 2 , 2 , IGRID )
+         KSTOP  = LARBOCONDS( 6 , 2 , 2 , IGRID )
+         I = IMX-2
+
+         DO J=JSTART,JSTOP
+            DO K=KSTART,KSTO      	
+            AYZ     = DDY(J)*DDZ(K)
+            TW      = TSCA( 2 , 2 , IGRID)   
+
+C                                 WALL FUNCTION
+C
+#ifdef _DNS_
+C#ifdef _KOMXK_
+C            WCTX  = AYZ * GMOL/RHO/PRMOL * FTI(K,J,I+1)
+C#else
+            WCTX  = AYZ * GMOL/RHO/PRMOL * (TW - T(K,J,I)) / DS  
+C#endif
+#else       
+C           WALL TANGENTIAL VELOCITIES
+            UQX = (ABS(V(K,J-1,I)+(V(K,J,I)-V(K,J-1,I)) /
+     $             DDY(J)*DY(J-1)*0.5)**2.0 + 
+     $             ABS(W(K-1,J,I)+(W(K,J,I)-W(K-1,J,I)) /
+     $             DDZ(K)*DZ(K-1)*0.5)**2.0)**0.5
+       WCTX  = AYZ*QWALLFIX(UQX,QBAC,TW,T(K,J,I),DDX(I),DS,SMP,SP)
+#endif      
+C
+            IF (WCTX .NE. 0.0) THEN
+              DDS   = DDX(I)
+              SM    = SMP
+              SPLUS = SP
+            ENDIF  
+C            
+            WCT(K,J,I) = WCT(K,J,I) + WCTX 
+C        SETTING CORRECTED TEMPERATURE AT WALL
+            T(K,J,I+1) = TW
+         ENDDO
+      ENDDO
+      ENDIF
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC  CUBE 
+C 
+CTBC     SCALAR CUBE BC MUST BE SET SECOND          
+C      WRITE(6,*) 'ISTART-KSTOP: ',ISTART,ISTOP,JSTART,JSTOP,KSTART,KSTOP                       
+
+C-----FIXED GRADIENT/FLUX-----------------------------------------------     	
+
+C      IF ( NCUB .EQ. 15 ) THEN
+C
+C         ISTART = LARBOCONDS( 1 , 2 , 7 , IGRID )
+C         ISTOP  = LARBOCONDS( 2 , 2 , 7 , IGRID )
+C         JSTART = LARBOCONDS( 3 , 2 , 7 , IGRID )
+C         JSTOP  = LARBOCONDS( 4 , 2 , 7 , IGRID )
+C         KSTART = LARBOCONDS( 5 , 2 , 7 , IGRID )
+C         KSTOP  = LARBOCONDS( 6 , 2 , 7 , IGRID )
+C         DO I=ISTART,ISTOP
+C            DO J=ISTART,ISTOP
+C               DO K=KSTART,KSTOP
+C
+C             AYZ     = DDY(J)*DDZ(K)
+C             AXZ     = DDX(I)*DDZ(K)
+C             AXY     = DDX(I)*DDY(J)
+C             
+C             DSX = FXFRO*DX(I)*0.5 + FXBAC*DX(I-1)*0.5
+C             DSY = FYRGT*DY(J)*0.5 + FYLFT*DY(J-1)*0.5 
+C             DSZ = FZBOT*DZ(K)*0.5 + FZTOP*DZ(K-1)*0.5          
+C             
+C             QCUB    = QSCA( 2 , 7 , IGRID) 
+C            
+CC                                    WALL FUNCTIONS
+C            
+C#ifdef _DNS_
+C      WCTX  = AYZ * GMOL/RHO/PRMOL * QCUB/LAMDA *MIN(INT(FXFRO+FXBAC),1)
+C      WCTY  = AXZ * GMOL/RHO/PRMOL * QCUB/LAMDA *MIN(INT(FYRGT+FYLFT),1) 
+C      WCTZ  = AXY * GMOL/RHO/PRMOL * QCUB/LAMDA *MIN(INT(FZBOT+FZTOP),1) 
+C	     TW = T(K,J,I) + QCUB/LAMDA * (DSX + DSY + DSZ)              
+C#else                     
+CC            WALL TANGENTIAL VELOCITIES
+C             UQX = (ABS(V(K,J-1,I)+(V(K,J,I)-V(K,J-1,I)) /
+C     $              DDY(J)*DY(J-1)*0.5)**2.0 + 
+C     $              ABS(W(K-1,J,I)+(W(K,J,I)-W(K-1,J,I)) /
+C     $              DDZ(K)*DZ(K-1)*0.5)**2.0)**0.5
+C             UQY = (ABS(U(K,J,I-1)+(U(K,J,I)-U(K,J,I-1)) /
+C     $              DDX(I)*DX(I-1)*0.5)**2.0 + 
+C     $              ABS(W(K-1,J,I)+(W(K,J,I)-W(K-1,J,I)) /
+C     $              DDZ(K)*DZ(K-1)*0.5)**2.0)**0.5
+C             UQZ = (ABS(V(K,J-1,I)+(V(K,J,I)-V(K,J-1,I)) /
+C     $              DDY(J)*DY(J-1)*0.5)**2.0 + 
+C     $              ABS(U(K,J,I-1)+(U(K,J,I)-U(K,J,I-1)) /
+C     $              DDX(I)*DX(I-1)*0.5)**2.0)**0.5
+CC            
+C      WCTX = AYZ * QWALLFLUX(UQX,QCUB,TW,T(K,J,I),DDX(I),DSX,SMX,SPX)
+C     $         *MIN(INT(FXFRO+FXBAC),1)
+C      WCTY = AXZ * QWALLFLUX(UQY,QCUB,TW,T(K,J,I),DDY(J),DSY,SMY,SPY)
+C     $          * MIN(INT(FYRGT+FYLFT),1 )      
+C      WCTZ = AXY * QWALLFLUX(UQZ,QCUB,TW,T(K,J,I),DDZ(K),DSZ,SMZ,SPZ)  
+C     $           * MIN(INT(FZBOT+FZTOP),1 )      
+C#endif
+CC
+C         IF ( FXFRO .NE. 0.0 .OR. FXBAC .NE. 0.0 ) THEN
+C         	DDS   = DDX(I)
+C         	SM    = SMX
+C         	SPLUS = SPX
+C     	  ENDIF             	
+C         IF ((FYRGT .NE. 0.0 .OR. FYLFT .NE. 0.0 ) .AND.
+C     $      ABS(SPY) .GT. ABS(SPLUS)) THEN
+C     	     DDS   = DDY(J)
+C     	     SM    = SMY
+C     	     SPLUS = SPY
+C     	  ENDIF
+C         IF ((FZBOT .NE. 0.0 .OR. FZTOP .NE. 0.0 ) .AND.
+C     $      ABS(SPZ) .GT. ABS(SPLUS)) THEN
+C     	     DDS   = DDZ(K)
+C     	     SM    = SMZ
+C     	     SPLUS = SPZ
+C     	  ENDIF  
+CC      
+C
+C             WCT(K,J,I)  = WCT(K,J,I) + FXFRO*WCTX + FXBAC*WCTX 
+C     $                  + FYRGT*WCTY + FYLFT*WCTY 
+C     $                  + FZBOT*WCTZ + FZTOP*WCTZ          	             
+CC         
+CC        
+CC        SETTING CORRECTED TEMPERATURE AT WALL
+C         IBAC = I-FXBAC
+C         IFRO = I+FXFRO
+C         JRGT = J+FYRGT
+C         JLFT = J-FYLFT
+C         KBOT = K+FZBOT
+C         KTOP = K-FZTOP
+C         T(K,J,IBAC) = FXBAC*TW + (1.0-FXBAC)*T(K,J,IBAC)
+C         T(K,J,IFRO) = FXFRO*TW + (1.0-FXFRO)*T(K,J,IFRO) 
+C         T(K,JRGT,I) = FYRGT*TW + (1.0-FYRGT)*T(K,JRGT,I)
+C         T(K,JLFT,I) = FYLFT*TW + (1.0-FYLFT)*T(K,JLFT,I)  
+C         T(KBOT,J,I) = FZBOT*TW + (1.0-FZBOT)*T(KBOT,J,I) 
+C         T(KTOP,J,I) = FZTOP*TW + (1.0-FZTOP)*T(KTOP,J,I)                                          
+CC     
+C         ENDDO
+C        ENDDO
+CC        ENDIF
+C       ENDDO
+C      
+C
+C      ENDIF    
+C
+CC
+CC-----FIXED SCALAR------------------------------------------------------ 
+C
+C      IF ( NCUB .EQ. 16 ) THEN
+C         ISTART = LARBOCONDS( 1 , 2 , 7 , IGRID )
+C         ISTOP  = LARBOCONDS( 2 , 2 , 7 , IGRID )
+C         JSTART = LARBOCONDS( 3 , 2 , 7 , IGRID )
+C         JSTOP  = LARBOCONDS( 4 , 2 , 7 , IGRID )
+C         KSTART = LARBOCONDS( 5 , 2 , 7 , IGRID )
+C         KSTOP  = LARBOCONDS( 6 , 2 , 7 , IGRID )
+C         DO I=ISTART,ISTOP
+C            DO J=ISTART,ISTOP
+C               DO K=KSTART,KSTOP
+CC
+C             AYZ     = DDY(J)*DDZ(K)
+C             AXZ     = DDX(I)*DDZ(K)
+C             AXY     = DDX(I)*DDY(J)
+C             
+C             DSX = FXFRO*DX(I)*0.5 + FXBAC*DX(I-1)*0.5
+C             DSY = FYRGT*DY(J)*0.5 + FYLFT*DY(J-1)*0.5 
+C             DSZ = FZBOT*DZ(K)*0.5 + FZTOP*DZ(K-1)*0.5           
+C             
+C             TW      = TSCA( 2 , 7 , IGRID) 
+CC            
+CC                                    WALL FUNCTIONS
+CC            
+C#ifdef _DNS_
+C      WCTX =AYZ*GMOL/RHO/PRMOL*(TW-T(K,J,I))/DSX*MIN(INT(FXFRO+FXBAC),1) 
+C      WCTY =AXZ*GMOL/RHO/PRMOL*(TW-T(K,J,I))/DSY*MIN(INT(FYRGT+FYLFT),1)  
+C      WCTZ =AXY*GMOL/RHO/PRMOL*(TW-T(K,J,I))/DSZ*MIN(INT(FZBOT+FZTOP),1) 
+C#else        
+CC            WALL TANGENTIAL VELOCITIES
+C             UQX = (ABS(V(K,J-1,I)+(V(K,J,I)-V(K,J-1,I)) /
+C     $              DDY(J)*DY(J-1)*0.5)**2.0 + 
+C     $              ABS(W(K-1,J,I)+(W(K,J,I)-W(K-1,J,I)) /
+C     $              DDZ(K)*DZ(K-1)*0.5)**2.0)**0.5
+C             UQY = (ABS(U(K,J,I-1)+(U(K,J,I)-U(K,J,I-1)) /
+C     $              DDX(I)*DX(I-1)*0.5)**2.0 + 
+C     $              ABS(W(K-1,J,I)+(W(K,J,I)-W(K-1,J,I)) /
+C     $              DDZ(K)*DZ(K-1)*0.5)**2.0)**0.5
+C             UQZ = (ABS(V(K,J-1,I)+(V(K,J,I)-V(K,J-1,I)) /
+C     $              DDY(J)*DY(J-1)*0.5)**2.0 + 
+C     $              ABS(U(K,J,I-1)+(U(K,J,I)-U(K,J,I-1)) /
+C     $              DDX(I)*DX(I-1)*0.5)**2.0)**0.5
+CC
+C      WCTX  = AYZ * QWALLFIX(UQX,QCUB,TW,T(K,J,I),DDX(I),DSX,SM,SPLUS)
+C     $            * MIN(INT(FXFRO+FXBAC),1)
+C      WCTY  = AXZ * QWALLFIX(UQY,QCUB,TW,T(K,J,I),DDY(J),DSY,SM,SPLUS)
+C     $           * MIN(INT(FYRGT+FYLFT),1 )
+C      WCTZ  = AXY * QWALLFIX(UQZ,QCUB,TW,T(K,J,I),DDZ(K),DSZ,SM,SPLUS)
+C     $            * MIN(INT(FZBOT+FZTOP),1 )
+C#endif
+CC 
+C         IF ( FXFRO*WCTX .NE. 0.0 .OR. FXBAC*WCTX .NE. 0.0 ) THEN
+C         	DDS   = DDX(I)
+C         	SM    = SMX
+C         	SPLUS = SPX
+C     	 ENDIF             	
+C         IF ((FYRGT*WCTY .NE. 0.0 .OR. FYLFT*WCTY .NE. 0.0 ) .AND.
+C     $      ABS(SPY) .GT. ABS(SPLUS)) THEN
+C     	    DDS   = DDY(J)
+C     	    SM    = SMY
+C     	    SPLUS = SPY
+C     	 ENDIF
+C         IF ((FZBOT*WCTZ .NE. 0.0 .OR. FZTOP*WCTZ .NE. 0.0 ) .AND.
+C     $      ABS(SPZ) .GT. ABS(SPLUS)) THEN
+C     	    DDS   = DDZ(K)
+C     	    SM    = SMZ
+C     	    SPLUS = SPZ
+C     	 ENDIF
+CC     	     
+C             WCT(K,J,I)  = WCT(K,J,I) + FXFRO*WCTX + FXBAC*WCTX 
+C     $                  + FYRGT*WCTY + FYLFT*WCTY 
+C     $                  + FZBOT*WCTZ + FZTOP*WCTZ        
+CC         
+CC        
+CC        SETTING CORRECTED TEMPERATURE AT WALL
+C         IBAC = I-FXBAC
+C         IFRO = I+FXFRO
+C         JRGT = J+FYRGT
+C         JLFT = J-FYLFT
+C         KBOT = K+FZBOT
+C         KTOP = K-FZTOP
+C         T(K,J,IBAC) = FXBAC*TW + (1.0-FXBAC)*T(K,J,IBAC)
+C         T(K,J,IFRO) = FXFRO*TW + (1.0-FXFRO)*T(K,J,IFRO) 
+C         T(K,JRGT,I) = FYRGT*TW + (1.0-FYRGT)*T(K,JRGT,I)
+C         T(K,JLFT,I) = FYLFT*TW + (1.0-FYLFT)*T(K,JLFT,I)  
+C         T(KBOT,J,I) = FZBOT*TW + (1.0-FZBOT)*T(KBOT,J,I) 
+C         T(KTOP,J,I) = FZTOP*TW + (1.0-FZTOP)*T(KTOP,J,I)
+C        ENDDO
+C       ENDDO
+CC       ENDIF
+C      ENDDO
+C
+C
+C-----------------------------------------------------------------------  
+C      ENDIF
+
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
+C
+      RETURN
+      END
+C
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
+      FUNCTION QWALLFLUX   (UQ,QW,TW,TF,DDS,DS,SM,SPLUS)     
+C*STARLET***************************************************************
+C        Q W A L L      CALCULATION OF SCALAR WALL FLUX CORRECTION
+C*STARLET***************************************************************
+C
+C PARAM: QW      - (CONSTANT) WALL SCALAR/HEAT FLUX 
+C        TW      - (CONSTANT) WALL SCALAR/TEMPERATURE
+C        UQ      - TANGENTIAL VELOCITY AT WALL NEAREST CELL CENTER
+C        DDS     - EDGE LENGTH OF WALL NEAREST CELL
+C        DS      - DISTANCE OF WALL NEAREST CELL CENTER FROM THE WALL
+C        SM      - WALL DISTANCE OF SWITCHING POINT FROM LINEAR TO 
+C                  EXP. CORR.
+C        SPLUS   - WALL DISTANCE OF WALL ADJACENT GRID POINT IN WALL 
+C                  COORDINATES
+C
+C VERS:  04.11.02 (TB)  : ORIGINAL
+C
+C DEFINE-DIREKTIVEN     : DNS
+C
+C*STARLET***************************************************************
+C
+#include "mgpar.h"
+
+#include "cophyspar.h"
+
+#include "conpot.h"
+
+#include "konsta.h"    
+
+      UQN = ABS(UQ)
+      RPRMOL = 1.0/PRMOL
+      RHOTAU= RHO * ABS(TAUWIN(UQN,DDS))
+C      RHOTAU= (RHO * ABS(TAUWIN(UQN,DDS)))**0.5      
+      IF (RHOTAU .LE. 0.0) THEN
+       RHOTAU = SMALL      
+C       WRITE(6,*) 
+C     $ 'ATTENTION: SCALAR WALL CORRECTION TO ZERO VELOCITY CELL APPLIED'
+       QWALLFLUX = 0.0
+       TW = TF
+       RETURN
+      ENDIF       
+
+      SM = GMOL / RHOTAU**0.5 * CWA**(1.0/(1.0-CWB))
+C     SPLUS IN CELL CENTER, ATTENTION: MODEL SWITCHES AT CELL BOUND NOT
+C     AT CELL CENTER => 2*SPLUS < SM FOR LINEAR CORRECTION!
+      SPLUS = RHOTAU**0.5 / GMOL * DS
+C 
+      FSM = 1/DDS**2 *( 0.5*SM**2.0*PRMOL + 
+     $                  (RHOTAU/GMOL)**(-CPO1) * CWA/CPO2 *
+     $                  (DDS**CPO2 - SM**CPO2) )             
+      
+      QWALLFLUX = 0.0
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
+
+C     FIXED FLUX/GRADIENT BC
+#ifndef _DNS_
+      IF((DDS .LE. SM) .OR. (MTURB .EQ. 0)) GOTO 3010
+C
+C                                 UQ IN TURBULENT "LOG" LAYER 
+C------------------------------------------------------------
+      QWALLFLUX  =  GMOL/RHO/PRMOL * QW/LAMDA 
+
+C                                 CALCULATE TW
+      TW = TF + QW/LAMDA / PRMOL * DDS * FSM
+
+C      WRITE(6,*) 'QWALL= ', QWALL   
+C      WRITE(6,*) 'TW= ', TW            
+      RETURN
+#endif
+C
+C                                      UQ IN VISCOUS SUBLAYER
+C------------------------------------------------------------
+ 3010 QWALLFLUX  = GMOL/RHO/PRMOL * QW/LAMDA
+
+C                                 CALCULATE TW
+      TW = TF + QW/LAMDA * DS
+      RETURN
+C
+      END
+C
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
+      FUNCTION QWALLFIX   (UQ,QW,TW,TF,DDS,DS,SM,SPLUS)     
+C*STARLET***************************************************************
+C        Q W A L L      CALCULATION OF SCALAR WALL FLUX CORRECTION
+C*STARLET***************************************************************
+C
+C PARAM: QW      - (CONSTANT) WALL SCALAR/HEAT FLUX 
+C        TW      - (CONSTANT) WALL SCALAR/TEMPERATURE
+C        UQ      - TANGENTIAL VELOCITY AT WALL NEAREST CELL CENTER
+C        DDS     - EDGE LENGTH OF WALL NEAREST CELL
+C        DS      - DISTANCE OF WALL NEAREST CELL CENTER FROM THE WALL
+C        SM      - WALL DISTANCE OF SWITCHING POINT FROM LINEAR TO 
+C                  EXP. CORR.
+C        SPLUS   - WALL DISTANCE OF WALL ADJACENT GRID POINT IN WALL 
+C                  COORDINATES
+C
+C VERS:  04.11.02 (TB)  : ORIGINAL
+C
+C DEFINE-DIREKTIVEN     : DNS
+C
+C*STARLET***************************************************************
+C
+#include "mgpar.h"
+
+#include "cophyspar.h"
+
+#include "conpot.h"
+
+#include "konsta.h"     
+
+      UQN = ABS(UQ)
+      RPRMOL = 1.0/PRMOL
+      RHOTAU= RHO * ABS(TAUWIN(UQN,DDS))
+C      RHOTAU= (RHO * ABS(TAUWIN(UQN,DDS)))**0.5      
+      IF (RHOTAU .LE. 0.0) THEN
+       RHOTAU = SMALL      
+C       WRITE(6,*) 
+C     $ 'ATTENTION: SCALAR WALL CORRECTION TO ZERO VELOCITY CELL APPLIED'
+       QWALLFIX = 0.0
+       TW = TF
+       RETURN
+      ENDIF       
+      SM = GMOL / RHOTAU**0.5 * CWA**(1.0/(1.0-CWB))
+C     SPLUS IN CELL CENTER, ATTENTION: MODEL SWITCHES AT CELL BOUND NOT
+C     AT CELL CENTER => 2*SPLUS < SM FOR LINEAR CORRECTION!
+      SPLUS = RHOTAU**0.5 / GMOL * DS
+C 
+      FSM = 1/DDS**2 *( 0.5*SM**2.0*PRMOL + 
+     $                  (RHOTAU/GMOL)**(-CPO1) * CWA/CPO2 *
+     $                  (DDS**CPO2 - SM**CPO2) )             
+      
+      QWALLFIX = 0.0
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
+
+C     FIXED SCALAR BC
+#ifndef _DNS_
+      IF((DDS .LE. SM) .OR. (MTURB .EQ. 0)) GOTO 3011
+C
+C                                 UQ IN TURBULENT "LOG" LAYER 
+C------------------------------------------------------------
+C
+      QWALLFIX  = GMOL/RHO *( TW - TF ) /DDS /FSM
+      RETURN
+#endif
+C
+C                                      UQ IN VISCOUS SUBLAYER
+C------------------------------------------------------------
+ 3011 QWALLFIX  = GMOL/RHO/PRMOL * (TW - TF) / DS
+
+      RETURN
+
+#endif
+      END
+

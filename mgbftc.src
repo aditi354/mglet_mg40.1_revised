@@ -1,0 +1,255 @@
+      SUBROUTINE MGBFTC (KKF,JJF,IIF,DXF,DYF,DZF,DDXF,DDYF,DDZF,FF,
+     &                   KKC,JJC,IIC,DXC,DYC,DZC,DDXC,DDYC,DDZC,FC,
+     &                   KPOS,JPOS,IPOS,CID,IPROCF,IPROCC)
+C
+C*MGLET*****************************************************************
+C  M G B F T C         RESTRIKTION DER RANDBED.-BUFFER
+C                      FEINES GITTER AUF GROBES GITTER
+C
+C   ORIGINAL:   25. 6. 93 (MM) AUS MGFTOC ABGELEITET
+C                              NUR UFR IMPLEMENTIERT !!!!!
+C               14. 7. 97 (MM) BOTTOM-BUFFER geht auch mit veraendertem
+C                              Aufruf!
+C               30.10. 97 (MM) MPI EINGEFUEHRT
+C
+C*MGLET*****************************************************************
+C
+C  PARAMETER
+C             IIF,JJF,KKF    - ANZAHL DER FEINGITTERPUNKTE
+C             DXF,DYF,DZF    - ABSTAND DER FEINGITTERPUNKTE
+C            DDXF,DDYF,DDZF  - KANTENLAENGE DES FEINGITTERS
+C             FF             - ZU RESTRINGIERENDE VARIABLE
+C
+C             IIC,JJC,KKC    - ANZAHL DER GROBGITTERPUNKTE
+C             DXC,DYC,DZC    - ABSTAND DER GROBGITTERPUNKTE
+C            DDXC,DDYC,DDZC  - KANTENLAENGE DES GROBGITTERS
+C             FC             + RESTRINGIERTE VARIABLE
+C
+C             IPOS,JPOS,KPOS - "AUFHAENGEPUNKT" DES FEINEN GITTERS
+C                              IM GROBEN GITTER
+C
+C             CID            - CHARACTER (LEN=1), GIBT AN WIE GROESSE
+C                              IM MASCHENGITTER VERSETZT IST
+C                              ("U","V","W" ODER "P")
+C                               "U" BEDEUTET UFR
+C
+C***********************************************************************
+C
+      REAL  DXF(IIF), DYF(JJF), DZF(KKF),
+     &     DDXF(IIF),DDYF(JJF),DDZF(KKF),
+     &      DXC(IIC), DYC(JJC), DZC(KKC),
+     &     DDXC(IIC),DDYC(JJC),DDZC(KKC)
+
+      REAL   FF(KKF,JJF,IIF),
+     &       FC(KKC,JJC,IIC)
+
+      CHARACTER (LEN=1) CID
+C
+#ifdef _MPI_
+C               MPI-INCLUDE
+C
+
+#include "mgpar.h"
+#include "colevel.h"
+#include "compi.h"
+#include "mpif.h"
+
+       INTEGER ISTATUS(MPI_STATUS_SIZE)
+
+C       write (0,*)'mgbftc,myid,iprocf,iprocc',myid,iprocf,iprocc
+C
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
+C
+C                GESENDET WIRD NUR,WENN GITTER AUF VERSCHIEDENEN
+C                PROZESSOREN GERECHNET WERDEN
+C                ANSONSTEN WIRD DIE RANDBEDINGUNG FUER GITTER
+C                GANZ NORMAL GESETZT
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
+        IF ( IPROCF .EQ. IPROCC .AND. IPROCF. EQ. MYID) THEN
+
+C
+C                                    GITTER LIEGEN AUF EINEM PROZESSOR
+C
+#endif
+C
+C
+C-------------------------------------- GROESSE IN X-RICHTUNG  VERSETZT
+C                                       MITTELWERT UEBER OBERFLAECHE
+C
+C                                       HIER: FRONT-BUFFER
+C
+C
+      IF ( CID .EQ. 'U' ) THEN
+
+C
+C-------------------------------------------------- CHECK AUF KONSISTENZ
+C
+      IF ( KKC-4 .LT. (KKF-4)/2 ) CALL ERRR (502,' MGBFTC')
+      IF ( JJC-4 .LT. (JJF-4)/2 ) CALL ERRR (503,' MGBFTC')
+      IF ( IIC   .NE.     2     ) CALL ERRR (504,' MGBFTC')
+      IF ( IIF   .NE.     2     ) CALL ERRR (505,' MGBFTC')
+
+C301097         CALL SETS   (KKC,JJC, 2 ,KKC,JJC, 2 ,FC,0.0)
+
+            IF = 2
+            IC = 2
+         DO JF = 3,JJF-2,2
+            JC = JPOS + (JF-3)/2
+         DO KF = 3,KKF-2,2
+            KC = KPOS + (KF-3)/2
+
+
+            FC (KC  ,JC  ,IC  ) = 1./(         DDYC(JC)*DDZC(KC))
+
+     &      *(   FF(KF  ,JF  ,IF  )           *DDYF(JF  )*DDZF(KF  )
+     &         + FF(KF  ,JF+1,IF  )           *DDYF(JF+1)*DDZF(KF  )
+     &         + FF(KF+1,JF  ,IF  )           *DDYF(JF  )*DDZF(KF+1)
+     &         + FF(KF+1,JF+1,IF  )           *DDYF(JF+1)*DDZF(KF+1))
+
+         ENDDO
+         ENDDO
+C
+C-------------------------------------- IM FEHLERFALL
+C
+      ELSE
+
+         CALL ERRR (508,' MGFTOC')
+
+      ENDIF
+C
+#ifdef _MPI_
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+C
+C                 ARE THE GRIDS ON DIFFERENT PROCESSORS THE MESSAGE HAS
+C                 TO BE SENT BY MPI:
+C
+C
+        ELSE
+C
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC SEND-BUFFER
+      IF ( MYID .EQ. IPROCF ) THEN
+            ICOUNT = 0
+
+      IF ( CID .EQ. 'U' ) THEN
+
+C
+C-------------------------------------------------- CHECK AUF KONSISTENZ
+C
+      IF ( KKC-4 .LT. (KKF-4)/2 ) CALL ERRR (502,' MGBFTC')
+      IF ( JJC-4 .LT. (JJF-4)/2 ) CALL ERRR (503,' MGBFTC')
+      IF ( IIC   .NE.     2     ) CALL ERRR (504,' MGBFTC')
+      IF ( IIF   .NE.     2     ) CALL ERRR (505,' MGBFTC')
+
+C301097         CALL SETS   (KKC,JJC, 2 ,KKC,JJC, 2 ,FC,0.0)
+
+            IF = 2
+            IC = 2
+         DO JF = 3,JJF-2,2
+            JC = JPOS + (JF-3)/2
+         DO KF = 3,KKF-2,2
+            KC = KPOS + (KF-3)/2
+
+
+CMPI            FC (KC  ,JC  ,IC  ) = 1./(         DDYC(JC)*DDZC(KC))
+            ICOUNT = ICOUNT+1
+            BIGBUF(ICOUNT)      = 1./(         DDYC(JC)*DDZC(KC))
+
+     &      *(   FF(KF  ,JF  ,IF  )           *DDYF(JF  )*DDZF(KF  )
+     &         + FF(KF  ,JF+1,IF  )           *DDYF(JF+1)*DDZF(KF  )
+     &         + FF(KF+1,JF  ,IF  )           *DDYF(JF  )*DDZF(KF+1)
+     &         + FF(KF+1,JF+1,IF  )           *DDYF(JF+1)*DDZF(KF+1))
+
+         ENDDO
+         ENDDO
+C
+C-------------------------------------- IM FEHLERFALL
+C
+      ELSE
+
+         CALL ERRR (508,' MGFTOC')
+
+      ENDIF
+C
+C----------------------------------------------- SENDING OF THE BUFFER
+C
+      CALL MPI_SEND    ( BIGBUF , ICOUNT , 
+     $ MPI_DOUBLE_PRECISION ,
+     $                 IPROCC , IPROCF ,
+     $                 MPI_COMM_WORLD , IERR)
+
+      ENDIF
+C
+C----------------------------------------------- SENDER READY
+C
+C
+C
+C----------------------------------------------- RECEIVER
+C
+
+      IF (MYID .EQ. IPROCC) THEN
+
+      CALL MPI_RECV    ( BIGBUF , IDIM_MG_BUFS , 
+     $ MPI_DOUBLE_PRECISION ,
+     $                 IPROCF , IPROCF ,
+     $                 MPI_COMM_WORLD , ISTATUS ,IERR)
+
+C
+C---------------------------------------------- STORING RECEIVED VALUES
+C
+      ICOUNT = 0
+C
+
+      IF ( CID .EQ. 'U' ) THEN
+
+C
+C-------------------------------------------------- CHECK AUF KONSISTENZ
+C
+      IF ( KKC-4 .LT. (KKF-4)/2 ) CALL ERRR (502,' MGBFTC')
+      IF ( JJC-4 .LT. (JJF-4)/2 ) CALL ERRR (503,' MGBFTC')
+      IF ( IIC   .NE.     2     ) CALL ERRR (504,' MGBFTC')
+      IF ( IIF   .NE.     2     ) CALL ERRR (505,' MGBFTC')
+
+C301097         CALL SETS   (KKC,JJC, 2 ,KKC,JJC, 2 ,FC,0.0)
+
+            IF = 2
+            IC = 2
+         DO JF = 3,JJF-2,2
+            JC = JPOS + (JF-3)/2
+         DO KF = 3,KKF-2,2
+            KC = KPOS + (KF-3)/2
+
+
+            ICOUNT = ICOUNT + 1
+            FC (KC  ,JC  ,IC  ) = BIGBUF(ICOUNT)
+
+
+         ENDDO
+         ENDDO
+C
+C-------------------------------------- IM FEHLERFALL
+C
+      ELSE
+
+         CALL ERRR (508,' MGFTOC')
+
+      ENDIF
+C
+C------------------------------------- RECEIVER READY
+C
+      ENDIF
+C
+C----------------------------------------------------------------
+C
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
+C                      END OF MPI-VERSION, SEND- AND RECEIVE
+      ENDIF
+#endif
+C
+C
+C----------------------------------------------------------------
+C
+      RETURN
+      END
+
+

@@ -1,0 +1,702 @@
+      SUBROUTINE MGFTOC (KKF,JJF,IIF,DXF,DYF,DZF,DDXF,DDYF,DDZF,FF,
+     &                   KKC,JJC,IIC,DXC,DYC,DZC,DDXC,DDYC,DDZC,FC,
+     &                   IPOS,JPOS,KPOS,CID,IPROCF,IPROCC,
+     &                      NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,BP)
+C
+C*MGLET*****************************************************************
+C  M G F T O C         RESTRIKTION
+C                      VON WAHLWEISE U,V,W ODER P(DP,G USW.)
+C                      FEINES GITTER AUF GROBES GITTER
+C
+C   ORIGINAL:   25. 6. 93 (MM)
+C               18. 7. 95 (MM) MPI EINGEFUEHRT
+C               12. 6. 96 (MM) _BTOPAR_FIXED_ EINGEFUEHRT
+C
+C*MGLET*****************************************************************
+C
+C  PARAMETER
+C             IIF,JJF,KKF    - ANZAHL DER FEINGITTERPUNKTE
+C             DXF,DYF,DZF    - ABSTAND DER FEINGITTERPUNKTE
+C            DDXF,DDYF,DDZF  - KANTENLAENGE DES FEINGITTERS
+C             FF             - ZU RESTRINGIERENDE VARIABLE
+C
+C             IIC,JJC,KKC    - ANZAHL DER GROBGITTERPUNKTE
+C             DXC,DYC,DZC    - ABSTAND DER GROBGITTERPUNKTE
+C            DDXC,DDYC,DDZC  - KANTENLAENGE DES GROBGITTERS
+C             FC             + RESTRINGIERTE VARIABLE
+C
+C             IPOS,JPOS,KPOS - "AUFHAENGEPUNKT" DES FEINEN GITTERS
+C                              IM GROBEN GITTER
+C
+C             CID            - CHARACTER (LEN=1), GIBT AN WIE GROESSE
+C                              IM MASCHENGITTER VERSETZT IST
+C                              ("U","V","W" ODER "P")
+C
+C***********************************************************************
+C
+      REAL  DXF(IIF), DYF(JJF), DZF(KKF),
+     &     DDXF(IIF),DDYF(JJF),DDZF(KKF),
+     &      DXC(IIC), DYC(JJC), DZC(KKC),
+     &     DDXC(IIC),DDYC(JJC),DDZC(KKC)
+
+      REAL   FF(KKF,JJF,IIF),
+     &       FC(KKC,JJC,IIC),BP(KKF,JJF,IIF)
+
+      CHARACTER (LEN=1) CID
+C
+#ifdef _MPI_
+C               MPI-INCLUDE
+C
+
+#include "mgpar.h"
+#include "colevel.h"
+#include "compi.h"
+#include "mpif.h"
+
+       INTEGER ISTATUS(MPI_STATUS_SIZE)
+
+C       write (0,*)'mgftoc,myid,iprocf,iprocc',myid,iprocf,iprocc
+#endif
+C
+C-------------------------------------------------- CHECK AUF KONSISTENZ
+C
+CTEST      IF ( KKC-4 .NE. (KKF-4)/2 ) CALL ERRR (501,' MGFTOC')
+CTEST      IF ( JJC-4 .NE. (JJF-4)/2 ) CALL ERRR (502,' MGFTOC')
+CTEST      IF ( IIC-4 .NE. (IIF-4)/2 ) CALL ERRR (503,' MGFTOC')
+C
+C-------------------------------------------------- ANPASSUNG DER RANDBED.
+C
+      NTW = 0
+      IF ((NTOP.EQ.1).OR.(NTOP.EQ.7).OR.(NTOP.EQ.3))  NTW = 1
+#ifndef _TOPAR_FIXED_
+      IF (NTOP.EQ.8)  NTW = 1
+#endif
+#ifdef _TOPAR_CORRECT_INTERFACE_VELOCITY_
+      IF (NTOP.EQ.8)  NTW = 1
+#endif
+C
+      NBU = 0
+      IF ((NBAC.EQ.1).OR.(NBAC.EQ.7).OR.(NBAC.EQ.3))  NBU = 1
+#ifndef _BAPAR_FIXED_
+      IF (NBAC.EQ.8)  NBU = 1
+#endif
+#ifdef _BAPAR_CORRECT_INTERFACE_VELOCITY_
+      IF (NBAC.EQ.8)  NBU = 1
+#endif
+C
+C
+#ifdef _MPI_
+C
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
+C
+C                GESENDET WIRD NUR,WENN GITTER AUF VERSCHIEDENEN
+C                PROZESSOREN GERECHNET WERDEN
+C                ANSONSTEN WIRD DIE RANDBEDINGUNG FUER GITTER
+C                GANZ NORMAL GESETZT
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
+        IF ( IPROCF .EQ. IPROCC ) THEN
+
+C
+C                                    GITTER LIEGEN AUF EINEM PROZESSOR
+C
+
+#endif
+C
+C----------------------------------------------- GROESSE NICHT VERSETZT
+C                                                VOLUMENMITTELWERT
+C
+#ifndef _FRED_BODY_
+      IF ( CID .EQ. 'P' ) THEN
+
+*poption parallel
+         DO IF = 3,IIF-2,2
+            IC = IPOS + (IF-3)/2
+         DO JF = 3,JJF-2,2
+            JC = JPOS + (JF-3)/2
+         DO KF = 3,KKF-2,2
+            KC = KPOS + (KF-3)/2
+
+
+            FC (KC  ,JC  ,IC  ) = 1./(DDXC(IC)*DDYC(JC)*DDZC(KC))
+
+     &      *(   FF(KF  ,JF  ,IF  )*DDXF(IF  )*DDYF(JF  )*DDZF(KF  )
+     &         + FF(KF  ,JF  ,IF+1)*DDXF(IF+1)*DDYF(JF  )*DDZF(KF  )
+     &         + FF(KF  ,JF+1,IF  )*DDXF(IF  )*DDYF(JF+1)*DDZF(KF  )
+     &         + FF(KF  ,JF+1,IF+1)*DDXF(IF+1)*DDYF(JF+1)*DDZF(KF  )
+     &         + FF(KF+1,JF  ,IF  )*DDXF(IF  )*DDYF(JF  )*DDZF(KF+1)
+     &         + FF(KF+1,JF  ,IF+1)*DDXF(IF+1)*DDYF(JF  )*DDZF(KF+1)
+     &         + FF(KF+1,JF+1,IF  )*DDXF(IF  )*DDYF(JF+1)*DDZF(KF+1)
+     &         + FF(KF+1,JF+1,IF+1)*DDXF(IF+1)*DDYF(JF+1)*DDZF(KF+1))
+         ENDDO
+         ENDDO
+         ENDDO
+C
+C-------------------------------------- GROESSE IN X-RICHTUNG  VERSETZT
+C                                       MITTELWERT UEBER OBERFLAECHE
+C
+      ELSEIF ( CID .EQ. 'U' ) THEN
+
+*poption parallel
+         DO IF = 2,IIF-3+NBU,2
+            IC = IPOS + (IF-2)/2 - 1
+         DO JF = 3,JJF-2,2
+            JC = JPOS + (JF-3)/2
+         DO KF = 3,KKF-2,2
+            KC = KPOS + (KF-3)/2
+
+
+            FC (KC  ,JC  ,IC  ) = 1./(         DDYC(JC)*DDZC(KC))
+
+     &      *(   FF(KF  ,JF  ,IF  )           *DDYF(JF  )*DDZF(KF  )
+     &         + FF(KF  ,JF+1,IF  )           *DDYF(JF+1)*DDZF(KF  )
+     &         + FF(KF+1,JF  ,IF  )           *DDYF(JF  )*DDZF(KF+1)
+     &         + FF(KF+1,JF+1,IF  )           *DDYF(JF+1)*DDZF(KF+1))
+
+         ENDDO
+         ENDDO
+         ENDDO
+C
+C-------------------------------------- GROESSE IN Y-RICHTUNG  VERSETZT
+C                                       MITTELWERT UEBER OBERFLAECHE
+C
+      ELSEIF ( CID .EQ. 'V' ) THEN
+
+*poption parallel
+         DO IF = 3,IIF-2,2
+            IC = IPOS + (IF-3)/2
+         DO JF = 2,JJF-2,2
+            JC = JPOS + (JF-2)/2 - 1
+         DO KF = 3,KKF-2,2
+            KC = KPOS + (KF-3)/2
+
+
+            FC (KC  ,JC  ,IC  ) = 1./(DDXC(IC)         *DDZC(KC))
+
+     &      *(   FF(KF  ,JF  ,IF  )*DDXF(IF  )           *DDZF(KF  )
+     &         + FF(KF  ,JF  ,IF+1)*DDXF(IF+1)           *DDZF(KF  )
+     &         + FF(KF+1,JF  ,IF  )*DDXF(IF  )           *DDZF(KF+1)
+     &         + FF(KF+1,JF  ,IF+1)*DDXF(IF+1)           *DDZF(KF+1))
+
+         ENDDO
+         ENDDO
+         ENDDO
+C
+C-------------------------------------- GROESSE IN Z-RICHTUNG  VERSETZT
+C                                       MITTELWERT UEBER OBERFLAECHE
+C
+      ELSEIF ( CID .EQ. 'W' ) THEN
+
+*poption parallel
+         DO IF = 3,IIF-2,2
+            IC = IPOS + (IF-3)/2
+         DO JF = 3,JJF-2,2
+            JC = JPOS + (JF-3)/2
+         DO KF = 2,KKF-3+NTW,2
+            KC = KPOS + (KF-2)/2 - 1
+
+
+            FC (KC  ,JC  ,IC  ) = 1./(DDXC(IC)*DDYC(JC)         )
+
+     &      *(   FF(KF  ,JF  ,IF  )*DDXF(IF  )*DDYF(JF  )           
+     &         + FF(KF  ,JF  ,IF+1)*DDXF(IF+1)*DDYF(JF  )           
+     &         + FF(KF  ,JF+1,IF  )*DDXF(IF  )*DDYF(JF+1)           
+     &         + FF(KF  ,JF+1,IF+1)*DDXF(IF+1)*DDYF(JF+1)           )
+
+         ENDDO
+         ENDDO
+         ENDDO
+
+#else
+      IF ( CID .EQ. 'P' ) THEN
+
+*poption parallel
+         DO IF = 3,IIF-2,2
+            IC = IPOS + (IF-3)/2
+         DO JF = 3,JJF-2,2
+            JC = JPOS + (JF-3)/2
+         DO KF = 3,KKF-2,2
+            KC = KPOS + (KF-3)/2
+
+
+            FC (KC  ,JC  ,IC  ) = 1./(DDXC(IC)*DDYC(JC)*DDZC(KC))
+
+     &      *(   FF(KF  ,JF  ,IF  )*DDXF(IF  )*DDYF(JF  )*DDZF(KF  )
+     &         + FF(KF  ,JF  ,IF+1)*DDXF(IF+1)*DDYF(JF  )*DDZF(KF  )
+     &         + FF(KF  ,JF+1,IF  )*DDXF(IF  )*DDYF(JF+1)*DDZF(KF  )
+     &         + FF(KF  ,JF+1,IF+1)*DDXF(IF+1)*DDYF(JF+1)*DDZF(KF  )
+     &         + FF(KF+1,JF  ,IF  )*DDXF(IF  )*DDYF(JF  )*DDZF(KF+1)
+     &         + FF(KF+1,JF  ,IF+1)*DDXF(IF+1)*DDYF(JF  )*DDZF(KF+1)
+     &         + FF(KF+1,JF+1,IF  )*DDXF(IF  )*DDYF(JF+1)*DDZF(KF+1)
+     &         + FF(KF+1,JF+1,IF+1)*DDXF(IF+1)*DDYF(JF+1)*DDZF(KF+1))
+         ENDDO
+         ENDDO
+         ENDDO
+C
+C-------------------------------------- GROESSE IN X-RICHTUNG  VERSETZT
+C                                       MITTELWERT UEBER OBERFLAECHE
+C
+      ELSEIF ( CID .EQ. 'U' ) THEN
+
+*poption parallel
+         DO IF = 2,IIF-3+NBU,2
+            IC = IPOS + (IF-2)/2 - 1
+         DO JF = 3,JJF-2,2
+            JC = JPOS + (JF-3)/2
+         DO KF = 3,KKF-2,2
+            KC = KPOS + (KF-3)/2
+
+
+            FC (KC  ,JC  ,IC  ) = 1./(         DDYC(JC)*DDZC(KC))
+
+     &      *(   FF(KF  ,JF  ,IF  )*BP(KF  ,JF  ,IF  )
+     &                                  *DDYF(JF  )*DDZF(KF  )
+     &         + FF(KF  ,JF+1,IF  )*BP(KF  ,JF+1,IF  )
+     &                                  *DDYF(JF+1)*DDZF(KF  )
+     &         + FF(KF+1,JF  ,IF  )*BP(KF+1,JF  ,IF  )
+     &                                  *DDYF(JF  )*DDZF(KF+1)
+     &         + FF(KF+1,JF+1,IF  )*BP(KF+1,JF+1,IF  )
+     &                                  *DDYF(JF+1)*DDZF(KF+1))
+
+         ENDDO
+         ENDDO
+         ENDDO
+C
+C-------------------------------------- GROESSE IN Y-RICHTUNG  VERSETZT
+C                                       MITTELWERT UEBER OBERFLAECHE
+C
+      ELSEIF ( CID .EQ. 'V' ) THEN
+
+*poption parallel
+         DO IF = 3,IIF-2,2
+            IC = IPOS + (IF-3)/2
+         DO JF = 2,JJF-2,2
+            JC = JPOS + (JF-2)/2 - 1
+         DO KF = 3,KKF-2,2
+            KC = KPOS + (KF-3)/2
+
+
+            FC (KC  ,JC  ,IC  ) = 1./(DDXC(IC)         *DDZC(KC))
+
+     &      *(   FF(KF  ,JF  ,IF  )*BP(KF  ,JF  ,IF  )
+     &                             *DDXF(IF  )           *DDZF(KF  )
+     &         + FF(KF  ,JF  ,IF+1)*BP(KF  ,JF  ,IF+1)
+     &                             *DDXF(IF+1)           *DDZF(KF  )
+     &         + FF(KF+1,JF  ,IF  )*BP(KF+1,JF  ,IF  )
+     &                             *DDXF(IF  )           *DDZF(KF+1)
+     &         + FF(KF+1,JF  ,IF+1)*BP(KF+1,JF  ,IF+1)
+     &                             *DDXF(IF+1)           *DDZF(KF+1))
+
+         ENDDO
+         ENDDO
+         ENDDO
+C
+C-------------------------------------- GROESSE IN Z-RICHTUNG  VERSETZT
+C                                       MITTELWERT UEBER OBERFLAECHE
+C
+      ELSEIF ( CID .EQ. 'W' ) THEN
+
+*poption parallel
+         DO IF = 3,IIF-2,2
+            IC = IPOS + (IF-3)/2
+         DO JF = 3,JJF-2,2
+            JC = JPOS + (JF-3)/2
+         DO KF = 2,KKF-3+NTW,2
+            KC = KPOS + (KF-2)/2 - 1
+
+
+            FC (KC  ,JC  ,IC  ) = 1./(DDXC(IC)*DDYC(JC)         )
+
+     &      *(   FF(KF  ,JF  ,IF  )*BP(KF  ,JF  ,IF  )
+     &                             *DDXF(IF  )*DDYF(JF  )
+     &         + FF(KF  ,JF  ,IF+1)*BP(KF  ,JF  ,IF+1)
+     &                             *DDXF(IF+1)*DDYF(JF  )
+     &         + FF(KF  ,JF+1,IF  )*BP(KF  ,JF+1,IF  )
+     &                             *DDXF(IF  )*DDYF(JF+1)
+     &         + FF(KF  ,JF+1,IF+1)*BP(KF  ,JF+1,IF+1)
+     &                             *DDXF(IF+1)*DDYF(JF+1)           )
+
+         ENDDO
+         ENDDO
+         ENDDO
+      ELSEIF ( CID .EQ. 'A' ) THEN
+
+*poption parallel
+         DO IF = 3,IIF-2,2
+            IC = IPOS + (IF-3)/2
+         DO JF = 3,JJF-2,2
+            JC = JPOS + (JF-3)/2
+         DO KF = 3,KKF-2,2
+            KC = KPOS + (KF-3)/2
+
+
+            FC (KC  ,JC  ,IC  ) =
+     &      MIN(1.0,
+     &      (   FF(KF  ,JF  ,IF  )+
+     &          FF(KF  ,JF  ,IF+1)+
+     &          FF(KF  ,JF+1,IF  )+
+     &          FF(KF  ,JF+1,IF+1)+
+     &          FF(KF+1,JF  ,IF  )+
+     &          FF(KF+1,JF  ,IF+1)+
+     &          FF(KF+1,JF+1,IF  )+
+     &          FF(KF+1,JF+1,IF+1)  ))
+        END DO
+        END DO
+        END DO
+      ELSEIF ( CID .EQ. 'B' ) THEN
+
+
+*poption parallel
+         DO IF = 2,IIF-3+NBU,2
+            IC = IPOS + (IF-2)/2 - 1
+         DO JF = 3,JJF-2,2
+            JC = JPOS + (JF-3)/2
+         DO KF = 3,KKF-2,2
+            KC = KPOS + (KF-3)/2
+
+            FC (KC  ,JC  ,IC  ) =
+     &      MIN(1.0,
+     &      (   FF(KF  ,JF  ,IF  )+
+     &          FF(KF  ,JF+1,IF  )+
+     &          FF(KF+1,JF  ,IF  )+
+     &          FF(KF+1,JF+1,IF  )  ))
+        END DO
+        END DO
+        END DO
+      ELSEIF ( CID .EQ. 'C' ) THEN
+*poption parallel
+         DO IF = 3,IIF-2,2
+            IC = IPOS + (IF-3)/2
+         DO JF = 2,JJF-2,2
+            JC = JPOS + (JF-2)/2 - 1
+         DO KF = 3,KKF-2,2
+            KC = KPOS + (KF-3)/2
+
+
+            FC (KC  ,JC  ,IC  ) =
+     &      MIN(1.0,
+     &      (   FF(KF  ,JF  ,IF  )+
+     &          FF(KF  ,JF  ,IF+1)+
+     &          FF(KF+1,JF  ,IF  )+
+     &          FF(KF+1,JF  ,IF+1)))
+        END DO
+        END DO
+        END DO
+      ELSEIF ( CID .EQ. 'D' ) THEN
+
+*poption parallel
+         DO IF = 3,IIF-2,2
+            IC = IPOS + (IF-3)/2
+         DO JF = 3,JJF-2,2
+            JC = JPOS + (JF-3)/2
+         DO KF = 2,KKF-3+NTW,2
+            KC = KPOS + (KF-2)/2 - 1
+
+            FC (KC  ,JC  ,IC  ) =
+     &      MIN(1.0,
+     &      (   FF(KF  ,JF  ,IF  )+
+     &          FF(KF  ,JF  ,IF+1)+
+     &          FF(KF  ,JF+1,IF  )+
+     &          FF(KF  ,JF+1,IF+1)))
+
+
+         ENDDO
+         ENDDO
+         ENDDO
+      ELSEIF ( CID .EQ. 'E' ) THEN
+
+*poption parallel
+         DO IF = 3,IIF-2,2
+            IC = IPOS + (IF-3)/2
+         DO JF = 3,JJF-2,2
+            JC = JPOS + (JF-3)/2
+         DO KF = 3,KKF-2,2
+            KC = KPOS + (KF-3)/2
+
+
+            FC (KC  ,JC  ,IC  ) =
+     &      (   FF(KF  ,JF  ,IF  )+
+     &          FF(KF  ,JF  ,IF+1)+
+     &          FF(KF  ,JF+1,IF  )+
+     &          FF(KF  ,JF+1,IF+1)+
+     &          FF(KF+1,JF  ,IF  )+
+     &          FF(KF+1,JF  ,IF+1)+
+     &          FF(KF+1,JF+1,IF  )+
+     &          FF(KF+1,JF+1,IF+1)  )
+        END DO
+        END DO
+        END DO
+#endif
+
+C
+C-------------------------------------- IM FEHLERFALL
+C
+      ELSE
+
+         CALL ERRR (504,' MGFTOC')
+
+      ENDIF
+C
+C----------------------------------------------------------------
+C
+#ifdef _MPI_
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+C
+C                 ARE THE GRIDS ON DIFFERENT PROCESSORS THE MESSAGE HAS
+C                 TO BE SENT BY MPI:
+C
+C
+        ELSE
+C
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC SEND-BUFFER
+      IF ( MYID .EQ. IPROCF ) THEN
+
+            ICOUNT = 0
+C
+C----------------------------------------------- GROESSE NICHT VERSETZT
+C                                                VOLUMENMITTELWERT
+C
+      IF ( CID .EQ. 'P' ) THEN
+
+         DO IF = 3,IIF-2,2
+            IC = IPOS + (IF-3)/2
+         DO JF = 3,JJF-2,2
+            JC = JPOS + (JF-3)/2
+         DO KF = 3,KKF-2,2
+            KC = KPOS + (KF-3)/2
+
+
+CMPI        FC (KC  ,JC  ,IC  ) = 1./(DDXC(IC)*DDYC(JC)*DDZC(KC))
+            ICOUNT = ICOUNT+1
+            BIGBUF(ICOUNT)      = 1./(DDXC(IC)*DDYC(JC)*DDZC(KC))
+
+     &      *(   FF(KF  ,JF  ,IF  )*DDXF(IF  )*DDYF(JF  )*DDZF(KF  )
+     &         + FF(KF  ,JF  ,IF+1)*DDXF(IF+1)*DDYF(JF  )*DDZF(KF  )
+     &         + FF(KF  ,JF+1,IF  )*DDXF(IF  )*DDYF(JF+1)*DDZF(KF  )
+     &         + FF(KF  ,JF+1,IF+1)*DDXF(IF+1)*DDYF(JF+1)*DDZF(KF  )
+     &         + FF(KF+1,JF  ,IF  )*DDXF(IF  )*DDYF(JF  )*DDZF(KF+1)
+     &         + FF(KF+1,JF  ,IF+1)*DDXF(IF+1)*DDYF(JF  )*DDZF(KF+1)
+     &         + FF(KF+1,JF+1,IF  )*DDXF(IF  )*DDYF(JF+1)*DDZF(KF+1)
+     &         + FF(KF+1,JF+1,IF+1)*DDXF(IF+1)*DDYF(JF+1)*DDZF(KF+1))
+         ENDDO
+         ENDDO
+         ENDDO
+C
+C-------------------------------------- GROESSE IN X-RICHTUNG  VERSETZT
+C                                       MITTELWERT UEBER OBERFLAECHE
+C
+      ELSEIF ( CID .EQ. 'U' ) THEN
+
+         DO IF = 2,IIF-3+NBU,2
+            IC = IPOS + (IF-2)/2 - 1
+         DO JF = 3,JJF-2,2
+            JC = JPOS + (JF-3)/2
+         DO KF = 3,KKF-2,2
+            KC = KPOS + (KF-3)/2
+
+
+CMPI        FC (KC  ,JC  ,IC  ) = 1./(         DDYC(JC)*DDZC(KC))
+            ICOUNT = ICOUNT+1
+            BIGBUF(ICOUNT)      = 1./(         DDYC(JC)*DDZC(KC))
+
+     &      *(   FF(KF  ,JF  ,IF  )           *DDYF(JF  )*DDZF(KF  )
+     &         + FF(KF  ,JF+1,IF  )           *DDYF(JF+1)*DDZF(KF  )
+     &         + FF(KF+1,JF  ,IF  )           *DDYF(JF  )*DDZF(KF+1)
+     &         + FF(KF+1,JF+1,IF  )           *DDYF(JF+1)*DDZF(KF+1))
+
+         ENDDO
+         ENDDO
+         ENDDO
+C
+C-------------------------------------- GROESSE IN Y-RICHTUNG  VERSETZT
+C                                       MITTELWERT UEBER OBERFLAECHE
+C
+      ELSEIF ( CID .EQ. 'V' ) THEN
+
+         DO IF = 3,IIF-2,2
+            IC = IPOS + (IF-3)/2
+         DO JF = 2,JJF-2,2
+            JC = JPOS + (JF-2)/2 - 1
+         DO KF = 3,KKF-2,2
+            KC = KPOS + (KF-3)/2
+
+
+CMPI        FC (KC  ,JC  ,IC  ) = 1./(DDXC(IC)         *DDZC(KC))
+            ICOUNT = ICOUNT+1
+            BIGBUF(ICOUNT)      = 1./(DDXC(IC)         *DDZC(KC))
+
+     &      *(   FF(KF  ,JF  ,IF  )*DDXF(IF  )           *DDZF(KF  )
+     &         + FF(KF  ,JF  ,IF+1)*DDXF(IF+1)           *DDZF(KF  )
+     &         + FF(KF+1,JF  ,IF  )*DDXF(IF  )           *DDZF(KF+1)
+     &         + FF(KF+1,JF  ,IF+1)*DDXF(IF+1)           *DDZF(KF+1))
+
+         ENDDO
+         ENDDO
+         ENDDO
+C
+C-------------------------------------- GROESSE IN Z-RICHTUNG  VERSETZT
+C                                       MITTELWERT UEBER OBERFLAECHE
+C
+      ELSEIF ( CID .EQ. 'W' ) THEN
+
+         DO IF = 3,IIF-2,2
+            IC = IPOS + (IF-3)/2
+         DO JF = 3,JJF-2,2
+            JC = JPOS + (JF-3)/2
+         DO KF = 2,KKF-3+NTW,2
+            KC = KPOS + (KF-2)/2 - 1
+
+
+CMPI        FC (KC  ,JC  ,IC  ) = 1./(DDXC(IC)*DDYC(JC)         )
+            ICOUNT = ICOUNT+1
+            BIGBUF(ICOUNT)      = 1./(DDXC(IC)*DDYC(JC)         )
+
+     &      *(   FF(KF  ,JF  ,IF  )*DDXF(IF  )*DDYF(JF  )           
+     &         + FF(KF  ,JF  ,IF+1)*DDXF(IF+1)*DDYF(JF  )           
+     &         + FF(KF  ,JF+1,IF  )*DDXF(IF  )*DDYF(JF+1)           
+     &         + FF(KF  ,JF+1,IF+1)*DDXF(IF+1)*DDYF(JF+1)           )
+
+         ENDDO
+         ENDDO
+         ENDDO
+C
+C-------------------------------------- IM FEHLERFALL
+C
+      ELSE
+
+         CALL ERRR (504,' MGFTOC')
+
+      ENDIF
+C
+C----------------------------------------------- SENDING OF THE BUFFER
+C
+      CALL MPI_SEND    ( BIGBUF , ICOUNT , 
+     $ MPI_DOUBLE_PRECISION ,
+     $                 IPROCC , 123 ,
+     $                 MPI_COMM_WORLD , IERR)
+CC      write (6,*) 'mpi_send in mgftoc',myid,icount,ierr
+
+      ENDIF
+C
+C----------------------------------------------- SENDER READY
+C
+C
+C----------------------------------------------- RECEIVER
+C
+
+      IF (MYID .EQ. IPROCC) THEN
+
+      CALL MPI_RECV    ( BIGBUF , IDIM_MG_BIG , 
+     $ MPI_DOUBLE_PRECISION ,
+     $                 IPROCF , 123 ,
+     $                 MPI_COMM_WORLD , ISTATUS ,IERR)
+      ICOUNT = 0
+C      call mpi_get_count(istatus,MPI_REAL,icount)
+CC      write (6,*) 'Bytes received in mgftoc',myid,istatus(1),ierr
+
+C
+C---------------------------------------------- STORING RECEIVED VALUES
+C
+      ICOUNT = 0
+C----------------------------------------------- GROESSE NICHT VERSETZT
+C                                                VOLUMENMITTELWERT
+C
+      IF ( CID .EQ. 'P' ) THEN
+
+         DO IF = 3,IIF-2,2
+            IC = IPOS + (IF-3)/2
+         DO JF = 3,JJF-2,2
+            JC = JPOS + (JF-3)/2
+         DO KF = 3,KKF-2,2
+            KC = KPOS + (KF-3)/2
+
+
+            ICOUNT = ICOUNT + 1
+            FC (KC  ,JC  ,IC  ) = BIGBUF(ICOUNT)
+
+         ENDDO
+         ENDDO
+         ENDDO
+C
+C-------------------------------------- GROESSE IN X-RICHTUNG  VERSETZT
+C                                       MITTELWERT UEBER OBERFLAECHE
+C
+      ELSEIF ( CID .EQ. 'U' ) THEN
+
+         DO IF = 2,IIF-3+NBU,2
+            IC = IPOS + (IF-2)/2 - 1
+         DO JF = 3,JJF-2,2
+            JC = JPOS + (JF-3)/2
+         DO KF = 3,KKF-2,2
+            KC = KPOS + (KF-3)/2
+
+
+            ICOUNT = ICOUNT + 1
+            FC (KC  ,JC  ,IC  ) = BIGBUF(ICOUNT)
+
+         ENDDO
+         ENDDO
+         ENDDO
+C
+C-------------------------------------- GROESSE IN Y-RICHTUNG  VERSETZT
+C                                       MITTELWERT UEBER OBERFLAECHE
+C
+      ELSEIF ( CID .EQ. 'V' ) THEN
+
+         DO IF = 3,IIF-2,2
+            IC = IPOS + (IF-3)/2
+         DO JF = 2,JJF-2,2
+            JC = JPOS + (JF-2)/2 - 1
+         DO KF = 3,KKF-2,2
+            KC = KPOS + (KF-3)/2
+
+            ICOUNT = ICOUNT + 1
+            FC (KC  ,JC  ,IC  ) = BIGBUF(ICOUNT)
+
+         ENDDO
+         ENDDO
+         ENDDO
+C
+C-------------------------------------- GROESSE IN Z-RICHTUNG  VERSETZT
+C                                       MITTELWERT UEBER OBERFLAECHE
+C
+      ELSEIF ( CID .EQ. 'W' ) THEN
+
+         DO IF = 3,IIF-2,2
+            IC = IPOS + (IF-3)/2
+         DO JF = 3,JJF-2,2
+            JC = JPOS + (JF-3)/2
+         DO KF = 2,KKF-3+NTW,2
+            KC = KPOS + (KF-2)/2 - 1
+
+
+            ICOUNT = ICOUNT + 1
+            FC (KC  ,JC  ,IC  ) = BIGBUF(ICOUNT)
+
+         ENDDO
+         ENDDO
+         ENDDO
+C
+C-------------------------------------- IM FEHLERFALL
+C
+      ELSE
+
+         CALL ERRR (504,' MGFTOC')
+
+      ENDIF
+C
+C------------------------------------- RECEIVER READY
+C
+      ENDIF
+C
+C----------------------------------------------------------------
+C
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
+C                      END OF MPI-VERSION, SEND- AND RECEIVE
+      ENDIF
+#endif
+
+      RETURN
+      END
+
+

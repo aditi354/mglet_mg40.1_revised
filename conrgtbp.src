@@ -1,0 +1,126 @@
+      SUBROUTINE CONRGTMGBP
+     $             (IDIM3D,IDIM2D,IDIM1D,
+     $              X,Y,Z,DX,DY,DZ,DDX,DDY,DDZ,
+     $              BP,
+     $     ILEVEL,NGRIDS,LOFGRIDS)
+C*MGLET***************************************************************
+C    C O N R G T M G      SETZEN DER RANDBEDINGUNGEN FUER DAS
+C                         BPFELD.
+C*MGLET***************************************************************
+C
+C  KREUZINGER UND MANHART TURBULENZ GmbH
+C  JK      11. 8.2005
+C  aus CONRGTMG
+C
+C PARAM: KK, JJ, II     - ARRAYDIMENSIONEN
+C        KMX, JMX, IMX  - GRENZEN DES BERECHNUNGSGEBIETES (MIT BOUND)
+C        X, Y, Z        - KOORDINATEN DER ZELLDEFINITIONSPUNKTE
+C        DX,DY,DZ       - ABSTAND DER GITTERPUNKTE
+C        DDX,DDY,DDZ    - KANTENLAENGEN DER KONTROLLVOLUMINA
+C        BP
+C
+C*MGLET***************************************************************
+C
+#include "mgpar.h"
+#include "comgrid.h"
+#include "cobound.h"
+#include "colevel.h"
+#ifdef _MPI_
+#include "compi.h"
+#include "mpif.h"
+C       DOUBLE PRECISION MPI_WTIME,TIME1, TIME2
+#endif
+C
+      CHARACTER (LEN=1)  ITYP
+C
+      REAL        X(IDIM1D),         Y(IDIM1D),         Z(IDIM1D),
+     $           DX(IDIM1D),        DY(IDIM1D),        DZ(IDIM1D),
+     $          DDX(IDIM1D),       DDY(IDIM1D),       DDZ(IDIM1D),
+     $          BP( IDIM3D )
+
+
+C
+      INTEGER NGRIDS,LOFGRIDS(NGRIDS)
+C
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+C
+CTEST
+        DO IST=1,2
+        DO I=IST,NGRIDS,2
+CTEST      DO I = 1,NG
+
+           IGRID = LOFGRIDS(I)
+
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+
+       CALL MGDIMS  (KK,JJ,II,IGRID)
+       CALL MGPOINT (IP3,IP2,IP1,IBB,IB3,IBU,IGRID)
+
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+C
+      DO IBOCOND = 1,NBOCONDS( 3 , IGRID )
+
+         ISTART = LARBOCONDS( 1 , IBOCOND , 3 , IGRID )
+         ISTOP  = LARBOCONDS( 2 , IBOCOND , 3 , IGRID )
+         KSTART = LARBOCONDS( 5 , IBOCOND , 3 , IGRID )
+         KSTOP  = LARBOCONDS( 6 , IBOCOND , 3 , IGRID )
+
+
+         ITYPBC = ITYPBOCONDS( IBOCOND , 3 , IGRID )
+
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72 
+
+
+         IF ( ITYPBC .EQ. 7 ) THEN
+
+              INBR = LBOGRIDS      (IBOCOND,  3 ,IGRID)
+              IPOS = LPOSBOGRIDS( 1,IBOCOND,  3 ,IGRID)
+              JPOS = LPOSBOGRIDS( 2,IBOCOND,  3 ,IGRID)
+              KPOS = LPOSBOGRIDS( 3,IBOCOND,  3 ,IGRID)
+c
+#ifdef _MPI_
+c                               NUR BETEILIGTE PROZESSOREN RUFEN BBACON AUF
+C
+              IPROCNBR = IDPROCOFGRD(INBR)
+              IPROC   = IDPROCOFGRD(IGRID)
+
+               IF ((MYID .EQ. IPROC) .OR. (MYID .EQ. IPROCNBR)) THEN
+#endif
+              CALL MGDPB (KKN,JJN,IIN,IP3N,IP2N,IP1N,IBBN,IBUN,
+     $              NFRON,NBACN,NRGTN,NLFTN,NBOTN,NTOPN,NCUBN,INBR)
+              CALL BRICONBP (KK,JJ,II,
+#ifdef _TSCAL_
+     $                     U(IP3),V(IP3),W(IP3),T(IP3),P(IP3),G(IP3),
+     $                     UFR(IBB),KKN,JJN,IIN,
+     $                     U(IP3N),V(IP3N),W(IP3N),T(IP3N),P(IP3N),
+     $                     G(IP3N),
+#else              
+     $                     U(IP3),V(IP3),W(IP3),P(IP3),G(IP3),UFR(IBB),
+     $                     KKN,JJN,IIN,
+     $                     U(IP3N),V(IP3N),W(IP3N),P(IP3N),G(IP3N),
+#endif               
+     $                     ISTART,ISTOP,KSTART,KSTOP,
+     $                     IPOS,JPOS,KPOS,ITYP,IRB,JRB,KRB,
+     $                     IPROC,IPROCNBR)
+
+#ifdef _MPI_
+               ENDIF
+#endif
+         ELSEIF ( ITYPBC .EQ. 8 ) THEN
+C
+C                             IS DONE IN PARBOTMG NOW!!!!!!!!!!!!
+C
+
+         ENDIF
+
+        ENDDO
+
+      ENDDO
+      ENDDO
+
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+
+
+      RETURN
+      END
+

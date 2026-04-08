@@ -1,0 +1,47 @@
+          SUBROUTINE COMPOSEGRD (U,V,W,P,G,B,HILF,IDIM3D,IGRID,NBND)
+C
+C--MGLET----------------------------------------------------------------
+C
+C
+C                   ZUSAMMENSETZEN EINES ZERSCHNITTENEN GITTERS
+C
+C
+C        15. 2.94 (MM)  : AUS SLICEGRD ABGELEITET
+C
+C--MGLET----------------------------------------------------------------
+
+
+#include "mgpar.h"
+#include "comgrid.h"
+#include "colevel.h"
+#include "cogrdpro.h"
+#include "cobound.h"
+#include "costrles.h"
+#include "cophyspar.h"
+#include "cobody.h"
+#include "cogrdcon.h"
+
+C
+C
+C
+C
+      REAL
+     $        U( IDIM3D ), V( IDIM3D ), W( IDIM3D ),
+     $        P( IDIM3D ), G( IDIM3D ), B( IDIM3D )
+C
+C
+C
+          CALL COMPOSEFIELD (U,HILF,IDIM3D,IGRID,NBND)
+          CALL COMPOSEFIELD (V,HILF,IDIM3D,IGRID,NBND)
+          CALL COMPOSEFIELD (W,HILF,IDIM3D,IGRID,NBND)
+          CALL COMPOSEFIELD (P,HILF,IDIM3D,IGRID,NBND)
+          CALL COMPOSEFIELD (G,HILF,IDIM3D,IGRID,NBND)
+          CALL COMPOSEFIELD (B,HILF,IDIM3D,IGRID,NBND)
+C
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+C
+
+      RETURN
+      END
+
+

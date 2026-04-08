@@ -1,0 +1,179 @@
+      SUBROUTINE BFRCONBP (
+     $     KMX,JMX,IMX,BP,
+     $     KMXN,JMXN,IMXN,BPN,
+     $     JSTA,JSTO,KSTA,KSTO,
+     $     IPOS,JPOS,KPOS,
+     $     IPROC,IPROCNBR)
+C     *MGLET*****************************************************************
+C     B F R C O N B P   SETZEN DER RANDBEDINGUNGEN FUER DAS
+C     BP-FELD AUS NACHBARGITTER
+C     *MGLET*****************************************************************
+C     
+C  KREUZINGER UND MANHART TURBULENZ GmbH
+C  JK      11. 8.2005
+C  aus BBACON
+C
+C     PARAM: 
+C     KMX, JMX, IMX  - DIMENSIONEN DES GITTERS 
+C     U(KMX,JMX,IMX) + GESCHWINDIGKEITSFELD
+C     JSTART,JSTOP
+C     KSTART,KSTOP   - BEREICH IN DEM RANDBEDINGUNG GESETZT WIRD
+C     IPOS,JPOS,KPOS - POSITION IM NACHBARGITTER, AUF DER DER PUNKT
+C     MIT DEN INDIZES (3,3,3) ZU LIEGEN KOMMT
+C     
+C     *STARLET***************************************************************
+
+      REAL
+     $     BP(KMX,JMX,IMX)
+      REAL
+     $     BPN(KMXN,JMXN,IMXN)
+
+
+#ifdef _MPI_
+C     MPI-INCLUDE
+C     
+
+#include "mgpar.h"
+#include "colevel.h"
+#include "compi.h"
+#include "mpif.h"
+
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
+C     
+C     MPI-VARIABLEN
+C     
+      INTEGER ISTATUS(MPI_STATUS_SIZE)
+C     
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
+C     
+C     MPI-ROUTINEN ZUR UEBERGABE VON PARAMETERN
+C     
+C     CALL MPI_COMM_RANK (MPI_COMM_WORLD,MYID,IERR)
+C     CALL MPI_COMM_SIZE (MPI_COMM_WORLD,NUMPROCS,IERR)
+C     
+      ISEND = IPROCNBR
+      IRECV = IPROC
+
+#endif
+
+
+C     
+C     IN = 2 + IPOS - 3
+      IN = IPOS -1
+C     
+C     
+#ifdef _MPI_
+C     
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
+C     
+C     GESENDET WIRD NUR,WENN GITTER AUF VERSCHIEDENEN
+C     PROZESSOREN GERECHNET WERDEN
+C     ANSONSTEN WIRD DIE RANDBEDINGUNG FUER GITTER
+C     GANZ NORMAL GESETZT
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
+      IF (IPROC.EQ.IPROCNBR) THEN
+
+C     
+C     ZU TESTZWECKEN SOLL ISEND NORMALE BELEGUNG DURCHLAUFEN 
+C     IF (MYID .EQ. ISEND) THEN
+C     
+C     
+C     GITTER LIEGEN AUF EINEM PROZESSOR
+C     
+#endif
+C     
+         IF ((JSTA.NE.1).OR.(JSTO.NE.JMX)) STOP 'bfrconbp A'
+         IF ((KSTA.NE.1).OR.(KSTO.NE.KMX)) STOP 'bfrconbp A'
+C     
+C     FUER ZEITSCHRITT
+
+         DO J=JSTA,JSTO
+            DO K=KSTA,KSTO
+
+               JN = J + JPOS - 3
+               KN = K + KPOS - 3
+
+               BP(K,J,  2) = BPN(KN,JN,IN)
+               BP(K,J,  1) = BPN(KN,JN,IN-1)
+
+            ENDDO
+         ENDDO
+
+C     FUER DRUCKKORREKTUR
+C     NUR NORMALKOMPONENTE MUSS GESETZT
+C     WERDEN
+C     
+#ifdef _MPI_
+         
+C     BIS HIER NUR SENDER
+C     ENDIF
+      ELSE
+C     
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
+C     
+C     ARE THE GRIDS ON DIFFERENT PROCESSORS THE MESSAGE HAS 
+C     TO BE SENT BY MPI
+C     
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
+C     FUER ZEITSCHRITT
+         DO IPLANE = 0,1
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCSEND-BUFFER
+            IF (MYID .EQ. ISEND) THEN
+
+               ICOUNT = 0
+
+               DO J=JSTA,JSTO
+                  DO K=KSTA,KSTO
+
+                     JN = J + JPOS - 3
+                     KN = K + KPOS - 3
+
+                     SENDBUF(ICOUNT+1) = BPN(KN,JN,IN-IPLANE)
+                     ICOUNT = ICOUNT+1
+
+                  ENDDO
+               ENDDO
+
+
+               CALL MPI_SEND    ( SENDBUF , ICOUNT , 
+     $              MPI_DOUBLE_PRECISION ,
+     $              IRECV , ISEND ,
+     $              MPI_COMM_WORLD , IERR)
+
+            ENDIF
+
+            IF (MYID .EQ. IRECV) THEN
+
+C     TIME1 = MPI_WTIME()
+               CALL MPI_RECV    ( RECVBUF , IDIM_MG_BUFS , 
+     $              MPI_DOUBLE_PRECISION ,
+     $              ISEND , ISEND ,
+     $              MPI_COMM_WORLD , ISTATUS ,IERR)
+C     WRITE (6,*)'WTIME FOR BFRCONT RECEIVE: ',MPI_WTIME()-TIME1
+C     
+C     BELEGUNG DES RECV-BUFFERS
+C     
+               ICOUNT = 0
+               DO J=JSTA,JSTO
+                  DO K=KSTA,KSTO
+
+                     JN = J + JPOS - 3
+                     KN = K + KPOS - 3
+
+                     BP(K,J, 2-IPLANE ) = RECVBUF(ICOUNT+1)
+                     ICOUNT = ICOUNT+1
+
+                  ENDDO
+               ENDDO
+
+            ENDIF
+C     
+
+
+         ENDDO
+
+      ENDIF
+#endif
+
+      RETURN
+      END

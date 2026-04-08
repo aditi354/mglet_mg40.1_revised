@@ -1,0 +1,210 @@
+CCCCC        DEFINITIONEN FUER C-PREPROZESSOR
+C            MASCHINE
+#undef CRAY
+#undef _B7800_
+#undef _C205_
+#undef _C3820_
+#undef _VPP_
+#undef _T3E_
+#undef _CRAY_
+#undef _IRIS_
+#undef _SP2_
+#define _LINUX_
+#undef _HP_
+#undef _KSR_
+#undef _CYBER_
+#undef _VECTOR_
+#undef _HITACHI_
+
+C              MESSAGE PASSING INTERFACE
+#undef _MPI_
+#undef _MPI_WRITE_TIMES_
+
+C            RAEUMLICHE DISKRETISIERUNG
+#undef _QUD_
+#undef _UPW_
+#define _ZEN_
+C
+***********************************************************************
+C                       KOMPAKT-UPWIND in X-RICHTUNG (3-TER ORDNUNG) fuer
+C                       die U-Komponente (V und W bleiben Kompakt 4ter ordnung)
+C                       falls im Stroemungsfeld eine Koerper vorhanden ist
+#undef _KOU3K_
+C
+***********************************************************************
+C                       KOMPAKTVERF. in XYZ-RICHTUNG (4-TER ORDNUNG)
+#undef _KOMXK_
+#undef _KOMYK_
+#undef _KOMZK_
+
+#undef _4TH_KOBAYASHI_
+#undef _6TH_KOBAYASHI_
+
+#undef _TRANSPORTING_
+#undef _TRANSPORTING4_
+**********************************************************************
+C                      Preprocessing with ADM for 2nd Order Central
+#undef _PREPROC_
+***********************************************************************
+CCC                     Bei periodischen Randbedingungen in X-Richtung
+CCC                     ist eine hoehere O
+#undef _KOMXK6O_
+#undef _KOMXD6O_
+C
+#undef _KOMXK8O_
+#undef _KOMXD8O_
+CCC                     Bei periodischen Randbedingungen in Y-Richtung
+CCC                     ist eine hoehere Ordnung moeglich
+#undef _KOMYK6O_
+#undef _KOMYD6O_
+C
+#undef _KOMYK8O_
+#undef _KOMYD8O_
+CCC                     Bei periodischen Randbedingungen in Y-Richtung:
+CCC                     Zentraldiff. 4-ter Ordnung (Parallelisieung moeglich)
+#undef _ZENK4O_
+#undef _ZEND4O_
+C
+***********************************************************************
+C
+C
+C            INTERPOLATION AN GITTER-GRENZEN
+#undef  _INT_ORDER_1_
+#undef  _INT_ORDER_2_
+#undef  _P_INT_ORDER_1_
+#undef  _P_INT_ORDER_2_
+
+C            BEHANDLUNG DER TOPAR-RANDBEDINGUNG
+#undef _TOPAR_FIXED_
+#undef _BAPAR_FIXED_
+#undef _BAPAR_CORRECT_INTERFACE_VELOCITY_
+
+C            ZEITLICHE DISKRETISIERUNG
+#undef _ADBA_
+#undef _EULER_
+#undef _LEAPF_    
+#define _RUNGEKUTTA3_
+
+C            FEINSTRUKTURMODELL
+#define _DNS_
+#undef _DDMIX2_
+#undef _DDMIX3_
+#undef _DDMIX4_
+#undef _VAN_DRIEST_
+#undef _VAN_DRIEST3_
+#undef _DYNSGSM_
+#undef _INC_
+#undef _FILTERY_
+
+C            NICHT-NEWTONSCHE SPANNUNGEN
+#undef _TAU_NN_
+#undef _VA_MODELL_
+
+
+C            TRANSPORT UND ORIENTIERUNG VON PARTIKELN
+#undef _LPART_ORIENTATION_
+#undef _WRITE_PARTICLES_
+#undef _MPI_PARTICLES_
+#undef _PASSIVE_PARTICLE_
+
+
+C            SCALAR HEAT/TEMPERATURE TRANSPORT
+#undef _TSCAL_
+C            APROXIMATE DECONVOLUTION FOR SCALAR
+#undef _DECONVOLVESCA_
+#undef _LELEC1_
+C            TURBULENT PRANDTL NUMBER 
+#undef _KAYSCRAWFORD_ 
+C            PLOT LOCAL SCALAR CONVECTION DIFFUSION EXTREMES 
+#undef _SCALTRANSDIAGNOSE_ 
+C            ANALYZE AND PLOT NEAR WALL GRID RESLOLUTION 
+#undef _SCALGRIDDIAGNOSE_ 
+C            WRITE SPECIAL 1D LINE FOR TMIX FOR SPECTRA AND PDF
+#undef _SCALAR_DIAG1_
+C            SCALAR TIME ADVANCEMENT/DISCRETISATION METHOD
+#undef _EULERSCA_
+#undef _LEAPFSCA_
+#define _RUNGEKUTTA3SCA_
+#undef _RUNGEKUTTA3SCADELAYED_
+
+C            STROEMUNG NACH OBEN?
+#undef _UPWARDS_
+
+
+C            BEHANDLUNG DER FLUKTUATIONS-RANDBEDINGUNG
+#undef _BOFLU_TIME_AVERAGE_
+#undef _SVFLU_TIME_AVERAGE_
+#undef _BOFLU_CCOMM_
+
+C            BEHANDLUNG VON PPHYS ALS QUELLTERM IN TSTLE2
+#undef _PPHYS_SOURCE_TERM_
+
+C            POSITIONIERUNG DER EINSTROEMPROFILE
+#define _NOREWIND_
+
+C           STATISTIK
+#undef _STAT0_
+#define _STAT1_
+#undef _STAT2_
+#undef _STAT3_
+#undef _STAT4_
+#undef _STAT5_
+#undef _STAT6_
+#undef _STAT7_
+#undef _STAT8_
+#undef _STAT10_
+#define _STAT11_
+#define _STAT12_
+#define _STAT13_
+#undef _STAT14_
+#undef _STAT15_
+#undef _STAT17_
+#undef _STAT20_
+
+#if defined _STAT11_ || defined _STAT12_
+#define _NEWSTAT_
+#endif
+#if defined _STAT13_ || defined _STAT14_
+#define _NEWSTAT_
+#endif
+
+C                 GEMISCHTES
+#undef _DEBUG_
+#undef _HTMG_
+#undef _INFO_
+#undef _AVOIDLOADIMBALANCE_
+#undef _FASTBUTBIGMEM_
+#define _FRED_BODY_
+#undef _ZERO_FLUX_
+#undef _INTERPOL_
+#undef _ANALYZ_
+#undef _DOUBLE_PRECISION_
+#undef _NOBODY_
+#undef _CHANNEL_DIAGNOSE_
+#undef _POISSONDIR_
+#undef _ADJUST_DPDX_
+#undef _UBULK_TIMES_AREA_
+#undef _LIMIT_OUTFLOW_BACK_
+#undef _LIMIT_OUTFLOW_TOP_
+#undef _LIMIT_OUTFLOW_BOTTOM_
+#define _POISSONITER_
+#define _SIP_ITER_
+#undef _ORRSOMMER_
+#undef _TAYLOR_VORT_
+
+C                GRDFMI WIRD NICHT VERWENDET, DAHER EINSPARUNG DER FELDER
+C                IGRHF UND GRHF
+#define _NO_GRDFMI_
+
+C                VERGROESSERN DER KJI-RICHTUNG BEI FORTSETZUNGSLAUF ERLAUBT!
+#undef _ALLOW_K_EXTEND_
+#undef _ALLOW_J_EXTEND_
+#undef _ALLOW_I_EXTEND_
+
+C                RAUSSCHREIBEN VON ZEITRECORDS
+#undef _RECORD_
+
+C                FUER KORRELATIONEN UND HAEFIGKEITSVERTEILUNGEN
+#undef _TESHOM_
+#undef _TESHRE_
+#undef _TESPKT_

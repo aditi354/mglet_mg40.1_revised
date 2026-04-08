@@ -1,0 +1,36 @@
+      SUBROUTINE WRITE_PASSPART (KK,JJ,II,CHANNEL,RUN,NFAM,
+     $     XPART,DISSI,DISTURB,KINDEX,JINDEX,IINDEX,NFAM_MAX,WLOP,
+     $     DS,TIMEPH,PARTSCA)
+C----------------------------------------------------------
+CCREADS POSITION AND ORIENTATION OF PARTICLES
+CC1. 8. 1999 (MM): ORIGINAL
+CC----------------------------------------------------------
+      IMPLICIT NONE
+      INTEGER CHANNEL,KK,JJ,II,NFAM,I,WLOP,NFAM_MAX,
+     $     RUN(NFAM),KINDEX(NFAM),JINDEX(NFAM),
+     $     IINDEX(NFAM)
+      REAL     XPART(NFAM_MAX,3)
+      REAL     DISSI(NFAM),DS(NFAM),TIMEPH,
+     $     DISTURB(NFAM),PARTSCA(NFAM)
+      
+C      WRITE(6,*)'WRITE_PART:',KK,JJ,II,NFAM,NPART,CHANNEL
+C      WRITE(6,*) XPART
+      WLOP = WLOP + 1
+      DO I=1,NFAM
+C         WRITE (CHANNEL,1000,ERR=2000)I, RUN(I),(XPART(I,J),J=1,3),
+C     $        DISSI(I)
+C     WRITE (CHANNEL,  ERR=2000) IPART(I), (CONF(I,J),J=1,6)
+      WRITE(CHANNEL,ERR=2000) I,RUN(I),XPART(I,1),XPART(I,2),XPART(I,3),
+     $        DISSI(I),DISTURB(I),DS(I),TIMEPH
+#ifdef _TSCAL_
+     $       ,PARTSCA(I)
+#endif
+C      WRITE(6,*)'DISS TURB: ',I,DISTURB(I),DISSI(I)
+      ENDDO
+      RETURN
+      
+ 1000 FORMAT (I5,I5, 6(1X,E12.5E3))
+      
+ 2000 CALL ERRR (501,' WRITE_PART')
+      
+      END

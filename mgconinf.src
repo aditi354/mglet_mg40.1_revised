@@ -1,0 +1,189 @@
+         SUBROUTINE MGCONINF (DX,DY,DZ,X,Y,Z,IDIM1D,NBND)
+C
+C--MGLET----------------------------------------------------------------
+C
+C                  DRUCKT INFORMATION UEBER DIE GITTERVERNETZUNG
+C                  
+C
+C
+C        26. 2.94 (MM)  : ORIGINAL
+C        21.03.03 (TB)  : SCALAR BOUNDARY TREATMENT IMPLEMENTED
+C
+C--MGLET----------------------------------------------------------------
+
+
+#include "mgpar.h"
+#include "colevel.h"
+#include "cobound.h"
+#include "cophyspar.h"
+#ifdef _MPI_
+#include "compi.h"
+#endif
+C
+C
+      REAL    
+     $            X(IDIM1D),     Y(IDIM1D),     Z(IDIM1D),
+     $           DX(IDIM1D),    DY(IDIM1D),    DZ(IDIM1D)
+
+      CHARACTER (LEN=8) CGRID,CDIR,CBOC
+C
+#ifdef _MPI_
+	  IF (MYID .EQ. 0) THEN
+#endif
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+C                                    ALLE GITTER JEDES LEVELS WERDEN
+C                                    AUSGEDRUCKT
+          WRITE (6,*) '************************************************'
+     $,'*****************'
+          WRITE (6,*) '***'
+          WRITE (6,*) '***'
+          WRITE (6,*) '***     INFORMATION UEBER DIE RANDBEDINGUNGEN'
+          WRITE (6,*) '***     UND DIE GITTERVERNETZUNG'
+          WRITE (6,*) '***'
+          WRITE (6,*) '***'
+          WRITE (6,*) '************************************************'
+     $,'*****************'
+C
+      DO ILEVEL = MINLEVEL,MAXLEVEL
+
+          WRITE (6,*) '************************************************'
+     $,'*****************'
+          WRITE (6,*) '***'
+          WRITE (6,*) '***      LEVEL:',ILEVEL
+          WRITE (6,*) '***'
+          WRITE (6,*) '***'
+
+        DO I = 1, NOFLEVEL(ILEVEL)
+          IGRID = IGRDOFLEVEL(I,ILEVEL)
+
+          WRITE (CGRID,'("GRD ",I3,":")') IGRID
+
+          WRITE (6,*) '************************************************'
+     $,'*****************'
+          WRITE (6,*) CGRID
+C
+C                                    ALLE RICHTUNGEN WERDEN UNTERSUCHT
+C
+
+          DO IDIR = 1,6
+
+            IF (IDIR .EQ. 1) THEN
+               WRITE (CDIR,'(" FRONT  ")')
+            ELSEIF (IDIR .EQ. 2) THEN
+               WRITE (CDIR,'(" BACK   ")')
+            ELSEIF (IDIR .EQ. 3) THEN
+               WRITE (CDIR,'(" RIGHT  ")')
+            ELSEIF (IDIR .EQ. 4) THEN
+               WRITE (CDIR,'(" LEFT   ")')
+            ELSEIF (IDIR .EQ. 5) THEN
+               WRITE (CDIR,'(" BOTTOM ")')
+            ELSEIF (IDIR .EQ. 6) THEN
+               WRITE (CDIR,'(" TOP    ")')
+            ENDIF
+
+
+
+C                       = "PER",1 : PERIODISCH
+C                       = "FIX",2 : FIXED-CONDITION
+C                       = "OP1",3 : OPEN-WALL GRADIENT=0
+C                       = "OP2",4 : OPEN-WALL ZWEITE ABLEITUNG=0
+C                       = "NOS",5 : NOSLIP
+C                       = "SLI",6 : SLIP
+C                       = "CON",7 : CONNECT (GITTERKOPPLUNG)
+C                       = "PAR",8 : PARENT  (FOR LOCALLY REFINED GRIDS)
+C                       = "BLO",9 : BLOWING/SUCTION
+C                       = "KON",10 : KONVECTIVE OUTLET
+C                       = "FLU",11 : FLUCTUATIONS ARE TAKEN FROM DOWNSTREAM
+C                       = "GRA",15 : FIXED SCALAR GRADIENT
+C                       = "SCA",16 : FIXED SCALAR CONDITION
+
+            DO IBOC = 1,NBOCONDS(IDIR,IGRID)
+              IF (ITYPBOCONDS(IBOC,IDIR,IGRID) .EQ. 1) THEN
+               WRITE (6,*) CGRID,CDIR,'PERIODIC'
+
+              ELSEIF (ITYPBOCONDS(IBOC,IDIR,IGRID) .EQ. 2) THEN
+               WRITE (6,*) CGRID,CDIR,'FIXED'
+
+              ELSEIF (ITYPBOCONDS(IBOC,IDIR,IGRID) .EQ. 3) THEN
+               WRITE (6,*) CGRID,CDIR,'OPEN-WALL 1'
+
+              ELSEIF (ITYPBOCONDS(IBOC,IDIR,IGRID) .EQ. 4) THEN
+               WRITE (6,*) CGRID,CDIR,'OPEN-WALL 2'
+
+              ELSEIF (ITYPBOCONDS(IBOC,IDIR,IGRID) .EQ. 5) THEN
+               WRITE (6,*) CGRID,CDIR,'NO-SLIP'
+
+              ELSEIF (ITYPBOCONDS(IBOC,IDIR,IGRID) .EQ. 6) THEN
+               WRITE (6,*) CGRID,CDIR,'SLIP'
+
+              ELSEIF (ITYPBOCONDS(IBOC,IDIR,IGRID) .EQ. 7) THEN
+               WRITE (6,*) CGRID,CDIR,'CONNECT WITH: ',
+     $                     LBOGRIDS(IBOC,IDIR,IGRID)
+
+              ELSEIF (ITYPBOCONDS(IBOC,IDIR,IGRID) .EQ. 8) THEN
+               WRITE (6,*) CGRID,CDIR,'PARENT IS: ',
+     $                     LBOGRIDS(IBOC,IDIR,IGRID)
+
+              ELSEIF (ITYPBOCONDS(IBOC,IDIR,IGRID) .EQ. 9) THEN
+               WRITE (6,*) CGRID,CDIR,'BLOWING/SUCTION'
+
+              ELSEIF (ITYPBOCONDS(IBOC,IDIR,IGRID) .EQ. 10) THEN
+               WRITE (6,*) CGRID,CDIR,'KONVECTIVE OUTLET'
+
+              ELSEIF (ITYPBOCONDS(IBOC,IDIR,IGRID) .EQ. 11) THEN
+               WRITE (6,*) CGRID,CDIR,'FLUCTUATIONS FROM DOWNSTREAM'
+#ifdef _TSCAL_
+              ELSEIF (ITYPBOCONDS(IBOC,IDIR,IGRID) .EQ. 15) THEN
+               WRITE (6,*) CGRID,CDIR,'SCALAR - FIXED GRADIENT'
+               
+              ELSEIF (ITYPBOCONDS(IBOC,IDIR,IGRID) .EQ. 16) THEN
+               WRITE (6,*) CGRID,CDIR,'SCALAR - FIXED'               
+#endif
+              ENDIF
+C
+C                                    
+            ENDDO
+
+          ENDDO
+
+          WRITE (6,*) CGRID
+          WRITE (6,*) '************************************************'
+     $,'*****************'
+
+        ENDDO
+      ENDDO
+C
+#ifdef _MPI_
+	  ENDIF
+#endif
+C
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+C
+#ifdef _MPI_
+           IF (MYID .EQ. 0) THEN
+#endif
+
+        DO I = 1, NOFLEVEL(ILEVEL)
+          IGRID = IGRDOFLEVEL(I,ILEVEL)
+          DO IDIR = 1,6
+            DO IBOC = 1,NBOCONDS(IDIR,IGRID)
+              IF (ITYPBOCONDS(IBOC,IDIR,IGRID) .EQ. 7) THEN
+               IF(LBOGRIDS(IBOC,IDIR,IGRID) .LE. 0) THEN
+                 CALL ERRR (700,'MGCONINF')
+               ENDIF
+              ENDIF
+            ENDDO
+          ENDDO
+        ENDDO
+
+#ifdef _MPI_
+           ENDIF
+#endif
+C
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+C
+
+      RETURN
+      END
+
+

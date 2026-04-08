@@ -1,0 +1,140 @@
+      SUBROUTINE DECONVOLV2(KK,JJ,II,W1,IDIR,U,RHS,
+C#ifdef _FRED_BODY_
+C     $     LLCOL,LCOL,RCOL,RRCOL,BU)
+C#else
+     $     LLCOL,LCOL,RCOL,RRCOL,UU,BU,BB,DX,DY,DZ,
+     $     NFROSCA,NBACSCA,NRGTSCA,NLFTSCA,NBOTSCA,NTOPSCA,IGRID,
+     $     TFX,TFY)
+C#endif
+
+#include "mgpar.h"
+#include "conles.h"
+#include "konsta.h"
+#include "conpot.h"
+#include "cobound.h"
+#include "cophyspar.h"
+
+#ifdef _TSCAL_      
+      INTEGER KK,JJ,II,K,J,I,N1,N2,N3,IDIR(3),SHAPE(3),
+     $     NCOUNT
+
+      REAL U   (KK,JJ,II),UU  (KK*JJ*II),BU   (KK,JJ,II),
+     $     BB  (KK*JJ*II),RHS (KK*JJ*II),LLCOL(KK*JJ*II),
+     $     LCOL(KK*JJ*II),RCOL(KK*JJ*II),RRCOL(KK*JJ*II),
+     $     DX(II),DY(JJ),DZ(KK),TFX((II-4)/2+1),TFY((JJ-4)/2+1)
+
+      REAL W1,delta
+
+!     IN I-DIREKTION
+C      WRITE(6,*)'IDIR: ', IDIR
+      IF (IDIR(1) .EQ.1 ) THEN
+
+      W1 = 0.72
+      NCOUNT = 0
+
+      DO J = 1,JJ
+         DO K = 1,KK
+            DO I = 1,II
+               NCOUNT = NCOUNT + 1
+C#ifdef _FRED_BODY_
+C               UU(NCOUNT) = U (K,J,I)
+C               BB(NCOUNT) = BU(K,J,I)
+C#else
+               UU(NCOUNT) = U (K,J,I)
+               BB(NCOUNT) = 1.0
+C#endif
+            ENDDO
+         ENDDO
+      ENDDO
+
+      CALL APFIL(II,JJ,KK,UU,BB,W1,RHS,LLCOL,LCOL,RCOL,RRCOL)
+
+      NCOUNT = 0
+
+      DO J = 1,JJ
+         DO K = 1,KK
+            DO I = 1,II
+               NCOUNT = NCOUNT + 1
+               U (K,J,I) = UU (NCOUNT)
+            ENDDO
+         ENDDO
+      ENDDO
+
+      ELSEIF (IDIR(1) .EQ. 2) THEN
+       CALL filter_periodicx(KK,JJ,II,U,UU,BB,RHS,LCOL,TFX)
+      ENDIF
+ 
+
+!     IN J DIREKTION:
+
+      IF (IDIR(2) .EQ.1 ) THEN
+
+      W1 = 0.72
+      NCOUNT = 0
+
+      DO I = 1,II
+         DO K = 1,KK
+            DO J = 1,JJ
+
+               NCOUNT = NCOUNT + 1
+C#ifdef _FRED_BODY_
+C               UU(NCOUNT) = U (K,J,I)
+C               BB(NCOUNT) = B (K,J,I)
+C#else
+               UU(NCOUNT) = U (K,J,I)
+               BB(NCOUNT) = 1.0
+C#endif
+            ENDDO
+         ENDDO
+      ENDDO
+
+      CALL APFIL(JJ,KK,II,UU,BB,W1,RHS,LLCOL,LCOL,RCOL,RRCOL)
+
+      NCOUNT = 0
+
+      DO I = 1,II
+         DO K = 1,KK
+            DO J = 1,JJ
+
+               NCOUNT = NCOUNT + 1
+
+              U (K,J,I) = UU(NCOUNT)
+
+            ENDDO
+         ENDDO
+      ENDDO
+  
+      ELSEIF (IDIR(2) .EQ. 2) THEN
+       CALL filter_periodicy(KK,JJ,II,U,UU,BB,RHS,LCOL,TFY)
+      ENDIF
+
+      IF (IDIR(3) .EQ.1 ) THEN
+
+C#ifndef _FRED_BODY_
+C         DO I = 1,II
+C            DO J=1,JJ
+C               DO K = 1,KK
+C                  BU(K,J,I) = 1.0
+C               ENDDO
+C            ENDDO
+C         ENDDO
+C#endif
+
+         CALL APFIL(KK,JJ,II,U,BU,W1,RHS,LLCOL,LCOL,RCOL,RRCOL)
+
+      ELSEIF (IDIR(3) .EQ. 2 ) THEN
+         
+         IF(NBOTSCA .EQ. 16) SCA_LOWER = TSCA(2,5,IGRID)
+         IF(NTOPSCA .EQ. 16) SCA_UPPER = TSCA(2,6,IGRID)
+C         WRITE(6,*)'SCA_UPPER',SCA_UPPER,SCA_LOWER
+C----------- SCA_LOWER muesste dann ein 2D-Feld sein!!!
+C         IF(NBOT .EQ. 15) SCA_LOWER = U(K,J,I)+QSCA(2,5,IGRID)/LAMDA
+C         IF(NTOP .EQ. 15) SCA_UPPER =         
+      CALL FILTER_EXPLIZIT(KK,JJ,II,U,DZ,KK,LCOL,RCOL,
+     $        SCA_LOWER,SCA_UPPER)
+
+      ENDIF
+
+#endif
+      RETURN
+      END

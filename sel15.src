@@ -1,0 +1,86 @@
+      SUBROUTINE SEL15    (ISELEP)
+C*STARLET***************************************************************
+C        S E L E C T      IN DIESER ROUTINE WERDEN ART UND UMFANG DER
+C                         STATISTISCHEN AUSWERTUNG DEFINIERT.
+C                         DAZU WERDEN DIE ENTSPRECHENDEN STELLEN DER
+C                         VARIABLE ISELECT MIT NULLEN UND EINSEN BELEGT.
+C
+C                         FOLGENDE INTEGER-KENNZAHLEN SIND MOEGLICH:
+C                         0 : KEINE AUSWERTUNG DER BETREFFENDEN GROESSE
+C                         1 : ENSEMBLE-MITTELWERTE DER BETREFFENDEN
+C                             GROESSE WERDEN DURCH SUMMATION VON (IN
+C                             BESTIMMTEN ZEITLICHEN ABSTAENDEN GEBIL-
+C                             DETEN) MOMENTANWERTEN ERMITTELT.
+C
+C  A C H T U N G:         DIESE ROUTINE MUSS ERWEITERT WERDEN, FALLS
+C                         DIE STATIST. AUSWERTUNG ERWEITERT WIRD !
+C                         DIE HIERARCHIE DER GROESSEN UNTEREINANDER
+C                         SOLLTE OPTISCH DURCH ENTSPRECHENDE PLA-
+C                         ZIERUNG DER ZUSAETZLICHEN PROGRAMMSTATEMENTS
+C                         HERAUSGESTELLT WERDEN.
+C
+C
+C                         Die neuen Versionen ab Maerz 2000 koennen nur
+C                         zusammen mit _stat0_ aufgerufen werden. Dies
+C                         ermöglicht, dass auch mehrere Levels aus-
+C                         gewaehlt werden koennen.
+C*STARLET***************************************************************
+C
+C PARAM: KK, JJ, II     - ARRAYDIMENSIONEN
+C        KKA,JJA,IIA    - ARRAYDIMENSIONEN DER AUSWERTEFELDER
+C        ISELEA(2,752)  + STEUERFELD FUER DIE AUSWERTUNG
+C                         (ENTHAELT STEUERDATEN DES VORANGEGANGENEN
+C                         LAUFES)
+C        ISELEP(2,752)  + STEUERFELD FUER DIE AUSWERTUNG
+C                         (ENTHAELT STEUERDATEN F. DEN MOMENTANEN LAUF)
+C      .......          - ALLE UEBRIGEN VARIABLEN SIND ARRAYDIMENSIONEN
+C
+C UPROG                 : SELECA, SELECI
+C
+C DEFINE-DIREKTIVEN     : INFO
+C
+C                         FELDER <UT>, <VT>, <WT> UND <TT> 
+C
+C                         SELEKTIERT
+C        22.09.03 (FS)  : VON SEL13 UEBERNOMMEN. STATISTISCHE AUSWERTUNG
+C                         SKALARER GROESSEN
+C*STARLET***************************************************************
+
+      INTEGER  ISELEP(2,752)
+
+#ifndef _TSCAL_
+      WRITE(6,*)'MELDUNG AUS SEL15: '
+      WRITE(6,*)'STAT15 FUNKTIONIERT NUR MIT SCALARTRANSPORT'
+      WRITE(6,*)'ISELEP(504): ',ISELEP(1, 504)
+      STOP
+#endif
+c
+c                                   Momentangeschwindigkeits-Skalar
+c                                   Korrelationen
+c                                   Einpunktkorellation Skalar
+c                                   -------------------------------
+c
+c                                  <UT> G
+        ISELEP(1,601)                =  1
+c
+c                                  <VT> G
+        ISELEP(1,602)                =  1
+c
+c                                  <WT> G
+        ISELEP(1,603)                =  1
+c
+c                                  <TT> G
+        ISELEP(1,604)                =  1
+c
+c                                  <SijSij>
+        ISELEP(1,605)                =  1
+c
+c                  ACHTUNG WIRD NUR KEIN FELD BENOETIGT
+C                  WIRD AUS MITTLEREN GESCHWINDIGKEITN IN DOBCA
+C                  BERECHNET, ABGESPEICHERT aber NIE EINGELESEN
+C                                   <SIJ><SIJ> 
+        ISELEP(1,606)                =  0
+
+
+      RETURN
+      END

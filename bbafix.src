@@ -1,0 +1,172 @@
+      SUBROUTINE BBAFIX (KMX,JMX,IMX,Z,    
+     $                    V,U,W,P,G,
+     $                    JSTART,JSTOP,KSTART,KSTOP,ITYP
+#ifdef _TSCAL_
+     $                   ,T
+#endif
+     $                   )       
+C*STARLET***************************************************************
+C        B B A F I X    SETZEN DER RANDBEDINGUNGEN FUER DIE
+C                   GESCHWINDIGKEITSFELDER AND SCALAR TBACK-FLAECHE, FIX
+C                         (LARGE-EDDY-SIMULATION)
+C                        BBAFIX NIMMT DIE DEFINITION VON PPHYS ALS 
+C                        U-KOMPONENTE AN DER BACK-FLAECHE
+C*STARLET***************************************************************
+C
+C PARAM: 
+C        KMX, JMX, IMX  - DIMENSIONEN DES GITTERS 
+C        U(KMX,JMX,IMX) + GESCHWINDIGKEITSFELD
+C        V(KMX,JMX,IMX) + GESCHWINDIGKEITSFELD
+C        W(KMX,JMX,IMX) + GESCHWINDIGKEITSFELD
+C        T(KMX,JMX,IMX) + SCALAR T FIELD
+C        P(KMX,JMX,IMX) - DRUCKFELD
+C        G(KMX,JMX,IMX) - EFFEKTIVE DYNAMISCHE VISKOSITAET (= MUE)
+C        ITYP           - HOLLERITH-KONSTANTE:
+C                         'P'  VOR DER DRUCKKORREKTUR
+C                         'T'  VOR DEM ZEITSCHRITT
+C
+C VERS:   3. 3.99 (MM)  : ORIGINAL
+C                         AUS BBAOP1  ABGELEITET
+C        28.02.03 (TB)  : SCALAR BOUNDARY TREATMENT IMPLEMENTED
+C
+C*STARLET***************************************************************
+C
+#include "cophyspar.h"
+C
+C
+      CHARACTER (LEN=1)  ITYP
+C
+      REAL
+     $            U(KMX,JMX,IMX),   V(KMX,JMX,IMX),   W(KMX,JMX,IMX),
+     $            P(KMX,JMX,IMX),   G(KMX,JMX,IMX)
+      REAL        Z( KMX )
+C
+#ifdef _TSCAL_
+      REAL        T(KMX,JMX,IMX)
+#endif
+C
+      IM1 = IMX-1
+      IM2 = IMX-2
+      IM3 = IMX-3
+C
+#ifdef _UPWARDS_
+C
+C
+C      do i=1,npphys
+C         write(6,*)'PPHYS:',PPHYS(i),XPPHYS(i)
+C      enddo
+C
+C                                 START- AND STOP-INDICES FOR PRESSURE
+C                                 ON TOP
+      IZ_START = 1
+      DO I=1,NPPHYS
+         IF ( Z(1)   .LE. XPPHYS(I) ) THEN
+            IZ_START = I
+            GOTO 30
+         ENDIF
+      ENDDO
+   30 CONTINUE
+      
+      IZ_STOP = NPPHYS
+      DO I=NPPHYS-1,1,-1
+         IF ( Z(KMX) .GE. XPPHYS(I) ) THEN
+            IZ_STOP  = I
+            GOTO 31
+         ENDIF
+      ENDDO
+   31 CONTINUE
+C
+#endif
+C
+C                                 **************************************
+C                                 OPEN-WALL, GRADIENT = 0
+C                                 **************************************
+C
+C
+C
+      IF(ITYP .EQ. 'T') THEN
+C                                 VOR DEM ZEITSCHRITT
+C                                 ----------------------
+         DO K=KSTART,KSTOP
+
+#ifndef _UPWARDS_
+            UBACKFACE = 0.0
+#else
+C                                  CALCULATION OF U AT BACK-FACE
+
+            IF ( Z(K) .LE. XPPHYS(1)) THEN
+               UBACKFACE = PPHYS(1)
+            ELSEIF ( Z(K) .GE. XPPHYS(NPPHYS)) THEN
+               UBACKFACE = PPHYS(NPPHYS)
+            ELSE
+               DO IZ=1,NPPHYS-1
+                  IF ((Z(K)-XPPHYS(IZ))*(Z(K)-XPPHYS(IZ+1)) 
+     $                 .LE. 0.0) THEN
+                     UBACKFACE = PPHYS(IZ) + 
+     $                    (PPHYS(IZ+1)-PPHYS(IZ))*
+     $                    (Z(K)       -XPPHYS(IZ))/
+     $                    (XPPHYS(IZ+1)-XPPHYS(IZ))
+                     GOTO 1000
+                  ENDIF
+               ENDDO
+            ENDIF
+ 1000       CONTINUE
+#endif
+
+            DO J=JSTART,JSTOP
+     
+               U(K,J,IM2) = UBACKFACE
+               U(K,J,IM1) = UBACKFACE
+               
+               V(K,J,IM1) = V(K,J,IM2)
+               W(K,J,IM1) = W(K,J,IM2)
+               P(K,J,IM1) = P(K,J,IM2)
+               G(K,J,IM1) = G(K,J,IM2)
+#ifdef _TSCAL_
+               T(K,J,IM1) = T(K,J,IM2)
+#endif               
+            ENDDO
+
+         ENDDO
+
+      ELSE		
+C                                 VOR DER DRUCKKORREKTUR
+C                                 ----------------------
+         DO K=KSTART,KSTOP
+
+#ifndef _UPWARDS_
+            UBACKFACE = 0.0
+#else
+C                                  CALCULATION OF U AT BACK-FACE
+
+            IF ( Z(K) .LE. XPPHYS(1)) THEN
+               UBACKFACE = PPHYS(1)
+            ELSEIF ( Z(K) .GE. XPPHYS(NPPHYS)) THEN
+               UBACKFACE = PPHYS(NPPHYS)
+            ELSE
+               DO IZ=1,NPPHYS-1
+                  IF ((Z(K)-XPPHYS(IZ))*(Z(K)-XPPHYS(IZ+1)) 
+     $                 .LE. 0.0) THEN
+                     UBACKFACE = PPHYS(IZ) + 
+     $                    (PPHYS(IZ+1)-PPHYS(IZ))*
+     $                    (Z(K)       -XPPHYS(IZ))/
+     $                    (XPPHYS(IZ+1)-XPPHYS(IZ))
+                     GOTO 2000
+                  ENDIF
+               ENDDO
+            ENDIF
+ 2000       CONTINUE
+#endif
+
+            DO J=JSTART,JSTOP
+     
+               U(K,J,IM2) = UBACKFACE
+               U(K,J,IM1) = UBACKFACE
+               
+            ENDDO
+
+         ENDDO
+      ENDIF
+
+      RETURN
+      END

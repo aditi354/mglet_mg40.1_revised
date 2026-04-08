@@ -1,0 +1,52 @@
+C#ifdef _TSCAL_
+      SUBROUTINE BCUSCA (KMX,JMX,IMX,
+     $                    T,B,TSCACU,
+     $                    IC1,IC2,JC1,JC2,KC1,KC2,ITYP)
+C*STARLET***************************************************************
+C        B C U S C A   SETTING SCALAR BOUNDARY CONDITION FIXED-SCALAR
+C*STARLET***************************************************************
+C
+C PARAM: 
+C        KMX, JMX, IMX  - DIMENSIONEN DES GITTERS 
+C        T(KMX,JMX,IMX) + SCALAR T FIELD
+C        ITYP           - HOLLERITH-KONSTANTE:
+C                         'P'  VOR DER DRUCKKORREKTUR
+C                         'T'  VOR DEM ZEITSCHRITT
+C
+C VERS:  28.02.03 (TB)  : ORIGINAL
+C
+C DEFINE-DIREKTIVEN     : QUD 
+C
+C*STARLET***************************************************************
+C
+#include "konsta.h"
+C
+      CHARACTER (LEN=1)  ITYP
+C
+      REAL  T(KMX,JMX,IMX),B(KMX,JMX,IMX)
+C
+C
+C
+C
+
+C
+C                                 BELEGUNG DES KOERPERINNEREN
+C                             VOR DEM ZEITSCHRITT
+C
+      IF (ITYP.EQ.'T') THEN
+C
+      DO 10 I= IC1,IC2
+C
+         DO 80 J= JC1,JC2
+            DO 70 K= KC1,KC2
+               FACTOR = -1.0 * (SIGN(0.5,B(K  ,J  ,I  )) - 0.5)
+               T(K  ,J  ,I  ) = TSCACU*FACTOR                   
+   70       CONTINUE
+   80    CONTINUE
+   10 CONTINUE
+
+      ENDIF
+
+      RETURN
+      END
+C#endif

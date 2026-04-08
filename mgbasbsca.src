@@ -1,0 +1,98 @@
+C#ifdef _TSCAL_
+       SUBROUTINE MGBASBSCA (NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB,IGRID)
+
+C*MGLET*****************************************************************
+C      M G D I M S         MULTIGRID ADMINISTRATION FOR SCALAR TRANSPORT
+C                           RETURNS SCALAR BOUNDARY CONDITION OF GRID 
+C                           IGRID
+C*MGLET*****************************************************************
+C
+C PARAM: NFRO     : + KENNZAHL FUER FRONTFLAECHE  ( I =  2 )
+C        NBAC     : + KENNZAHL FUER BACKFLAECHE   ( I =  IMX - 1 )
+C        NRGT     : + KENNZAHL FUER RIGHTFLAECHE  ( J =  2 )
+C        NLFT     : + KENNZAHL FUER LEFTFLAECHE   ( J =  JMX - 2 )
+C        NBOT     : + KENNZAHL FUER BOTTOMFL.     ( K =  2 )
+C        NTOP     : + KENNZAHL FUER TOPFLAECHE    ( K =  KMX - 2 )
+C        NCUB     : + KENNZAHL FUER KOERPEROBERFLAECHE
+C        IGRID    : - GITTER, FUER DAS DIE GROESSEN GESETZT WERDEN
+C
+C              KENNZAHL      |    RANDBEDINGUNG 
+C                  1              PERIODISCH
+C                  2              FIXED-CONDITION
+C                  3              OPEN-WALL GRADIENT=0
+C                  4              OPEN-WALL ZWEITE ABLEITUNG=0
+C                  5              NOSLIP
+C                  6              SLIP
+C                  7              CONNECT (GITTERKOPPLUNG)
+C                  8              PARENT  (FOR LOCALLY REFINED GRIDS)
+C                  9              BLOWING/SUCTION
+C                  10             KONVECTIVE OUTLET
+C                  11             FLUCTUATIONS ARE TAKEN FROM DOWNSTREAM
+C                  12             "Recycling", Velocity profile from	
+C                                 downstream is rescaled according to 
+C                                 Spalart & Lund
+C                  13             OP3: OPEN-WALL 3.DERIVATIVE=0 
+C                  15             FXGRADSCA: FIXED-GRADIENT-CONDITION
+C                                 (-> e.g. const. heat flux)
+C                  16             FXSCA: FIXED-SCALAR-CONDITION
+C                                 (-> e.g. const. wall temperature flux)      
+C
+C VERS:   10.12.02 (TB)  : ORIGINAL
+C
+C
+C*MGLET*****************************************************************
+C
+#include "mgpar.h"
+#include "comgrid.h"
+#include "cobound.h"
+C
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+C                           UEBERPRUEFUNGEN
+
+      IF (IGRID .GT. MAXGRIDS) CALL ERRR (  555 ,'MGDIMSCA')
+
+C
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+C
+C                         SCALAR BOUNDARY CONDITIONS AT ALL NOSLIP BC
+C                         ORDER OF BC SETTING IN DATA FILE MUST BE:
+C                         1.)BASIS BC (NOSLIP) -> 2.)SCALAR BC 
+C
+                NFROBASE    =  ITYPBOCONDS(  1,   1,IGRID)
+                NBACBASE    =  ITYPBOCONDS(  1,   2,IGRID)
+                NRGTBASE    =  ITYPBOCONDS(  1,   3,IGRID)
+                NLFTBASE    =  ITYPBOCONDS(  1,   4,IGRID)
+                NBOTBASE    =  ITYPBOCONDS(  1,   5,IGRID)
+                NTOPBASE    =  ITYPBOCONDS(  1,   6,IGRID)
+                NCUBBASE    =  ITYPBOCONDS(  1,   7,IGRID)
+                
+                NFRO        =  ITYPBOCONDS(  2,   1,IGRID)
+                NBAC        =  ITYPBOCONDS(  2,   2,IGRID)
+                NRGT        =  ITYPBOCONDS(  2,   3,IGRID)
+                NLFT        =  ITYPBOCONDS(  2,   4,IGRID)
+                NBOT        =  ITYPBOCONDS(  2,   5,IGRID)
+                NTOP        =  ITYPBOCONDS(  2,   6,IGRID)
+                NCUB        =  ITYPBOCONDS(  2,   7,IGRID)                                             
+C
+C                           AT ALL NOSLIP BC SCALAR BC (INDEX 2 in ITYP 
+C                           VECTOR) MUST BE SET
+C
+C     GET SCALAR BOUNDARY TYPE, SET ZERO FLUX CONDITION WHERE ITYP = 0
+      IF ( NFROBASE .EQ. 5 ) NFRO =MAX(15,ITYPBOCONDS(  2,   1,IGRID))      
+      IF ( NBACBASE .EQ. 5 ) NBAC =MAX(15,ITYPBOCONDS(  2,   2,IGRID))
+      IF ( NBACBASE .EQ. 3 ) NBAC =MAX(15,ITYPBOCONDS(  2,   2,IGRID))
+      IF ( NRGTBASE .EQ. 5 ) NRGT =MAX(15,ITYPBOCONDS(  2,   3,IGRID))
+      IF ( NLFTBASE .EQ. 5 ) NLFT =MAX(15,ITYPBOCONDS(  2,   4,IGRID))
+      IF ( NBOTBASE .EQ. 5 ) NBOT =MAX(15,ITYPBOCONDS(  2,   5,IGRID))
+      IF ( NTOPBASE .EQ. 5 ) NTOP =MAX(15,ITYPBOCONDS(  2,   6,IGRID))
+      IF ( NTOPBASE .EQ. 3 ) NTOP =MAX(15,ITYPBOCONDS(  2,   6,IGRID))
+      IF ( NCUBBASE .EQ. 5 ) NCUB =MAX(15,ITYPBOCONDS(  2,   7,IGRID))       
+C
+C
+C
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+C
+
+      RETURN
+      END
+C#endif

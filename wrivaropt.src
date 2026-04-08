@@ -1,0 +1,39 @@
+      SUBROUTINE WRIVAROPT(VAROPT,IDIM2D,NDIMVAROPT)
+      REAL VAROPT(2,IDIM2D*8)
+#include "mgpar.h"
+#include "cobound.h"
+
+
+c      OPEN(73)
+c      REWIND(73)
+c      WRITE(73,*) NDIMVAROPT
+c     +            ,TIMEALT,XRTALT1,XRTALT2,FREQOPT
+c     +            ,PERIODE,ITALT,FREQALT1
+c     +            ,XRMIN,FXRMIN,NXRMIN
+c      DO I=1,NDIMVAROPT
+c        WRITE(73,*) VAROPT(1,I),VAROPT(2,I)
+c      ENDDO
+c      CLOSE(73)
+c      WRITE(6,*)'OPTF: WRIVAROPT-ROUTINE'
+      
+      RETURN
+      END
+
+
+
+
+      SUBROUTINE READVAROPT(VAROPT,IDIM2D,NDIMVAROPT)
+      REAL VAROPT(2,IDIM2D*8)
+#include "mgpar.h"
+#include "cobound.h"
+      READ(72,*,ERR=10,END=10) NDIMVAROPT
+     +            ,TIMEALT,XRTALT1,XRTALT2,FREQOPT
+     +            ,PERIODE,ITALT,FREQALT1
+     +            ,XRMIN,FXRMIN,NXRMIN
+      DO I=1,NDIMVAROPT
+        READ(72,*)  VAROPT(1,I),VAROPT(2,I)
+      ENDDO
+   10 CONTINUE
+      RETURN
+      END
+

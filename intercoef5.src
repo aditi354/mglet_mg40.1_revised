@@ -1,0 +1,96 @@
+      SUBROUTINE INTERCOEF5(II,I,DX,DDX,LCOL,DIAG,RCOL,
+     $                      RSIDE1,RSIDE2,RSIDE3)         
+C*MGLET*****************************************************************
+C              I N T E R C O E F 5
+C*MGLET*****************************************************************
+C
+C     BERECHNUNG DER KOEFFIZIENTEN FUER DIE KOMPAKTE BERECHNUNG
+C     DER     E R S T E N     A B L E I T U N G 
+C
+C     DIESER ANSATZ ENTHAELT  D R E I  UNBEKANNTE AUF DER RECHTEN
+C     SEITE (Modifizierter Ansatz nach A D A M )
+C
+C   ! ACHTUNG : DIESE FORMULIERUNG IST NUR FUER M G L E T                
+C   !           (NICHT-GESTAEGERT -------> GESTAEGERT)
+C
+C*MGLET*****************************************************************
+C
+C
+C DEFINE DIREKTIVEN     : KEINE
+C
+C UPROG                 : KEINE
+C
+C 03.10.1996            : ADNAN MERI (ORIGINAL)
+C
+C*MGLET*****************************************************************
+C
+
+      REAL LCOL,RCOL,DIAG,RSIDE1,RSIDE2,RSIDE3,ALFA,BETA,
+     $     GAMA,LAMDA,PHI,
+     $     a,b,c,d,e,f,g,h,l,m,n
+
+      REAL DX(II),DDX(II)
+
+#if !defined _6TH_KOBAYASHI_ 
+#if !defined _4TH_KOBAYASHI_ 
+
+      a = DDX(I+1)/DDX(I)
+      b = DX(I)/DDX(I)
+      
+      c = -3.0*(b+4.)*(a-1.) + (b**2 -12.)
+      d = -3.0*(b-4.)*(a-1.) - (b**2 -12.)
+      e = -24.*a             
+      f = -8.*(b**3 +32.)*(a+1.) + 64.*(a**3 +1.)*(b+4.)
+      g = -8.*(b**3 -32.)*(a+1.) + 64.*(a**3 +1.)*(b-4.)
+      h = 64.*8.*(-a + a**3 )
+
+
+      PHI  = ((h*c)-(f*e)) /((g*c)-(f*d))
+      GAMA = (e -d*PHI)/c
+      LAMDA= -GAMA - PHI
+      BETA = (-8. + (b-4.)*PHI + (b+4.)*GAMA)/(8.*(a+1.))
+      ALFA = -1. + 0.5*(GAMA-PHI) - BETA              
+
+c
+c
+c*************BILDUNG DER MATRIX************************************
+c
+      LCOL=ALFA
+      DIAG=1.0
+      RCOL=BETA
+      RSIDE1=GAMA
+      RSIDE2=LAMDA
+      RSIDE3=PHI
+c 
+c*******************************************************************
+c 
+#else
+	a = -DDX(I-1)
+	b = DDX(I)
+	l = 5.0*(a-b)**3.0
+	m = a*a
+	n = b*b
+	
+	LCOL   = (b*(3.0*m-7.0*n))/l
+	DIAG   = 1.0
+	RCOL   = (a*(7.0*m-3.0*n))/l
+	RSIDE1 = 12.0*b*(a+2.0*b)*(3.0*a-b)/(l*a)
+	RSIDE3 = ( 2.0*(1.0+LCOL+RCOL)-a*RSIDE1)/b
+	RSIDE2 = -(RSIDE1+RSIDE3)
+	
+C test-------------------
+C	RSIDE3 = 12.0*b*(a+2.0*b)*(3.0*a-b)/(l*a)
+C	RSIDE1 = ( 2.0*(1.0+LCOL+RCOL)-a*RSIDE3)/b
+C	RSIDE2 = -(RSIDE1+RSIDE3)
+
+
+
+
+#endif
+#endif
+
+
+
+      RETURN
+      END
+

@@ -1,0 +1,118 @@
+       SUBROUTINE ICOBOUND ()
+
+
+C*STARLET***************************************************************
+C        I C O B O U N D   INITIALISIEREN DER COMMON-BLOCKES
+C                          COBOUND
+C                          ZUM STEUERN DER RANDBEDINGUNGSROUTINEN
+C*STARLET***************************************************************
+C
+C PARAM: NBOCD    : + ANZAHL DER SPEZIFIZIERTEN RANDBEDINGUNGEN
+C        NBOCONDS : + ANZAHL DER WIRKLICH BENOETIGTEN RANDBEDINGUNGEN
+C                     PRO SEITENFLAECHE JEDES GITTERS
+C      LARBOCONDS : + BEGRENZUNGSINDIZES DER FLAECHE, AUF DER
+C                     JEWEILIGE RANDBEDINGUNG GILT
+C     ITYPBOCONDS : + TYP DER JEWEILIGEN RANDBEDINGUNG
+C        LBOGRIDS : + GITTER, AUS DEM RANDBEDINGUNG KOMMT
+C     LPOSBOGRIDS : + POSITION IM GITTER, AUS DEM RANDBEDINGUNG KOMMT
+C
+C
+C        IDIR     : ZEIGER AUF DIE RICHTUNG:
+C
+C                         = 1 : FRONT
+C                         = 2 : BACK 
+C                         = 3 : RIGHT
+C                         = 4 : LEFT
+C                         = 5 : BOTTOM
+C                         = 6 : TOP
+C                         = 7 : CUBUS
+C
+C        ITYP     : TYP DER RANDBEDINGUNG:
+C
+C                       = 1 : PERIODISCH
+C                       = 2 : FIXED-CONDITION
+C                       = 3 : OPEN-WALL GRADIENT=0
+C                       = 4 : OPEN-WALL ZWEITE ABLEITUNG=0
+C                       = 5 : NOSLIP
+C                       = 6 : SLIP
+C                       = 7 : CONNECT (GITTERKOPPLUNG)
+C                       = 8 : PARENT  (FOR LOCALLY REFINED GRIDS)
+C                       = 9 : BLOWING/SUCTION
+C                       = 10 : KONVECTIVE OUTLET
+C                       = 11 : FLUCTUATIONS ARE TAKEN FROM DOWNSTREAM
+C                       = 12 : "Recycling", Velocity profile from	
+C                              downstream is rescaled according to 
+C                              Spalart & Lund
+C                       = 13: Extrapolation dritter Ordnung fuer den Rand
+C                       = 15: FIXED-GRADIENT-CONDITION
+C                             (-> e.g. const. heat flux)
+C                       = 16: FIXED-SCALAR-CONDITION  
+C                             (-> e.g. const. temperature)
+C
+C
+C VERS:  10. 3.93 (MM)  : ORIGINAL
+C VERS:  05.12.01 (TB)  : NEW FIXED-GRADIENT/SCALAR-CONDITION
+C
+C
+C*STARLET***************************************************************
+C
+#include "mgpar.h"
+#include "comgrid.h"
+#include "cobound.h"
+#include "cogrddef.h"
+#include "konsta.h"
+C
+C
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC  VORBELEGUNG 
+C
+      DO IGRID = 1,MAXGRIDS
+         DO IDIR  = 1,7
+            
+            NBOCONDS(IDIR,IGRID) = 0
+
+            DO IBC = 1,MAXBOCONDS
+
+               ITYPBOCONDS(IBC,IDIR,IGRID) = 0
+                  LBOGRIDS(IBC,IDIR,IGRID) = 0
+
+                  XBANF(IBC,IDIR,IGRID) = -GREAT
+                  XBEND(IBC,IDIR,IGRID) =  GREAT
+                  YBANF(IBC,IDIR,IGRID) = -GREAT
+                  YBEND(IBC,IDIR,IGRID) =  GREAT
+                  ZBANF(IBC,IDIR,IGRID) = -GREAT
+                  ZBEND(IBC,IDIR,IGRID) =  GREAT
+
+
+                  IBPOS(IBC,IDIR,IGRID) = 0
+                  JBPOS(IBC,IDIR,IGRID) = 0
+                  KBPOS(IBC,IDIR,IGRID) = 0
+                  IBANF(IBC,IDIR,IGRID) = 0
+                  JBANF(IBC,IDIR,IGRID) = 0
+                  KBANF(IBC,IDIR,IGRID) = 0
+                  IBEND(IBC,IDIR,IGRID) = 0
+                  JBEND(IBC,IDIR,IGRID) = 0
+                  KBEND(IBC,IDIR,IGRID) = 0
+CTBC1 040303: IAR FROM 1 TO 6 INSTEAD OF 1 TO 4
+                  DO  IAR = 1,6
+
+                     LARBOCONDS(IAR,IBC,IDIR,IGRID) = 0
+
+                  ENDDO
+
+                  DO IPOS = 1,3
+
+                     LPOSBOGRIDS(IPOS,IBC,IDIR,IGRID) = 0
+                  ENDDO
+
+               ENDDO
+
+            ENDDO
+         ENDDO
+
+C
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC  
+C
+      RETURN
+      END
+
+

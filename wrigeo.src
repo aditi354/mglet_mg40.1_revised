@@ -1,0 +1,31 @@
+      SUBROUTINE WRIGEO(KK,JJ,II,KMX,JMX,IMX,X,Y,Z,KANAL,ICOUNT)
+
+      REAL X(II), Y(JJ), Z(KK)
+
+      REWIND (KANAL)
+
+      WRITE (KANAL,'(A)') 'LES        '
+
+      WRITE (KANAL,'(A)') '  X  '
+      WRITE (KANAL,6050) (X(I),I=1,IMX)
+      WRITE (KANAL,'(A)') '  Y  '
+      WRITE (KANAL,6050) (Y(I),I=1,JMX)
+      WRITE (KANAL,'(A)') '  Z  '
+      WRITE (KANAL,6050) (Z(I),I=1,KMX)
+      WRITE (KANAL,'(A)') 'IARR '
+      WRITE (KANAL,6060) (I,I=1,IMX)
+      WRITE (KANAL,'(A)') 'JARR '
+      WRITE (KANAL,6060) (I,I=1,JMX)
+      WRITE (KANAL,'(A)') 'KARR '
+      WRITE (KANAL,6060) (I,I=1,KMX)
+
+      WRITE (KANAL,'(A)') ' ICOUNT'
+      WRITE (KANAL,6060) ICOUNT
+
+ 6050  FORMAT (6(E12.5E3,1X))
+ 6060  FORMAT (4(I9,1X))
+
+      RETURN
+      END
+
+

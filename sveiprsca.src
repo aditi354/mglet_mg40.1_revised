@@ -1,0 +1,486 @@
+C#ifdef _TSCAL_
+      SUBROUTINE SVEIPRSCA (KK,JJ,II,KMX,JMX,IMX,
+     $                      TFR,Y,Z,DZ,TIMEPH,DT,IGRID)
+C*STARLET***************************************************************
+C        S V E I P R S C A  INLET SCALAR DISTRIBUTION     
+C
+C*STARLET***************************************************************
+C
+C PARAM: KK,  JJ,  II   - ARRAY DIMENSIONS
+C        KMX, JMX, IMX  - I,J,K LIMITS OF COMPUTATIONAL DOMAIN (->BOUND)
+C        TK(KK,JJ,II)   + TURBULENT ENERGY (= K)
+C        TFR(KK,JJ,2)   + INLET PROFILE FOR _FRFIX_
+C        MTURB          - (1 : TURBULENT,  0 : LAMINAR)(->.DAT)
+C        TREF           - CHANNEL HEIGHT AVERAGED SCALAR
+C        EXPONT         - EXPONENT OF SCALAR DISTRIBUTION LAW
+C        GMOL           - DYNAMIC MOLECULAR VISCOSITY
+C        RHO            - FLUID DENSITY (= CONST)
+C        Z (KK)         - CELL CENTER Z-COORDINATE VECTOR
+C        DZ(KK)         - CELL EDGE LENGTH VECTOR IN Z
+C        TU             - DEGREE OF TURBULENCE AT INLET
+C        TFRFREQ        - FREQUENY OF INLET SCALAR DISTRIBUTION (->.DAT)
+C        TFRCON         - AMPLITUDE OF INLET SCALAR DISTRIBUTION(->.DAT)
+C
+C VERS:  05. 12.02 (TB)  : DERIVED FROM SVEIPR
+C
+C UPROG: FUNCTION VORZ
+C        FUNCTION RANEQU
+C
+C*STARLET***************************************************************
+C
+#include "mgpar.h"
+#include "cophyspar.h"
+#include "cobound.h"
+C
+#include "konsta.h"
+#include "conles.h"
+C
+      REAL       TFR(KK,JJ, 2), Y(JJ), Z(KK), DZ(KK)    
+C
+C
+#ifdef _TSCAL_
+      TEIN  (ZWAND)  = (1.0+EXPONT)/(2.0-RTURB)*TREF*((1.0-RTURB)
+     $               + SIGN(1.0,(RTURB-0.5))*(ABS(HK2*(1.0-RTURB)
+     $               - ABS(ZWAND))/HK2)**EXPONT) * SIGN(1.0,ZWAND)
+      TKEIN (ZMITTE) = CK1 + CK2 * ABS(ZMITTE)**CK3
+C
+       DATA           REV         /20.0/
+       DATA           TU          / 0.10/
+       DATA           PI          /3.1415927/
+C
+      ZANF = ZBANF(1,1,IGRID)
+      ZEND = ZBEND(1,1,IGRID)
+           
+C     SET INITIAL/INFLOW Tinfinity to TSCA(BASICBC,FRONT,IGRID) 
+      TSCAIN = TSCA(1,1,IGRID)
+      
+C     GET TYPE OF SCALAR BOUNDARY CONDITIONS
+      CALL MGBASBSCA (NFROSCA,NBACSCA,NRGTSCA,NLFTSCA,NBOTSCA,
+     $                NTOPSCA,NCUBSCA,IGRID)
+C
+      IF (TFRFREQ .LT. SMALL) THEN
+
+          AMPLITUDE = 1.0
+
+      ELSE
+
+          AMPLITUDE = SIN( 2.0 * PI * TIMEPH * TFRFREQ )
+
+      ENDIF
+C
+C
+      IM2 = IMX-2
+      JM1 = JMX-1
+      JM2 = JMX-2
+      JM3 = JMX-3
+      KM1 = KMX-1
+      KM2 = KMX-2
+      KM3 = KMX-3
+C
+C                                 CONSTANTS
+C
+      CM25   = CMUE**0.25
+      SQCMUE = CM25**2
+      CM25RE = CM25* REV
+      RTURB  = FLOAT(MTURB)
+C
+C                                 INITIALISATION OF SCALAR T
+C                                 (PRESET !!)
+C
+      DO 10 I=1,2
+         DO 10 J=1,JMX
+            DO 10 K=1,KMX
+               TFR(K,J,I) = PRESET
+   10 CONTINUE
+C
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
+      IF(CIDTFR(1:7).EQ.'UNIFORM') THEN
+C
+C    					UNIFORM SCALAR DISTRIBUTION
+C
+      DO 70 I=1,2
+      DO 70 J=2,JM1
+      DO 70 K=2,KM1
+            TFR(K,J,I) = TSCAIN
+   70  CONTINUE
+
+      
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC   'UNIFORM' => NO RANDOM!
+      IF (MTURB .GT. 1) THEN
+       DO  71 I=1,2
+        DO  72 J=3,JM2
+         DO  73 K=3,KM1
+            TFR(K,J,I) = TFR(K,J,I)+SQRT(2.0*RANEQU(0.123)*TU)*VORZ(1)
+   73    CONTINUE
+   72   CONTINUE
+   71  CONTINUE
+      ENDIF
+
+      RETURN
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
+      ELSEIF(CIDTFR(1:7).EQ.'CHANNEL') THEN
+      STOP ' STOP IN SVLE1SCA: SCALAR CHANNEL FLOW NOT YET IMPLEMENTED'
+      CALL ERRR (501,'sveiprsc')
+C
+C                                 BEI LAMINARER STROEMUNG WIRD EIN PARA-
+C                                 BOLISCHES GESCHWINDIGKEITSPROFIL ER-
+C                                 ZEUGT. DIESES PROFIL WIRD ZWISCHEN
+C                                 ZANF UND ZEND GELEGT.
+      IF(MTURB .EQ. 0) THEN
+C
+C
+      DO K=2,KM1
+        IF(Z(K).LE.ZANF) NSTART = K+1
+        IF(Z(K).LE.ZEND) NSTOP = K-1
+      ENDDO
+          HK2   = 0.5*(ZEND-ZANF)
+      NSTUE  = (NSTOP-NSTART)/2
+      NMITTE = (NSTOP+NSTART)/2
+      NZUS   =  NSTOP+NSTART-2*NMITTE
+      NSTP   = NSTUE + 1
+      ZBOT   = 0.5*(Z(NSTART) + Z(NSTART-1))
+      ZTOP   = 0.5*(Z(NSTOP+1)+ Z(NSTOP)   )
+      ZMIT   = 0.5*(ZBOT+ZTOP) +ZBOT
+      DO K=3,KM2
+      IF ( Z(K) .GE. ZANF .AND. Z(K) .LE. ZEND ) THEN
+      DO  I=1,2
+      DO  J=3,JM2
+         DO 123 N=1,NSTP
+            NMIN        = NMITTE + 1 - N
+            NPLU        = NMITTE - 1 + NZUS + N
+C
+            TFR(NMIN,J,I) = TEIN(Z(NMIN)-ZBOT)
+  123       TFR(NPLU,J,I) = TEIN(ZTOP-Z(NPLU))
+C
+C
+      ENDDO
+      ENDDO
+C      
+      ELSE
+       DO I=1,2
+         DO J=3,JM2
+           TFR(K,J,I) = 0.0
+         ENDDO
+         ENDDO
+      ENDIF
+            ENDDO
+          RETURN
+C
+C
+      ELSE
+C                          BEI TURBULENTER STROEMUNG, WIE VOR (8.3.96)
+C
+C                          GEOMETRISCHE GROESSEN, INDIZES DES
+C                          ERSTEN UND LETZTEN PUNKTES DES FREI
+C                          DURCHSTROEMTEN KANALS
+C
+      NSTART = 3
+      NSTOP  = KMX-2
+      NSTUE  = (NSTOP-NSTART)/2
+      NMITTE = (NSTOP+NSTART)/2
+      NZUS   =  NSTOP+NSTART-2*NMITTE
+C
+      ZBOT   = 0.5*(Z(NSTART) + Z(NSTART-1))
+      ZTOP   = 0.5*(Z(NSTOP+1)+ Z(NSTOP)   )
+      ZMIT   = 0.5*(ZBOT+ZTOP)
+C
+C                                 HALBE KANALHOEHE
+C
+      HK2    = 0.5*(ZTOP-ZBOT)
+C
+      NSTP   = NSTUE + 1
+C
+      DO 100 I=1,2
+      DO 110 J=3,JM2
+         DO 120 N=1,NSTP
+            NMIN        = NMITTE + 1 - N
+            NPLU        = NMITTE - 1 + NZUS + N
+C
+            TFR(NMIN,J,I) = TEIN(Z(NMIN)-ZBOT)
+  120       TFR(NPLU,J,I) = TEIN(ZTOP-Z(NPLU))
+C
+C
+  110 CONTINUE
+  100 CONTINUE
+C
+C
+C
+C                                  *************************************
+C                                  ERMITTLUNG DER SCHWANKUNGSGESCHWIN-
+C                                  DIGKEITEN MITTELS ZUFALLSZAHLENGENE-
+C                                  RATOR. DIE SCHWANKUNGEN WERDEN SO BE-
+C                                  STIMMT, DASS EINE VORGEGEBENE TURBU-
+C                                  LENZENERGIEVERTEILUNG EINGEHALTEN
+C                                  WIRD.
+C                                  *************************************
+C
+C                                  KONSTANTEN DER K-VERTEILUNG (AN-
+C                                  NAEHERUNG EINER MIT DEM K-EPS-MODELL
+C                                  BERECHNETEN K-VERTEILUNG)
+C
+      CK1    = 0.0015
+      CK2    = 0.017
+      CK3    = 1.443
+C
+C                                  NAEHERUNGSWEISE BEST. DER DICKE DER
+C                                  VISKOSEN UNTERSCHICHT
+C
+      DYV    = (HK2**EXPON * CM25RE*GMOL*LOG(ECONST*CM25RE)
+     $       /  (CAPPA*RHO*(1.0+EXPON)))**(1.0/(1.0+EXPON))
+      TKV    = TKEIN(HK2-DYV)
+      GRADKV = TKV/DYV
+C
+      NSTP = NSTUE + 1
+      DO 170 I=1,2
+      DO 180 J=3,JM2
+         DO 190 N=1,NSTP
+            NMIN         = NMITTE + 1 - N
+            NPLU         = NMITTE - 1 + NZUS + N
+            ZMMIN        = ZMIT - Z(NMIN)
+            ZMPLU        = Z(NPLU) - ZMIT
+            TKMIN        = TKEIN(ZMMIN)
+            TKPLU        = TKEIN(ZMPLU)
+            IF((HK2-ZMMIN) .LE. DYV) TKMIN = GRADKV*(HK2-ZMMIN)
+            IF((HK2-ZMPLU) .LE. DYV) TKPLU = GRADKV*(HK2-ZMPLU)
+C
+C                                 ERSTE SCHAETZUNG FUER DIE QUADRATE DER
+C                                 SCHWANKUNGSGESCHWINDIGKEITEN
+C
+            TS2M  = RANEQU(0.123)
+            TS2P  = RANEQU(0.123)
+C                                 ERMITTLUNG EINES FAKTORS, DER DIE
+C                                 SCHAETZWERTE D. SCHWANKUNGSGESCHW. AN
+C                                 DIE GEFORDERTE TURBULENZENERGIE AN-
+C                                 PASST
+C
+            FAKM  = 2.0*TKMIN/TS2M
+            FAKP  = 2.0*TKPLU/TS2P
+C
+            TFR(NMIN,J,I) = TFR(NMIN,J,I)+SQRT(FAKM*TS2M)*VORZ(N)
+            TFR(NPLU,J,I) = TFR(NPLU,J,I)+SQRT(FAKP*TS2P)*VORZ(N+1)
+  190    CONTINUE
+  180 CONTINUE
+  170 CONTINUE
+
+      ENDIF
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
+C                         EXPERIMENTAL PROFILE IS SET AS INLET
+C                         READ FROM KANAL17, CONTROL OUTPUT TO KANAL19
+
+      ELSEIF(CIDTFR(1:8).EQ.'EXPERIME') THEN
+      STOP ' STOP IN SVLE1SCA: SCALAR EXP. FLOW NOT YET IMPLEMENTED'
+      CALL ERRR (501,'sveiprsc')
+
+      WRITE(19,*) 'EXPERIMENT'
+	 ZSCA=0.025
+	 USCA=0.9
+	 ZEXP=0.0
+	 TEXP=0.0
+	 REWIND(17)
+	 READ(17,*) DUMMY,ZEXPNEU,DUMMY,TEXPNEU
+	 ZEXPNEU=ZEXPNEU*ZSCA
+	 TEXPNEU=TEXPNEU*USCA
+	 WRITE(19,*) ZEXPNEU, TEXPNEU
+      DO  K=3,KM1
+
+  333	 IF (ZEXPNEU.LE.Z(K)) THEN
+	 ZEXP=ZEXPNEU
+	 TEXP=TEXPNEU
+	 READ(17,*) DUMMY,ZEXPNEU,DUMMY,TEXPNEU
+	 ZEXPNEU=ZEXPNEU*ZSCA
+	 TEXPNEU=ZEXPNEU*USCA
+	 WRITE(19,*) ZEXPNEU, TEXPNEU
+	 GOTO 333
+	 ENDIF
+
+      DO  I=1,2
+      DO  J=3,JM2
+	 TFR(K,J,I) = TEXP+(Z(K)-ZEXP)*(TEXPNEU-TEXP)/(ZEXPNEU-ZEXP)
+      ENDDO
+      ENDDO
+      WRITE(19,*) 'Gitterpunktwerte:','Z(',K,')=',Z(K),
+     &            'T=',TFR(K,3,2)
+      ENDDO
+
+      RETURN
+
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
+      ELSEIF(CIDTFR(1:8).EQ.'BOUNDARY') THEN
+
+C
+C                                 BEI LAMINARER STROEMUNG WIRD EIN PARA-
+C                                 BOLISCHES GESCHWINDIGKEITSPROFIL ER-
+C                                 ZEUGT.
+      IF(MTURB .EQ. 0) EXPONT = 2.0
+C
+C     GET QW OR TW ACCORDING TO BC TYPE
+      IF (NBOTSCA .EQ. 16) THEN
+        TW = TSCA( 2 , 5 , IGRID)
+        QFAC = (TW-TSCAIN)
+      ELSEIF (NBOTSCA .EQ. 15) THEN
+        QBOT    = QSCA( 2 , 5 , IGRID)
+C        QFAC = QBOT*DELTAT /LAMDA /EXPONT
+        QFAC = QBOT/LAMDA            
+      ELSE
+       WRITE(6,*) 'NBOTSCA: ', NBOTSCA      	
+       STOP ' STOP IN SVEIPRSCA: BOTTOM SCALAR BOUNDARY TYPE INVALID'
+      ENDIF
+C
+C
+      ZBOT   = 0.5*(Z(3) + Z(2))
+C
+      DO 200 I=1,2
+      DO 210 J=3,JM2
+         DO 220 K=3,KM1
+C
+          ZDELTA=((1.0-FLOAT(MTURB))+
+     $            SIGN(1.0,-1.0+FLOAT(MTURB))*(Z(K)-ZBOT)/DELTAT)
+          Verd  =FLOAT(MTURB)- SIGN(1.0,-1.0+FLOAT(MTURB))*
+     $           (MIN(1.0,ZDELTA)*MAX(0.0,ZDELTA)/ABS(ZDELTA))**EXPONT     
+          TFR(K,J,I)= TSCAIN+QFAC*Verd
+C
+  220    CONTINUE
+  210 CONTINUE
+  200 CONTINUE
+C
+
+C
+C               HERE TURBULENT BOUNDARY LAYER FLUCTUATION ADDING
+C
+C     NOT USED! Tstart SET TO <T>!!!
+      IF(MTURB .GT. 1) THEN
+C                                  *************************************
+C                                  ERMITTLUNG DER SCHWANKUNGSGESCHWIN-
+C                                  DIGKEITEN MITTELS ZUFALLSZAHLENGENE-
+C                                  RATOR. DIE SCHWANKUNGEN WERDEN SO BE-
+C                                  STIMMT, DASS EINE VORGEGEBENE TURBU-
+C                                  LENZENERGIEVERTEILUNG EINGEHALTEN
+C                                  WIRD.
+C                                  *************************************
+C
+C                                  KONSTANTEN DER K-VERTEILUNG (AN-
+C                                  NAEHERUNG EINER MIT DEM K-EPS-MODELL
+C                                  BERECHNETEN K-VERTEILUNG)
+C
+      CK1    = 0.0015
+      CK2    = 0.017
+      CK3    = 1.443
+C
+C                                  NAEHERUNGSWEISE BEST. DER DICKE DER
+C                                  VISKOSEN UNTERSCHICHT
+C
+      HK2 = DELTA
+      DYV    = (HK2**EXPON * CM25RE*GMOL*LOG(ECONST*CM25RE)
+     $       /  (CAPPA*RHO*(1.0+EXPON)))**(1.0/(1.0+EXPON))
+      TKV    = TKEIN(HK2-DYV)
+      GRADKV = TKV/DYV
+C
+      DO 270 I=1,2
+      DO 280 J=3,JM2
+         DO 290 N=3,KM1
+	    IF (Z(N).GT.DELTAT) GOTO 280
+            ZMMIN        = DELTAT - Z(N)
+            TKMIN        = TKEIN(ZMMIN)
+            IF((HK2-ZMMIN) .LE. DYV) TKMIN = GRADKV*(HK2-ZMMIN)
+C
+C                                 ERSTE SCHAETZUNG FUER DIE QUADRATE DER
+C                                 SCHWANKUNGSTEMPERATURE
+C
+            TS2M  = RANEQU(0.123)
+C                                 ERMITTLUNG EINES FAKTORS, DER DIE
+C                                 SCHAETZWERTE D. SCHWANKUNGSTEMP. AN
+C                                 DIE GEFORDERTE TURBULENZENERGIE AN-
+C                                 PASST
+C
+C            FAKM  = 2.0*TKMIN/TS2M
+            FAKM  = 1.0*TKMIN/TS2M            
+C
+            TFR(N,J,I) = TFR(N,J,I)+SQRT(FAKM*TS2M)*VORZ(N)
+  290    CONTINUE
+  280 CONTINUE
+  270 CONTINUE
+      ENDIF
+C
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
+      ELSEIF(CIDTFR(1:4).EQ.'DUCT') THEN
+      STOP ' STOP IN SVLE1SCA: SCALAR DUCT FLOW NOT YET IMPLEMENTED'
+      CALL ERRR (501,'sveiprsc')
+            
+      ZBOT   = 0.5*(Z(3) + Z(2))
+      ZTOP   = 0.5*(Z(KM2) + Z(KM1))
+      YBOT   = 0.5*(Y(3) + Y(2))
+      YTOP   = 0.5*(Y(JM2) + Y(JM1))
+C
+C
+C                                 HALBE KANALHOEHE
+C
+      HKZ    = 0.5*(ZTOP-ZBOT)
+      HKY    = 0.5*(YTOP-YBOT)
+      HK2    = 0.5*(HKY + HKZ)
+      RHK    = 1./(HKZ**2 * HKY**2)
+C
+C                                 BEI LAMINARER STROEMUNG WIRD EIN PARA-
+C                                 BOLISCHES GESCHWINDIGKEITSPROFIL ER-
+C                                 ZEUGT.
+C
+      IF(MTURB .EQ. 0) THEN
+
+          DO I=1,2
+           DO J=3,JM2
+            DO K=3,KM1
+
+               TFR(K,J,I) = TFRCON*
+     $             (Z(K)-ZBOT)*(Y(J)-YBOT)*(ZTOP-Z(K))*(YTOP-Y(J))*
+     $             AMPLITUDE * RHK
+
+            ENDDO
+           ENDDO
+          ENDDO
+          RETURN
+C
+      ELSE
+C
+      DO 300 I=1,2
+      DO 310 J=3,JM2
+         DO 320 K=3,KM1
+C
+            TFR(K,J,I) = (MIN(1.0              ,
+     +                     (Z(K)-ZBOT)/HKZ,
+     +                     (ZTOP-Z(K))/HKZ,
+     +                     (Y(J)-YBOT)/HKY,
+     +                     (YTOP-Y(J))/HKY))**EXPONT*TSCAIN
+                           
+C
+  320    CONTINUE
+  310 CONTINUE
+  300 CONTINUE
+C
+      ENDIF
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
+      ELSEIF(CIDTFR(1:5).EQ.'PDE1D') THEN
+C
+C     NOT YET IMPLEMENTED
+      CALL ERRR (501,'sveiprsc')
+C
+C
+C          DO I=1,2
+C           DO J=3,JM2
+C            DO K=3,KM1
+C
+C               VFR(K,J,I) = TFRCON*AMPLITUDE
+C               TFR(K,J,I) = 1.0
+C
+C            ENDDO
+C           ENDDO
+C          ENDDO
+C          RETURN
+C
+      ELSE 
+          CALL ERRR (745,'SVEIPR ')
+C
+      ENDIF
+C
+#endif
+      RETURN
+      END
+C#endif

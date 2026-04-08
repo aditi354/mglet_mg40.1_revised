@@ -1,0 +1,191 @@
+      SUBROUTINE BTOPAR (KMX,JMX,IMX,
+     $                   U,V,W,P,G,UTO,VTO,WTO,PTO,GTO,
+     $                   ISTA,ISTO,JSTA,JSTO,
+     $                   ITYP,IRB,JRB,KRB,DX,DY,DZ,DDX,DDY,DDZ
+#ifdef _TSCAL_
+     $                   ,T,TTO
+#endif
+     $                   )     
+C*MGLET*****************************************************************
+C        B T O P A R    SETZEN DER RANDBEDINGUNGEN FUER DIE
+C                 GESCHWINDIGKEITSFELDER. AND SCALAT T AUS PARENT-GITTER
+C*MGLET*****************************************************************
+C
+C PARAM: 
+C        KMX, JMX, IMX  - DIMENSIONEN DES GITTERS 
+C        U(KMX,JMX,IMX) + GESCHWINDIGKEITSFELD
+C        V(KMX,JMX,IMX) + GESCHWINDIGKEITSFELD
+C        W(KMX,JMX,IMX) + GESCHWINDIGKEITSFELD
+C        T(KMX,JMX,IMX) + SCALAR T FIELD
+C        P(KMX,JMX,IMX) - DRUCKFELD
+C        G(KMX,JMX,IMX) - EFFEKTIVE DYNAMISCHE VISKOSITAET (= MUE)
+C        ...N           - ENTSPRECHENDE GROESSE AUS DEM NACHBARGITTER
+C        JSTART,JSTOP
+C        KSTART,KSTOP   - BEREICH IN DEM RANDBEDINGUNG GESETZT WIRD
+C        IPOS,JPOS,KPOS - POSITION IM NACHBARGITTER, AUF DER DER PUNKT
+C                         MIT DEN INDIZES (3,3,3) ZU LIEGEN KOMMT
+C        ITYP           - HOLLERITH-KONSTANTE:
+C                         'P'  VOR DER DRUCKKORREKTUR
+C                         'T'  VOR DEM ZEITSCHRITT
+C            IRB                  - INTEGER-KENNZAHL I-RICHTUNG RED-BLACK
+C            JRB                  - INTEGER-KENNZAHL J-RICHTUNG RED-BLACK
+C            KRB                  - INTEGER-KENNZAHL K-RICHTUNG RED-BLACK
+C
+C VERS:  27.07.95 (MM)  : ORIGINAL AUS BBOPAR ABGELEITET
+C        01.08.96 (MM)  : BTOPAR SETZT NUR NOCH DIE BUFFERFELDER UTO..GTO
+C                         AUF DIE RANDSCHICHTEN
+C        28.02.03 (TB)  : SCALAR BOUNDARY TREATMENT IMPLEMENTED
+C
+C DEFINE-DIREKTIVEN     : QUD 
+C
+C*STARLET***************************************************************
+C
+#include "costrles.h"
+#include "cophyspar.h"
+C
+      CHARACTER (LEN=1)  ITYP
+C
+      REAL
+     $     U(KMX,JMX,IMX),  V(KMX,JMX,IMX),  W(KMX,JMX,IMX),
+     $     P(KMX,JMX,IMX),  G(KMX,JMX,IMX),
+     $     UTO(JMX,IMX,2),  VTO(JMX,IMX,2),  WTO(JMX,IMX,2),
+     $     PTO(JMX,IMX,2),  GTO(JMX,IMX,2)
+      REAL  DX(IMX), DY(JMX), DZ(KMX)
+      REAL DDX(IMX),DDY(JMX),DDZ(KMX)
+C
+#ifdef _TSCAL_
+      REAL T(KMX,JMX,IMX),TTO(JMX,IMX,2)
+#endif
+C
+#ifdef _QUD_
+C                                   FALLS QUADRATIC UPSTREAM
+C
+               CALL ERRR (587,'BTOPAR ')
+#endif
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
+      NBND = 2
+CRED-BLACK-RED-BLACK-RED-BLACK-RED-BLACK-RED-BLACK-RED-BLACK-RED-BLACK-
+      IF (IRB .EQ. 0) THEN
+         ISTART = 1
+         ISTOP  = IMX
+      ELSEIF (IRB .EQ. 1) THEN
+         ISTART = NBND + 1
+         ISTOP  = IMX/2
+      ELSEIF (IRB .EQ. 2) THEN
+         ISTART = IMX/2 + 1
+         ISTOP  = IMX - NBND
+      ELSE
+         CALL ERRR (504,'IRB BTOPAR')
+      ENDIF   
+C
+      IF (JRB .EQ. 0) THEN
+         JSTART = 1
+         JSTOP  = JMX
+      ELSEIF (JRB .EQ. 1) THEN
+         JSTART =   2  + 1
+         JSTOP  = JMX/2
+      ELSEIF (JRB .EQ. 2) THEN
+         JSTART = JMX/2 + 1
+         JSTOP  = JMX -   2 
+      ELSE
+         CALL ERRR (504,'JRB BTOPAR')
+      ENDIF   
+CRED-BLACK-RED-BLACK-RED-BLACK-RED-BLACK-RED-BLACK-RED-BLACK-RED-BLACK-
+
+C
+C                         FINE-GRID: K-INDEX=KMX -1  (TOP)
+               KF = KMX - 1
+C                         K-INDEX OF COARSE-GRID (IN BUFFER-FIELDS)
+C                                   (=PARENT, CALLED NEIGHBOUR)
+C INDEX OF PARENT:           KC = KPOS - 1 + (KF-1)/2
+C INDEX IN BUFFER:
+                         KC = 1
+C
+#ifdef _TOPAR_CORRECT_INTERFACE_VELOCITY_
+C                                 CORRECTION OF INTERFACE VELOCITY
+
+         DO I=3,IMX-2,2
+         DO J=3,JMX-2,2
+
+            PCNEW = 1./((DDX(I    )+DDX(I+1  ))
+     $                 *(DDY(J    )+DDY(J+1  ))
+     $                 *(DDZ(KF-2 )+DDZ(KF-1 )))
+     $           *(   P(KF-2,J  ,I  )*DDZ(KF-2)*DDY(J  )*DDX(I  )
+     $               +P(KF-1,J  ,I  )*DDZ(KF-1)*DDY(J  )*DDX(I  )
+     $               +P(KF-2,J  ,I+1)*DDZ(KF-2)*DDY(J  )*DDX(I+1)
+     $               +P(KF-1,J  ,I+1)*DDZ(KF-1)*DDY(J  )*DDX(I+1)
+     $               +P(KF-2,J+1,I  )*DDZ(KF-2)*DDY(J+1)*DDX(I  )
+     $               +P(KF-1,J+1,I  )*DDZ(KF-1)*DDY(J+1)*DDX(I  )
+     $               +P(KF-2,J+1,I+1)*DDZ(KF-2)*DDY(J+1)*DDX(I+1)
+     $               +P(KF-1,J+1,I+1)*DDZ(KF-1)*DDY(J+1)*DDX(I+1))
+
+            DP = PCNEW - PTO(J,I,2)
+
+            DW = DP / (DDZ(KF-1)+DDZ(KF)) * DT/RHO
+
+            WTO(J  ,I  ,1) = WTO(J  ,I  ,1) + DW
+            WTO(J+1,I  ,1) = WTO(J+1,I  ,1) + DW
+            WTO(J  ,I+1,1) = WTO(J  ,I+1,1) + DW
+            WTO(J+1,I+1,1) = WTO(J+1,I+1,1) + DW
+
+            PTO(J  ,I  ,2) = PCNEW
+            PTO(J+1,I  ,2) = PCNEW
+            PTO(J  ,I+1,2) = PCNEW
+            PTO(J+1,I+1,2) = PCNEW
+
+         ENDDO
+         ENDDO
+
+#endif
+C
+C                                 FUER ZEITSCHRITT
+C
+      IF (ITYP.EQ.'T') THEN
+         DO I=ISTART,ISTOP
+         DO J=JSTART,JSTOP
+
+               U(KF,J,I) = UTO(J,I,1)
+               V(KF,J,I) = VTO(J,I,1)
+               W(KF-1,J,I) = WTO(J,I,1)
+               W(KF,J,I) = WTO(J,I,1)
+               P(KF,J,I) = PTO(J,I,1)
+               G(KF,J,I) = GTO(J,I,1)
+#ifdef _TSCAL_
+               T(KF,J,I) = TTO(J,I,1)
+#endif
+
+         ENDDO
+         ENDDO
+
+C                                 FUER DRUCKKORREKTUR
+C                                 NUR NORMALKOMPONENTE MUSS GESETZT
+C                                 WERDEN
+
+       ELSEIF (ITYP.EQ.'P') THEN
+
+#ifdef _TOPAR_FIXED_
+         DO I=ISTART,ISTOP
+         DO J=JSTART,JSTOP
+
+               W(KF-1,J,I) = WTO(J,I,1)
+
+         ENDDO
+         ENDDO
+#else
+C                   NORMAL-KOMPONENT MUST NOT BE SET
+C                   BECAUSE PRESSURE IN THE BOUNDARY-CELLS
+C                   IS NOT MODIFIED, SO NORMAL-KOMPONENTS MUST
+C                   BE ABLE TO DEVELOP FREELY
+
+               RETURN
+
+#endif
+C
+       ELSE
+                CALL ERRR (501,' BTOPAR')
+       ENDIF
+C
+
+      RETURN
+      END
+

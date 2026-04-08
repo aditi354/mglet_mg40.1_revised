@@ -1,0 +1,497 @@
+      SUBROUTINE PRLE3L  (ILINT0,ILINTX,ILINTY,ILINTZ,K1,KSLIN,
+     $                    KANAL,NRRUN,LINPRN,
+#include "cstac1.h"
+C*STARLET***************************************************************
+C        P R L E 3 L      KOMPAKTAUSGABE DER "LINIEN"-FELDER:
+C                         - KORRELATIONSFUNKTIONEN
+C                         - KORRELATIONSKOEFFIZIENTEN
+C                         - LEISTUNGSDICHTESPEKTREN
+C                         - HAEUFIGKEITSVERTEILUNGEN
+C  A C H T U N G:         DIESE ROUTINE MUSS ERWEITERT WERDEN, FALLS
+C                         DIE STATIST. AUSWERTUNG ERWEITERT WIRD !
+C*STARLET***************************************************************
+C
+C PARAM: ILINT0         - ANZAHL DER AUFPUNKTE MIT RICHTUNGSINFORMATION
+C                         '0' + 1 (AUFPKT. IN DEN I-LINES 2 ... ILINT0)
+C        ILINTX         - ANZAHL DER AUFPUNKTE MIT RICHTUNGSINFORMATION
+C                         'X' + 1 (AUFPKT. IN DEN I-LINES 2 ... ILINTX)
+C        ILINTY         - ANZAHL DER AUFPUNKTE MIT RICHTUNGSINFORMATION
+C                         'Y' + 1 (AUFPKT. IN DEN I-LINES 2 ... ILINTY)
+C        ILINTZ         - ANZAHL DER AUFPUNKTE MIT RICHTUNGSINFORMATION
+C                         'Z' + 1 (AUFPKT. IN DEN I-LINES 2 ... ILINTZ)
+C        K1             - STARTINDEX FUER DIE AUSZUGEBENDE "LINIE"
+C        KSLIN          - INKREMENT FUER DIE AUSZUGEBENDE "LINIE"
+C        NRRUN          - LAUFNUMMER
+C        LINPRN         - LOGISCHE VARIABLE:
+C                         .FALSE. : ES WERDEN NUR DIE INFORMATIONEN WIE
+C                                   MAXIMA, MINIMA, INTEGRALE LAENGEN-
+C                                   MASSE ETC. AUSGEGEBEN. DAS EIGENT-
+C                                   LICHE FELD WIRD JEDOCH NICHT AUS-
+C                                   GEGEBEN
+C                         .TRUE.  : INFORMATIONEN + FELD WERDEN AUSGE-
+C                                   GEBEN
+#include "cstap1.h"
+C
+C UPROG                 : PR1LIN
+C
+C DEFINE-DIREKTIVEN     : KEINE
+C
+C        22.12.88 (HW)  : ORIGINAL
+C        25.02.92 (MM)  : ACHTUNG VARIABLE "KANAL" IN UEBERGABE
+C                         EIGEFUEGT
+C
+C*STARLET***************************************************************
+C
+#include "crefvd.h"
+
+      LOGICAL   LINPRN
+C
+#include "cstad1.h"
+C
+#include "crefvc.h"
+C
+C                                  HIER: AUTOKORRELATIONSFUNKTIONEN
+C                                  --------------------------------
+C
+      WRITE       (KANAL,6110)
+C
+      IF(ISELEP(1, 14) .EQ. 1 .OR. ISELEP(1, 14) .EQ. 2) THEN
+         CALL PR1LIN  (ARXUU  , 2 ,' R_U"U"(X)      ',KKXL,JJ2L,ILIMXP,
+     $                 'KORRELATIONSFKT.','KORR.-RADIUS    ',
+     $                 CKEINE ,CLREF  ,
+     $                 K1,KSLIN,K2,  1  ,  1  ,  2  ,ILINTX,
+     $                 SRXUU  ,JJ1L,NRRUN,LINPRN,KANAL)
+      ENDIF
+      IF(ISELEP(1, 16) .EQ. 1 .OR. ISELEP(1, 16) .EQ. 2) THEN
+         CALL PR1LIN  (ARYUU  , 2 ,' R_U"U"(Y)      ',KKYL,JJ2L,ILIMXP,
+     $                 'KORRELATIONSFKT.','KORR.-RADIUS    ',
+     $                 CKEINE ,CLREF  ,
+     $                 K1,KSLIN,K2,  1  ,  1  ,  2  ,ILINTY,
+     $                 SRYUU  ,JJ1L,NRRUN,LINPRN,KANAL)
+      ENDIF
+      IF(ISELEP(1, 18) .EQ. 1 .OR. ISELEP(1, 18) .EQ. 2) THEN
+         CALL PR1LIN  (ARZUU  , 2 ,' R_U"U"(Z)      ',KKZL,JJ2L,ILIMXP,
+     $                 'KORRELATIONSFKT.','KORR.-RADIUS    ',
+     $                 CKEINE ,CLREF  ,
+     $                 K1,KSLIN,K2,  1  ,  1  ,  2  ,ILINTZ,
+     $                 SRZUU  ,JJ1L,NRRUN,LINPRN,KANAL)
+      ENDIF
+C
+      WRITE       (KANAL,6130)
+C
+      IF(ISELEP(1, 39) .EQ. 1 .OR. ISELEP(1, 39) .EQ. 2) THEN
+         CALL PR1LIN  (ARXVV  , 2 ,' R_V"V"(X)      ',KKXL,JJ2L,ILIMXP,
+     $                 'KORRELATIONSFKT.','KORR.-RADIUS    ',
+     $                 CKEINE ,CLREF  ,
+     $                 K1,KSLIN,K2,  1  ,  1  ,  2  ,ILINTX,
+     $                 SRXVV  ,JJ1L,NRRUN,LINPRN,KANAL)
+      ENDIF
+      IF(ISELEP(1, 41) .EQ. 1 .OR. ISELEP(1, 41) .EQ. 2) THEN
+         CALL PR1LIN  (ARYVV  , 2 ,' R_V"V"(Y)      ',KKYL,JJ2L,ILIMXP,
+     $                 'KORRELATIONSFKT.','KORR.-RADIUS    ',
+     $                 CKEINE ,CLREF  ,
+     $                 K1,KSLIN,K2,  1  ,  1  ,  2  ,ILINTY,
+     $                 SRYVV  ,JJ1L,NRRUN,LINPRN,KANAL)
+      ENDIF
+      IF(ISELEP(1, 43) .EQ. 1 .OR. ISELEP(1, 43) .EQ. 2) THEN
+         CALL PR1LIN  (ARZVV  , 2 ,' R_V"V"(Z)      ',KKZL,JJ2L,ILIMXP,
+     $                 'KORRELATIONSFKT.','KORR.-RADIUS    ',
+     $                 CKEINE ,CLREF  ,
+     $                 K1,KSLIN,K2,  1  ,  1  ,  2  ,ILINTZ,
+     $                 SRZVV  ,JJ1L,NRRUN,LINPRN,KANAL)
+      ENDIF
+C
+      WRITE       (KANAL,6150)
+C
+      IF(ISELEP(1, 64) .EQ. 1 .OR. ISELEP(1, 64) .EQ. 2) THEN
+         CALL PR1LIN  (ARXWW  , 2 ,' R_W"W"(X)      ',KKXL,JJ2L,ILIMXP,
+     $                 'KORRELATIONSFKT.','KORR.-RADIUS    ',
+     $                 CKEINE ,CLREF  ,
+     $                 K1,KSLIN,K2,  1  ,  1  ,  2  ,ILINTX,
+     $                 SRXWW  ,JJ1L,NRRUN,LINPRN,KANAL)
+      ENDIF
+      IF(ISELEP(1, 66) .EQ. 1 .OR. ISELEP(1, 66) .EQ. 2) THEN
+         CALL PR1LIN  (ARYWW  , 2 ,' R_W"W"(Y)      ',KKYL,JJ2L,ILIMXP,
+     $                 'KORRELATIONSFKT.','KORR.-RADIUS    ',
+     $                 CKEINE ,CLREF  ,
+     $                 K1,KSLIN,K2,  1  ,  1  ,  2  ,ILINTY,
+     $                 SRYWW  ,JJ1L,NRRUN,LINPRN,KANAL)
+      ENDIF
+      IF(ISELEP(1, 68) .EQ. 1 .OR. ISELEP(1, 68) .EQ. 2) THEN
+         CALL PR1LIN  (ARZWW  , 2 ,' R_W"W"(Z)      ',KKZL,JJ2L,ILIMXP,
+     $                 'KORRELATIONSFKT.','KORR.-RADIUS    ',
+     $                 CKEINE ,CLREF  ,
+     $                 K1,KSLIN,K2,  1  ,  1  ,  2  ,ILINTZ,
+     $                 SRZWW  ,JJ1L,NRRUN,LINPRN,KANAL)
+      ENDIF
+C
+C                                  HIER: KREUZKORRELATIONSFUNKTIONEN
+C                                  ---------------------------------
+C
+      WRITE       (KANAL,6170)
+C
+      IF(ISELEP(1,210) .EQ. 1 .OR. ISELEP(1,210) .EQ. 2) THEN
+         CALL PR1LIN  (ARXUV  , 2 ,' R_U"V"(X)      ',KKXL,JJ2L,ILIMXP,
+     $                 'KORRELATIONSFKT.','KORR.-RADIUS    ',
+     $                 CKEINE ,CLREF  ,
+     $                 K1,KSLIN,K2,  1  ,  1  ,  2  ,ILINTX,
+     $                 SRXUV  ,JJ1L,NRRUN,LINPRN,KANAL)
+      ENDIF
+      IF(ISELEP(1,212) .EQ. 1 .OR. ISELEP(1,212) .EQ. 2) THEN
+         CALL PR1LIN  (ARYUV  , 2 ,' R_U"V"(Y)      ',KKYL,JJ2L,ILIMXP,
+     $                 'KORRELATIONSFKT.','KORR.-RADIUS    ',
+     $                 CKEINE ,CLREF  ,
+     $                 K1,KSLIN,K2,  1  ,  1  ,  2  ,ILINTY,
+     $                 SRYUV  ,JJ1L,NRRUN,LINPRN,KANAL)
+      ENDIF
+      IF(ISELEP(1,216) .EQ. 1 .OR. ISELEP(1,216) .EQ. 2) THEN
+         CALL PR1LIN  (ARXUW  , 2 ,' R_U"W"(X)      ',KKXL,JJ2L,ILIMXP,
+     $                 'KORRELATIONSFKT.','KORR.-RADIUS    ',
+     $                 CKEINE ,CLREF  ,
+     $                 K1,KSLIN,K2,  1  ,  1  ,  2  ,ILINTX,
+     $                 SRXUW  ,JJ1L,NRRUN,LINPRN,KANAL)
+      ENDIF
+      IF(ISELEP(1,218) .EQ. 1 .OR. ISELEP(1,218) .EQ. 2) THEN
+         CALL PR1LIN  (ARYUW  , 2 ,' R_U"W"(Y)      ',KKYL,JJ2L,ILIMXP,
+     $                 'KORRELATIONSFKT.','KORR.-RADIUS    ',
+     $                 CKEINE ,CLREF  ,
+     $                 K1,KSLIN,K2,  1  ,  1  ,  2  ,ILINTY,
+     $                 SRYUW  ,JJ1L,NRRUN,LINPRN,KANAL)
+      ENDIF
+      IF(ISELEP(1,224) .EQ. 1 .OR. ISELEP(1,224) .EQ. 2) THEN
+         CALL PR1LIN  (ARYVW  , 2 ,' R_V"W"(Y)      ',KKYL,JJ2L,ILIMXP,
+     $                 'KORRELATIONSFKT.','KORR.-RADIUS    ',
+     $                 CKEINE ,CLREF  ,
+     $                 K1,KSLIN,K2,  1  ,  1  ,  2  ,ILINTY,
+     $                 SRYVW  ,JJ1L,NRRUN,LINPRN,KANAL)
+      ENDIF
+C
+C                                  OBERE DREIECKSMATRIX DES TENSORS
+C                                  DER KORRELATIONSFUNKTIONEN DER
+C                                  FLUKTUATIONEN DER VORTICITY
+C                                  --------------------------------
+C
+      WRITE       (KANAL,6190)
+C
+      IF(ISELEP(1,246) .EQ. 1 .OR. ISELEP(1,246) .EQ. 2) THEN
+         CALL PR1LIN  (ARXOXX , 2 ,' R_OX"OX"(X)    ',KKXL,JJ2L,ILIMXP,
+     $                 'KORRELATIONSFKT.','KORR.-RADIUS    ',
+     $                 CKEINE ,CLREF  ,
+     $                 K1,KSLIN,K2,  1  ,  1  ,  2  ,ILINTX,
+     $                 SRXOXX ,JJ1L,NRRUN,LINPRN,KANAL)
+      ENDIF
+      IF(ISELEP(1,248) .EQ. 1 .OR. ISELEP(1,248) .EQ. 2) THEN
+         CALL PR1LIN  (ARXOXY , 2 ,' R_OX"OY"(X)    ',KKXL,JJ2L,ILIMXP,
+     $                 'KORRELATIONSFKT.','KORR.-RADIUS    ',
+     $                 CKEINE ,CLREF  ,
+     $                 K1,KSLIN,K2,  1  ,  1  ,  2  ,ILINTX,
+     $                 SRXOXY ,JJ1L,NRRUN,LINPRN,KANAL)
+      ENDIF
+      IF(ISELEP(1,250) .EQ. 1 .OR. ISELEP(1,250) .EQ. 2) THEN
+         CALL PR1LIN  (ARXOXZ , 2 ,' R_OX"OZ"(X)    ',KKXL,JJ2L,ILIMXP,
+     $                 'KORRELATIONSFKT.','KORR.-RADIUS    ',
+     $                 CKEINE ,CLREF  ,
+     $                 K1,KSLIN,K2,  1  ,  1  ,  2  ,ILINTX,
+     $                 SRXOXZ ,JJ1L,NRRUN,LINPRN,KANAL)
+      ENDIF
+      IF(ISELEP(1,252) .EQ. 1 .OR. ISELEP(1,252) .EQ. 2) THEN
+         CALL PR1LIN  (ARXOYY , 2 ,' R_OY"OY"(X)    ',KKXL,JJ2L,ILIMXP,
+     $                 'KORRELATIONSFKT.','KORR.-RADIUS    ',
+     $                 CKEINE ,CLREF  ,
+     $                 K1,KSLIN,K2,  1  ,  1  ,  2  ,ILINTX,
+     $                 SRXOYY ,JJ1L,NRRUN,LINPRN,KANAL)
+      ENDIF
+      IF(ISELEP(1,254) .EQ. 1 .OR. ISELEP(1,254) .EQ. 2) THEN
+         CALL PR1LIN  (ARXOYZ , 2 ,' R_OY"OZ"(X)    ',KKXL,JJ2L,ILIMXP,
+     $                 'KORRELATIONSFKT.','KORR.-RADIUS    ',
+     $                 CKEINE ,CLREF  ,
+     $                 K1,KSLIN,K2,  1  ,  1  ,  2  ,ILINTX,
+     $                 SRXOYZ ,JJ1L,NRRUN,LINPRN,KANAL)
+      ENDIF
+      IF(ISELEP(1,256) .EQ. 1 .OR. ISELEP(1,256) .EQ. 2) THEN
+         CALL PR1LIN  (ARXOZZ , 2 ,' R_OZ"OZ"(X)    ',KKXL,JJ2L,ILIMXP,
+     $                 'KORRELATIONSFKT.','KORR.-RADIUS    ',
+     $                 CKEINE ,CLREF  ,
+     $                 K1,KSLIN,K2,  1  ,  1  ,  2  ,ILINTX,
+     $                 SRXOZZ ,JJ1L,NRRUN,LINPRN,KANAL)
+      ENDIF
+      IF(ISELEP(1,258) .EQ. 1 .OR. ISELEP(1,258) .EQ. 2) THEN
+         CALL PR1LIN  (ARYOXX , 2 ,' R_OX"OX"(Y)    ',KKYL,JJ2L,ILIMXP,
+     $                 'KORRELATIONSFKT.','KORR.-RADIUS    ',
+     $                 CKEINE ,CLREF  ,
+     $                 K1,KSLIN,K2,  1  ,  1  ,  2  ,ILINTY,
+     $                 SRYOXX ,JJ1L,NRRUN,LINPRN,KANAL)
+      ENDIF
+      IF(ISELEP(1,260) .EQ. 1 .OR. ISELEP(1,260) .EQ. 2) THEN
+         CALL PR1LIN  (ARYOXY , 2 ,' R_OX"OY"(Y)    ',KKYL,JJ2L,ILIMXP,
+     $                 'KORRELATIONSFKT.','KORR.-RADIUS    ',
+     $                 CKEINE ,CLREF  ,
+     $                 K1,KSLIN,K2,  1  ,  1  ,  2  ,ILINTY,
+     $                 SRYOXY ,JJ1L,NRRUN,LINPRN,KANAL)
+      ENDIF
+      IF(ISELEP(1,262) .EQ. 1 .OR. ISELEP(1,262) .EQ. 2) THEN
+         CALL PR1LIN  (ARYOXZ , 2 ,' R_OX"OZ"(Y)    ',KKYL,JJ2L,ILIMXP,
+     $                 'KORRELATIONSFKT.','KORR.-RADIUS    ',
+     $                 CKEINE ,CLREF  ,
+     $                 K1,KSLIN,K2,  1  ,  1  ,  2  ,ILINTY,
+     $                 SRYOXZ ,JJ1L,NRRUN,LINPRN,KANAL)
+      ENDIF
+      IF(ISELEP(1,264) .EQ. 1 .OR. ISELEP(1,264) .EQ. 2) THEN
+         CALL PR1LIN  (ARYOYY , 2 ,' R_OY"OY"(Y)    ',KKYL,JJ2L,ILIMXP,
+     $                 'KORRELATIONSFKT.','KORR.-RADIUS    ',
+     $                 CKEINE ,CLREF  ,
+     $                 K1,KSLIN,K2,  1  ,  1  ,  2  ,ILINTY,
+     $                 SRYOYY ,JJ1L,NRRUN,LINPRN,KANAL)
+      ENDIF
+      IF(ISELEP(1,266) .EQ. 1 .OR. ISELEP(1,266) .EQ. 2) THEN
+         CALL PR1LIN  (ARYOYZ , 2 ,' R_OY"OZ"(Y)    ',KKYL,JJ2L,ILIMXP,
+     $                 'KORRELATIONSFKT.','KORR.-RADIUS    ',
+     $                 CKEINE ,CLREF  ,
+     $                 K1,KSLIN,K2,  1  ,  1  ,  2  ,ILINTY,
+     $                 SRYOYZ ,JJ1L,NRRUN,LINPRN,KANAL)
+      ENDIF
+      IF(ISELEP(1,268) .EQ. 1 .OR. ISELEP(1,268) .EQ. 2) THEN
+         CALL PR1LIN  (ARYOZZ , 2 ,' R_OZ"OZ"(Y)    ',KKYL,JJ2L,ILIMXP,
+     $                 'KORRELATIONSFKT.','KORR.-RADIUS    ',
+     $                 CKEINE ,CLREF  ,
+     $                 K1,KSLIN,K2,  1  ,  1  ,  2  ,ILINTY,
+     $                 SRYOZZ ,JJ1L,NRRUN,LINPRN,KANAL)
+      ENDIF
+      IF(ISELEP(1,270) .EQ. 1 .OR. ISELEP(1,270) .EQ. 2) THEN
+         CALL PR1LIN  (ARZOXX , 2 ,' R_OX"OX"(Z)    ',KKZL,JJ2L,ILIMXP,
+     $                 'KORRELATIONSFKT.','KORR.-RADIUS    ',
+     $                 CKEINE ,CLREF  ,
+     $                 K1,KSLIN,K2,  1  ,  1  ,  2  ,ILINTZ,
+     $                 SRZOXX ,JJ1L,NRRUN,LINPRN,KANAL)
+      ENDIF
+      IF(ISELEP(1,272) .EQ. 1 .OR. ISELEP(1,272) .EQ. 2) THEN
+         CALL PR1LIN  (ARZOXY , 2 ,' R_OX"OY"(Z)    ',KKZL,JJ2L,ILIMXP,
+     $                 'KORRELATIONSFKT.','KORR.-RADIUS    ',
+     $                 CKEINE ,CLREF  ,
+     $                 K1,KSLIN,K2,  1  ,  1  ,  2  ,ILINTZ,
+     $                 SRZOXY ,JJ1L,NRRUN,LINPRN,KANAL)
+      ENDIF
+      IF(ISELEP(1,274) .EQ. 1 .OR. ISELEP(1,274) .EQ. 2) THEN
+         CALL PR1LIN  (ARZOXZ , 2 ,' R_OX"OZ"(Z)    ',KKZL,JJ2L,ILIMXP,
+     $                 'KORRELATIONSFKT.','KORR.-RADIUS    ',
+     $                 CKEINE ,CLREF  ,
+     $                 K1,KSLIN,K2,  1  ,  1  ,  2  ,ILINTZ,
+     $                 SRZOXZ ,JJ1L,NRRUN,LINPRN,KANAL)
+      ENDIF
+      IF(ISELEP(1,276) .EQ. 1 .OR. ISELEP(1,276) .EQ. 2) THEN
+         CALL PR1LIN  (ARZOYY , 2 ,' R_OY"OY"(Z)    ',KKZL,JJ2L,ILIMXP,
+     $                 'KORRELATIONSFKT.','KORR.-RADIUS    ',
+     $                 CKEINE ,CLREF  ,
+     $                 K1,KSLIN,K2,  1  ,  1  ,  2  ,ILINTZ,
+     $                 SRZOYY ,JJ1L,NRRUN,LINPRN,KANAL)
+      ENDIF
+      IF(ISELEP(1,278) .EQ. 1 .OR. ISELEP(1,278) .EQ. 2) THEN
+         CALL PR1LIN  (ARZOYZ , 2 ,' R_OY"OZ"(Z)    ',KKZL,JJ2L,ILIMXP,
+     $                 'KORRELATIONSFKT.','KORR.-RADIUS    ',
+     $                 CKEINE ,CLREF  ,
+     $                 K1,KSLIN,K2,  1  ,  1  ,  2  ,ILINTZ,
+     $                 SRZOYZ ,JJ1L,NRRUN,LINPRN,KANAL)
+      ENDIF
+      IF(ISELEP(1,280) .EQ. 1 .OR. ISELEP(1,280) .EQ. 2) THEN
+         CALL PR1LIN  (ARZOZZ , 2 ,' R_OZ"OZ"(Z)    ',KKZL,JJ2L,ILIMXP,
+     $                 'KORRELATIONSFKT.','KORR.-RADIUS    ',
+     $                 CKEINE ,CLREF  ,
+     $                 K1,KSLIN,K2,  1  ,  1  ,  2  ,ILINTZ,
+     $                 SRZOZZ ,JJ1L,NRRUN,LINPRN,KANAL)
+      ENDIF
+C
+C                                  HIER: KORRELATIONSKOEFFIZIENTEN
+C                                  -------------------------------
+C
+      WRITE       (KANAL,6210)
+C
+      IF(ISELEP(1,234) .EQ. 1 .OR. ISELEP(1,234) .EQ. 2) THEN
+         CALL PR1LIN  (ACXUW  , 2 ,' RC_U"W"(X)     ',KKXL,JJ2L,ILIMXP,
+     $                 'KORR.-KOEFF.    ','ZUGEORD. KOORD. ',
+     $                 CKEINE ,CLREF  ,
+     $                 K1,KSLIN,K2,  1  ,  1  ,  2  ,ILINTX,
+     $                 SCXUW  ,JJ1L,NRRUN,LINPRN,KANAL)
+      ENDIF
+      IF(ISELEP(1,238) .EQ. 1 .OR. ISELEP(1,238) .EQ. 2) THEN
+         CALL PR1LIN  (ACZUW  , 2 ,' RC_U"W"(Z)     ',KKZL,JJ2L,ILIMXP,
+     $                 'KORR.-KOEFF.    ','ZUGEORD. KOORD. ',
+     $                 CKEINE ,CLREF  ,
+     $                 K1,KSLIN,K2,  1  ,  1  ,  2  ,ILINTZ,
+     $                 SCZUW  ,JJ1L,NRRUN,LINPRN,KANAL)
+      ENDIF
+C
+C                                  LEISTUNGSDICHTESPEKTREN
+C                                  ------------------------
+C
+      WRITE       (KANAL,6230)
+C
+      IF(ISELEP(1, 20) .EQ. 1 .OR. ISELEP(1, 20) .EQ. 2) THEN
+         CALL PR1LIN  (ASXUU  , 1 ,' S_U"U"(K_X)    ',KSXL,JJ1L,ILIMXP,
+     $                 'LEISTUNGSDICHTE ','WELLENZAHL      ',
+     $                 CASDUI ,CRLREF ,
+     $                 K1,KSLIN,K2,  1  ,  1  ,  2  ,ILINTX,
+     $                 SSXUU  ,JJ1L,NRRUN,LINPRN,KANAL)
+      ENDIF
+      IF(ISELEP(1, 22) .EQ. 1 .OR. ISELEP(1, 22) .EQ. 2) THEN
+         CALL PR1LIN  (ASYUU  , 1 ,' S_U"U"(K_Y)    ',KSYL,JJ1L,ILIMXP,
+     $                 'LEISTUNGSDICHTE ','WELLENZAHL      ',
+     $                 CASDUI ,CRLREF ,
+     $                 K1,KSLIN,K2,  1  ,  1  ,  2  ,ILINTY,
+     $                 SSYUU  ,JJ1L,NRRUN,LINPRN,KANAL)
+      ENDIF
+      IF(ISELEP(1, 24) .EQ. 1 .OR. ISELEP(1, 24) .EQ. 2) THEN
+         CALL PR1LIN  (ASZUU  , 1 ,' S_U"U"(K_Z)    ',KSZL,JJ1L,ILIMXP,
+     $                 'LEISTUNGSDICHTE ','WELLENZAHL      ',
+     $                 CASDUI ,CRLREF ,
+     $                 K1,KSLIN,K2,  1  ,  1  ,  2  ,ILINTZ,
+     $                 SSZUU  ,JJ1L,NRRUN,LINPRN,KANAL)
+      ENDIF
+C
+      WRITE       (KANAL,6250)
+C
+      IF(ISELEP(1, 45) .EQ. 1 .OR. ISELEP(1, 45) .EQ. 2) THEN
+         CALL PR1LIN  (ASXVV  , 1 ,' S_V"V"(K_X)    ',KSXL,JJ1L,ILIMXP,
+     $                 'LEISTUNGSDICHTE ','WELLENZAHL      ',
+     $                 CASDUI ,CRLREF ,
+     $                 K1,KSLIN,K2,  1  ,  1  ,  2  ,ILINTX,
+     $                 SSXVV  ,JJ1L,NRRUN,LINPRN,KANAL)
+      ENDIF
+      IF(ISELEP(1, 47) .EQ. 1 .OR. ISELEP(1, 47) .EQ. 2) THEN
+         CALL PR1LIN  (ASYVV  , 1 ,' S_V"V"(K_Y)    ',KSYL,JJ1L,ILIMXP,
+     $                 'LEISTUNGSDICHTE ','WELLENZAHL      ',
+     $                 CASDUI ,CRLREF ,
+     $                 K1,KSLIN,K2,  1  ,  1  ,  2  ,ILINTY,
+     $                 SSYVV  ,JJ1L,NRRUN,LINPRN,KANAL)
+      ENDIF
+      IF(ISELEP(1, 49) .EQ. 1 .OR. ISELEP(1, 49) .EQ. 2) THEN
+         CALL PR1LIN  (ASZVV  , 1 ,' S_V"V"(K_Z)    ',KSZL,JJ1L,ILIMXP,
+     $                 'LEISTUNGSDICHTE ','WELLENZAHL      ',
+     $                 CASDUI ,CRLREF ,
+     $                 K1,KSLIN,K2,  1  ,  1  ,  2  ,ILINTZ,
+     $                 SSZVV  ,JJ1L,NRRUN,LINPRN,KANAL)
+      ENDIF
+C
+      WRITE       (KANAL,6270)
+C
+      IF(ISELEP(1, 70) .EQ. 1 .OR. ISELEP(1, 70) .EQ. 2) THEN
+         CALL PR1LIN  (ASXWW  , 1 ,' S_W"W"(K_X)    ',KSXL,JJ1L,ILIMXP,
+     $                 'LEISTUNGSDICHTE ','WELLENZAHL      ',
+     $                 CASDUI ,CRLREF ,
+     $                 K1,KSLIN,K2,  1  ,  1  ,  2  ,ILINTX,
+     $                 SSXWW  ,JJ1L,NRRUN,LINPRN,KANAL)
+      ENDIF
+      IF(ISELEP(1, 72) .EQ. 1 .OR. ISELEP(1, 72) .EQ. 2) THEN
+         CALL PR1LIN  (ASYWW  , 1 ,' S_W"W"(K_Y)    ',KSYL,JJ1L,ILIMXP,
+     $                 'LEISTUNGSDICHTE ','WELLENZAHL      ',
+     $                 CASDUI ,CRLREF ,
+     $                 K1,KSLIN,K2,  1  ,  1  ,  2  ,ILINTY,
+     $                 SSYWW  ,JJ1L,NRRUN,LINPRN,KANAL)
+      ENDIF
+      IF(ISELEP(1, 74) .EQ. 1 .OR. ISELEP(1, 74) .EQ. 2) THEN
+         CALL PR1LIN  (ASZWW  , 1 ,' S_W"W"(K_Z)    ',KSZL,JJ1L,ILIMXP,
+     $                 'LEISTUNGSDICHTE ','WELLENZAHL      ',
+     $                 CASDUI ,CRLREF ,
+     $                 K1,KSLIN,K2,  1  ,  1  ,  2  ,ILINTZ,
+     $                 SSZWW  ,JJ1L,NRRUN,LINPRN,KANAL)
+      ENDIF
+C
+      WRITE       (KANAL,6290)
+C
+      IF(ISELEP(1,282) .EQ. 1 .OR. ISELEP(1,282) .EQ. 2) THEN
+         CALL PR1LIN  (ASXOXX , 1 ,' S_OX"OX"(K_X)  ',KSXL,JJ1L,ILIMXP,
+     $                 'LEISTUNGSDICHTE ','WELLENZAHL      ',
+     $                 CASDOM ,CRLREF ,
+     $                 K1,KSLIN,K2,  1  ,  1  ,  2  ,ILINTX,
+     $                 SSXOXX ,JJ1L,NRRUN,LINPRN,KANAL)
+      ENDIF
+      IF(ISELEP(1,284) .EQ. 1 .OR. ISELEP(1,284) .EQ. 2) THEN
+         CALL PR1LIN  (ASXOYY , 1 ,' S_OY"OY"(K_X)  ',KSXL,JJ1L,ILIMXP,
+     $                 'LEISTUNGSDICHTE ','WELLENZAHL      ',
+     $                 CASDOM ,CRLREF ,
+     $                 K1,KSLIN,K2,  1  ,  1  ,  2  ,ILINTX,
+     $                 SSXOYY ,JJ1L,NRRUN,LINPRN,KANAL)
+      ENDIF
+      IF(ISELEP(1,286) .EQ. 1 .OR. ISELEP(1,286) .EQ. 2) THEN
+         CALL PR1LIN  (ASXOZZ , 1 ,' S_OZ"OZ"(K_X)  ',KSXL,JJ1L,ILIMXP,
+     $                 'LEISTUNGSDICHTE ','WELLENZAHL      ',
+     $                 CASDOM ,CRLREF ,
+     $                 K1,KSLIN,K2,  1  ,  1  ,  2  ,ILINTX,
+     $                 SSXOZZ ,JJ1L,NRRUN,LINPRN,KANAL)
+      ENDIF
+      IF(ISELEP(1,288) .EQ. 1 .OR. ISELEP(1,288) .EQ. 2) THEN
+         CALL PR1LIN  (ASYOXX , 1 ,' S_OX"OX"(K_Y)  ',KSYL,JJ1L,ILIMXP,
+     $                 'LEISTUNGSDICHTE ','WELLENZAHL      ',
+     $                 CASDOM ,CRLREF ,
+     $                 K1,KSLIN,K2,  1  ,  1  ,  2  ,ILINTY,
+     $                 SSYOXX ,JJ1L,NRRUN,LINPRN,KANAL)
+      ENDIF
+      IF(ISELEP(1,290) .EQ. 1 .OR. ISELEP(1,290) .EQ. 2) THEN
+         CALL PR1LIN  (ASYOYY , 1 ,' S_OY"OY"(K_Y)  ',KSYL,JJ1L,ILIMXP,
+     $                 'LEISTUNGSDICHTE ','WELLENZAHL      ',
+     $                 CASDOM ,CRLREF ,
+     $                 K1,KSLIN,K2,  1  ,  1  ,  2  ,ILINTY,
+     $                 SSYOYY ,JJ1L,NRRUN,LINPRN,KANAL)
+      ENDIF
+      IF(ISELEP(1,292) .EQ. 1 .OR. ISELEP(1,292) .EQ. 2) THEN
+         CALL PR1LIN  (ASYOZZ , 1 ,' S_OZ"OZ"(K_Y)  ',KSYL,JJ1L,ILIMXP,
+     $                 'LEISTUNGSDICHTE ','WELLENZAHL      ',
+     $                 CASDOM ,CRLREF ,
+     $                 K1,KSLIN,K2,  1  ,  1  ,  2  ,ILINTY,
+     $                 SSYOZZ ,JJ1L,NRRUN,LINPRN,KANAL)
+      ENDIF
+C
+C                                  HAEUFIGKEITSVERTEILUNG DER
+C                                  INKLINATIONSWINKEL DER VORTICITY-
+C                                  VEKTOREN
+C                                  ---------------------------------
+C
+      WRITE       (KANAL,6310)
+C
+      IF(ISELEP(1,306) .EQ. 1 .OR. ISELEP(1,306) .EQ. 2) THEN
+         CALL PR1LIN  (AHOZOY , 1 ,' H (ATAN(OZ/OY))',KH0L,JJ2L,ILIMXP,
+     $                 'REL. HAEUFIGKEIT','ZUGEORD. WINKEL ',
+     $                 CKEINE ,CKEINE ,
+     $                 K1,KSLIN,K2,  1  ,  2  ,  2  ,ILINT0,
+     $                 SHOZOY ,JJ2L,NRRUN,LINPRN,KANAL)
+      ENDIF
+      IF(ISELEP(1,308) .EQ. 1 .OR. ISELEP(1,308) .EQ. 2) THEN
+         CALL PR1LIN  (AHOZOX , 1 ,' H (ATAN(OZ/OX))',KH0L,JJ2L,ILIMXP,
+     $                 'REL. HAEUFIGKEIT','ZUGEORD. WINKEL ',
+     $                 CKEINE ,CKEINE ,
+     $                 K1,KSLIN,K2,  1  ,  2  ,  2  ,ILINT0,
+     $                 SHOZOX ,JJ2L,NRRUN,LINPRN,KANAL)
+      ENDIF
+      IF(ISELEP(1,310) .EQ. 1 .OR. ISELEP(1,310) .EQ. 2) THEN
+         CALL PR1LIN  (AHOYOX , 1 ,' H (ATAN(OY/OX))',KH0L,JJ2L,ILIMXP,
+     $                 'REL. HAEUFIGKEIT','ZUGEORD. WINKEL ',
+     $                 CKEINE ,CKEINE ,
+     $                 K1,KSLIN,K2,  1  ,  2  ,  2  ,ILINT0,
+     $                 SHOYOX ,JJ2L,NRRUN,LINPRN,KANAL)
+      ENDIF
+C
+      RETURN
+C
+ 6110 FORMAT (//,40X,'AUTOKORRELATIONSFUNKTION  (U-KOMP.)',
+     $        /,40X,35(1H-),/)
+ 6130 FORMAT (//,40X,'AUTOKORRELATIONSFUNKTION  (V-KOMP.)',
+     $        /,40X,35(1H-),/)
+ 6150 FORMAT (//,40X,'AUTOKORRELATIONSFUNKTION  (W-KOMP.)',
+     $        /,40X,35(1H-),/)
+ 6170 FORMAT (//,40X,'KREUZKORRELATIONSFUNKTIONEN',
+     $        /,40X,27(1H-),/)
+ 6190 FORMAT (//,40X,'OBERE DREIECKSMATRIX DES TENSORS DER',
+     $        ' KORRELATIONSFUNKTIONEN',/,40X,'DER FLUKTUATIONEN',
+     $        ' DER VORTICITY',/,40X,59(1H-),/)
+ 6210 FORMAT (//,40X,'KORRELATIONSKOEFFIZIENTEN',
+     $        /,40X,25(1H-),/)
+ 6230 FORMAT (//,40X,'LEISTUNGSDICHTESPEKTREN  (U-KOMP.)',
+     $        /,40X,34(1H-),/)
+ 6250 FORMAT (//,40X,'LEISTUNGSDICHTESPEKTREN  (V-KOMP.)',
+     $        /,40X,34(1H-),/)
+ 6270 FORMAT (//,40X,'LEISTUNGSDICHTESPEKTREN  (W-KOMP.)',
+     $        /,40X,34(1H-),/)
+ 6290 FORMAT (//,40X,'LEISTUNGSDICHTESPEKTREN  (OMEGA-KOMP.)',
+     $        /,40X,38(1H-),/)
+ 6310 FORMAT (//,40X,'HAEUFIGKEITSVERTEILUNGEN DER INKLINATIONS',
+     $        'WINKEL',/,40X,'DER VORTICITY-VEKTOREN',/,40X,47(1H-),/)
+      END

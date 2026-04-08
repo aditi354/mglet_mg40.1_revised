@@ -1,0 +1,28 @@
+      SUBROUTINE COP3D (KK,JJ,II,PHI1,PHI2)	
+
+C--MGLET----------------------------------------------------------------
+C
+C                  KOPIEREN DES FELDES PHI1 AUF PHI2
+C
+C        15. 2.94 (MM)  : ORIGINAL
+C
+C--MGLET----------------------------------------------------------------
+C
+C
+      REAL
+     $        PHI1(KK*JJ*II),PHI2(KK*JJ*II)
+C
+      DO I = 1,KK*JJ*II
+
+         PHI2(I) = PHI1(I)
+
+      ENDDO
+
+C
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+C
+
+      RETURN
+      END
+
+

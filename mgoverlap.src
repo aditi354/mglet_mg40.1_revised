@@ -1,0 +1,215 @@
+      SUBROUTINE MGOVERLAP (II1,X1,II2,X2,NBND,XS,IA1,IE1,IA2,IE2)
+C
+C--MGLET----------------------------------------------------------------
+C
+C                    PRUEFT NACH, OB DIE ZWEI GITTER X1 UND X2
+C                    UEBERLAPPEN
+C
+C       XS:          GITTER 1 WIRD UM XSHIFT VERSCHOBEN
+C                  
+C       IA1,IA2:     ANFANGSINDIZES DER UEBERLAPPUNG
+C       IE1,IE2:     ENDINDIZES DER UEBERLAPPUNG
+C
+C                    SIND 0, FALLS KEINE UEBERLAPPUNG VORHANDEN
+C
+C
+C        17. 2.94 (MM)  : ORIGINAL
+C
+C--MGLET----------------------------------------------------------------
+C
+#include "konsta.h"
+C
+      REAL     X1(II1),X2(II2)
+C
+C
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+C
+      IF ((X1(1) - X1(II1)) .GE. -SMALL ) CALL ERRR (501,'MGOVERLAP')
+      IF ((X2(1) - X2(II2)) .GE. -SMALL ) CALL ERRR (502,'MGOVERLAP')
+C
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+C                     SMALL IST FUER FOLGENDE VERGLEICHE NOCH ZU KLEIN
+
+C       SQSM = 10.0*SQRT(ABS(SMALL))
+       SQSM = 0.001
+C
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+C
+      IER = 0
+
+      IA1 = 0
+      IE1 = 0
+      IA2 = 0
+      IE2 = 0
+C
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+C
+C                    ANFANGSPUNKT VON GITTER 1 LIEGT INNERHALB 
+C                    VON GITTER 2
+
+      IF ((X1(1)+XS .GE. X2(1)) .AND. (X1(1)+XS .LE. X2(II2))) THEN
+
+C                            SUCHE NACH ANFANGSPUNKT IA2
+         DO I1 = 1,2
+         DO I2 = 1,II2
+            IF ( ABS(X2(I2)-(X1(I1)+XS)) .LE. SQSM ) THEN
+               IA2 = I2
+               IA1 = I1
+               GOTO 100
+            ENDIF
+         ENDDO
+         ENDDO
+
+            IER = IER + 1
+ 
+  100     CONTINUE
+
+C                    ENDPUNKT VON GITTER 1 LIEGT INNERHALB
+C                    VON GITTER 2
+
+         IF (X1(II1)+XS .LE. X2(II2)) THEN
+
+C                            SUCHE NACH ENDPUNKT IE2
+        DO I1 = II1,II1-1,-1
+        DO I2 = 1,II2
+            IF ( ABS(X1(I1)+XS-X2(I2)) .LE. SQSM ) THEN
+               IE2 = I2
+               IE1 = I1
+               GOTO 200
+            ENDIF
+         ENDDO
+         ENDDO
+
+            IER = IER + 1
+ 
+  200     CONTINUE
+
+         ENDIF
+C
+C                    ENDPUNKT VON GITTER 2 LIEGT INNERHALB
+C                    VON GITTER 1
+
+
+         IF (X1(II1)+XS .GT. X2(II2)) THEN
+
+C                            SUCHE NACH ENDPUNKT IE1
+         DO I2 = II2,II2-1,-1
+         DO I1 = 1,II1
+            IF ( ABS(X1(I1)+XS-X2(I2)) .LE. SQSM ) THEN
+               IE2 = I2
+               IE1 = I1
+               GOTO 300
+            ENDIF
+         ENDDO
+         ENDDO
+
+            IER = IER + 1
+ 
+  300     CONTINUE
+
+         ENDIF
+C
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+C
+C                    ANFANGSPUNKT VON GITTER 2 LIEGT INNERHALB 
+C                    VON GITTER 1
+
+      ELSEIF ((X1(1)+XS .LE. X2(1)) .AND. (X1(II1)+XS .GE. X2(1))) THEN
+
+C                            SUCHE NACH ANFANGSPUNKT IA1
+         DO I2 = 1,2
+         DO I1 = 1,II1
+            IF ( ABS(X1(I1)+XS-X2(I2)) .LE. SQSM ) THEN
+               IA2 = I2
+               IA1 = I1
+               GOTO 1100
+            ENDIF
+         ENDDO
+         ENDDO
+
+            IER = IER + 1
+ 
+ 1100    CONTINUE
+
+C                    ENDPUNKT VON GITTER 1 LIEGT INNERHALB
+C                    VON GITTER 2
+
+         IF (X1(II1)+XS .LE. X2(II2)) THEN
+
+C                            SUCHE NACH ENDPUNKT IE2
+         DO I1 = II1,II1-1,-1
+         DO I2 = 1,II2
+            IF ( ABS(X1(I1)+XS-X2(I2)) .LE. SQSM ) THEN
+               IE2 = I2
+               IE1 = I1
+               GOTO 1200
+            ENDIF
+         ENDDO
+         ENDDO
+
+            IER = IER + 1
+ 
+ 1200     CONTINUE
+
+         ENDIF
+C
+C                    ENDPUNKT VON GITTER 2 LIEGT INNERHALB
+C                    VON GITTER 1
+
+
+         IF (X1(II1)+XS .GT. X2(II2)) THEN
+
+C                            SUCHE NACH ENDPUNKT IE1
+         DO I2 = II2,II2-1,-1
+         DO I1 = 1,II1
+            IF ( ABS(X1(I1)+XS-X2(I2)) .LE. SQSM ) THEN
+               IE2 = I2
+               IE1 = I1
+               GOTO 1300
+            ENDIF
+         ENDDO
+         ENDDO
+
+            IER = IER + 1
+ 
+ 1300     CONTINUE
+
+         ENDIF
+
+C
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+C
+      ELSE
+C                    GITTER UEBERLAPPEN NICHT
+         RETURN
+
+      ENDIF
+C
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+C
+C                    CHECK,  OB GITTERPUNKTE UEBEREINSTIMMEN
+
+      DO I = 0,IE1-IA1
+         I1 = I+IA1
+         I2 = I+IA2
+
+         IF ( ABS(X1(I1)+XS-X2(I2)) .GT. SQSM ) THEN
+
+            IER = IER + 1
+            IA1 = 0
+            IE1 = 0
+            IA2 = 0
+            IE2 = 0
+
+         ENDIF
+
+      ENDDO
+         
+C
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+C
+
+      RETURN
+      END
+
+

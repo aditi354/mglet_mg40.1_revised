@@ -1,0 +1,2834 @@
+      SUBROUTINE SETSTA (KPP,JPP,IPP,IC1,IC2,JC1,JC2,KC1,KC2,
+     $                    NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB,
+     $                   XHOMOG,YHOMOG,ZHOMOG,
+#ifdef _TSCAL_
+     $           GMOL,RHO,PRMOL,PRTURB,UGRID,DDX,DDY,DDZ,DX,DY,DZ,X,Y,Z,
+#else
+     $                   GMOL,RHO,UGRID,DDX,DDY,DDZ,DX,DY,DZ,X,Y,Z,
+#endif
+     $     RDX,RDY,RDZ,RDDX,RDDY,RDDZ,
+#include "cstaca.h"
+C*STARLET***************************************************************
+C        S E T S T A      VORBELEGUNG ALLER FELDER, DIE FUER DIE STATIST
+C                         AUSWERTUNG BENOETIGT WERDEN. ALLE FELDER IN
+C                         DENEN SUMMEN GEBILDET WERDEN, MUESSEN MIT 0.0
+C                         VORBELEGT WERDEN. BEI EINEM VOELLIGEN NEUBE-
+C                         GINN DER STATIST. AUSWERTUNG EINER GROESSE
+C                         WIRD EINE "BESTMOEGLICHE" VORBELEGUNG DES-
+C                         JENIGEN FELDES DURCHGEFUEHRT, DAS DEN ENSEM-
+C                         BLE-MITTELWERT ENTHAELT.
+C  A C H T U N G:         DIESE ROUTINE MUSS ERWEITERT WERDEN, FALLS
+C                         DIE STATIST. AUSWERTUNG ERWEITERT WIRD !
+C*STARLET***************************************************************
+C
+C PARAM: KPP,JPP,IPP    - ORT DES BEZUGSDRUCKES
+C        IB1, IB2       - GRENZE DES KUBUSSES IN X-RI.
+C        JB1, JB2       - GRENZE DES KUBUSSES IN Y-RI.
+C        KB             - GRENZE DES KUBUSSES IN Z-RI. (TOP-FLAECHE)
+C        GMOL           - MOLEKULARE DYNAMISCHE VISKOSITAET
+C        RHO            - DICHTE DES FLUIDS (= CONST.)
+C        PRTURB         - TURBULENT PRANDTL NUMBER
+C        UGRID          - GESCHWINDIGKEIT DES KOORDINATENSYSTEMS
+C                         IN X-RICHTUNG (GALILEI-TRANSFORMATION)
+C        DDX,DDY,DDZ    - ABMESSUNGEN DER BASISZELLEN
+C        DX,DY,DZ       - ABSTAND DER BASISZELLMITTELPUNKTE
+C        X,Y,Z          - KOORDINATEN DER ZELLMITTELPUNKTE
+#include "cstapa.h"
+C
+C UPROG                 : AREAM, BF1ALL, BPHI0, DPHI0, ENERFG,
+C                         ENERFS, GALIRT, PHIFLA, PHIFLU, PHIRMI,
+C                         PHISKE, PLEVEL, TAUFG, TAUFM, TAUFS
+C
+C DEFINE-DIREKTIVEN     : KEINE
+C
+C        28.08.86 (HW)  : ORIGINAL
+C        12.09.86 (HW)  : INITIALISIERUNGSROUTINE F. RMS-WERTE
+C        30.06.88 (HW)  : ERWEITERUNG: AUSWERTUNG DER DREI KOMPONENTEN
+C                         DER VORTICITY, DER ENSTROPHIE UND DER
+C                         HELIZITAET
+C        21.08.88 (HW)  : VORTICITY IST JETZT IM DOPPELT VERSETZTEN
+C                         MASCHENGITTER DEFINIERT
+C        04.01.89 (HW)  : DIE HELIZITAET IST JETZT DREIFACH IM MASCHEN-
+C                         GITTER VERSCHOBEN (IN X-, Y- UND Z-RICHTUNG)
+C        19.12.89 (HW)  : BF1ALL SETZT FUER 'P' AN FESTEN WAENDEN
+C                         DP/DN = 0.0
+C        30.10.90 (HW)  : UEBERGABE AN PLEVEL GEAENDERT
+C        12.02.03 (TB)  : SCALAR FIELD STATISTICS IMPLEMENTED
+C
+C*STARLET***************************************************************
+C
+C
+      REAL     DDX(II),   DDY(JJ),   DDZ(KK),
+     $          DX(II),    DY(JJ),    DZ(KK),
+     $           X(II),     Y(JJ),     Z(KK)
+C
+      LOGICAL  XHOMOG,YHOMOG,ZHOMOG
+C
+#include "cstadi.h"
+C
+C                                 VORBELEGUNG DES HILF-FELDES MIT 0.0
+C
+      CALL DPHI0   (KK ,JJ ,II ,KMX ,JMX ,IMX ,HILF   )
+C
+C                                 STATIST. GROESSEN DER U-KOMPONENTE
+C                                 ----------------------------------
+C
+C                                 VORBELEGUNG DES <U> - FELDES MIT DEM
+C                                 "BESTMOEGLICHEN" ENSEMBLE-MITTELWERT
+C
+      IF(ISELEP(1,  4) .GE. 1) THEN
+         IF(ISAMPA(    4) .EQ. 0  ) THEN
+C
+C                                 ZUNAECHST WIRD DAS GESAMTE AU-FELD
+C                                 MIT 0.0 VORBELEGT
+C
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,AU     )
+C
+C                                 DER RAND DES BERECHNUNGSGEBIETES
+C                                 UND EINE SCHICHT IM INNEREN DES
+C                                 KUBUSSES WERDEN AUF 0.0 GESETZT
+C
+            CALL BPHI0   (KK,JJ,II,KMX,JMX,IMX,HILF   ,
+     $                    IB1,IB2,JB1,JB2,KB)
+C
+C                                 GALILEI-RUECKTRANSFORMATION (NUR FUER
+C                                 DAS U-FELD NOTWENDIG)
+C
+            CALL GALIRT  (KK,JJ,II,KMX,JMX,IMX,
+     $                    UGRID,U,HILF,B,'   U',NFRO,NRGT,NBOT,
+     $                                          NBAC,NLFT,NTOP)
+C
+C                                 SETZEN DER RANDBEDINGUNGEN
+C
+C           CALL BF1ALL  (KK,JJ,II,KMX,JMX,IMX,DDX,DDY,DDZ,DX,DY,DZ,
+C    $                    X,Y,Z,HILF   ,IB1,IB2,JB1,JB2,KB,'U     ')
+C
+C                                 BILDUNG EINES LINIEN/FLAECHENMITTEL-
+C                                 WERTES UND SUMMATION IN DAS (MIT 0.0)
+C                                 VORBELEGTE AU-FELD
+C
+            CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,HILF   ,AU     ,
+     $                    XHOMOG,YHOMOG,ZHOMOG)
+         ENDIF
+      ENDIF
+C
+C                                 VORBELEGUNG DES SUMMATIONSFELDES
+C                                 FUER DIE MOMENTANWERTE VON  U.
+C
+      IF(ISELEP(1,  5) .GE. 1) THEN
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SU     )
+      ENDIF
+C
+C                                 VORBELEGUNG DES U-FLUKTUATIONS FELDES
+C
+      IF(ISELEP(1,  6) .GE. 1) THEN
+C
+C                                 ZUNAECHST WIRD DAS GESAMTE UFG-FELD
+C                                 MIT 0.0 VORBELEGT
+C
+            CALL DPHI0   (KK ,JJ ,II ,KMX ,JMX ,IMX ,UFG    )
+C
+C                                 BERECHNUNG DER U-FLUKTUATIONEN
+C
+            CALL PHIFLU  (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,UGRID,
+     $                    U      ,UFG    ,AU     ,'   U',
+     $                 XHOMOG,YHOMOG,ZHOMOG,NFRO,NRGT)
+C
+C                                 SETZEN DER RANDBEDINGUNGEN
+C
+C           CALL BF1ALL  (KK,JJ,II,KMX,JMX,IMX,DDX,DDY,DDZ,DX,DY,DZ,
+C    $                    X,Y,Z,UFG    ,IB1,IB2,JB1,JB2,KB,'UF G  ')
+      ENDIF
+C
+C                                 VORBELEGUNG DES <U-RMS> - FELDES
+C                                 MIT DEM "BESTMOEGLICHEN" ENSEMBLE-
+C                                 MITTELWERT
+C
+      IF(ISELEP(1,  7) .GE. 1) THEN
+         IF(ISAMPA(    7) .EQ. 0  ) THEN
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,AURG   )
+C
+C                                 DER RAND DES BERECHNUNGSGEBIETES
+C                                 UND EINE SCHICHT IM INNEREN DES
+C                                 KUBUSSES WERDEN AUF 0.0 GESETZT
+C
+            CALL BPHI0   (KK,JJ,II,KMX,JMX,IMX,HILF   ,
+     $                    IB1,IB2,JB1,JB2,KB)
+C
+C                                 BERECHNUNG DER RMS-WERTE
+C
+            CALL PHIRMI  (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,
+     $                    UFG    ,HILF   ,'   U')
+C           CALL BF1ALL  (KK,JJ,II,KMX,JMX,IMX,DDX,DDY,DDZ,DX,DY,DZ,
+C    $                    X,Y,Z,HILF   ,IB1,IB2,JB1,JB2,KB,'UR G  ')
+            CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,HILF   ,AURG   ,
+     $                    XHOMOG,YHOMOG,ZHOMOG)
+         ENDIF
+      ENDIF
+C
+C                                 VORBELEGUNG DES SUMMATIONSFELDES
+C                                 FUER DIE MOMENTANEN RMS-WERTE
+C
+      IF(ISELEP(1,  8) .GE. 1) THEN
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SURG   )
+      ENDIF
+C
+C                                 VORBELEGUNG DES <U-SKE> - FELDES
+C                                 MIT DEM "BESTMOEGLICHEN" ENSEMBLE-
+C                                 MITTELWERT
+C
+      IF(ISELEP(1, 10) .GE. 1) THEN
+         IF(ISAMPA(   10) .EQ. 0  ) THEN
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,AUSKG  )
+            CALL BPHI0   (KK,JJ,II,KMX,JMX,IMX,HILF   ,
+     $                    IB1,IB2,JB1,JB2,KB)
+C
+C                                 BERECHNUNG DER SKEWNESS-WERTE
+C
+            CALL PHISKE  (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,
+     $                    UFG    ,AURG   ,HILF   ,'   U',
+     $                 XHOMOG,YHOMOG,ZHOMOG,NFRO,NRGT)
+C           CALL BF1ALL  (KK,JJ,II,KMX,JMX,IMX,DDX,DDY,DDZ,DX,DY,DZ,
+C    $                    X,Y,Z,HILF   ,IB1,IB2,JB1,JB2,KB,'USKG  ')
+            CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,HILF   ,AUSKG  ,
+     $                    XHOMOG,YHOMOG,ZHOMOG)
+         ENDIF
+      ENDIF
+C
+C                                 VORBELEGUNG DES SUMMATIONSFELDES
+C                                 FUER DIE MOMENTANEN SKEWNESS-WERTE
+C
+      IF(ISELEP(1, 11) .GE. 1) THEN
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SUSKG  )
+      ENDIF
+C
+C                                 VORBELEGUNG DES <U-FLA> - FELDES
+C                                 MIT DEM "BESTMOEGLICHEN" ENSEMBLE-
+C                                 MITTELWERT
+C
+      IF(ISELEP(1, 12) .GE. 1) THEN
+         IF(ISAMPA(   12) .EQ. 0  ) THEN
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,AUFLG  )
+            CALL BPHI0   (KK,JJ,II,KMX,JMX,IMX,HILF   ,
+     $                    IB1,IB2,JB1,JB2,KB)
+C
+C                                 BERECHNUNG DER FLATNESS-WERTE
+C
+            CALL PHIFLA  (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,
+     $                    UFG    ,AURG   ,HILF   ,'   U',
+     $                 XHOMOG,YHOMOG,ZHOMOG,NFRO,NRGT)
+C           CALL BF1ALL  (KK,JJ,II,KMX,JMX,IMX,DDX,DDY,DDZ,DX,DY,DZ,
+C    $                    X,Y,Z,HILF   ,IB1,IB2,JB1,JB2,KB,'UFLG  ')
+            CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,HILF   ,AUFLG  ,
+     $                    XHOMOG,YHOMOG,ZHOMOG)
+         ENDIF
+      ENDIF
+C
+C                                 VORBELEGUNG DES SUMMATIONSFELDES
+C                                 FUER DIE MOMENTANEN FLATNESS-WERTE
+C
+      IF(ISELEP(1, 13) .GE. 1) THEN
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SUFLG  )
+      ENDIF
+C
+C                                 STATIST. GROESSEN DER V-KOMPONENTE
+C                                 ----------------------------------
+C
+      IF(ISELEP(1, 29) .GE. 1) THEN
+         IF(ISAMPA(   29) .EQ. 0  ) THEN
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,AV     )
+            CALL BPHI0   (KK,JJ,II,KMX,JMX,IMX,HILF   ,
+     $                    IB1,IB2,JB1,JB2,KB)
+            CALL GALIRT  (KK,JJ,II,KMX,JMX,IMX,
+     $                    UGRID,V,HILF,B,'   V',NFRO,NRGT,NBOT,
+     $                                          NBAC,NLFT,NTOP)
+C           CALL BF1ALL  (KK,JJ,II,KMX,JMX,IMX,DDX,DDY,DDZ,DX,DY,DZ,
+C    $                    X,Y,Z,HILF   ,IB1,IB2,JB1,JB2,KB,'V     ')
+            CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,HILF   ,AV     ,
+     $                    XHOMOG,YHOMOG,ZHOMOG)
+         ENDIF
+      ENDIF
+      IF(ISELEP(1, 30) .GE. 1) THEN
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SV     )
+      ENDIF
+      IF(ISELEP(1, 31) .GE. 1) THEN
+            CALL DPHI0   (KK ,JJ ,II ,KMX ,JMX ,IMX ,VFG    )
+            CALL PHIFLU  (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,UGRID,
+     $                    V      ,VFG    ,AV     ,'   V',
+     $                 XHOMOG,YHOMOG,ZHOMOG,NFRO,NRGT)
+C           CALL BF1ALL  (KK,JJ,II,KMX,JMX,IMX,DDX,DDY,DDZ,DX,DY,DZ,
+C    $                    X,Y,Z,VFG    ,IB1,IB2,JB1,JB2,KB,'VF G  ')
+      ENDIF
+      IF(ISELEP(1, 32) .GE. 1) THEN
+         IF(ISAMPA(   32) .EQ. 0  ) THEN
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,AVRG   )
+            CALL BPHI0   (KK,JJ,II,KMX,JMX,IMX,HILF   ,
+     $                    IB1,IB2,JB1,JB2,KB)
+            CALL PHIRMI  (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,
+     $                    VFG    ,HILF   ,'   V')
+C           CALL BF1ALL  (KK,JJ,II,KMX,JMX,IMX,DDX,DDY,DDZ,DX,DY,DZ,
+C    $                    X,Y,Z,HILF   ,IB1,IB2,JB1,JB2,KB,'VR G  ')
+            CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,HILF   ,AVRG   ,
+     $                    XHOMOG,YHOMOG,ZHOMOG)
+         ENDIF
+      ENDIF
+      IF(ISELEP(1, 33) .GE. 1) THEN
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SVRG   )
+      ENDIF
+      IF(ISELEP(1, 35) .GE. 1) THEN
+         IF(ISAMPA(   35) .EQ. 0  ) THEN
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,AVSKG  )
+            CALL BPHI0   (KK,JJ,II,KMX,JMX,IMX,HILF   ,
+     $                    IB1,IB2,JB1,JB2,KB)
+            CALL PHISKE  (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,
+     $                    VFG    ,AVRG   ,HILF   ,'   V',
+     $                 XHOMOG,YHOMOG,ZHOMOG,NFRO,NRGT)
+C           CALL BF1ALL  (KK,JJ,II,KMX,JMX,IMX,DDX,DDY,DDZ,DX,DY,DZ,
+C    $                    X,Y,Z,HILF   ,IB1,IB2,JB1,JB2,KB,'VSKG  ')
+            CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,HILF   ,AVSKG  ,
+     $                    XHOMOG,YHOMOG,ZHOMOG)
+         ENDIF
+      ENDIF
+      IF(ISELEP(1, 36) .GE. 1) THEN
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SVSKG  )
+      ENDIF
+      IF(ISELEP(1, 37) .GE. 1) THEN
+         IF(ISAMPA(   37) .EQ. 0  ) THEN
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,AVFLG  )
+            CALL BPHI0   (KK,JJ,II,KMX,JMX,IMX,HILF   ,
+     $                    IB1,IB2,JB1,JB2,KB)
+            CALL PHIFLA  (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,
+     $                    VFG    ,AVRG   ,HILF   ,'   V',
+     $                 XHOMOG,YHOMOG,ZHOMOG,NFRO,NRGT)
+C           CALL BF1ALL  (KK,JJ,II,KMX,JMX,IMX,DDX,DDY,DDZ,DX,DY,DZ,
+C    $                    X,Y,Z,HILF   ,IB1,IB2,JB1,JB2,KB,'VFLG  ')
+            CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,HILF   ,AVFLG  ,
+     $                    XHOMOG,YHOMOG,ZHOMOG)
+         ENDIF
+      ENDIF
+      IF(ISELEP(1, 38) .GE. 1) THEN
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SVFLG  )
+      ENDIF
+C
+C                                 STATIST. GROESSEN DER W-KOMPONENTE
+C                                 ----------------------------------
+C
+      IF(ISELEP(1, 54) .GE. 1) THEN
+         IF(ISAMPA(   54) .EQ. 0  ) THEN
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,AW     )
+            CALL BPHI0   (KK,JJ,II,KMX,JMX,IMX,HILF   ,
+     $                    IB1,IB2,JB1,JB2,KB)
+            CALL GALIRT  (KK,JJ,II,KMX,JMX,IMX,
+     $                    UGRID,W,HILF,B,'   W',NFRO,NRGT,NBOT,
+     $                                           NBAC,NLFT,NTOP)
+C           CALL BF1ALL  (KK,JJ,II,KMX,JMX,IMX,DDX,DDY,DDZ,DX,DY,DZ,
+C    $                    X,Y,Z,HILF   ,IB1,IB2,JB1,JB2,KB,'W     ')
+            CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,HILF   ,AW     ,
+     $                    XHOMOG,YHOMOG,ZHOMOG)
+         ENDIF
+      ENDIF
+      IF(ISELEP(1, 55) .GE. 1) THEN
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SW     )
+      ENDIF
+      IF(ISELEP(1, 56) .GE. 1) THEN
+            CALL DPHI0   (KK ,JJ ,II ,KMX ,JMX ,IMX ,WFG    )
+            CALL PHIFLU  (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,UGRID,
+     $                    W      ,WFG    ,AW     ,'   W',
+     $                 XHOMOG,YHOMOG,ZHOMOG,NFRO,NRGT)
+C           CALL BF1ALL  (KK,JJ,II,KMX,JMX,IMX,DDX,DDY,DDZ,DX,DY,DZ,
+C    $                    X,Y,Z,WFG    ,IB1,IB2,JB1,JB2,KB,'WF G  ')
+      ENDIF
+      IF(ISELEP(1, 57) .GE. 1) THEN
+         IF(ISAMPA(   57) .EQ. 0  ) THEN
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,AWRG   )
+            CALL BPHI0   (KK,JJ,II,KMX,JMX,IMX,HILF   ,
+     $                    IB1,IB2,JB1,JB2,KB)
+            CALL PHIRMI  (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,
+     $                    WFG    ,HILF   ,'   W')
+C           CALL BF1ALL  (KK,JJ,II,KMX,JMX,IMX,DDX,DDY,DDZ,DX,DY,DZ,
+C    $                    X,Y,Z,HILF   ,IB1,IB2,JB1,JB2,KB,'WR G  ')
+            CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,HILF   ,AWRG   ,
+     $                    XHOMOG,YHOMOG,ZHOMOG)
+         ENDIF
+      ENDIF
+      IF(ISELEP(1, 58) .GE. 1) THEN
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SWRG   )
+      ENDIF
+      IF(ISELEP(1, 60) .GE. 1) THEN
+         IF(ISAMPA(   60) .EQ. 0  ) THEN
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,AWSKG  )
+            CALL BPHI0   (KK,JJ,II,KMX,JMX,IMX,HILF   ,
+     $                    IB1,IB2,JB1,JB2,KB)
+            CALL PHISKE  (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,
+     $                    WFG    ,AWRG   ,HILF   ,'   W',
+     $                 XHOMOG,YHOMOG,ZHOMOG,NFRO,NRGT)
+C           CALL BF1ALL  (KK,JJ,II,KMX,JMX,IMX,DDX,DDY,DDZ,DX,DY,DZ,
+C    $                    X,Y,Z,HILF   ,IB1,IB2,JB1,JB2,KB,'WSKG  ')
+            CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,HILF   ,AWSKG  ,
+     $                    XHOMOG,YHOMOG,ZHOMOG)
+         ENDIF
+      ENDIF
+      IF(ISELEP(1, 61) .GE. 1) THEN
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SWSKG  )
+      ENDIF
+      IF(ISELEP(1, 62) .GE. 1) THEN
+         IF(ISAMPA(   62) .EQ. 0  ) THEN
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,AWFLG  )
+            CALL BPHI0   (KK,JJ,II,KMX,JMX,IMX,HILF   ,
+     $                    IB1,IB2,JB1,JB2,KB)
+            CALL PHIFLA  (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,
+     $                    WFG    ,AWRG   ,HILF   ,'   W',
+     $                 XHOMOG,YHOMOG,ZHOMOG,NFRO,NRGT)
+C           CALL BF1ALL  (KK,JJ,II,KMX,JMX,IMX,DDX,DDY,DDZ,DX,DY,DZ,
+C    $                    X,Y,Z,HILF   ,IB1,IB2,JB1,JB2,KB,'WFLG  ')
+            CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,HILF   ,AWFLG  ,
+     $                    XHOMOG,YHOMOG,ZHOMOG)
+         ENDIF
+      ENDIF
+      IF(ISELEP(1, 63) .GE. 1) THEN
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SWFLG  )
+      ENDIF
+C
+C                                 STATIST. GROESSEN DER P-KOMPONENTE
+C                                 ----------------------------------
+C
+      IF(ISELEP(1, 79) .GE. 1) THEN
+         IF(ISAMPA(   79) .EQ. 0  ) THEN
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,AP     )
+            CALL BPHI0   (KK,JJ,II,KMX,JMX,IMX,HILF   ,
+     $                    IB1,IB2,JB1,JB2,KB)
+C
+C                                 REDUZIERUNG DES DRUCKNIVEAUS
+C                                 WIRD IM HAUPTPROGRAMM GEMACHT
+C
+C           CALL PLEVEL  (KK,JJ,II,KMX,JMX,IMX,KPP,JPP,IPP,P,
+C    $                    DDX, DDY, DDZ )
+            CALL GALIRT  (KK,JJ,II,KMX,JMX,IMX,
+     $                    UGRID,P,HILF,B,'   P',NFRO,NRGT,NBOT
+     $                                          ,NBAC,NLFT,NTOP)
+C           CALL BF1ALL  (KK,JJ,II,KMX,JMX,IMX,DDX,DDY,DDZ,DX,DY,DZ,
+C    $                    X,Y,Z,HILF   ,IB1,IB2,JB1,JB2,KB,'P     ')
+            CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,HILF   ,AP     ,
+     $                    XHOMOG,YHOMOG,ZHOMOG)
+         ENDIF
+      ENDIF
+      IF(ISELEP(1, 80) .GE. 1) THEN
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SP     )
+      ENDIF
+      IF(ISELEP(1, 81) .GE. 1) THEN
+            CALL DPHI0   (KK ,JJ ,II ,KMX ,JMX ,IMX ,PFG    )
+            CALL PHIFLU  (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,UGRID,
+     $                    P      ,PFG    ,AP     ,'   P',
+     $                 XHOMOG,YHOMOG,ZHOMOG,NFRO,NRGT)
+C           CALL BF1ALL  (KK,JJ,II,KMX,JMX,IMX,DDX,DDY,DDZ,DX,DY,DZ,
+C    $                    X,Y,Z,PFG    ,IB1,IB2,JB1,JB2,KB,'PF G  ')
+      ENDIF
+      IF(ISELEP(1, 82) .GE. 1) THEN
+         IF(ISAMPA(   82) .EQ. 0  ) THEN
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,APRG   )
+            CALL BPHI0   (KK,JJ,II,KMX,JMX,IMX,HILF   ,
+     $                    IB1,IB2,JB1,JB2,KB)
+            CALL PHIRMI  (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,
+     $                    PFG    ,HILF   ,'   P')
+C           CALL BF1ALL  (KK,JJ,II,KMX,JMX,IMX,DDX,DDY,DDZ,DX,DY,DZ,
+C    $                    X,Y,Z,HILF   ,IB1,IB2,JB1,JB2,KB,'PR G  ')
+            CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,HILF   ,APRG   ,
+     $                    XHOMOG,YHOMOG,ZHOMOG)
+         ENDIF
+      ENDIF
+      IF(ISELEP(1, 83) .GE. 1) THEN
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SPRG   )
+      ENDIF
+      IF(ISELEP(1, 85) .GE. 1) THEN
+         IF(ISAMPA(   85) .EQ. 0  ) THEN
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,APSKG  )
+            CALL BPHI0   (KK,JJ,II,KMX,JMX,IMX,HILF   ,
+     $                    IB1,IB2,JB1,JB2,KB)
+            CALL PHISKE  (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,
+     $                    PFG    ,APRG   ,HILF   ,'   P',
+     $                 XHOMOG,YHOMOG,ZHOMOG,NFRO,NRGT)
+C           CALL BF1ALL  (KK,JJ,II,KMX,JMX,IMX,DDX,DDY,DDZ,DX,DY,DZ,
+C    $                    X,Y,Z,HILF   ,IB1,IB2,JB1,JB2,KB,'PSKG  ')
+            CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,HILF   ,APSKG  ,
+     $                    XHOMOG,YHOMOG,ZHOMOG)
+         ENDIF
+      ENDIF
+      IF(ISELEP(1, 86) .GE. 1) THEN
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SPSKG  )
+      ENDIF
+      IF(ISELEP(1, 87) .GE. 1) THEN
+         IF(ISAMPA(   87) .EQ. 0  ) THEN
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,APFLG  )
+            CALL BPHI0   (KK,JJ,II,KMX,JMX,IMX,HILF   ,
+     $                    IB1,IB2,JB1,JB2,KB)
+            CALL PHIFLA  (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,
+     $                    PFG    ,APRG   ,HILF   ,'   P',
+     $                 XHOMOG,YHOMOG,ZHOMOG,NFRO,NRGT)
+C           CALL BF1ALL  (KK,JJ,II,KMX,JMX,IMX,DDX,DDY,DDZ,DX,DY,DZ,
+C    $                    X,Y,Z,HILF   ,IB1,IB2,JB1,JB2,KB,'PFLG  ')
+            CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,HILF   ,APFLG  ,
+     $                    XHOMOG,YHOMOG,ZHOMOG)
+         ENDIF
+      ENDIF
+      IF(ISELEP(1, 88) .GE. 1) THEN
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SPFLG  )
+      ENDIF
+C
+C                                 KINETISCHE ENERGIE DER SCHWANKUNGS-
+C                                 GESCHWINDIGKEITEN
+C                                 -----------------------------------
+C
+      IF(ISELEP(1,106) .GE. 1) THEN
+         IF(ISAMPA(  106) .EQ. 0  ) THEN
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,AEFG   )
+            CALL BPHI0   (KK,JJ,II,KMX,JMX,IMX,HILF   ,
+     $                    IB1,IB2,JB1,JB2,KB)
+C
+C                                 BERECHNUNG DER KINETISCHEN
+C                                 ENERGIE DER SCHWANKUNGSGESCHW.
+C                                 (ANTEIL DER GROBSTRUKTUR)
+C
+            CALL ENERFG  (KK,JJ,II,KMX,JMX,IMX,DDX,DDY,DDZ,
+     $                    DX,DY,DZ,X,Y,Z,UFG,VFG,WFG,HILF,ESUM,
+     $                    NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB,0)
+C           CALL BF1ALL  (KK,JJ,II,KMX,JMX,IMX,DDX,DDY,DDZ,DX,DY,DZ,
+C    $                    X,Y,Z,HILF   ,IB1,IB2,JB1,JB2,KB,'EF G  ')
+            CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,HILF   ,AEFG   ,
+     $                    XHOMOG,YHOMOG,ZHOMOG)
+         ENDIF
+      ENDIF
+      IF(ISELEP(1,107) .GE. 1) THEN
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SEFG   )
+      ENDIF
+      IF(ISELEP(1,109) .GE. 1) THEN
+         IF(ISAMPA(  109) .EQ. 0  ) THEN
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,AEFS   )
+            CALL BPHI0   (KK,JJ,II,KMX,JMX,IMX,HILF   ,
+     $                    IB1,IB2,JB1,JB2,KB)
+C
+C                                 BERECHNUNG DER KINETISCHEN
+C                                 ENERGIE DER SCHWANKUNGSGESCHW.
+C                                 (ANTEIL DER FEINSTRUKTUR)
+C
+            CALL ENERFS  (KK,JJ,II,KMX,JMX,IMX,DDX,DDY,DDZ,
+     $                    DX,DY,DZ,X,Y,Z,B,G,GMOL,RHO,HILF,ESUM,
+     $                 IC1,IC2,JC1,JC2,KC1,KC2,
+     $                 NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB,0)
+C           CALL BF1ALL  (KK,JJ,II,KMX,JMX,IMX,DDX,DDY,DDZ,DX,DY,DZ,
+C    $                    X,Y,Z,HILF   ,IB1,IB2,JB1,JB2,KB,'EF S  ')
+            CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,HILF   ,AEFS   ,
+     $                    XHOMOG,YHOMOG,ZHOMOG)
+         ENDIF
+      ENDIF
+      IF(ISELEP(1,110) .GE. 1) THEN
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SEFS   )
+      ENDIF
+C
+C                                 DISSIPATION
+C                                 ___________
+      IF(ISELEP(1,120) .GE. 1) THEN
+         IF(ISAMPA(  120) .EQ. 0  ) THEN
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,ADFG   )
+C
+            CALL DISSIPG (KK,JJ,II,KMX,JMX,IMX,DDX,DDY,DDZ,
+     $                    DX,DY,DZ,X,Y,Z,UFG,VFG,WFG,B,HILF,DSUM,
+     $                    NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB,0)
+            CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,HILF   ,ADFG   ,
+     $                    XHOMOG,YHOMOG,ZHOMOG)
+         ENDIF
+      ENDIF
+
+C                               FUER   TAYLOR''SCHES MIKROMASS
+C                               QUADRATE DER ELEMENTE DES 
+C                               DEFORMATIONSGESCHWINDIGKEITSTENSORS
+C                               -----------------------------------
+C
+C                                  U_KOMPONENTE IN X_RICHTUNG
+      IF(ISELEP(1,131) .GE. 1) THEN
+         IF(ISAMPA(  131) .EQ. 0  ) THEN
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,ADUDX2 )
+            CALL DPHI0   (KK,JJ,II,KMX,JMX,IMX,HILF   )
+C
+            CALL PHIDIDJ (KK,JJ,II,KMX,JMX,IMX,IC1,IC2,JC1,JC2,KC1,KC2,
+     $                    B,G,GMOL,RHO,UGRID,HILF,
+     $                    UFG,X,DX,DDX,II,'XX',
+     $                    NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB)
+             CALL PHIFL2  (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                     KMXA,JMXA,IMXA,
+     $                     HILF   ,HILF   ,'  QP')
+            CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,HILF   ,ADUDX2 ,
+     $                    XHOMOG,YHOMOG,ZHOMOG)
+         ENDIF
+      ENDIF
+C
+C                                  U_KOMPONENTE IN Y_RICHTUNG
+      IF(ISELEP(1,132) .GE. 1) THEN
+         IF(ISAMPA(  132) .EQ. 0  ) THEN
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,ADUDY2 )
+            CALL DPHI0   (KK,JJ,II,KMX,JMX,IMX,HILF   )
+C
+            CALL PHIDIDJ (KK,JJ,II,KMX,JMX,IMX,IC1,IC2,JC1,JC2,KC1,KC2,
+     $                    B,G,GMOL,RHO,UGRID,HILF,
+     $                    UFG,Y,DY,DDY,JJ,'XY',
+     $                    NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB)
+             CALL PHIFL2  (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                     KMXA,JMXA,IMXA,
+     $                     HILF   ,HILF   ,'  VU')
+            CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,HILF   ,ADUDY2 ,
+     $                    XHOMOG,YHOMOG,ZHOMOG)
+         ENDIF
+      ENDIF
+
+C                                  U_KOMPONENTE IN Z_RICHTUNG
+      IF(ISELEP(1,133) .GE. 1) THEN
+         IF(ISAMPA(  133) .EQ. 0  ) THEN
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,ADUDZ2 )
+            CALL DPHI0   (KK,JJ,II,KMX,JMX,IMX,HILF   )
+C
+            CALL PHIDIDJ (KK,JJ,II,KMX,JMX,IMX,IC1,IC2,JC1,JC2,KC1,KC2,
+     $                    B,G,GMOL,RHO,UGRID,HILF,
+     $                    UFG,Z,DZ,DDZ,KK,'XZ',
+     $                    NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB)
+             CALL PHIFL2  (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                     KMXA,JMXA,IMXA,
+     $                     HILF   ,HILF   ,'  UW')
+            CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,HILF   ,ADUDZ2 ,
+     $                    XHOMOG,YHOMOG,ZHOMOG)
+         ENDIF
+      ENDIF
+C
+C                                  V_KOMPONENTE IN X_RICHTUNG
+      IF(ISELEP(1,134) .GE. 1) THEN
+         IF(ISAMPA(  134) .EQ. 0  ) THEN
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,ADVDX2 )
+            CALL DPHI0   (KK,JJ,II,KMX,JMX,IMX,HILF   )
+C
+            CALL PHIDIDJ (KK,JJ,II,KMX,JMX,IMX,IC1,IC2,JC1,JC2,KC1,KC2,
+     $                    B,G,GMOL,RHO,UGRID,HILF,
+     $                    VFG,X,DX,DDX,II,'YX',
+     $                    NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB)
+             CALL PHIFL2  (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                     KMXA,JMXA,IMXA,
+     $                     HILF   ,HILF   ,'  VU')
+            CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,HILF   ,ADVDX2 ,
+     $                    XHOMOG,YHOMOG,ZHOMOG)
+         ENDIF
+      ENDIF
+C
+C                                  V_KOMPONENTE IN Y_RICHTUNG
+      IF(ISELEP(1,135) .GE. 1) THEN
+         IF(ISAMPA(  135) .EQ. 0  ) THEN
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,ADVDY2 )
+            CALL DPHI0   (KK,JJ,II,KMX,JMX,IMX,HILF   )
+C
+            CALL PHIDIDJ (KK,JJ,II,KMX,JMX,IMX,IC1,IC2,JC1,JC2,KC1,KC2,
+     $                    B,G,GMOL,RHO,UGRID,HILF,
+     $                    VFG,Y,DY,DDY,JJ,'YY',
+     $                    NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB)
+             CALL PHIFL2  (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                     KMXA,JMXA,IMXA,
+     $                     HILF   ,HILF   ,'  QP')
+            CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,HILF   ,ADVDY2 ,
+     $                    XHOMOG,YHOMOG,ZHOMOG)
+         ENDIF
+      ENDIF
+C
+C                                  V_KOMPONENTE IN Z_RICHTUNG
+      IF(ISELEP(1,136) .GE. 1) THEN
+         IF(ISAMPA(  136) .EQ. 0  ) THEN
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,ADVDZ2 )
+            CALL DPHI0   (KK,JJ,II,KMX,JMX,IMX,HILF   )
+C
+            CALL PHIDIDJ (KK,JJ,II,KMX,JMX,IMX,IC1,IC2,JC1,JC2,KC1,KC2,
+     $                    B,G,GMOL,RHO,UGRID,HILF,
+     $                    VFG,Z,DZ,DDZ,KK,'YZ',
+     $                    NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB)
+             CALL PHIFL2  (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                     KMXA,JMXA,IMXA,
+     $                     HILF   ,HILF   ,'  WV')
+            CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,HILF   ,ADVDZ2 ,
+     $                    XHOMOG,YHOMOG,ZHOMOG)
+         ENDIF
+      ENDIF
+C
+C                                  W_KOMPONENTE IN X_RICHTUNG
+      IF(ISELEP(1,137) .GE. 1) THEN
+         IF(ISAMPA(  137) .EQ. 0  ) THEN
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,ADWDX2 )
+            CALL DPHI0   (KK,JJ,II,KMX,JMX,IMX,HILF   )
+C
+            CALL PHIDIDJ (KK,JJ,II,KMX,JMX,IMX,IC1,IC2,JC1,JC2,KC1,KC2,
+     $                    B,G,GMOL,RHO,UGRID,HILF,
+     $                    WFG,X,DX,DDX,II,'ZX',
+     $                    NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB)
+             CALL PHIFL2  (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                     KMXA,JMXA,IMXA,
+     $                     HILF   ,HILF   ,'  UW')
+            CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,HILF   ,ADWDX2 ,
+     $                    XHOMOG,YHOMOG,ZHOMOG)
+         ENDIF
+      ENDIF
+C
+C                                  W_KOMPONENTE IN Y_RICHTUNG
+      IF(ISELEP(1,138) .GE. 1) THEN
+         IF(ISAMPA(  138) .EQ. 0  ) THEN
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,ADWDY2 )
+            CALL DPHI0   (KK,JJ,II,KMX,JMX,IMX,HILF   )
+C
+            CALL PHIDIDJ (KK,JJ,II,KMX,JMX,IMX,IC1,IC2,JC1,JC2,KC1,KC2,
+     $                    B,G,GMOL,RHO,UGRID,HILF,
+     $                    WFG,Y,DY,DDY,JJ,'ZY',
+     $                    NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB)
+             CALL PHIFL2  (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                     KMXA,JMXA,IMXA,
+     $                     HILF   ,HILF   ,'  WV')
+            CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,HILF   ,ADWDY2 ,
+     $                    XHOMOG,YHOMOG,ZHOMOG)
+         ENDIF
+      ENDIF
+C
+C                                  W_KOMPONENTE IN Z_RICHTUNG
+      IF(ISELEP(1,139) .GE. 1) THEN
+         IF(ISAMPA(  139) .EQ. 0  ) THEN
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,ADWDZ2 )
+            CALL DPHI0   (KK,JJ,II,KMX,JMX,IMX,HILF   )
+C
+            CALL PHIDIDJ (KK,JJ,II,KMX,JMX,IMX,IC1,IC2,JC1,JC2,KC1,KC2,
+     $                    B,G,GMOL,RHO,UGRID,HILF,
+     $                    WFG,Z,DZ,DDZ,KK,'ZZ',
+     $                    NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB)
+             CALL PHIFL2  (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                     KMXA,JMXA,IMXA,
+     $                     HILF   ,HILF   ,'  QP')
+            CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,HILF   ,ADWDZ2 ,
+     $                    XHOMOG,YHOMOG,ZHOMOG)
+         ENDIF
+      ENDIF
+
+C
+C                                 KOMPONENTEN DES SPANNUNGSTENSORS
+C                                 --------------------------------
+C
+C                                 HIER: U - W
+C                                 -----------
+C
+      IF(ISELEP(1,146) .GE. 1) THEN
+         IF(ISAMPA(  146) .EQ. 0  ) THEN
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,AUFWFG )
+            CALL BPHI0   (KK,JJ,II,KMX,JMX,IMX,HILF   ,
+     $                    IB1,IB2,JB1,JB2,KB)
+C
+C                                 BERECHNUNG DES GROBSTRUKTUR-
+C                                 ANTEILS AN DEN SCHUBSPANNUNGEN
+C
+            CALL TAUFG   (KK,JJ,II,KMX,JMX,IMX,GMOL,RHO,
+     $                    HILF   ,UFG    ,WFG    ,'UW',
+     $                    NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB)
+C           CALL BF1ALL  (KK,JJ,II,KMX,JMX,IMX,DDX,DDY,DDZ,DX,DY,DZ,
+C    $                    X,Y,Z,HILF   ,IB1,IB2,JB1,JB2,KB,'UW    ')
+            CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,HILF   ,AUFWFG ,
+     $                    XHOMOG,YHOMOG,ZHOMOG)
+         ENDIF
+      ENDIF
+      IF(ISELEP(1,147) .GE. 1) THEN
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SUFWFG )
+      ENDIF
+      IF(ISELEP(1,149) .GE. 1) THEN
+         IF(ISAMPA(  149) .EQ. 0  ) THEN
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,AUFWFS )
+            CALL BPHI0   (KK,JJ,II,KMX,JMX,IMX,HILF   ,
+     $                    IB1,IB2,JB1,JB2,KB)
+C
+C                                 BERECHNUNG DES FEINSTRUKTUR-
+C                                 ANTEILS AN DEN SCHUBSPANNUNGEN
+C
+            CALL TAUFS   (KK,JJ,II,KMX,JMX,IMX,IB1,IB2,JB1,JB2,KB,
+     $                    G,GMOL,RHO,UGRID,
+     $                    HILF   ,U,X,DX,DDX,II,W,Z,DZ,DDZ,KK,'UW'
+#ifdef _TSCAL_
+     $                    ,PRTURB
+#endif
+     $                    )     
+C           CALL BF1ALL  (KK,JJ,II,KMX,JMX,IMX,DDX,DDY,DDZ,DX,DY,DZ,
+C    $                    X,Y,Z,HILF   ,IB1,IB2,JB1,JB2,KB,'UW    ')
+            CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,HILF   ,AUFWFS ,
+     $                    XHOMOG,YHOMOG,ZHOMOG)
+         ENDIF
+      ENDIF
+      IF(ISELEP(1,150) .GE. 1) THEN
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SUFWFS )
+      ENDIF
+      IF(ISELEP(1,151) .GE. 1) THEN
+         IF(ISAMPA(  151) .EQ. 0  ) THEN
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,AUFWFM )
+            CALL DPHI0   (KK ,JJ ,II ,KMX ,JMX ,IMX ,HILF   )
+C
+C                                 BERECHNUNG DES MOLEKULAREN
+C                                 ANTEILS AN DEN SCHUBSPANNUNGEN
+C                                 (EINSCHL. DER WANDSCHUBSPANNUNGEN)
+C
+            CALL TAUFM   (KK,JJ,II,KMX,JMX,IMX,IC1,IC2,JC1,JC2,KC1,KC2,
+     $                    B,G,GMOL,RHO,UGRID,
+     $                    HILF   ,U,X,DX,DDX,II,W,Z,DZ,DDZ,KK,'UW',
+     $                    NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB
+#ifdef _TSCAL_
+     $                    ,PRMOL,T,Y,DY,DDY,JJ
+#endif
+     $                    )      
+C           CALL BF1ALL  (KK,JJ,II,KMX,JMX,IMX,DDX,DDY,DDZ,DX,DY,DZ,
+C    $                    X,Y,Z,HILF   ,IB1,IB2,JB1,JB2,KB,'UW    ')
+            CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,HILF   ,AUFWFM ,
+     $                    XHOMOG,YHOMOG,ZHOMOG)
+         ENDIF
+      ENDIF
+      IF(ISELEP(1,152) .GE. 1) THEN
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SUFWFM )
+      ENDIF
+C
+C                                 HIER: V - W
+C                                 -----------
+C
+      IF(ISELEP(1,156) .GE. 1) THEN
+         IF(ISAMPA(  156) .EQ. 0  ) THEN
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,AVFWFG )
+            CALL BPHI0   (KK,JJ,II,KMX,JMX,IMX,HILF   ,
+     $                    IB1,IB2,JB1,JB2,KB)
+            CALL TAUFG   (KK,JJ,II,KMX,JMX,IMX,GMOL,RHO,
+     $                    HILF   ,VFG    ,WFG    ,'VW',
+     $                    NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB)
+C           CALL BF1ALL  (KK,JJ,II,KMX,JMX,IMX,DDX,DDY,DDZ,DX,DY,DZ,
+C    $                    X,Y,Z,HILF   ,IB1,IB2,JB1,JB2,KB,'VW    ')
+            CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,HILF   ,AVFWFG ,
+     $                    XHOMOG,YHOMOG,ZHOMOG)
+         ENDIF
+      ENDIF
+      IF(ISELEP(1,157) .GE. 1) THEN
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SVFWFG )
+      ENDIF
+      IF(ISELEP(1,159) .GE. 1) THEN
+         IF(ISAMPA(  159) .EQ. 0  ) THEN
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,AVFWFS )
+            CALL BPHI0   (KK,JJ,II,KMX,JMX,IMX,HILF   ,
+     $                    IB1,IB2,JB1,JB2,KB)
+            CALL TAUFS   (KK,JJ,II,KMX,JMX,IMX,IB1,IB2,JB1,JB2,KB,
+     $                    G,GMOL,RHO,UGRID,
+     $                    HILF   ,V,Y,DY,DDY,JJ,W,Z,DZ,DDZ,KK,'VW'
+#ifdef _TSCAL_
+     $                    ,PRTURB
+#endif
+     $                    )     
+C           CALL BF1ALL  (KK,JJ,II,KMX,JMX,IMX,DDX,DDY,DDZ,DX,DY,DZ,
+C    $                    X,Y,Z,HILF   ,IB1,IB2,JB1,JB2,KB,'VW    ')
+            CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,HILF   ,AVFWFS ,
+     $                    XHOMOG,YHOMOG,ZHOMOG)
+         ENDIF
+      ENDIF
+      IF(ISELEP(1,160) .GE. 1) THEN
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SVFWFS )
+      ENDIF
+      IF(ISELEP(1,161) .GE. 1) THEN
+         IF(ISAMPA(  161) .EQ. 0  ) THEN
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,AVFWFM )
+            CALL DPHI0   (KK ,JJ ,II ,KMX ,JMX ,IMX ,HILF   )
+            CALL TAUFM   (KK,JJ,II,KMX,JMX,IMX,IC1,IC2,JC1,JC2,KC1,KC2,
+     $                    B,G,GMOL,RHO,UGRID,
+     $                    HILF   ,V,Y,DY,DDY,JJ,W,Z,DZ,DDZ,KK,'VW',
+     $                    NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB
+#ifdef _TSCAL_
+     $                    ,PRMOL,T,X,DX,DDX,II
+#endif
+     $                    )      
+C           CALL BF1ALL  (KK,JJ,II,KMX,JMX,IMX,DDX,DDY,DDZ,DX,DY,DZ,
+C    $                    X,Y,Z,HILF   ,IB1,IB2,JB1,JB2,KB,'VW    ')
+            CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,HILF   ,AVFWFM ,
+     $                    XHOMOG,YHOMOG,ZHOMOG)
+         ENDIF
+      ENDIF
+      IF(ISELEP(1,162) .GE. 1) THEN
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SVFWFM )
+      ENDIF
+C
+C                                 HIER: U - V
+C                                 -----------
+C
+      IF(ISELEP(1,166) .GE. 1) THEN
+         IF(ISAMPA(  166) .EQ. 0  ) THEN
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,AUFVFG )
+            CALL BPHI0   (KK,JJ,II,KMX,JMX,IMX,HILF   ,
+     $                    IB1,IB2,JB1,JB2,KB)
+            CALL TAUFG   (KK,JJ,II,KMX,JMX,IMX,GMOL,RHO,
+     $                    HILF   ,UFG    ,VFG    ,'UV',
+     $                    NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB)
+C           CALL BF1ALL  (KK,JJ,II,KMX,JMX,IMX,DDX,DDY,DDZ,DX,DY,DZ,
+C    $                    X,Y,Z,HILF   ,IB1,IB2,JB1,JB2,KB,'UV    ')
+            CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,HILF   ,AUFVFG ,
+     $                    XHOMOG,YHOMOG,ZHOMOG)
+         ENDIF
+      ENDIF
+      IF(ISELEP(1,167) .GE. 1) THEN
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SUFVFG )
+      ENDIF
+      IF(ISELEP(1,169) .GE. 1) THEN
+         IF(ISAMPA(  169) .EQ. 0  ) THEN
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,AUFVFS )
+            CALL BPHI0   (KK,JJ,II,KMX,JMX,IMX,HILF   ,
+     $                    IB1,IB2,JB1,JB2,KB)
+            CALL TAUFS   (KK,JJ,II,KMX,JMX,IMX,IB1,IB2,JB1,JB2,KB,
+     $                    G,GMOL,RHO,UGRID,
+     $                    HILF   ,U,X,DX,DDX,II,V,Y,DY,DDY,JJ,'UV'
+#ifdef _TSCAL_
+     $                    ,PRTURB
+#endif
+     $                    )     
+C           CALL BF1ALL  (KK,JJ,II,KMX,JMX,IMX,DDX,DDY,DDZ,DX,DY,DZ,
+C    $                    X,Y,Z,HILF   ,IB1,IB2,JB1,JB2,KB,'UV    ')
+            CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,HILF   ,AUFVFS ,
+     $                    XHOMOG,YHOMOG,ZHOMOG)
+         ENDIF
+      ENDIF
+      IF(ISELEP(1,170) .GE. 1) THEN
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SUFVFS )
+      ENDIF
+      IF(ISELEP(1,171) .GE. 1) THEN
+         IF(ISAMPA(  171) .EQ. 0  ) THEN
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,AUFVFM )
+            CALL DPHI0   (KK ,JJ ,II ,KMX ,JMX ,IMX ,HILF   )
+            CALL TAUFM   (KK,JJ,II,KMX,JMX,IMX,IC1,IC2,JC1,JC2,KC1,KC2,
+     $                    B,G,GMOL,RHO,UGRID,
+     $                    HILF   ,U,X,DX,DDX,II,V,Y,DY,DDY,JJ,'UV',
+     $                    NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB
+#ifdef _TSCAL_
+     $                    ,PRMOL,T,Z,DZ,DDZ,KK
+#endif
+     $                    )      
+            CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,HILF   ,AUFVFM ,
+     $                    XHOMOG,YHOMOG,ZHOMOG)
+         ENDIF
+      ENDIF
+      IF(ISELEP(1,172) .GE. 1) THEN
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SUFVFM )
+      ENDIF
+C
+#ifdef _TAU_NN_
+C                                 ANTEILE DES SPANNUNGSTENSORS
+C                                 NICHT-NEWTONSCHE ANTEILE
+C                                 ----------------------------
+C
+C                                 HIER:  U - U
+C                                 ------------
+      IF(ISELEP(1,351) .GE. 1) THEN
+         IF(ISAMPA(  351) .EQ. 0  ) THEN
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,ATAU11 )
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,STAU11 )
+            CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,TAU11  ,ATAU11 ,
+     $                    XHOMOG,YHOMOG,ZHOMOG)
+         ENDIF
+      ENDIF
+C                                 HIER:  U - V
+C                                 ------------
+      IF(ISELEP(1,356) .GE. 1) THEN
+         IF(ISAMPA(  356) .EQ. 0  ) THEN
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,ATAU12 )
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,STAU12 )
+            CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,TAU12  ,ATAU12 ,
+     $                    XHOMOG,YHOMOG,ZHOMOG)
+         ENDIF
+      ENDIF
+C                                 HIER:  U - W
+C                                 ------------
+      IF(ISELEP(1,361) .GE. 1) THEN
+         IF(ISAMPA(  361) .EQ. 0  ) THEN
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,ATAU13 )
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,STAU13 )
+            CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,TAU13  ,ATAU13 ,
+     $                    XHOMOG,YHOMOG,ZHOMOG)
+         ENDIF
+      ENDIF
+C                                 HIER:  V - V
+C                                 ------------
+      IF(ISELEP(1,366) .GE. 1) THEN
+         IF(ISAMPA(  366) .EQ. 0  ) THEN
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,ATAU22 )
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,STAU22 )
+            CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,TAU22  ,ATAU22 ,
+     $                    XHOMOG,YHOMOG,ZHOMOG)
+         ENDIF
+      ENDIF
+C                                 HIER:  V - W
+C                                 ------------
+      IF(ISELEP(1,371) .GE. 1) THEN
+         IF(ISAMPA(  371) .EQ. 0  ) THEN
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,ATAU23 )
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,STAU23 )
+            CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,TAU23  ,ATAU23 ,
+     $                    XHOMOG,YHOMOG,ZHOMOG)
+         ENDIF
+      ENDIF
+C                                 HIER:  W - W
+C                                 ------------
+      IF(ISELEP(1,376) .GE. 1) THEN
+         IF(ISAMPA(  376) .EQ. 0  ) THEN
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,ATAU33 )
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,STAU33 )
+            CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,TAU33  ,ATAU33 ,
+     $                    XHOMOG,YHOMOG,ZHOMOG)
+         ENDIF
+      ENDIF
+#endif
+C
+C                                 STATIST. GROESSEN DER X-KOMPONENTE
+C                                 DER VORTICITY
+C                                 ----------------------------------
+C
+      IF(ISELEP(1,176) .GE. 1) THEN
+         CALL DPHI0   (KK ,JJ ,II ,KMX ,JMX ,IMX ,OX     )
+      ENDIF
+C
+C                                 VORBELEGUNG DES <OX> - FELDES MIT DEM
+C                                 "BESTMOEGLICHEN" ENSEMBLE-MITTELWERT
+C
+      IF(ISELEP(1,177) .GE. 1) THEN
+         IF(ISAMPA(  177) .EQ. 0  ) THEN
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,AOX    )
+C
+C                                 BERECHNUNG DES MOMENTANWERTES DER
+C                                 VORTICITY
+C
+            CALL OMEGA   (KK,JJ,II,KMX,JMX,IMX,IC1,IC2,JC1,JC2,KC1,KC2,
+     $                    G, GMOL, RHO,    UGRID,
+     $                    OX,W ,Z ,DZ ,DDZ ,KK,V ,Y ,DY ,DDY ,JJ,'OX',
+     $                    NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB)
+            CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,  OX   ,AOX    ,
+     $                    XHOMOG,YHOMOG,ZHOMOG)
+         ENDIF
+      ENDIF
+      IF(ISELEP(1,178) .GE. 1) THEN
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SOX    )
+      ENDIF
+      IF(ISELEP(1,179) .GE. 1) THEN
+            CALL DPHI0   (KK ,JJ ,II ,KMX ,JMX ,IMX ,OXFG   )
+            CALL PHIFLU  (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,UGRID,
+     $                    OX     ,OXFG   ,AOX    ,'  WV',
+     $                 XHOMOG,YHOMOG,ZHOMOG,NFRO,NRGT)
+C           CALL BF1ALL  (KK,JJ,II,KMX,JMX,IMX,DDX,DDY,DDZ,DX,DY,DZ,
+C    $                    X,Y,Z,OXFG   ,IB1,IB2,JB1,JB2,KB,'WV    ')
+      ENDIF
+      IF(ISELEP(1,180) .GE. 1) THEN
+         IF(ISAMPA(  180) .EQ. 0  ) THEN
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,AOXRG  )
+            CALL BPHI0   (KK,JJ,II,KMX,JMX,IMX,HILF   ,
+     $                    IB1,IB2,JB1,JB2,KB)
+            CALL PHIRMI  (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,
+     $                    OXFG   ,HILF   ,'  WV')
+C           CALL BF1ALL  (KK,JJ,II,KMX,JMX,IMX,DDX,DDY,DDZ,DX,DY,DZ,
+C    $                    X,Y,Z,HILF   ,IB1,IB2,JB1,JB2,KB,'WV    ')
+            CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,HILF   ,AOXRG  ,
+     $                    XHOMOG,YHOMOG,ZHOMOG)
+         ENDIF
+      ENDIF
+      IF(ISELEP(1,181) .GE. 1) THEN
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SOXRG  )
+      ENDIF
+C
+C                                 STATIST. GROESSEN DER Y-KOMPONENTE
+C                                 DER VORTICITY
+C                                 ----------------------------------
+C
+      IF(ISELEP(1,182) .GE. 1) THEN
+         CALL DPHI0   (KK ,JJ ,II ,KMX ,JMX ,IMX ,OY     )
+      ENDIF
+      IF(ISELEP(1,183) .GE. 1) THEN
+         IF(ISAMPA(  183) .EQ. 0  ) THEN
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,AOY    )
+            CALL OMEGA   (KK,JJ,II,KMX,JMX,IMX,IC1,IC2,JC1,JC2,KC1,KC2,
+     $                    G, GMOL, RHO,    UGRID,
+     $                    OY,U ,X ,DX ,DDX ,II,W ,Z ,DZ ,DDZ ,KK,'OY',
+     $                    NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB)
+            CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,  OY   ,AOY    ,
+     $                    XHOMOG,YHOMOG,ZHOMOG)
+         ENDIF
+      ENDIF
+      IF(ISELEP(1,184) .GE. 1) THEN
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SOY    )
+      ENDIF
+      IF(ISELEP(1,185) .GE. 1) THEN
+            CALL DPHI0   (KK ,JJ ,II ,KMX ,JMX ,IMX ,OYFG   )
+            CALL PHIFLU  (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,UGRID,
+     $                    OY     ,OYFG   ,AOY    ,'  UW',
+     $                 XHOMOG,YHOMOG,ZHOMOG,NFRO,NRGT)
+C           CALL BF1ALL  (KK,JJ,II,KMX,JMX,IMX,DDX,DDY,DDZ,DX,DY,DZ,
+C    $                    X,Y,Z,OYFG   ,IB1,IB2,JB1,JB2,KB,'UW    ')
+      ENDIF
+      IF(ISELEP(1,186) .GE. 1) THEN
+         IF(ISAMPA(  186) .EQ. 0  ) THEN
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,AOYRG  )
+            CALL BPHI0   (KK,JJ,II,KMX,JMX,IMX,HILF   ,
+     $                    IB1,IB2,JB1,JB2,KB)
+            CALL PHIRMI  (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,
+     $                    OYFG   ,HILF   ,'  UW')
+C           CALL BF1ALL  (KK,JJ,II,KMX,JMX,IMX,DDX,DDY,DDZ,DX,DY,DZ,
+C    $                    X,Y,Z,HILF   ,IB1,IB2,JB1,JB2,KB,'UW    ')
+            CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,HILF   ,AOYRG  ,
+     $                    XHOMOG,YHOMOG,ZHOMOG)
+         ENDIF
+      ENDIF
+      IF(ISELEP(1,187) .GE. 1) THEN
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SOYRG  )
+      ENDIF
+C
+C                                 STATIST. GROESSEN DER Z-KOMPONENTE
+C                                 DER VORTICITY
+C                                 ----------------------------------
+C
+      IF(ISELEP(1,188) .GE. 1) THEN
+         CALL DPHI0   (KK ,JJ ,II ,KMX ,JMX ,IMX ,OZ     )
+      ENDIF
+      IF(ISELEP(1,189) .GE. 1) THEN
+         IF(ISAMPA(  189) .EQ. 0  ) THEN
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,AOZ    )
+            CALL OMEGA   (KK,JJ,II,KMX,JMX,IMX,IC1,IC2,JC1,JC2,KC1,KC2,
+     $                    G, GMOL, RHO,    UGRID,
+     $                    OZ,V ,Y ,DY ,DDY ,JJ,U ,X ,DX ,DDX ,II,'OZ',
+     $                    NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB)
+            CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,  OZ   ,AOZ    ,
+     $                    XHOMOG,YHOMOG,ZHOMOG)
+         ENDIF
+      ENDIF
+      IF(ISELEP(1,190) .GE. 1) THEN
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SOZ    )
+      ENDIF
+      IF(ISELEP(1,191) .GE. 1) THEN
+            CALL DPHI0   (KK ,JJ ,II ,KMX ,JMX ,IMX ,OZFG   )
+            CALL PHIFLU  (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,UGRID,
+     $                    OZ     ,OZFG   ,AOZ    ,'  VU',
+     $                 XHOMOG,YHOMOG,ZHOMOG,NFRO,NRGT)
+C           CALL BF1ALL  (KK,JJ,II,KMX,JMX,IMX,DDX,DDY,DDZ,DX,DY,DZ,
+C    $                    X,Y,Z,OZFG   ,IB1,IB2,JB1,JB2,KB,'VU    ')
+      ENDIF
+      IF(ISELEP(1,192) .GE. 1) THEN
+         IF(ISAMPA(  192) .EQ. 0  ) THEN
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,AOZRG  )
+            CALL BPHI0   (KK,JJ,II,KMX,JMX,IMX,HILF   ,
+     $                    IB1,IB2,JB1,JB2,KB)
+            CALL PHIRMI  (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,
+     $                    OZFG   ,HILF   ,'  VU')
+C           CALL BF1ALL  (KK,JJ,II,KMX,JMX,IMX,DDX,DDY,DDZ,DX,DY,DZ,
+C    $                    X,Y,Z,HILF   ,IB1,IB2,JB1,JB2,KB,'VU    ')
+            CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,HILF   ,AOZRG  ,
+     $                    XHOMOG,YHOMOG,ZHOMOG)
+         ENDIF
+      ENDIF
+      IF(ISELEP(1,193) .GE. 1) THEN
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SOZRG  )
+      ENDIF
+C
+C                                 STATIST. GROESSEN DER ENSTROPHIE
+C                                 ----------------------------------
+C
+      IF(ISELEP(1,195) .GE. 1) THEN
+         IF(ISAMPA(  195) .EQ. 0  ) THEN
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,AO2    )
+C
+C                                 BERECHNUNG DES MOMENTANWERTES DER
+C                                 ENSTROPHIE
+C
+            CALL BPHI0   (KK,JJ,II,KMX,JMX,IMX,HILF   ,
+     $                    IB1,IB2,JB1,JB2,KB)
+            CALL ENSTRO  (KK,JJ,II,KMX,JMX,IMX,OX,OY,OZ,HILF  )
+            CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA, HILF  ,AO2    ,
+     $                    XHOMOG,YHOMOG,ZHOMOG)
+         ENDIF
+      ENDIF
+      IF(ISELEP(1,196) .GE. 1) THEN
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SO2    )
+      ENDIF
+      IF(ISELEP(1,197) .GE. 1) THEN
+            CALL DPHI0   (KK ,JJ ,II ,KMX ,JMX ,IMX ,O2FG   )
+            CALL PHIFLU  (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,UGRID,
+     $                    HILF   ,O2FG   ,AO2    ,' UVW',
+     $                 XHOMOG,YHOMOG,ZHOMOG,NFRO,NRGT)
+      ENDIF
+      IF(ISELEP(1,198) .GE. 1) THEN
+         IF(ISAMPA(  198) .EQ. 0  ) THEN
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,AO2RG  )
+            CALL BPHI0   (KK,JJ,II,KMX,JMX,IMX,HILF   ,
+     $                    IB1,IB2,JB1,JB2,KB)
+            CALL PHIRMI  (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,
+     $                    O2FG   ,HILF   ,' UVW')
+            CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,HILF   ,AO2RG  ,
+     $                    XHOMOG,YHOMOG,ZHOMOG)
+         ENDIF
+      ENDIF
+      IF(ISELEP(1,199) .GE. 1) THEN
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SO2RG  )
+      ENDIF
+C
+C                                 STATIST. GROESSEN DER HELIZITAET
+C                                 ----------------------------------
+C
+      IF(ISELEP(1,200) .GE. 1) THEN
+         IF(ISAMPA(  200) .EQ. 0  ) THEN
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,AHE    )
+C
+C                                 BERECHNUNG DES MOMENTANWERTES DER
+C                                 HELIZITAET
+C
+            CALL BPHI0   (KK,JJ,II,KMX,JMX,IMX,HILF   ,
+     $                    IB1,IB2,JB1,JB2,KB)
+            CALL HELICI  (KK,JJ,II,KMX,JMX,IMX,U,V,W,OX,OY,OZ,
+     $                    HILF  )
+            CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA, HILF  ,AHE    ,
+     $                    XHOMOG,YHOMOG,ZHOMOG)
+         ENDIF
+      ENDIF
+      IF(ISELEP(1,201) .GE. 1) THEN
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SHE    )
+      ENDIF
+      IF(ISELEP(1,202) .GE. 1) THEN
+            CALL DPHI0   (KK ,JJ ,II ,KMX ,JMX ,IMX ,HEFG   )
+            CALL PHIFLU  (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,UGRID,
+     $                    HILF   ,HEFG   ,AHE    ,' UVW',
+     $                 XHOMOG,YHOMOG,ZHOMOG,NFRO,NRGT)
+      ENDIF
+      IF(ISELEP(1,203) .GE. 1) THEN
+         IF(ISAMPA(  203) .EQ. 0  ) THEN
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,AHERG  )
+            CALL BPHI0   (KK,JJ,II,KMX,JMX,IMX,HILF   ,
+     $                    IB1,IB2,JB1,JB2,KB)
+            CALL PHIRMI  (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,
+     $                    HEFG   ,HILF   ,' UVW')
+            CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,HILF   ,AHERG  ,
+     $                    XHOMOG,YHOMOG,ZHOMOG)
+         ENDIF
+      ENDIF
+      IF(ISELEP(1,204) .GE. 1) THEN
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SHERG  )
+      ENDIF
+C
+#ifdef _TSCAL_
+C
+C                                 STATIST. GROESSEN DER T-KOMPONENTE
+C                                 ----------------------------------
+C
+C                                 VORBELEGUNG DES <T> - FELDES MIT DEM
+C                                 "BESTMOEGLICHEN" ENSEMBLE-MITTELWERT
+C
+      IF(ISELEP(1,504) .GE. 1) THEN
+         IF(ISAMPA(504) .EQ. 0  ) THEN
+C
+C                                 ZUNAECHST WIRD DAS GESAMTE AT-FELD
+C                                 MIT 0.0 VORBELEGT
+C
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,AT     )
+C
+C                                 GALILEI-RUECKTRANSFORMATION USED FOR
+C                                 INITIALISING HILF BY T
+C
+            CALL GALIRT  (KK,JJ,II,KMX,JMX,IMX,
+     $                    UGRID,T,HILF,B,'   T',NFRO,NRGT,NBOT
+     $                                         ,NBAC,NLFT,NTOP)
+C
+C
+C                                 SETZEN DER RANDBEDINGUNGEN
+C
+C           CALL BF1ALL  (KK,JJ,II,KMX,JMX,IMX,DDX,DDY,DDZ,DX,DY,DZ,
+C    $                    X,Y,Z,HILF   ,IB1,IB2,JB1,JB2,KB,'T     ')
+C
+C                                 BILDUNG EINES LINIEN/FLAECHENMITTEL-
+C                                 WERTES UND SUMMATION IN DAS (MIT 0.0)
+C                                 VORBELEGTE AT-FELD
+C
+            CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,HILF   ,AT     ,
+     $                    XHOMOG,YHOMOG,ZHOMOG)
+         ENDIF
+      ENDIF
+C
+C                                 VORBELEGUNG DES SUMMATIONSFELDES
+C                                 FUER DIE MOMENTANWERTE VON  T.
+C
+      IF(ISELEP(1,505) .GE. 1) THEN
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,ST     )
+      ENDIF
+C
+C                                 VORBELEGUNG DES T-FLUKTUATIONS FELDES
+C
+      IF(ISELEP(1,506) .GE. 1) THEN
+C
+C                                 ZUNAECHST WIRD DAS GESAMTE TFG-FELD
+C                                 MIT 0.0 VORBELEGT
+C
+            CALL DPHI0   (KK ,JJ ,II ,KMX ,JMX ,IMX ,TFG    )
+C
+C                                 BERECHNUNG DER T-FLUKTUATIONEN
+C
+            CALL PHIFLU  (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,UGRID,
+     $                    T      ,TFG    ,AT     ,'   T',
+     $                 XHOMOG,YHOMOG,ZHOMOG,NFRO,NRGT)
+C
+C                                 SETZEN DER RANDBEDINGUNGEN
+C
+C           CALL BF1ALL  (KK,JJ,II,KMX,JMX,IMX,DDX,DDY,DDZ,DX,DY,DZ,
+C    $                    X,Y,Z,TFG    ,IB1,IB2,JB1,JB2,KB,'TF G  ')
+      ENDIF
+C
+C                                 VORBELEGUNG DES <T-RMS> - FELDES
+C                                 MIT DEM "BESTMOEGLICHEN" ENSEMBLE-
+C                                 MITTELWERT
+C
+      IF(ISELEP(1,507) .GE. 1) THEN
+         IF(ISAMPA(507) .EQ. 0  ) THEN
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,ATRG   )
+C
+C                                 BERECHNUNG DER RMS-WERTE
+C
+            CALL PHIRMI  (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,
+     $                    TFG    ,HILF   ,'   T')
+C           CALL BF1ALL  (KK,JJ,II,KMX,JMX,IMX,DDX,DDY,DDZ,DX,DY,DZ,
+C    $                    X,Y,Z,HILF   ,IB1,IB2,JB1,JB2,KB,'TR G  ')
+            CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,HILF   ,ATRG   ,
+     $                    XHOMOG,YHOMOG,ZHOMOG)
+         ENDIF
+      ENDIF
+C
+C                                 VORBELEGUNG DES SUMMATIONSFELDES
+C                                 FUER DIE MOMENTANEN RMS-WERTE
+C
+      IF(ISELEP(1,508) .GE. 1) THEN
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,STRG   )
+      ENDIF
+C
+C                                 VORBELEGUNG DES <T-SKE> - FELDES
+C                                 MIT DEM "BESTMOEGLICHEN" ENSEMBLE-
+C                                 MITTELWERT
+C
+      IF(ISELEP(1,510) .GE. 1) THEN
+         IF(ISAMPA(510) .EQ. 0  ) THEN
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,ATSKG  )
+            CALL BPHI0   (KK,JJ,II,KMX,JMX,IMX,HILF   ,
+     $                    IB1,IB2,JB1,JB2,KB)
+C
+C                                 BERECHNUNG DER SKEWNESS-WERTE
+C
+            CALL PHISKE  (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,
+     $                    TFG    ,ATRG   ,HILF   ,'   T',
+     $                 XHOMOG,YHOMOG,ZHOMOG,NFRO,NRGT)
+C           CALL BF1ALL  (KK,JJ,II,KMX,JMX,IMX,DDX,DDY,DDZ,DX,DY,DZ,
+C    $                    X,Y,Z,HILF   ,IB1,IB2,JB1,JB2,KB,'TSKG  ')
+            CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,HILF   ,ATSKG  ,
+     $                    XHOMOG,YHOMOG,ZHOMOG)
+         ENDIF
+      ENDIF
+C
+C                                 VORBELEGUNG DES SUMMATIONSFELDES
+C                                 FUER DIE MOMENTANEN SKEWNESS-WERTE
+C
+      IF(ISELEP(1,511) .GE. 1) THEN
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,STSKG  )
+      ENDIF
+C
+C                                 VORBELEGUNG DES <T-FLA> - FELDES
+C                                 MIT DEM "BESTMOEGLICHEN" ENSEMBLE-
+C                                 MITTELWERT
+C
+      IF(ISELEP(1,512) .GE. 1) THEN
+         IF(ISAMPA(512) .EQ. 0  ) THEN
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,ATFLG  )
+C
+C                                 BERECHNUNG DER FLATNESS-WERTE
+C
+            CALL PHIFLA  (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,
+     $                    TFG    ,ATRG   ,HILF   ,'   T',
+     $                 XHOMOG,YHOMOG,ZHOMOG,NFRO,NRGT)
+C           CALL BF1ALL  (KK,JJ,II,KMX,JMX,IMX,DDX,DDY,DDZ,DX,DY,DZ,
+C    $                    X,Y,Z,HILF   ,IB1,IB2,JB1,JB2,KB,'TFLG  ')
+            CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,HILF   ,ATFLG  ,
+     $                    XHOMOG,YHOMOG,ZHOMOG)
+         ENDIF
+      ENDIF
+C
+C                                 VORBELEGUNG DES SUMMATIONSFELDES
+C                                 FUER DIE MOMENTANEN FLATNESS-WERTE
+C
+      IF(ISELEP(1, 13) .GE. 1) THEN
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,STFLG  )
+      ENDIF
+C
+C
+C                                 TURBULENT HEAT FLUX TENSOR
+C                                 --------------------------------
+C
+C                                 U - T
+C                                 -----
+C
+      IF(ISELEP(1,526) .GE. 1) THEN
+         IF(ISAMPA(526) .EQ. 0  ) THEN
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,AUFTFG )
+C
+C                                 BERECHNUNG DES GROBSTRUKTUR-
+C                                 ANTEILS AN TURBULENTEN WÄRMESTRÖMEN
+C
+            CALL TAUFG   (KK,JJ,II,KMX,JMX,IMX,GMOL,RHO,
+     $                    HILF   ,UFG    ,TFG    ,'UT',
+     $                    NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB)
+C           CALL BF1ALL  (KK,JJ,II,KMX,JMX,IMX,DDX,DDY,DDZ,DX,DY,DZ,
+C    $                    X,Y,Z,HILF   ,IB1,IB2,JB1,JB2,KB,'UT    ')
+            CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,HILF   ,AUFTFG ,
+     $                    XHOMOG,YHOMOG,ZHOMOG)
+         ENDIF
+      ENDIF
+      IF(ISELEP(1,527) .GE. 1) THEN
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SUFTFG )
+      ENDIF
+      IF(ISELEP(1,529) .GE. 1) THEN
+         IF(ISAMPA(  529) .EQ. 0  ) THEN
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,AUFTFS )
+C
+C                                 BERECHNUNG DES FEINSTRUKTUR-
+C                                 ANTEILS AN TURBULENTEN WÄRMESTRÖMEN
+C
+            CALL TAUFS   (KK,JJ,II,KMX,JMX,IMX,IB1,IB2,JB1,JB2,KB,
+     $                    G,GMOL,RHO,UGRID,
+     $                    HILF   ,U,X,DX,DDX,II,T,Z,DZ,DDZ,KK,'UT'
+     $                    ,PRTURB
+     $                    )
+C           CALL BF1ALL  (KK,JJ,II,KMX,JMX,IMX,DDX,DDY,DDZ,DX,DY,DZ,
+C    $                    X,Y,Z,HILF   ,IB1,IB2,JB1,JB2,KB,'UT    ')
+            CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,HILF   ,AUFTFS ,
+     $                    XHOMOG,YHOMOG,ZHOMOG)
+         ENDIF
+      ENDIF
+      IF(ISELEP(1,530) .GE. 1) THEN
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SUFWFS )
+      ENDIF
+      IF(ISELEP(1,531) .GE. 1) THEN
+         IF(ISAMPA(531) .EQ. 0  ) THEN
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,AUFWFM )
+            CALL DPHI0   (KK ,JJ ,II ,KMX ,JMX ,IMX ,HILF   )
+C
+C                                 BERECHNUNG DES MOLEKULAREN
+C                                 ANTEILS AN TURBULENTEN WÄRMESTRÖMEN
+C                                 (EINSCHL. TURBULENTE WÄRMESTRÖME)
+C
+            CALL TAUFM   (KK,JJ,II,KMX,JMX,IMX,IC1,IC2,JC1,JC2,KC1,KC2,
+     $                    B,G,GMOL,RHO,UGRID,
+     $                    HILF   ,V,Y,DY,DDY,JJ,W,Z,DZ,DDZ,KK,'UT',
+     $                    NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB
+     $                    ,PRMOL,T,X,DX,DDX,II
+     $                    )     
+C           CALL BF1ALL  (KK,JJ,II,KMX,JMX,IMX,DDX,DDY,DDZ,DX,DY,DZ,
+C    $                    X,Y,Z,HILF   ,IB1,IB2,JB1,JB2,KB,'UT    ')
+            CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,HILF   ,AUFTFM ,
+     $                    XHOMOG,YHOMOG,ZHOMOG)
+         ENDIF
+      ENDIF
+      IF(ISELEP(1,532) .GE. 1) THEN
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SUFTFM )
+      ENDIF
+C
+C                                 V - T
+C                                 -----
+C
+      IF(ISELEP(1,551) .GE. 1) THEN
+         IF(ISAMPA(551) .EQ. 0  ) THEN
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,AVFTFG )
+            CALL TAUFG   (KK,JJ,II,KMX,JMX,IMX,GMOL,RHO,
+     $                    HILF   ,VFG    ,TFG    ,'VT',
+     $                    NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB)
+C           CALL BF1ALL  (KK,JJ,II,KMX,JMX,IMX,DDX,DDY,DDZ,DX,DY,DZ,
+C    $                    X,Y,Z,HILF   ,IB1,IB2,JB1,JB2,KB,'VT    ')
+            CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,HILF   ,AVFTFG ,
+     $                    XHOMOG,YHOMOG,ZHOMOG)
+         ENDIF
+      ENDIF
+      IF(ISELEP(1,552) .GE. 1) THEN
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SVFTFG )
+      ENDIF
+      IF(ISELEP(1,554) .GE. 1) THEN
+         IF(ISAMPA(554) .EQ. 0  ) THEN
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,AVFTFS )
+            CALL TAUFS   (KK,JJ,II,KMX,JMX,IMX,IB1,IB2,JB1,JB2,KB,
+     $                    G,GMOL,RHO,UGRID,
+     $                    HILF   ,V,Y,DY,DDY,JJ,T,Z,DZ,DDZ,KK,'VT'
+     $                    ,PRTURB
+     $                    )     
+C           CALL BF1ALL  (KK,JJ,II,KMX,JMX,IMX,DDX,DDY,DDZ,DX,DY,DZ,
+C    $                    X,Y,Z,HILF   ,IB1,IB2,JB1,JB2,KB,'VT    ')
+            CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,HILF   ,AVFTFS ,
+     $                    XHOMOG,YHOMOG,ZHOMOG)
+         ENDIF
+      ENDIF
+      IF(ISELEP(1,555) .GE. 1) THEN
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SVFTFS )
+      ENDIF
+      IF(ISELEP(1,556) .GE. 1) THEN
+         IF(ISAMPA(556) .EQ. 0  ) THEN
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,AVFTFM )
+            CALL DPHI0   (KK ,JJ ,II ,KMX ,JMX ,IMX ,HILF   )
+            CALL TAUFM   (KK,JJ,II,KMX,JMX,IMX,IC1,IC2,JC1,JC2,KC1,KC2,
+     $                    B,G,GMOL,RHO,UGRID,
+     $                    HILF   ,U,X,DX,DDX,II,W,Z,DZ,DDZ,KK,'VT',
+     $                    NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB
+     $                    ,PRMOL,T,Y,DY,DDY,JJ
+     $                    )      
+C           CALL BF1ALL  (KK,JJ,II,KMX,JMX,IMX,DDX,DDY,DDZ,DX,DY,DZ,
+C    $                    X,Y,Z,HILF   ,IB1,IB2,JB1,JB2,KB,'VT    ')
+            CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,HILF   ,AVFTFM ,
+     $                    XHOMOG,YHOMOG,ZHOMOG)
+         ENDIF
+      ENDIF
+      IF(ISELEP(1,557) .GE. 1) THEN
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SVFTFM )
+      ENDIF
+C
+C                                 W - T
+C                                 -----
+C
+      IF(ISELEP(1,576) .GE. 1) THEN
+         IF(ISAMPA(576) .EQ. 0  ) THEN
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,AWFTFG )
+            CALL TAUFG   (KK,JJ,II,KMX,JMX,IMX,GMOL,RHO,
+     $                    HILF   ,WFG    ,TFG    ,'WT',
+     $                    NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB)
+C           CALL BF1ALL  (KK,JJ,II,KMX,JMX,IMX,DDX,DDY,DDZ,DX,DY,DZ,
+C    $                    X,Y,Z,HILF   ,IB1,IB2,JB1,JB2,KB,'WT    ')
+            CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,HILF   ,AWFTFG ,
+     $                    XHOMOG,YHOMOG,ZHOMOG)
+         ENDIF
+      ENDIF
+      IF(ISELEP(1,577) .GE. 1) THEN
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SWFTFG )
+      ENDIF
+      IF(ISELEP(1,579) .GE. 1) THEN
+         IF(ISAMPA(579) .EQ. 0  ) THEN
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,AWFTFS )
+            CALL TAUFS   (KK,JJ,II,KMX,JMX,IMX,IB1,IB2,JB1,JB2,KB,
+     $                    G,GMOL,RHO,UGRID,
+     $                    HILF   ,W,Z,DZ,DDZ,KK,T,Y,DY,DDY,JJ,'WT'
+     $                    ,PRTURB
+     $                    )     
+C           CALL BF1ALL  (KK,JJ,II,KMX,JMX,IMX,DDX,DDY,DDZ,DX,DY,DZ,
+C    $                    X,Y,Z,HILF   ,IB1,IB2,JB1,JB2,KB,'WT    ')
+            CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,HILF   ,AWFTFS ,
+     $                    XHOMOG,YHOMOG,ZHOMOG)
+         ENDIF
+      ENDIF
+      IF(ISELEP(1,580) .GE. 1) THEN
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SWFTFS )
+      ENDIF
+      IF(ISELEP(1,580) .GE. 1) THEN
+         IF(ISAMPA(580) .EQ. 0  ) THEN
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,AWFTFM )
+            CALL DPHI0   (KK ,JJ ,II ,KMX ,JMX ,IMX ,HILF   )
+            CALL TAUFM   (KK,JJ,II,KMX,JMX,IMX,IC1,IC2,JC1,JC2,KC1,KC2,
+     $                    B,G,GMOL,RHO,UGRID,
+     $                    HILF   ,U,X,DX,DDX,II,V,Y,DY,DDY,JJ,'WT',
+     $                    NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB
+     $                    ,PRMOL,T,Z,DZ,DDZ,KK
+     $                    )      
+            CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,HILF   ,AWFTFM ,
+     $                    XHOMOG,YHOMOG,ZHOMOG)
+         ENDIF
+      ENDIF
+      IF(ISELEP(1,582) .GE. 1) THEN
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SWFTFM )
+      ENDIF
+C
+#endif
+
+C
+C
+C                                "NEUE" Statistik
+C                                 ---------------
+C
+
+#if defined _STAT11_
+
+      IF (ISELEP(1,400) .GE. 1) THEN
+         IF(ISAMPA(  400) .EQ. 0  ) THEN
+
+         CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,AUUM   )
+         CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SUUM   )
+         CALL PHIMLT2 (KK,JJ,II,KMX,JMX,IMX,
+     $                 HILF3D1,'XX',U,U,
+     $                 NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB)
+
+         CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,HILF3D1,AUUM,
+     $                    XHOMOG,YHOMOG,ZHOMOG)
+
+         ENDIF
+      ENDIF
+
+
+      IF (ISELEP(1,401) .GE. 1) THEN
+         IF(ISAMPA(  401) .EQ. 0  ) THEN
+
+         CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,AVVM   )
+         CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SVVM   )
+         CALL PHIMLT2 (KK,JJ,II,KMX,JMX,IMX,
+     $                 HILF3D1,'XX',V,V,
+     $                 NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB)
+         CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,HILF3D1,AVVM,
+     $                    XHOMOG,YHOMOG,ZHOMOG)
+         ENDIF
+      ENDIF
+
+      IF (ISELEP(1,402) .GE. 1) THEN
+         IF(ISAMPA(  402) .EQ. 0  ) THEN
+c
+         CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,AWWM   )
+         CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SWWM   )
+         CALL PHIMLT2 (KK,JJ,II,KMX,JMX,IMX,
+     $                 HILF3D1,'XX',W,W,
+     $                 NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB)
+         CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,HILF3D1,AWWM,
+     $                    XHOMOG,YHOMOG,ZHOMOG)
+         ENDIF
+      ENDIF
+
+      IF (ISELEP(1,406) .GE. 1) THEN
+         IF(ISAMPA(  406) .EQ. 0  ) THEN
+
+         CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,APPM   )
+         CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SPPM   )
+         CALL PHIMLT2 (KK,JJ,II,KMX,JMX,IMX,
+     $                 HILF3D1,'XX',P,P,
+     $                 NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB)
+
+         CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,HILF3D1,APPM,
+     $                    XHOMOG,YHOMOG,ZHOMOG)
+
+         ENDIF
+      ENDIF
+
+#endif
+
+#if defined _STAT12_
+
+      IF (ISELEP(1,403) .GE. 1) THEN
+         IF(ISAMPA(  403) .EQ. 0  ) THEN
+
+         CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,AUVM   )
+         CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SUVM   )
+         CALL PHIMLT2 (KK,JJ,II,KMX,JMX,IMX,
+     $                 HILF3D1,'UV',U,V,
+     $                 NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB)
+         CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,HILF3D1,AUVM,
+     $                    XHOMOG,YHOMOG,ZHOMOG)
+         ENDIF
+      ENDIF
+
+      IF (ISELEP(1,404) .GE. 1) THEN
+         IF(ISAMPA(  404) .EQ. 0  ) THEN
+
+         CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,AUWM   )
+         CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SUWM   )
+         CALL PHIMLT2 (KK,JJ,II,KMX,JMX,IMX,
+     $                 HILF3D1,'UW',U,W,
+     $                 NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB)
+         CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,HILF3D1,AUWM,
+     $                    XHOMOG,YHOMOG,ZHOMOG)
+         ENDIF
+      ENDIF
+
+      IF (ISELEP(1,405) .GE. 1) THEN
+         IF(ISAMPA(  405) .EQ. 0  ) THEN
+
+         CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,AVWM   )
+         CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SVWM   )
+         CALL PHIMLT2 (KK,JJ,II,KMX,JMX,IMX,
+     $                 HILF3D1,'VW',V,W,
+     $                 NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB)
+         CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,HILF3D1,AVWM,
+     $                    XHOMOG,YHOMOG,ZHOMOG)
+         ENDIF
+      ENDIF
+
+#endif
+
+#if defined _STAT13_
+
+C     QUADRATE DER ABLEITUNGEN VON U
+
+      IF (ISELEP(1,430) .GE. 1) THEN
+         IF(ISAMPA(  430) .EQ. 0  ) THEN
+
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,AUXUXM )
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SUXUXM )
+
+            CALL DFDX  (KK,JJ,II,RDX,RDY,RDZ,RDDX,RDDY,RDDZ,
+     $           'DDX',U,HILF3D1)
+
+            CALL PHIMLT2 (KK,JJ,II,KMX,JMX,IMX,
+     $           HILF3D2,'XX',HILF3D1,HILF3D1,
+     $           NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB)
+            CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $           KMXA,JMXA,IMXA,HILF3D2,AUXUXM,
+     $           XHOMOG,YHOMOG,ZHOMOG)
+         ENDIF
+      ENDIF
+
+      IF (ISELEP(1,431) .GE. 1) THEN
+         IF(ISAMPA(  431) .EQ. 0  ) THEN
+
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,AUYUYM )
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SUYUYM )
+
+            CALL DFDX  (KK,JJ,II,RDX,RDY,RDZ,RDDX,RDDY,RDDZ,
+     $           'DYS',U,HILF3D1)
+            CALL PHIMLT2 (KK,JJ,II,KMX,JMX,IMX,
+     $           HILF3D2,'XX',HILF3D1,HILF3D1,
+     $           NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB)
+            CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $           KMXA,JMXA,IMXA,HILF3D2,AUYUYM,
+     $           XHOMOG,YHOMOG,ZHOMOG)
+         ENDIF
+      ENDIF
+
+      IF (ISELEP(1,432) .GE. 1) THEN
+         IF(ISAMPA(  432) .EQ. 0  ) THEN
+
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,AUZUZM )
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SUZUZM )
+
+            CALL DFDX  (KK,JJ,II,RDX,RDY,RDZ,RDDX,RDDY,RDDZ,
+     $           'DZS',U,HILF3D1)
+            CALL PHIMLT2 (KK,JJ,II,KMX,JMX,IMX,
+     $           HILF3D2,'XX',HILF3D1,HILF3D1,
+     $           NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB)
+            CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $           KMXA,JMXA,IMXA,HILF3D2,AUZUZM,
+     $           XHOMOG,YHOMOG,ZHOMOG)
+         ENDIF
+      ENDIF
+
+C     QUADRATE DER ABLEITUNGEN VON V
+
+      IF (ISELEP(1,433) .GE. 1) THEN
+         IF(ISAMPA(  433) .EQ. 0  ) THEN
+
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,AVXVXM )
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SVXVXM )
+            CALL DFDX  (KK,JJ,II,RDX,RDY,RDZ,RDDX,RDDY,RDDZ,
+     $           'DXS',V,HILF3D1)
+            CALL PHIMLT2 (KK,JJ,II,KMX,JMX,IMX,
+     $           HILF3D2,'XX',HILF3D1,HILF3D1,
+     $           NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB)
+            CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $           KMXA,JMXA,IMXA,HILF3D2,AVXVXM,
+     $           XHOMOG,YHOMOG,ZHOMOG)
+         ENDIF
+      ENDIF
+
+      IF (ISELEP(1,434) .GE. 1) THEN
+         IF(ISAMPA(  434) .EQ. 0  ) THEN
+
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,AVYVYM )
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SVYVYM )
+
+            CALL DFDX  (KK,JJ,II,RDX,RDY,RDZ,RDDX,RDDY,RDDZ,
+     $           'DDY',V,HILF3D1)
+
+            CALL PHIMLT2 (KK,JJ,II,KMX,JMX,IMX,
+     $           HILF3D2,'XX',HILF3D1,HILF3D1,
+     $           NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB)
+
+            CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $           KMXA,JMXA,IMXA,HILF3D2,AVYVYM,
+     $           XHOMOG,YHOMOG,ZHOMOG)
+         ENDIF
+      ENDIF
+
+      IF (ISELEP(1,435) .GE. 1) THEN
+         IF(ISAMPA(  435) .EQ. 0  ) THEN
+
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,AVZVZM )
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SVZVZM )
+
+            CALL DFDX  (KK,JJ,II,RDX,RDY,RDZ,RDDX,RDDY,RDDZ,
+     $           'DZS',V,HILF3D1)
+
+            CALL PHIMLT2 (KK,JJ,II,KMX,JMX,IMX,
+     $           HILF3D2,'XX',HILF3D1,HILF3D1,
+     $           NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB)
+            CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $           KMXA,JMXA,IMXA,HILF3D2,AVZVZM,
+     $           XHOMOG,YHOMOG,ZHOMOG)
+         ENDIF
+      ENDIF
+
+C     QUADRATE DER ABLEITUNGEN VON W
+
+      IF (ISELEP(1,436) .GE. 1) THEN
+         IF(ISAMPA(  436) .EQ. 0  ) THEN
+
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,AWXWXM )
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SWXWXM )
+
+            CALL DFDX  (KK,JJ,II,RDX,RDY,RDZ,RDDX,RDDY,RDDZ,
+     $           'DXS',W,HILF3D1)
+
+            CALL PHIMLT2 (KK,JJ,II,KMX,JMX,IMX,
+     $           HILF3D2,'XX',HILF3D1,HILF3D1,
+     $           NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB)
+
+            CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $           KMXA,JMXA,IMXA,HILF3D2,AWXWXM,
+     $           XHOMOG,YHOMOG,ZHOMOG)
+         ENDIF
+      ENDIF
+
+      IF (ISELEP(1,437) .GE. 1) THEN
+         IF(ISAMPA(  437) .EQ. 0  ) THEN
+
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,AWYWYM )
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SWYWYM )
+
+            CALL DFDX  (KK,JJ,II,RDX,RDY,RDZ,RDDX,RDDY,RDDZ,
+     $           'DYS',W,HILF3D1)
+
+            CALL PHIMLT2 (KK,JJ,II,KMX,JMX,IMX,
+     $           HILF3D2,'XX',HILF3D1,HILF3D1,
+     $           NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB)
+            CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $           KMXA,JMXA,IMXA,HILF3D2,AWYWYM,
+     $           XHOMOG,YHOMOG,ZHOMOG)
+         ENDIF
+      ENDIF
+
+      IF (ISELEP(1,438) .GE. 1) THEN
+         IF(ISAMPA(  438) .EQ. 0  ) THEN
+
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,AWZWZM )
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SWZWZM )
+
+            CALL DFDX  (KK,JJ,II,RDX,RDY,RDZ,RDDX,RDDY,RDDZ,
+     $           'DDZ',W,HILF3D1)
+
+            CALL PHIMLT2 (KK,JJ,II,KMX,JMX,IMX,
+     $           HILF3D2,'XX',HILF3D1,HILF3D1,
+     $           NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB)
+            CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $           KMXA,JMXA,IMXA,HILF3D2,AWZWZM,
+     $           XHOMOG,YHOMOG,ZHOMOG)
+         ENDIF
+      ENDIF
+
+#endif
+
+#if defined _STAT14_
+
+      IF (ISELEP(1,410) .GE. 1) THEN
+         IF(ISAMPA(  410) .EQ. 0  ) THEN
+
+         CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,AUUUM  )
+         CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SUUUM  )
+         CALL PHIMLT3 (KK,JJ,II,KMX,JMX,IMX,
+     $                 HILF3D1,'XXX',U,U,U,
+     $                 NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB)
+
+         CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,HILF3D1,AUUUM,
+     $                    XHOMOG,YHOMOG,ZHOMOG)
+
+         ENDIF
+      ENDIF
+
+      IF (ISELEP(1,411) .GE. 1) THEN
+         IF(ISAMPA(  411) .EQ. 0  ) THEN
+
+         CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,AVVVM  )
+         CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SVVVM  )
+         CALL PHIMLT3 (KK,JJ,II,KMX,JMX,IMX,
+     $                 HILF3D1,'XXX',V,V,V,
+     $                 NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB)
+
+         CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,HILF3D1,AVVVM,
+     $                    XHOMOG,YHOMOG,ZHOMOG)
+         ENDIF
+      ENDIF
+
+      IF (ISELEP(1,412) .GE. 1) THEN
+         IF(ISAMPA(  412) .EQ. 0  ) THEN
+
+         CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,AWWWM  )
+         CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SWWWM  )
+         CALL PHIMLT3 (KK,JJ,II,KMX,JMX,IMX,
+     $                 HILF3D1,'XXX',W,W,W,
+     $                 NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB)
+
+         CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,HILF3D1,AWWWM,
+     $                    XHOMOG,YHOMOG,ZHOMOG)
+
+         ENDIF
+      ENDIF
+
+      IF (ISELEP(1,413) .GE. 1) THEN
+         IF(ISAMPA(  413) .EQ. 0  ) THEN
+
+         CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,AUUVM  )
+         CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SUUVM  )
+         CALL PHIMLT3 (KK,JJ,II,KMX,JMX,IMX,
+     $                 HILF3D1,'UUV',U,U,V,
+     $                 NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB)
+
+         CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,HILF3D1,AUUVM,
+     $                    XHOMOG,YHOMOG,ZHOMOG)
+
+         ENDIF
+      ENDIF
+
+      IF (ISELEP(1,414) .GE. 1) THEN
+         IF(ISAMPA(  414) .EQ. 0  ) THEN
+
+         CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,AUUWM  )
+         CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SUUWM  )
+         CALL PHIMLT3 (KK,JJ,II,KMX,JMX,IMX,
+     $                 HILF3D1,'UUW',U,U,W,
+     $                 NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB)
+
+         CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,HILF3D1,AUUWM,
+     $                    XHOMOG,YHOMOG,ZHOMOG)
+
+         ENDIF
+      ENDIF
+
+      IF (ISELEP(1,415) .GE. 1) THEN
+         IF(ISAMPA(  415) .EQ. 0  ) THEN
+
+         CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,AVVUM  )
+         CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SVVUM  )
+         CALL PHIMLT3 (KK,JJ,II,KMX,JMX,IMX,
+     $                 HILF3D1,'VVU',V,V,U,
+     $                 NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB)
+
+         CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,HILF3D1,AVVUM,
+     $                    XHOMOG,YHOMOG,ZHOMOG)
+
+         ENDIF
+      ENDIF
+
+      IF (ISELEP(1,416) .GE. 1) THEN
+         IF(ISAMPA(  416) .EQ. 0  ) THEN
+
+         CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,AVVWM  )
+         CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SVVWM  )
+         CALL PHIMLT3 (KK,JJ,II,KMX,JMX,IMX,
+     $                 HILF3D1,'VVW',V,V,W,
+     $                 NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB)
+
+         CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,HILF3D1,AVVWM,
+     $                    XHOMOG,YHOMOG,ZHOMOG)
+
+         ENDIF
+      ENDIF
+
+      IF (ISELEP(1,417) .GE. 1) THEN
+         IF(ISAMPA(  417) .EQ. 0  ) THEN
+
+         CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,AWWUM  )
+         CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SWWUM  )
+         CALL PHIMLT3 (KK,JJ,II,KMX,JMX,IMX,
+     $                 HILF3D1,'WWU',W,W,U,
+     $                 NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB)
+
+         CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,HILF3D1,AWWUM,
+     $                    XHOMOG,YHOMOG,ZHOMOG)
+
+         ENDIF
+      ENDIF
+
+      IF (ISELEP(1,418) .GE. 1) THEN
+         IF(ISAMPA(  418) .EQ. 0  ) THEN
+
+         CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,AWWVM  )
+         CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SWWVM  )
+         CALL PHIMLT3 (KK,JJ,II,KMX,JMX,IMX,
+     $                 HILF3D1,'WWV',W,W,V,
+     $                 NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB)
+
+         CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,HILF3D1,AWWVM,
+     $                    XHOMOG,YHOMOG,ZHOMOG)
+
+         ENDIF
+      ENDIF
+
+      IF (ISELEP(1,419) .GE. 1) THEN
+         IF(ISAMPA(  419) .EQ. 0  ) THEN
+
+         CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,AUVWM  )
+         CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SUVWM  )
+         CALL PHIMLT3 (KK,JJ,II,KMX,JMX,IMX,
+     $                 HILF3D1,'UVW',U,V,W,
+     $                 NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB)
+
+         CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,HILF3D1,AUVWM,
+     $                    XHOMOG,YHOMOG,ZHOMOG)
+
+         ENDIF
+      ENDIF
+
+c     ***** Geschwindigkeits-Druck-Terme *****
+
+      IF (ISELEP(1,420) .GE. 1) THEN
+         IF(ISAMPA(  420) .EQ. 0  ) THEN
+
+         CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,AUPM  )
+         CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SUPM  )
+         CALL DPHI0   (KK,JJ,II,KMX,JMX,IMX,HILF3D1)
+         CALL DPHI0   (KK,JJ,II,KMX,JMX,IMX,HILF3D2)
+         CALL INTERPOLPHI (KK,JJ,II,DX,DY,DZ,RDDX,RDDY,RDDZ,
+     $                    'X',U,HILF3D1)
+         CALL PHIMLT2 (KK,JJ,II,KMX,JMX,IMX,
+     $                 HILF3D2,'XXX',HILF3D1,P,
+     $                 NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB)
+
+         CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,HILF3D2,AUPM,
+     $                    XHOMOG,YHOMOG,ZHOMOG)
+
+         ENDIF
+      ENDIF
+
+      IF (ISELEP(1,421) .GE. 1) THEN
+         IF(ISAMPA(  421) .EQ. 0  ) THEN
+
+         CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,AVPM  )
+         CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SVPM  )
+         CALL DPHI0   (KK,JJ,II,KMX,JMX,IMX,HILF3D1)
+         CALL DPHI0   (KK,JJ,II,KMX,JMX,IMX,HILF3D2)
+         CALL INTERPOLPHI (KK,JJ,II,DX,DY,DZ,RDDX,RDDY,RDDZ,
+     $                    'Y',V,HILF3D1)
+         CALL PHIMLT2 (KK,JJ,II,KMX,JMX,IMX,
+     $                 HILF3D2,'XXX',HILF3D1,P,
+     $                 NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB)
+         CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,HILF3D2,AVPM,
+     $                    XHOMOG,YHOMOG,ZHOMOG)
+         ENDIF
+      ENDIF
+
+      IF (ISELEP(1,422) .GE. 1) THEN
+         IF(ISAMPA(  422) .EQ. 0  ) THEN
+
+         CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,AWPM  )
+         CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SWPM  )
+         CALL DPHI0   (KK,JJ,II,KMX,JMX,IMX,HILF3D1)
+         CALL DPHI0   (KK,JJ,II,KMX,JMX,IMX,HILF3D2)
+         CALL INTERPOLPHI (KK,JJ,II,DX,DY,DZ,RDDX,RDDY,RDDZ,
+     $                    'Z',W,HILF3D1)
+         CALL PHIMLT2 (KK,JJ,II,KMX,JMX,IMX,
+     $                 HILF3D2,'XXX',HILF3D1,P,
+     $                 NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB)
+
+         CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,HILF3D2,AWPM,
+     $                    XHOMOG,YHOMOG,ZHOMOG)
+
+         ENDIF
+      ENDIF
+
+c     ***** Druck-Scher-Korrelationen *****
+
+      IF (ISELEP(1,423) .GE. 1) THEN
+         IF(ISAMPA(  423) .EQ. 0  ) THEN
+
+         CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,AUXPM)
+         CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SUXPM)
+         CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,HILF3D1)
+         CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,HILF3D2)
+
+         CALL DFDX    (KK,JJ,II,RDX,RDY,RDZ,RDDX,RDDY,RDDZ,
+     $                'DDX',U,HILF3D1)
+
+         CALL PHIMLT2 (KK,JJ,II,KMX,JMX,IMX,
+     $                 HILF3D2,'XXX',HILF3D1,P,
+     $                 NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB)
+
+         CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,HILF3D2,AUXPM,
+     $                    XHOMOG,YHOMOG,ZHOMOG)
+
+         ENDIF
+      ENDIF
+
+      IF (ISELEP(1,424) .GE. 1) THEN
+         IF(ISAMPA(  424) .EQ. 0  ) THEN
+
+         CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,AVYPM)
+         CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SVYPM)
+         CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,HILF3D1)
+         CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,HILF3D2)
+
+         CALL DFDX    (KK,JJ,II,RDX,RDY,RDZ,RDDX,RDDY,RDDZ,
+     $                'DDY',V,HILF3D1)
+
+
+         CALL PHIMLT2 (KK,JJ,II,KMX,JMX,IMX,
+     $                 HILF3D2,'XXX',HILF3D1,P,
+     $                 NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB)
+
+         CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,HILF3D2,AVYPM,
+     $                    XHOMOG,YHOMOG,ZHOMOG)
+
+         ENDIF
+      ENDIF
+
+      IF (ISELEP(1,425) .GE. 1) THEN
+         IF(ISAMPA(  425) .EQ. 0  ) THEN
+
+         CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,AWZPM)
+         CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SWZPM)
+         CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,HILF3D1)
+         CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,HILF3D2)
+
+         CALL DFDX    (KK,JJ,II,RDX,RDY,RDZ,RDDX,RDDY,RDDZ,
+     $                'DDZ',W,HILF3D1)
+
+
+         CALL PHIMLT2 (KK,JJ,II,KMX,JMX,IMX,
+     $                 HILF3D2,'XXX',HILF3D1,P,
+     $                 NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB)
+
+         CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,HILF3D2,AWZPM,
+     $                    XHOMOG,YHOMOG,ZHOMOG)
+
+         ENDIF
+      ENDIF
+
+      IF (ISELEP(1,426) .GE. 1) THEN
+         IF(ISAMPA(  426) .EQ. 0  ) THEN
+         CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,AUYVXP)
+         CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SUYVXP)
+         CALL DPHI0   (KK,JJ,II,KMX,JMX,IMX,HILF3D1)
+         CALL DPHI0   (KK,JJ,II,KMX,JMX,IMX,HILF3D2)
+         CALL DPHI0   (KK,JJ,II,KMX,JMX,IMX,HILF3D3)
+         CALL DFDX    (KK,JJ,II,RDX,RDY,RDZ,RDDX,RDDY,RDDZ,
+     $                'DYS',U,HILF3D1)
+         CALL DFDX    (KK,JJ,II,RDX,RDY,RDZ,RDDX,RDDY,RDDZ,
+     $                'DXS',V,HILF3D2)
+         CALL PHIADD  (KK,JJ,II,
+     $                 HILF3D1,HILF3D2,HILF3D3,0.,1.,1.)
+
+         CALL DPHI0   (KKA,JJA,IIA,KMX,JMX,IMX,HILF3D1)
+         CALL DPHI0   (KKA,JJA,IIA,KMX,JMX,IMX,HILF3D2)
+         CALL INTERPOLATEP (KK,JJ,II,'XY',HILF3D2,P)
+         CALL PHIMLT2 (KK,JJ,II,KMX,JMX,IMX,
+     $                 HILF3D1,'XXX',HILF3D2,HILF3D3,
+     $                 NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB)
+         CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,HILF3D1,AUYVXP,
+     $                    XHOMOG,YHOMOG,ZHOMOG)
+         ENDIF
+      ENDIF
+
+      IF (ISELEP(1,427) .GE. 1) THEN
+         IF(ISAMPA(  427) .EQ. 0  ) THEN
+         CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,AUZWXP)
+         CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SUZWXP)
+         CALL DPHI0   (KK,JJ,II,KMX,JMX,IMX,HILF3D1)
+         CALL DPHI0   (KK,JJ,II,KMX,JMX,IMX,HILF3D2)
+         CALL DPHI0   (KK,JJ,II,KMX,JMX,IMX,HILF3D3)
+         CALL DFDX    (KK,JJ,II,RDX,RDY,RDZ,RDDX,RDDY,RDDZ,
+     $                'DZS',U,HILF3D1)
+         CALL DFDX    (KK,JJ,II,RDX,RDY,RDZ,RDDX,RDDY,RDDZ,
+     $                'DXS',W,HILF3D2)
+         CALL PHIADD  (KK,JJ,II,
+     $                 HILF3D1,HILF3D2,HILF3D3,0.,1.,1.)
+         CALL DPHI0   (KKA,JJA,IIA,KMX,JMX,IMX,HILF3D1)
+         CALL DPHI0   (KKA,JJA,IIA,KMX,JMX,IMX,HILF3D2)
+         CALL INTERPOLATEP (KK,JJ,II,'XZ',HILF3D2,P)
+         CALL PHIMLT2 (KK,JJ,II,KMX,JMX,IMX,
+     $                 HILF3D1,'XXX',HILF3D2,HILF3D3,
+     $                 NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB)
+         CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,HILF3D1,AUZWXP,
+     $                    XHOMOG,YHOMOG,ZHOMOG)
+         ENDIF
+      ENDIF
+
+      IF (ISELEP(1,428) .GE. 1) THEN
+         IF(ISAMPA(  428) .EQ. 0  ) THEN
+         CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,AVZWYP)
+         CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SVZWYP)
+         CALL DPHI0   (KK,JJ,II,KMX,JMX,IMX,HILF3D1)
+         CALL DPHI0   (KK,JJ,II,KMX,JMX,IMX,HILF3D2)
+         CALL DPHI0   (KK,JJ,II,KMX,JMX,IMX,HILF3D3)
+         CALL DFDX    (KK,JJ,II,RDX,RDY,RDZ,RDDX,RDDY,RDDZ,
+     $                'DZS',V,HILF3D1)
+         CALL DFDX    (KK,JJ,II,RDX,RDY,RDZ,RDDX,RDDY,RDDZ,
+     $                'DYS',W,HILF3D2)
+         CALL PHIADD  (KK,JJ,II,
+     $                 HILF3D1,HILF3D2,HILF3D3,0.,1.,1.)
+         CALL DPHI0   (KKA,JJA,IIA,KMX,JMX,IMX,HILF3D1)
+         CALL DPHI0   (KKA,JJA,IIA,KMX,JMX,IMX,HILF3D2)
+         CALL INTERPOLATEP (KK,JJ,II,'YZ',HILF3D2,P)
+         CALL PHIMLT2 (KK,JJ,II,KMX,JMX,IMX,
+     $                 HILF3D1,'XXX',HILF3D2,HILF3D3,
+     $                 NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB)
+         CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,HILF3D1,AVZWYP,
+     $                    XHOMOG,YHOMOG,ZHOMOG)
+         ENDIF
+      ENDIF
+
+c     ***** Scher-Scher-Korrelationen *****
+
+      IF (ISELEP(1,440) .GE. 1) THEN
+         IF(ISAMPA(  440) .EQ. 0  ) THEN
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,AUXVXM)
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SUXVXM)
+
+            CALL DPHI0   (KK,JJ,II,KMX,JMX,IMX,HILF3D1)
+            CALL DPHI0   (KK,JJ,II,KMX,JMX,IMX,HILF3D2)
+            CALL DPHI0   (KK,JJ,II,KMX,JMX,IMX,HILF3D3)
+
+            CALL DFDX    (KK,JJ,II,RDX,RDY,RDZ,RDDX,RDDY,RDDZ,
+     $                    'DDX',U,HILF3D1)
+            CALL DFDX    (KK,JJ,II,RDX,RDY,RDZ,RDDX,RDDY,RDDZ,
+     $                    'DXS',V,HILF3D2)
+         CALL PHIMLT2 (KK,JJ,II,KMX,JMX,IMX,
+     $                 HILF3D3,'XXX',HILF3D1,HILF3D2,
+     $                 NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB)
+         CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,HILF3D3,AUXVXM,
+     $                    XHOMOG,YHOMOG,ZHOMOG)
+         ENDIF
+      ENDIF
+
+      IF (ISELEP(1,441) .GE. 1) THEN
+         IF(ISAMPA(  441) .EQ. 0  ) THEN
+
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,AUYVYM)
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SUYVYM)
+            CALL DPHI0   (KK,JJ,II,KMX,JMX,IMX,HILF3D1)
+            CALL DPHI0   (KK,JJ,II,KMX,JMX,IMX,HILF3D2)
+            CALL DPHI0   (KK,JJ,II,KMX,JMX,IMX,HILF3D3)
+
+            CALL DFDX    (KK,JJ,II,RDX,RDY,RDZ,RDDX,RDDY,RDDZ,
+     $                    'DYS',U,HILF3D1)
+            CALL DFDX    (KK,JJ,II,RDX,RDY,RDZ,RDDX,RDDY,RDDZ,
+     $                    'DDY',V,HILF3D2)
+
+         CALL PHIMLT2 (KK,JJ,II,KMX,JMX,IMX,
+     $                 HILF3D3,'XXX',HILF3D1,HILF3D2,
+     $                 NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB)
+         CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,HILF3D3,AUYVYM,
+     $                    XHOMOG,YHOMOG,ZHOMOG)
+         ENDIF
+      ENDIF
+
+      IF (ISELEP(1,442) .GE. 1) THEN
+         IF(ISAMPA(  442) .EQ. 0  ) THEN
+
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,AUZVZM)
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SUZVZM)
+
+            CALL DPHI0   (KK,JJ,II,KMX,JMX,IMX,HILF3D1)
+            CALL DPHI0   (KK,JJ,II,KMX,JMX,IMX,HILF3D2)
+            CALL DPHI0   (KK,JJ,II,KMX,JMX,IMX,HILF3D3)
+
+            CALL DFDX    (KK,JJ,II,RDX,RDY,RDZ,RDDX,RDDY,RDDZ,
+     $                   'DZS',U,HILF3D1)
+            CALL DFDX    (KK,JJ,II,RDX,RDY,RDZ,RDDX,RDDY,RDDZ,
+     $                    'DDZ',V,HILF3D2)
+
+         CALL PHIMLT2 (KK,JJ,II,KMX,JMX,IMX,
+     $                 HILF3D3,'XXX',HILF3D1,HILF3D2,
+     $                 NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB)
+         CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,HILF3D3,AUZVZM,
+     $                    XHOMOG,YHOMOG,ZHOMOG)
+         ENDIF
+      ENDIF
+
+      IF (ISELEP(1,443) .GE. 1) THEN
+         IF(ISAMPA(  443) .EQ. 0  ) THEN
+
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,AUXWXM)
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SUXWXM)
+
+            CALL DPHI0   (KK,JJ,II,KMX,JMX,IMX,HILF3D1)
+            CALL DPHI0   (KK,JJ,II,KMX,JMX,IMX,HILF3D2)
+            CALL DPHI0   (KK,JJ,II,KMX,JMX,IMX,HILF3D3)
+
+            CALL DFDX    (KK,JJ,II,RDX,RDY,RDZ,RDDX,RDDY,RDDZ,
+     $                    'DDX',U,HILF3D1)
+            CALL DFDX    (KK,JJ,II,RDX,RDY,RDZ,RDDX,RDDY,RDDZ,
+     $                    'DXS',W,HILF3D2)
+
+         CALL PHIMLT2 (KK,JJ,II,KMX,JMX,IMX,
+     $                 HILF3D3,'XXX',HILF3D1,HILF3D2,
+     $                 NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB)
+         CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,HILF3D3,AUXWXM,
+     $                    XHOMOG,YHOMOG,ZHOMOG)
+         ENDIF
+      ENDIF
+
+      IF (ISELEP(1,444) .GE. 1) THEN
+         IF(ISAMPA(  444) .EQ. 0  ) THEN
+
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,AUYWYM)
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SUYWYM)
+
+            CALL DPHI0   (KK,JJ,II,KMX,JMX,IMX,HILF3D1)
+            CALL DPHI0   (KK,JJ,II,KMX,JMX,IMX,HILF3D2)
+            CALL DPHI0   (KK,JJ,II,KMX,JMX,IMX,HILF3D3)
+
+            CALL DFDX    (KK,JJ,II,RDX,RDY,RDZ,RDDX,RDDY,RDDZ,
+     $                    'DYS',U,HILF3D1)
+            CALL DFDX    (KK,JJ,II,RDX,RDY,RDZ,RDDX,RDDY,RDDZ,
+     $                    'DDY',W,HILF3D2)
+
+         CALL PHIMLT2 (KK,JJ,II,KMX,JMX,IMX,
+     $                 HILF3D3,'XXX',HILF3D1,HILF3D2,
+     $                 NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB)
+         CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,HILF3D3,AUYWYM,
+     $                    XHOMOG,YHOMOG,ZHOMOG)
+         ENDIF
+      ENDIF
+
+      IF (ISELEP(1,445) .GE. 1) THEN
+         IF(ISAMPA(  445) .EQ. 0  ) THEN
+
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,AUZWZM)
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SUZWZM)
+
+            CALL DPHI0   (KK,JJ,II,KMX,JMX,IMX,HILF3D1)
+            CALL DPHI0   (KK,JJ,II,KMX,JMX,IMX,HILF3D2)
+            CALL DPHI0   (KK,JJ,II,KMX,JMX,IMX,HILF3D3)
+
+            CALL DFDX    (KK,JJ,II,RDX,RDY,RDZ,RDDX,RDDY,RDDZ,
+     $                    'DZS',U,HILF3D1)
+            CALL DFDX    (KK,JJ,II,RDX,RDY,RDZ,RDDX,RDDY,RDDZ,
+     $                    'DDZ',W,HILF3D2)
+
+         CALL PHIMLT2 (KK,JJ,II,KMX,JMX,IMX,
+     $                 HILF3D3,'XXX',HILF3D1,HILF3D2,
+     $                 NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB)
+         CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,HILF3D3,AUZWZM,
+     $                    XHOMOG,YHOMOG,ZHOMOG)
+         ENDIF
+      ENDIF
+
+      IF (ISELEP(1,446) .GE. 1) THEN
+         IF(ISAMPA(  446) .EQ. 0  ) THEN
+
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,AVXWXM)
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SVXWXM)
+
+            CALL DPHI0   (KK,JJ,II,KMX,JMX,IMX,HILF3D1)
+            CALL DPHI0   (KK,JJ,II,KMX,JMX,IMX,HILF3D2)
+            CALL DPHI0   (KK,JJ,II,KMX,JMX,IMX,HILF3D3)
+
+            CALL DFDX    (KK,JJ,II,RDX,RDY,RDZ,RDDX,RDDY,RDDZ,
+     $                    'DXS',V,HILF3D1)
+            CALL DFDX    (KK,JJ,II,RDX,RDY,RDZ,RDDX,RDDY,RDDZ,
+     $                    'DXS',W,HILF3D2)
+
+         CALL PHIMLT2 (KK,JJ,II,KMX,JMX,IMX,
+     $                 HILF3D3,'XXX',HILF3D1,HILF3D2,
+     $                 NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB)
+         CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,HILF3D3,AVXWXM,
+     $                    XHOMOG,YHOMOG,ZHOMOG)
+         ENDIF
+      ENDIF
+
+      IF (ISELEP(1,447) .GE. 1) THEN
+         IF(ISAMPA(  447) .EQ. 0  ) THEN
+
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,AVYWYM)
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SVYWYM)
+
+            CALL DPHI0   (KK,JJ,II,KMX,JMX,IMX,HILF3D1)
+            CALL DPHI0   (KK,JJ,II,KMX,JMX,IMX,HILF3D2)
+            CALL DPHI0   (KK,JJ,II,KMX,JMX,IMX,HILF3D3)
+
+            CALL DFDX    (KK,JJ,II,RDX,RDY,RDZ,RDDX,RDDY,RDDZ,
+     $                    'DDY',V,HILF3D1)
+            CALL DFDX    (KK,JJ,II,RDX,RDY,RDZ,RDDX,RDDY,RDDZ,
+     $                    'DYS',W,HILF3D2)
+
+         CALL PHIMLT2 (KK,JJ,II,KMX,JMX,IMX,
+     $                 HILF3D3,'XXX',HILF3D1,HILF3D2,
+     $                 NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB)
+         CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,HILF3D3,AVYWYM,
+     $                    XHOMOG,YHOMOG,ZHOMOG)
+         ENDIF
+      ENDIF
+
+      IF (ISELEP(1,448) .GE. 1) THEN
+         IF(ISAMPA(  448) .EQ. 0  ) THEN
+
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,AVZWZM)
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SVZWZM)
+
+            CALL DPHI0   (KK,JJ,II,KMX,JMX,IMX,HILF3D1)
+            CALL DPHI0   (KK,JJ,II,KMX,JMX,IMX,HILF3D2)
+            CALL DPHI0   (KK,JJ,II,KMX,JMX,IMX,HILF3D3)
+
+            CALL DFDX    (KK,JJ,II,RDX,RDY,RDZ,RDDX,RDDY,RDDZ,
+     $                    'DZS',V,HILF3D1)
+            CALL DFDX    (KK,JJ,II,RDX,RDY,RDZ,RDDX,RDDY,RDDZ,
+     $                    'DDZ',W,HILF3D2)
+
+         CALL PHIMLT2 (KK,JJ,II,KMX,JMX,IMX,
+     $                 HILF3D3,'XXX',HILF3D1,HILF3D2,
+     $                 NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB)
+         CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,HILF3D3,AVZWZM,
+     $                    XHOMOG,YHOMOG,ZHOMOG)
+         ENDIF
+      ENDIF
+
+#endif
+#if defined _STAT15_
+
+      IF (ISELEP(1,601) .GE. 1) THEN
+         IF(ISAMPA(  601) .EQ. 0  ) THEN
+
+         CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,AUTM  )
+         CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SUTM  )
+         CALL DPHI0   (KK,JJ,II,KMX,JMX,IMX,HILF3D1)
+         CALL DPHI0   (KK,JJ,II,KMX,JMX,IMX,HILF3D2)
+         CALL INTERPOLPHI (KK,JJ,II,DX,DY,DZ,RDDX,RDDY,RDDZ,
+     $                    'X',U,HILF3D1)
+         CALL PHIMLT2 (KK,JJ,II,KMX,JMX,IMX,
+     $                 HILF3D2,'XXX',HILF3D1,T,
+     $                 NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB)
+
+         CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,HILF3D2,AUTM,
+     $                    XHOMOG,YHOMOG,ZHOMOG)
+
+         ENDIF
+      ENDIF
+
+      IF (ISELEP(1,602) .GE. 1) THEN
+         IF(ISAMPA(  602) .EQ. 0  ) THEN
+
+         CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,AVTM  )
+         CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SVTM  )
+         CALL DPHI0   (KK,JJ,II,KMX,JMX,IMX,HILF3D1)
+         CALL DPHI0   (KK,JJ,II,KMX,JMX,IMX,HILF3D2)
+         CALL INTERPOLPHI (KK,JJ,II,DX,DY,DZ,RDDX,RDDY,RDDZ,
+     $                    'Y',V,HILF3D1)
+         CALL PHIMLT2 (KK,JJ,II,KMX,JMX,IMX,
+     $                 HILF3D2,'XXX',HILF3D1,T,
+     $                 NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB)
+
+         CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,HILF3D2,AVTM,
+     $                    XHOMOG,YHOMOG,ZHOMOG)
+
+         ENDIF
+      ENDIF
+
+      IF (ISELEP(1,603) .GE. 1) THEN
+         IF(ISAMPA(  603) .EQ. 0  ) THEN
+
+         CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,AWTM  )
+         CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SWTM  )
+         CALL DPHI0   (KK,JJ,II,KMX,JMX,IMX,HILF3D1)
+         CALL DPHI0   (KK,JJ,II,KMX,JMX,IMX,HILF3D2)
+         CALL INTERPOLPHI (KK,JJ,II,DX,DY,DZ,RDDX,RDDY,RDDZ,
+     $                    'Z',W,HILF3D1)
+         CALL PHIMLT2 (KK,JJ,II,KMX,JMX,IMX,
+     $                 HILF3D2,'XXX',HILF3D1,T,
+     $                 NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB)
+
+         CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,HILF3D2,AWTM,
+     $                    XHOMOG,YHOMOG,ZHOMOG)
+
+         ENDIF
+      ENDIF
+
+      IF (ISELEP(1,604) .GE. 1) THEN
+         IF(ISAMPA(  604) .EQ. 0  ) THEN
+
+         CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,ATTM   )
+         CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,STTM   )
+         CALL DPHI0   (KK,JJ,II,KMX,JMX,IMX,HILF3D1)
+         CALL PHIMLT2 (KK,JJ,II,KMX,JMX,IMX,
+     $                 HILF3D1,'XX',T,T,
+     $                 NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB)
+
+         CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,HILF3D1,ATTM,
+     $                    XHOMOG,YHOMOG,ZHOMOG)
+
+         ENDIF
+      ENDIF
+      IF (ISELEP(1,605) .GE. 1) THEN
+         IF(ISAMPA(  605) .EQ. 0  ) THEN
+
+         CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,ASSM   )
+         CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SSSM   )
+         CALL DPHI0   (KK,JJ,II,KMX,JMX,IMX,HILF3D1)
+         CALL DPHI0   (KK,JJ,II,KMX,JMX,IMX,HILF3D2)
+         CALL DISSIPG (KK,JJ,II,KMX,JMX,IMX,DDX,DDY,DDZ,
+     $        DX,DY,DZ,X,Y,Z,U,V,W,B,HILF3D1,DSUM,
+     $        NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB,0)
+         CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,HILF3D1,ASSM,
+     $                    XHOMOG,YHOMOG,ZHOMOG)
+
+         ENDIF
+      ENDIF
+C      IF (ISELEP(1,606) .GE. 1) THEN
+C         IF(ISAMPA(  606) .EQ. 0  ) THEN
+C
+C         CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,ASMSM   )
+C         CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SSMSM   )
+C         CALL DPHI0   (KK,JJ,II,KMX,JMX,IMX,HILF3D1)
+C         CALL DPHI0   (KK,JJ,II,KMX,JMX,IMX,HILF3D2)
+C         CALL SIJG (KK,JJ,II,KMX,JMX,IMX,DDX,DDY,DDZ,
+C     $        DX,DY,DZ,X,Y,Z,U,V,W,B,HILF3D1,DSUM,
+C     $        NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB,0)
+C         CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+C     $                    KMXA,JMXA,IMXA,HILF3D1,ASMSM,
+C     $                    XHOMOG,YHOMOG,ZHOMOG)
+C
+C         ENDIF
+C      ENDIF
+#endif
+
+#if defined _STAT17_
+
+      IF (ISELEP(1,607) .GE. 1) THEN
+         IF(ISAMPA(  607) .EQ. 0  ) THEN
+
+         CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,AUTTM  )
+         CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SUTTM  )
+         CALL DPHI0   (KK,JJ,II,KMX,JMX,IMX,HILF3D1)
+
+         CALL PHIMLT3 (KK,JJ,II,KMX,JMX,IMX,
+     $                 HILF3D1,'UTT',U,T,T,
+     $                 NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB)
+
+         CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,HILF3D1,AUTTM,
+     $                    XHOMOG,YHOMOG,ZHOMOG)
+
+         ENDIF
+      ENDIF
+      IF (ISELEP(1,608) .GE. 1) THEN
+         IF(ISAMPA(  608) .EQ. 0  ) THEN
+
+         CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,AVTTM  )
+         CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SVTTM  )
+         CALL DPHI0   (KK,JJ,II,KMX,JMX,IMX,HILF3D1)
+
+         CALL PHIMLT3 (KK,JJ,II,KMX,JMX,IMX,
+     $                 HILF3D1,'VTT',V,T,T,
+     $                 NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB)
+
+         CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,HILF3D1,AVTTM,
+     $                    XHOMOG,YHOMOG,ZHOMOG)
+
+         ENDIF
+      ENDIF
+      IF (ISELEP(1,609) .GE. 1) THEN
+         IF(ISAMPA(  609) .EQ. 0  ) THEN
+
+         CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,AWTTM  )
+         CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SWTTM  )
+         CALL DPHI0   (KK,JJ,II,KMX,JMX,IMX,HILF3D1)
+
+         CALL PHIMLT3 (KK,JJ,II,KMX,JMX,IMX,
+     $                 HILF3D1,'WTT',W,T,T,
+     $                 NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB)
+
+         CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,HILF3D1,AWTTM,
+     $                    XHOMOG,YHOMOG,ZHOMOG)
+
+         ENDIF
+      ENDIF
+
+      IF (ISELEP(1,610) .GE. 1) THEN
+         IF(ISAMPA(  610) .EQ. 0  ) THEN
+
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,ATXTXM )
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,STXTXM )
+            CALL DPHI0   (KK,JJ,II,KMX,JMX,IMX,HILF3D1 )
+            CALL DPHI0   (KK,JJ,II,KMX,JMX,IMX,HILF3D2 )
+
+            CALL DFDX  (KK,JJ,II,RDX,RDY,RDZ,RDDX,RDDY,RDDZ,
+     $           'DXT',T,HILF3D1)
+
+            CALL PHIMLT2 (KK,JJ,II,KMX,JMX,IMX,
+     $           HILF3D2,'XX',HILF3D1,HILF3D1,
+     $           NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB)
+            CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $           KMXA,JMXA,IMXA,HILF3D2,ATXTXM,
+     $           XHOMOG,YHOMOG,ZHOMOG)
+         ENDIF
+      ENDIF
+
+      IF (ISELEP(1,611) .GE. 1) THEN
+         IF(ISAMPA(  611) .EQ. 0  ) THEN
+
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,ATYTYM )
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,STYTYM )
+            CALL DPHI0   (KK,JJ,II,KMX,JMX,IMX,HILF3D1 )
+            CALL DPHI0   (KK,JJ,II,KMX,JMX,IMX,HILF3D2 )
+
+            CALL DFDX  (KK,JJ,II,RDX,RDY,RDZ,RDDX,RDDY,RDDZ,
+     $           'DYT',T,HILF3D1)
+
+            CALL PHIMLT2 (KK,JJ,II,KMX,JMX,IMX,
+     $           HILF3D2,'XX',HILF3D1,HILF3D1,
+     $           NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB)
+            CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $           KMXA,JMXA,IMXA,HILF3D2,ATYTYM,
+     $           XHOMOG,YHOMOG,ZHOMOG)
+         ENDIF
+      ENDIF
+
+      IF (ISELEP(1,612) .GE. 1) THEN
+         IF(ISAMPA(  612) .EQ. 0  ) THEN
+
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,ATZTZM )
+            CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,STZTZM )
+            CALL DPHI0   (KK,JJ,II,KMX,JMX,IMX,HILF3D1 )
+            CALL DPHI0   (KK,JJ,II,KMX,JMX,IMX,HILF3D2 )
+
+            CALL DFDX  (KK,JJ,II,RDX,RDY,RDZ,RDDX,RDDY,RDDZ,
+     $           'DZT',T,HILF3D1)
+
+            CALL PHIMLT2 (KK,JJ,II,KMX,JMX,IMX,
+     $           HILF3D2,'XX',HILF3D1,HILF3D1,
+     $           NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB)
+            CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $           KMXA,JMXA,IMXA,HILF3D2,ATZTZM,
+     $           XHOMOG,YHOMOG,ZHOMOG)
+         ENDIF
+      ENDIF
+
+#endif
+
+#if defined _STAT20_
+
+      IF (ISELEP(1,490) .GE. 1) THEN
+         IF(ISAMPA(  490) .EQ. 0  ) THEN
+
+         CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,AUUUUM  )
+         CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SUUUUM  )
+         CALL PHIMLT4 (KK,JJ,II,KMX,JMX,IMX,
+     $                 HILF3D1,'XXXX',U,U,U,U,
+     $                 NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB)
+
+         CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,HILF3D1,AUUUUM,
+     $                    XHOMOG,YHOMOG,ZHOMOG)
+
+         ENDIF
+      ENDIF
+
+      IF (ISELEP(1,491) .GE. 1) THEN
+         IF(ISAMPA(  491) .EQ. 0  ) THEN
+
+         CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,AVVVVM  )
+         CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SVVVVM  )
+         CALL PHIMLT4 (KK,JJ,II,KMX,JMX,IMX,
+     $                 HILF3D1,'XXXX',V,V,V,V,
+     $                 NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB)
+
+         CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,HILF3D1,AVVVVM,
+     $                    XHOMOG,YHOMOG,ZHOMOG)
+         ENDIF
+      ENDIF
+
+      IF (ISELEP(1,492) .GE. 1) THEN
+         IF(ISAMPA(  492) .EQ. 0  ) THEN
+
+         CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,AWWWWM  )
+         CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SWWWWM  )
+         CALL PHIMLT4 (KK,JJ,II,KMX,JMX,IMX,
+     $                 HILF3D1,'XXXX',W,W,W,W,
+     $                 NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB)
+
+         CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,HILF3D1,AWWWWM,
+     $                    XHOMOG,YHOMOG,ZHOMOG)
+
+         ENDIF
+      ENDIF
+
+      IF (ISELEP(1,493) .GE. 1) THEN
+         IF(ISAMPA(  493) .EQ. 0  ) THEN
+
+         CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,APPPPM  )
+         CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SPPPPM  )
+         CALL PHIMLT4 (KK,JJ,II,KMX,JMX,IMX,
+     $                 HILF3D1,'XXXX',P,P,P,P,
+     $                 NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB)
+
+         CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,HILF3D1,AWWWWM,
+     $                    XHOMOG,YHOMOG,ZHOMOG)
+
+         ENDIF
+      ENDIF
+#ifdef _TSCAL_
+      IF (ISELEP(1,521) .GE. 1) THEN
+         IF(ISAMPA( 521) .EQ. 0  ) THEN
+
+         CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,ATTTTM  )
+         CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,STTTTM  )
+         CALL PHIMLT4 (KK,JJ,II,KMX,JMX,IMX,
+     $                 HILF3D1,'TTTT',T,T,T,T,
+     $                 NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB)
+
+         CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,HILF3D1,ATTTTM,
+     $                    XHOMOG,YHOMOG,ZHOMOG)
+
+         ENDIF
+      ENDIF
+      IF (ISELEP(1,518) .GE. 1) THEN
+         IF(ISAMPA( 518) .EQ. 0  ) THEN
+
+         CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,ATTTM  )
+         CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,STTTM  )
+         CALL PHIMLT3 (KK,JJ,II,KMX,JMX,IMX,
+     $                 HILF3D1,'TTT',T,T,T,
+     $                 NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB)
+
+         CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+     $                    KMXA,JMXA,IMXA,HILF3D1,ATTTM,
+     $                    XHOMOG,YHOMOG,ZHOMOG)
+
+         ENDIF
+      ENDIF
+
+#endif
+
+#endif
+
+
+      RETURN
+      END

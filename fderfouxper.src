@@ -1,0 +1,182 @@
+      SUBROUTINE FDERFOUX_PER(KK,JJ,II,KSTART,JSTART,ISTART,
+     $     KSTOP,JSTOP,ISTOP,RSGS,DX,DDX,U,FDUI,
+     $     LCOL,DIAG,RCOL,UZ,RSP)
+C*MGLET***************************************************************
+C        F D E R F O U X P E R
+C        BERECHNUNG DER ERSTEN ABLEITUNG FDUI / PERIODISCHEN
+C        RANDBEDINGUNGEN
+C*MGLET***************************************************************
+C
+C PARAM: U(K,J,I)         - GESCH.-KOMPONENTE AN DEN KANTEN
+C      : FDUI(K,J,I)      - ERSTE ABLEITUNG IN X-RICHTUNG    
+C
+C
+C DEFINE DIREKTIVEN     : KEINE 
+C
+C UPROG                 : TRIZY3D
+C
+C VERS:  07.10.97 (AM)  : ORIGINAL        (KOMPAKT 4. ORDNUNG)
+C
+C*MGLET***************************************************************
+
+      IMPLICIT NONE
+
+      INTEGER KK,JJ,II,K,J,I,KSTART,JSTART,ISTART,KSTOP,JSTOP,ISTOP
+
+      REAL    LCOL(II),DIAG(II),RCOL(II),UZ(II),RSP(II),
+     $        DX(II),DDX(II)
+
+      REAL    U(KK,JJ,II), RSGS(KK,JJ,II),FDUI(KK,JJ,II)
+
+#if defined _KOMXK_
+
+#if !defined _6TH_KOBAYASHI_ 
+
+#if !defined _4TH_KOBAYASHI_ 
+
+      DO I = ISTART+1,ISTOP
+
+	 LCOL(I) = 1./22.
+	 DIAG(I) = 1.
+	 RCOL(I) = 1./22.
+         UZ (I)  = 1./22.
+         RSP(I)  = 1./22.
+	 
+          DO J = JSTART, JSTOP
+            DO K = KSTART, KSTOP
+            RSGS(K,J,I) = (24./22.) * (U(K,J,I) - U(K,J,I-1))*DDX(I)
+            ENDDO
+         ENDDO
+      ENDDO
+
+	 
+#else
+      DO I = ISTART+1,ISTOP
+
+	 LCOL(I) = 1./10.
+	 DIAG(I) = 1.
+	 RCOL(I) = 1./10.
+         UZ (I)  = 1./10.
+         RSP(I)  = 1./10.
+
+
+
+         DO J = JSTART, JSTOP
+            DO K = KSTART, KSTOP
+            RSGS(K,J,I) = (6./5.) * (U(K,J,I) - U(K,J,I-1))*DDX(I)
+            ENDDO
+         ENDDO
+      ENDDO
+
+C     endif for _4TH_KOBAYASHI_
+#endif
+C     endif for _6TH_KOBAYASHI_ 
+#else
+
+WRITE(6,*)'DO NOT IMPLEMETED YET'
+
+#endif
+
+      CALL TRIZYK3D (KK,JJ,II,KSTART,KSTOP,JSTART,JSTOP,
+     $     ISTART+1,ISTOP,LCOL,DIAG,RCOL,UZ,RSP,RSGS,FDUI)
+
+
+      DO J = JSTART, JSTOP
+         DO K = KSTART, KSTOP
+            FDUI (K,J,ISTART)  = FDUI (K,J,ISTOP)
+            FDUI (K,J,ISTOP+1) = FDUI (K,J,ISTART+1)
+         ENDDO
+      ENDDO
+#endif
+
+
+#if defined _KOMXD6O_
+C
+       DO  J = JSTART, JSTOP
+       DO  K = KSTART, KSTOP
+       U(K,J,ISTART-1) = U(K,J,ISTOP-1 )
+       U(K,J,ISTOP+1 ) = U(K,J,ISTART+1)
+       ENDDO
+       ENDDO
+C
+       DO 20 I = ISTART+1,ISTOP
+C
+         LCOL(I) = 0.14516129
+         DIAG(I) = 1.
+         RCOL(I) = 0.14516129
+         UZ (I)  = 0.14516129
+         RSP(I)  = 0.14516129
+C
+       DO 30 J = JSTART, JSTOP
+       DO 40 K = KSTART, KSTOP
+C
+         RSGS(K,J,I) = 1.016129*(U(K,J,I)-U(K,J,I-1))*DX(I) +
+     $               0.09139785*(U(K,J,I+1)-U(K,J,I-2))*DX(I)
+C
+   40  CONTINUE
+   30  CONTINUE
+   20  CONTINUE
+C
+C
+       CALL TRIZYK3D (KK,JJ,II,KSTART,KSTOP,JSTART,JSTOP,ISTART+1,
+     $                ISTOP,LCOL,DIAG,RCOL,UZ,RSP,RSGS,FDUI)
+C
+C
+       DO 300 J = JSTART, JSTOP
+       DO 400 K = KSTART, KSTOP
+       FDUI (K,J,ISTART)  = FDUI (K,J,ISTOP)
+       FDUI (K,J,ISTOP+1) = FDUI (K,J,ISTART+1)
+  400  CONTINUE
+  300  CONTINUE
+C
+#endif
+C
+#if defined _KOMXD8O_
+C
+       DO  J = JSTART, JSTOP
+       DO  K = KSTART, KSTOP
+       U(K,J,ISTART-1) = U(K,J,ISTOP-1 )
+       U(K,J,ISTART-2) = U(K,J,ISTOP-2 )
+       U(K,J,ISTOP+1 ) = U(K,J,ISTART+1)
+       U(K,J,ISTOP+2 ) = U(K,J,ISTART+2)
+       ENDDO
+       ENDDO
+C
+
+       DO 20 I = ISTART+1,ISTOP
+C
+         LCOL(I) = (75./354.) 
+         DIAG(I) = 1.
+         RCOL(I) = (75./354.)
+         UZ (I)  = (75./354.)
+         RSP(I)  = (75./354.)
+C
+       DO 30 J = JSTART, JSTOP
+       DO 40 K = KSTART, KSTOP
+C
+         RSGS(K,J,I) = 0.94456215*(U(K,J,I)-U(K,J,I-1))*DX(I) +
+     $               0.16331215*(U(K,J,I+1)-U(K,J,I-2))*DX(I) -
+     $               0.00215395*(U(K,J,I+2)-U(K,J,I-3))*DX(I)
+C
+   40  CONTINUE
+   30  CONTINUE
+   20  CONTINUE
+C
+C
+       CALL TRIZYK3D (KK,JJ,II,KSTART,KSTOP,JSTART,JSTOP,ISTART+1,
+     $                ISTOP,LCOL,DIAG,RCOL,UZ,RSP,RSGS,FDUI)
+C
+C
+       DO 300 J = JSTART, JSTOP
+       DO 400 K = KSTART, KSTOP
+       FDUI (K,J,ISTART)  = FDUI (K,J,ISTOP)
+       FDUI (K,J,ISTOP+1) = FDUI (K,J,ISTART+1)
+  400  CONTINUE
+  300  CONTINUE
+C
+#endif
+C
+C*MGLET***************************************************************
+C
+       RETURN
+       END

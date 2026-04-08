@@ -1,0 +1,17 @@
+      SUBROUTINE WRIREC(KK,JJ,II,KMX,JMX,IMX, U, V, W, P
+     &                  , TIMEPH, KANAL)
+
+      REAL U(KK,JJ,II),  V(KK,JJ,II), W(KK,JJ,II), P(KK,JJ,II)
+
+
+      WRITE (KANAL,*) TIMEPH
+
+      WRITE (KANAL,6050) U
+      WRITE (KANAL,6050) V
+      WRITE (KANAL,6050) W
+      WRITE (KANAL,6050) P
+
+ 6050  FORMAT (6(E12.5E3,1X))
+
+      RETURN
+      END

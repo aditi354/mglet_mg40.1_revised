@@ -1,0 +1,30 @@
+      SUBROUTINE WRITE_PARTICLES_FIN (CHANNEL,RUN,NFAM,XPART,
+     $     START_VEC,NFAM_MAX,WLOP,DS)
+
+C--------------------------------------------------------
+C
+C     WRITES PARTICEL-FILE FOR RESTART
+C
+C     28.05.03 (FS): ORIGINAL
+C
+C--------------------------------------------------------
+
+      IMPLICIT NONE
+      INTEGER I,CHANNEL,NFAM,NFAM_MAX,RUN(NFAM_MAX),WLOP
+      REAL    XPART(NFAM_MAX,3),START_VEC(NFAM_MAX,3),DS(NFAM_MAX)
+
+      WRITE(CHANNEL,ERR=2000) NFAM
+      WRITE(CHANNEL,ERR=2000) WLOP
+
+      DO I=1,NFAM
+         WRITE(CHANNEL,ERR=2000) I,RUN(I),XPART(I,1),XPART(I,2),
+     $   XPART(I,3),START_VEC(I,1),START_VEC(I,2),START_VEC(I,3),DS(I)
+      ENDDO
+
+      RETURN
+
+ 1000 FORMAT (I5,I5, 6(1X,E12.5E2))
+ 1500 FORMAT (I5)
+ 2000 CALL ERRR (501,'W_PART_FIN')
+      
+      END

@@ -1,0 +1,197 @@
+      SUBROUTINE FDERFOVY_PER (KK,JJ,II,KSTART,JSTART,ISTART,
+     $     KSTOP,JSTOP,ISTOP,RSGS,DY,DDY,U,FDUI,
+     $     LCOL,DIAG,RCOL,UZ,RSP)
+C*MGLET***************************************************************
+C        F D E R F O V Y P E R
+C        BERECHNUNG DER ERSTEN ABLEITUNG (DV/DY) BEI PERIODISCHEN
+C        RANDBEDINGUNGEN
+C*MGLET***************************************************************
+C
+C PARAM: U(K,J,I)         - GESCH.-KOMPONENTE AN DEN KANTEN
+C      : FDUI(K,J,I)      - ERSTE ABLEITUNG IN X-RICHTUNG    
+C
+C
+C DEFINE DIREKTIVEN     : KEINE 
+C
+C UPROG                 : TRIZYK3DJ
+C
+C VERS:  20.01.97(AM)   : ORIGINAL     (KOMPAKT 4. ORDNUNG)
+C
+C*MGLET***************************************************************
+
+      IMPLICIT NONE
+
+      INTEGER KK,JJ,II,K,J,I,
+     $        KSTART,JSTART,ISTART,KSTOP,JSTOP,ISTOP
+
+      REAL    LCOL(JJ),DIAG(JJ),RCOL(JJ),UZ(JJ),RSP(JJ),
+     $        DY(JJ),DDY(JJ)
+
+      REAL    U(KK,JJ,II), RSGS(KK,JJ,II),FDUI(KK,JJ,II)
+
+#if defined _KOMYK_
+
+#if !defined _6TH_KOBAYASHI_ 
+
+#if !defined _4TH_KOBAYASHI_ 
+
+      DO J = JSTART+1, JSTOP
+
+         LCOL(J) = 1./22.
+         DIAG(J) = 1.
+         RCOL(J) = 1./22.
+         UZ (J)  = 1./22.
+         RSP(J)  = 1./22.
+
+
+         DO I = ISTART,ISTOP
+            DO K = KSTART, KSTOP
+               RSGS(K,J,I) = (24./22.) * (U(K,J,I)-U(K,J-1,I))*DDY(J)
+            ENDDO
+         ENDDO
+
+      ENDDO
+
+#else
+
+      DO J = JSTART+1, JSTOP
+
+	 LCOL(J) = 1./10.
+	 DIAG(J) = 1.
+	 RCOL(J) = 1./10.
+         UZ (J)  = 1./10.
+         RSP(J)  = 1./10.
+
+	 DO I = ISTART,ISTOP
+            DO K = KSTART, KSTOP
+               RSGS(K,J,I) = (6./5.) * (U(K,J,I)-U(K,J-1,I))*DDY(J)
+            ENDDO
+         ENDDO
+
+      ENDDO
+
+C     endif for _4TH_KOBAYASHI_
+#endif
+C     endif for _6TH_KOBAYASHI_ 
+#else
+
+WRITE(6,*)'DO NOT IMPLEMETED YET'
+
+#endif
+
+
+
+      CALL TRIZYK3DJ (KK,JJ,II,KSTART,KSTOP,JSTART+1,JSTOP,
+     $     ISTART,ISTOP,LCOL,DIAG,RCOL,UZ,RSP,RSGS,FDUI)
+
+
+      DO I = ISTART, ISTOP
+         DO K = KSTART,KSTOP
+            FDUI (K,JSTART,I)  = FDUI (K,JSTOP,I)
+            FDUI (K,JSTOP+1,I) = FDUI (K,JSTART+1,I)
+         ENDDO
+      ENDDO
+#endif
+#ifndef _KOMYK_
+#if defined _ZEN4O_
+
+       DO I = ISTART,ISTOP
+          DO  J = 3, JJ-1
+             DO  K = KSTART, KSTOP
+                FDUI (K,J,I)  = 
+     $                1.125     * (U(K,J  ,I) - U(K,J-1,I)) * DDY(J)
+     $             -  0.0416667 * (U(K,J+1,I) - U(K,J-2,I)) * DDY(J)
+             ENDDO
+          ENDDO
+       ENDDO
+
+C                         N wenn in Y-Richtung nicht geteilz wird
+C       DO 400 K = KSTART, KSTOP
+C       FD (K,JSTART)  = (F(K,J) - F(K,J-1)) * DDY(J)
+C  400  CONTINUE
+
+#else
+      WRITE(6,*)'NICHT 3D KOMYD6'
+      STOP
+#endif
+#endif
+#if defined _KOMYD6O_
+C
+       WRITE(6,*)'NICHT 3D KOMYD6'
+       STOP
+C       DO  K = KSTART, KSTOP
+C       F(K,JSTART-1) = F(K,JSTOP-1 )
+C       F(K,JSTOP+1 ) = F(K,JSTART+1)
+C       ENDDO
+CC
+C       DO 20 J = JSTART+1, JSTOP
+CC
+C            LCOL(J) = 0.14516129
+C            DIAG(J) = 1.
+C            RCOL(J) = 0.14516129
+C            UZ (J)  = 0.14516129
+C            RSP(J)  = 0.14516129
+CC
+C       DO 30 K = KSTART, KSTOP
+CC
+C            RSGS(K,J) = 1.016129*(F(K,J) - F(K,J-1))*(DY(J))+
+C     $                0.09139785*(F(K,J+1) - F(K,J-2))*(DY(J))
+CC
+C   30  CONTINUE
+C   20  CONTINUE
+CC
+C       CALL TRIZYK (KK,JJ,KSTART,KSTOP,JSTART+1,JSTOP,LCOL,DIAG,RCOL,
+C     $              UZ,RSP,RSGS,FD)
+CC
+CC
+C       DO 400 K = KSTART, KSTOP
+C       FD (K,JSTART)  = FD (K,JSTOP)
+C       FD (K,JSTOP+1) = FD (K,JSTART+1)
+C  400  CONTINUE
+C
+#endif
+#if defined _KOMYD8O_
+       
+       WRITE(6,*)'NICHT 3D KOMYD80'
+       STOP
+C
+C       DO  K = KSTART, KSTOP
+C       F(K,JSTART-1) = F(K,JSTOP-1 )
+C       F(K,JSTART-2) = F(K,JSTOP-2 )
+C       F(K,JSTOP+1 ) = F(K,JSTART+1)
+C       F(K,JSTOP+2 ) = F(K,JSTART+2)
+C       ENDDO
+CC
+C       DO 20 J = JSTART+1, JSTOP
+CC
+C            LCOL(J) = (75./354.) 
+C            DIAG(J) = 1.
+C            RCOL(J) = (75./354.)
+C            UZ (J)  = (75./354.)
+C            RSP(J)  = (75./354.)
+CC
+C       DO 30 K = KSTART, KSTOP
+CC
+C            RSGS(K,J) = 0.94456215*(F(K,J) - F(K,J-1))*(DY(J))+
+C     $                0.16331215*(F(K,J+1) - F(K,J-2))*(DY(J))-
+C     $                0.00215395*(F(K,J+2) - F(K,J-3))*(DY(J))
+CC
+C   30  CONTINUE
+C   20  CONTINUE
+CC
+C       CALL TRIZYK (KK,JJ,KSTART,KSTOP,JSTART+1,JSTOP,LCOL,DIAG,RCOL,
+C     $              UZ,RSP,RSGS,FD)
+CC
+CC
+C       DO 400 K = KSTART, KSTOP
+C       FD (K,JSTART)  = FD (K,JSTOP)
+C       FD (K,JSTOP+1) = FD (K,JSTART+1)
+C  400  CONTINUE
+C
+#endif
+CC                              Zentraldeff. 4ter Ordnung
+
+
+       RETURN
+       END
+

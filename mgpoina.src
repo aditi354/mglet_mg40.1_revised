@@ -1,0 +1,40 @@
+       SUBROUTINE MGPOINA (IAV,I1L,I2L,IGRID)
+
+C*MGLET*****************************************************************
+C      M G P O I N T         MULTIGRID-VERWALTUNG
+C                            LIEFERT ANFANGSPOSITIONEN DES 
+C                            GITTERS IGRID IN EINDIMENSIONALEM FELD
+C*MGLET*****************************************************************
+C
+C PARAM: IPA      : + POINTER FUER 1-PUNKT AUSWERTEFELDER
+C        IP1L     : + POINTER FUER LINIEN-FELDER
+C        IP2L     : + POINTER FUER LINIEN-FELDER
+C
+C
+C VERS:  15. 5.93 (MM)  : ORIGINAL (AUS MGDIMS ABGELEITET)
+C
+C
+C*MGLET*****************************************************************
+C
+#include "mgpar.h"
+#include "comgrid.h"
+C
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+C                           UEBERPRUEFUNGEN
+
+      IF (IGRID .GT. MAXGRIDS) CALL ERRR (  555 ,'MGPOINA')
+
+C
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+C
+        IAV    =     IPA(IGRID)
+        I1L    =    IP1L(IGRID)
+        I2L    =    IP2L(IGRID)
+
+
+C
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+C
+
+      RETURN
+      END

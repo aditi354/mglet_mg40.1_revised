@@ -1,0 +1,1331 @@
+
+
+
+
+
+
+
+
+
+
+
+CCCCC        DEFINITIONEN FUER C-PREPROZESSOR
+C            MASCHINE
+
+C              MESSAGE PASSING INTERFACE
+
+C            RAEUMLICHE DISKRETISIERUNG
+C
+***********************************************************************
+C                       KOMPAKT-UPWIND in X-RICHTUNG (3-TER ORDNUNG) fuer
+C                       die U-Komponente (V und W bleiben Kompakt 4ter ordnung)
+C                       falls im Stroemungsfeld eine Koerper vorhanden ist
+C
+***********************************************************************
+C                       KOMPAKTVERF. in XYZ-RICHTUNG (4-TER ORDNUNG)
+
+
+**********************************************************************
+C                      Preprocessing with ADM for 2nd Order Central
+***********************************************************************
+CCC                     Bei periodischen Randbedingungen in X-Richtung
+CCC                     ist eine hoehere O
+C
+CCC                     Bei periodischen Randbedingungen in Y-Richtung
+CCC                     ist eine hoehere Ordnung moeglich
+C
+CCC                     Bei periodischen Randbedingungen in Y-Richtung:
+CCC                     Zentraldiff. 4-ter Ordnung (Parallelisieung moeglich)
+C
+***********************************************************************
+C
+C
+C            INTERPOLATION AN GITTER-GRENZEN
+
+C            BEHANDLUNG DER TOPAR-RANDBEDINGUNG
+
+C            ZEITLICHE DISKRETISIERUNG
+
+C            FEINSTRUKTURMODELL
+
+C            NICHT-NEWTONSCHE SPANNUNGEN
+
+
+C            TRANSPORT UND ORIENTIERUNG VON PARTIKELN
+
+
+C            SCALAR HEAT/TEMPERATURE TRANSPORT
+C            APROXIMATE DECONVOLUTION FOR SCALAR
+C            TURBULENT PRANDTL NUMBER 
+C            PLOT LOCAL SCALAR CONVECTION DIFFUSION EXTREMES 
+C            ANALYZE AND PLOT NEAR WALL GRID RESLOLUTION 
+C            WRITE SPECIAL 1D LINE FOR TMIX FOR SPECTRA AND PDF
+C            SCALAR TIME ADVANCEMENT/DISCRETISATION METHOD
+
+C            STROEMUNG NACH OBEN?
+
+
+C            BEHANDLUNG DER FLUKTUATIONS-RANDBEDINGUNG
+
+C            BEHANDLUNG VON PPHYS ALS QUELLTERM IN TSTLE2
+
+C            POSITIONIERUNG DER EINSTROEMPROFILE
+
+C           STATISTIK
+
+
+C                 GEMISCHTES
+
+C                GRDFMI WIRD NICHT VERWENDET, DAHER EINSPARUNG DER FELDER
+C                IGRHF UND GRHF
+
+C                VERGROESSERN DER KJI-RICHTUNG BEI FORTSETZUNGSLAUF ERLAUBT!
+
+C                RAUSSCHREIBEN VON ZEITRECORDS
+
+C                FUER KORRELATIONEN UND HAEFIGKEITSVERTEILUNGEN
+      SUBROUTINE GRDFMI  (LGRAPH, CS, S, DS, DDS, IMS, NBS, SSMIN, NTSB,
+     $                    DLS, NLSB, SS, NRSB, DRS, NBSP, NBND, NGRIG,
+     $                    NGRP1, NGRP3, SMAONE, IHF, X0, X1, HF)
+C*STARLET***************************************************************
+C        G R D F M I      IN GRDFMI WIRD EIN MASCHENGITTER MIT FOLGENDEN
+C                         EIGENSCHAFTEN AUFGEBAUT:
+C                            - FUER JEDE KOORDINATENRICHTUNG ERFOLGT EIN
+C                              AUFRUF VON GRDFMI
+C                            - EINE UNTERGLIEDERUNG DES BERECHNUNGS-
+C                              GEBIETES IN MEHRERE TEILBEREICHE (BLOEK-
+C                              KE) IST MOEGLICH
+C                            - IN JEDEM DIESER BLOECKE KANN DER ABSTAND
+C                              ZWISCHEN DEN ZELLMITTELPUNKTEN AM LINKEN
+C                              UND AM RECHTEN RAND DES TEILBEREICHES
+C                              VORGEGEBEN WERDEN (DLS BZW. DRS).
+C                            - BEI EINER VORGEGEBENEN ANZAHL VON GITTER-
+C                              PUNKTEN WERDEN ALLE DAZWISCHENLIEGENDEN
+C                              DS_I SO BESTIMMT, DASS DIE STRECKUNGS-
+C                              FAKTOREN F_I = DS_I / DS_I-1 MOEGLICHST
+C                              NAHE BEI 1.0 LIEGEN UND DIE VORGEGBENE
+C                              LAENGE SS EINGEHALTEN WIRD
+C                             -FALLS DRS ODER DLS NEGATIV; WIRD EIN KON-
+C                              STANTER STRECKUNGSFAKTOR ANGENOMMEN;
+C                              DABEI WIRD DER NEGATIVE WERT ALS FAKTOR
+C                              BENUTZT : ER MUSS PASSEN
+C*STARLET***************************************************************
+C
+C PARAM: LGRAPH         - LOGISCHE VARIABLE: .TRUE. --> EINE GRAPHISCHE
+C                         AUSGABE DES ERGEBNISSES ERFOLGT (DATEI ZZZG67)
+C                         .FALSE. --> KEINE GRAPHISCHE AUSGABE
+C        CS             - CHARACTER (LEN=1) VARIABLE ZUR IDENTIFIKATION DER
+C                         KOORDINATENRICHTUNG (X, Y ODER Z)
+C        S   (IMS)      + KOORDINATEN DER ZELLMITTELPUNKTE
+C        DS  (IMS)      + ABSTAENDE DER ZELLMITTELPUNKTE
+C        DDS (IMS)      + LAENGE EINER (BASIS)-MASCHENZELLE
+C        IMS            - ARRAYDIMENSION
+C        NBS            - ANZAHL DER BLOECKE (TEILBEREICHE) IN DIE DAS
+C                         BERECHNUNGSGEBIET AUFGETEILT WURDE
+C        SSMIN          - KOORDINATE DES LINKEN RANDES DER ERSTEN
+C                         MASCHENZELLE INNERHALB DES BERECHNUNGSGE-
+C                         BIETES (OHNE RANDSCHICHTEN)
+C        NTSB (NBS)     - ENTHAELT DIE  G E S A M T E  ANZAHL VON
+C                         GITTERPUNKTEN JEDES TEILBEREICHES
+C        DLS  (NBS)     - ENTHAELT DIE AM LINKEN RAND JEDES TEILBE-
+C                         REICHES VORGESCHRIEBENEN ABSTAENDE ZWISCHEN
+C                         DEN ZELLMITTELPUNKTEN
+C        NLSB (NBS)     - ENTHAELT DIE ANZAHL DER AEQUIDISTANTEN ZELLEN
+C                         AM LINKEN RAND JEDES TEILBEREICHES
+C        SS   (NBS)     - ENTHAELT FUER JEDEN TEILBEREICH DIE ZU UEBER-
+C                         BRUECKENDE STRECKE, GEMESSEN VOM LINKEN RAND
+C                         DER ERSTEN ZELLE INNER HALB DES TEILBEREICHES
+C                         ZUM RECHTEN RAND DER LETZTEN ZELLE INNERHALB
+C                         DES TEILBEREICHES
+C        NRSB (NBS)     - ENTHAELT DIE ANZAHL DER AEQUIDISTANTEN ZELLEN
+C                         AM RECHTEN RAND JEDES TEILBEREICHES
+C        DRS  (NBS)     - ENTHAELT DIE AM RECHTEN RAND JEDES TEILBE-
+C                         REICHES VORGESCHRIEBENEN ABSTAENDE ZWISCHEN
+C                         DEN ZELLMITTELPUNKTEN
+C        NBSP           - MAXIMALE ANZAHL VON TEILBEREICHEN (KANN IM
+C                         PARAMETER-STATEMENT DES HAUPTPROGRAMMES
+C                         VERAENDERT WERDEN)
+C        NBND           - ANZAHL DER RANDSCHICHTEN
+C        NGRIG          - ARRAYDIMENSION (FUER SUBR. BROWN)
+C        NGRP1          - ARRAYDIMENSION (FUER SUBR. BROWN)
+C        NGRP3          - ARRAYDIMENSION (FUER SUBR. BROWN)
+C        SMAONE         - SMAONE IST EIN MASS FUER DEN RUNDUNGSFEHLER
+C                         DER MASCHINE (1.0 + SMAONE KANN NICHT MEHR
+C                         VON 1.0 UNTERSCHIEDEN WERDEN)
+C        IHF (NGRIG,    + HILFSFELD FUER SUBR. BROWN
+C             NGRP1)
+C        X0 (NGRIG)     + ERSTER SCHAETZWERT FUER DEN LOESUNGSVEKTOR
+C        X1 (NGRIG)     + LOESUNGSVEKTOR DES NICHTLINEAREN GLEICHUNGS-
+C                         SYSTEMS
+C        HF (NGRIG,     + HILFSFELD FUER SUBROUTINE BROWN
+C            NGRP3)
+C
+C DEFINE DIREKTIVEN     : KEINE
+C
+C UPROG                 : ERRR,    GRDFAK,  GRDFDR
+C
+C        20.04.89 (HW)  : ORIGINAL
+C        19.02.92 (MM)  : GRDFDR AUSGEKLAMMERT WEGEN KOLLISION DER 
+C                         LRZ_GRAPHIK MIT SELECT UND INTEGER*8
+C        14. 4.92 (MM)  : ES KOENNEN AUCH BEREICHE MIT NB<3 ERZEUGT WERD.
+C        16. 7.92 (MM)  : KONSTANTER STRECKUNGSFAKTOR MOEGLICH
+C
+C*STARLET***************************************************************
+      parameter (ndoublemax=5000)
+      double precision sdouble(ndoublemax),dsdouble(ndoublemax)
+      double precision dssum,ds0,dsim,fstreck
+
+C
+C
+      CHARACTER (LEN=1) CS, CSI
+C
+      INTEGER     IMS,     NBS,     NBSP,    NBND,    NGRIG,   NGRP1,
+     $            NGRP3,
+     $            NTSB(NBS ),      NLSB(NBS ),      NRSB(NBS ),
+     $            IHF(NGRIG,NGRP1)
+C
+      LOGICAL     LGRAPH
+C
+      REAL        SSMIN,   SMAONE,
+     $            SS (NBS ),       DLS(NBS ),       DRS(NBS ),
+     $            X0(NGRIG),       X1(NGRIG),       HF(NGRIG,NGRP3),
+     $            S (IMS),         DS(IMS),         DDS(IMS)
+C
+	if (ims .gt. ndoublemax) call errr(501,'grdfmi')
+C
+      IAUS   = 0
+      MAXIT  = 30
+C
+      IF(CS .EQ. 'X') CSI = 'I'
+      IF(CS .EQ. 'Y') CSI = 'J'
+      IF(CS .EQ. 'Z') CSI = 'K'
+C
+C                                 UEBERPRUEFUNGEN
+C
+
+      IF(NBS    .LT.    1) CALL ERRR (501,' GRDFMI   ')
+      IF(NBS    .GT. NBSP) THEN
+         WRITE (6,6001) NBS
+         CALL ERRR (502,' GRDFMI   ')
+      END IF
+C
+C                                 SUMME DER GITTERPUNKTE ALLER BLOECKE
+C                                 + RANDSCHICHTEN MUSS
+C                                 I D E N T I S C H  IMS SEIN.
+C
+      IF(NBND   .LT.   0) CALL ERRR (503,' GRDFMI   ')
+      NTSSUM = 2 * NBND
+      DO 100 NB = 1,NBS
+  100    NTSSUM = NTSSUM + NTSB (NB)
+C
+      IF(NTSSUM .NE. IMS) THEN
+         WRITE (6,6005) 2*NBND
+         DO 105 NB = 1,NBS
+  105       WRITE (6,6007) NB, NTSB (NB)
+         WRITE (6,6008) NTSSUM, IMS
+         CALL ERRR (504,' GRDFMI   ')
+      END IF
+C
+C                                 DS(ENDE EINES BLOCKES) =! DS(ANFANG
+C                                 DES FOLGENDEN BLOCKES)
+C
+      IF(NBS .GT. 1) THEN
+         DO 110 NB = 2,NBS
+  110       DLS (NB) = ABS( DRS (NB-1) )*SIGN(1.0,DLS(NB))
+      END IF
+C
+C                                 ALLE LAENGENABMESSUNGEN MUESSEN
+C                                 GROESSER NULL SEIN!
+C
+      DO 120 NB = 1,NBS
+         IF(SS  (NB) .LE. SMAONE) CALL ERRR (600+NB,' GRDFMI SS')
+C        IF(DLS (NB) .LE. SMAONE) CALL ERRR (650+NB,' GRDFMI DL')
+C 120    IF(DRS (NB) .LE. SMAONE) CALL ERRR (700+NB,' GRDFMI DR')
+  120 CONTINUE
+C
+C                                 BESTIMMUNG DER KOORDINATEN DER
+C                                 ZELLMITTELPUNKTE S(I)
+C                                 ------------------------------
+C
+      IBEG   = NBND + 1
+      SBEG   = SSMIN + 0.5 * ABS(DLS(1))
+C
+C                                 S(I) AM LINKEN RAND (NEG. KOORD.RI.)
+C
+      DO 150 INL = 0,NBND
+         sdouble(IBEG-INL) = SBEG - FLOAT(INL) * ABS(DLS(1))
+  150    S(IBEG-INL) = SBEG - FLOAT(INL) * ABS(DLS(1))
+C
+C                                 ABARBEITUNG ALLER BLOECKE
+C
+      WRITE (6,6009)
+C
+      DO 200 NB = 1,NBS
+C
+C       
+C
+             DLSKENN  = DLS(NB)
+             DRSKENN  = DRS(NB)
+         IF(DLS (NB) .LE. SMAONE) THEN
+             DLS (NB) = ABS(DLS(NB))
+         ENDIF
+         IF(DRS (NB) .LE. SMAONE) THEN
+             DRS (NB) = ABS(DRS(NB))
+         ENDIF
+
+
+         IEND     = IBEG + NTSB(NB) - 1
+         SEND     = SBEG + SS(NB) - 0.5 * (DLS(NB) + DRS(NB))
+         NLSB(NB) = MAX0 (NLSB(NB), 1)
+         INLEND   = NLSB (NB)
+C
+C                                SONDERBEHANDLUNG FUER BEREICHE NTSB<3
+C
+         IF (NTSB(NB).LT.3) THEN
+
+            DO 210 INL = 0,NTSB(NB)
+            S(IBEG+INL) = SBEG + FLOAT(INL)*DLS(NB)
+  210        CONTINUE
+
+C
+C                                 NORMALE BEHANDLUNG NTSB>=3
+C
+         ELSE
+C
+C                                 AEQUIDISTANTE ZELLEN AM LINKEN RAND
+C
+         DO 220 INL = 0,INLEND
+            sdouble(IBEG+INL) = SBEG + FLOAT(INL) * ABS(DLS(NB))
+  220       S (IBEG+INL) = SBEG + FLOAT(INL) * ABS(DLS(NB))
+C
+         NRSB(NB) = MAX0 (NRSB(NB), 1)
+         INREND   = NRSB (NB)
+C
+C                                 AEQUIDISTANTE ZELLEN AM RECHTEN RAND
+C
+         DO 240 INR = 0,INREND
+            sdouble(IEND-INR) = SEND - FLOAT(INR) * ABS(DRS(NB))
+  240       S (IEND-INR) = SEND - FLOAT(INR) * ABS(DRS(NB))
+C
+         IM     = NTSB(NB) - NLSB(NB) - NRSB(NB) - 1
+         IBEGRE = IBEG + INLEND
+         IENDRE = IEND - INREND
+         SBEGRE = S (IBEGRE)
+         SENDRE = S (IENDRE)
+         SREST  = SENDRE - SBEGRE
+C
+         IF(IM .LT. 0) THEN
+            WRITE (6,6010) NB, NTSB(NB), NLSB(NB), NRSB(NB)
+            CALL ERRR (800,' GRDFMI   ')
+         END IF
+         IF(IM .EQ. 0) THEN
+            IF(ABS (SREST) .GT. 10.0 * SMAONE) THEN
+               WRITE (6,6020) SREST
+               CALL ERRR (810,' GRDFMI   ')
+            END IF
+            GOTO 2000
+         END IF
+         IF(IM .EQ. 1) THEN
+            IF(SREST .LT. 0.0) THEN
+               WRITE (6,6030) IBEGRE, SBEGRE, IENDRE, SENDRE
+               CALL ERRR (820,' GRDFMI   ')
+            END IF
+            GOTO 2000
+         END IF
+C
+C                                 FALLS IM >= 2 MUSS EIN NICHTLINEARES
+C                                 GLEICHUNGSSYSTEM GELOEST WERDEN.
+C
+         DS0    = DLS (NB)
+         DSIM   = DRS (NB)
+
+         IF (DS0*DSIM.EQ.0.0) STOP 'GRDFMI: DLS*DRS=0'
+C
+C                             HIER FALL MIT KONSTANTEM STRECKUNGSFAKTOR
+C
+         IF (DLSKENN*DRSKENN.LT.0.0) THEN
+C
+C                             ES WIRD NACH RECHTS GESTRECKT
+C
+            IF (DRSKENN.LT.0.0) THEN
+	       NFAK = IEND-IBEG-NRSB(NB)-NLSB(NB)
+               FSTRECK = (DSIM/DS0)**(1./FLOAT(NFAK))
+               DSSUM = FLOAT((1+NLSB(NB)))*DS0 
+C     $               + FLOAT((1+NRSB(NB)))*DSIM
+               DS(IBEG+NLSB(NB)) = DS0
+               dsdouble(IBEG+NLSB(NB)) = DS0
+              
+               DO 260 I=IBEG+NLSB(NB)+1,IEND-NRSB(NB)-1
+                  
+                  dsdouble(I) = dsdouble(I-1) * FSTRECK
+                  sdouble(I) = sdouble(i-1) + 
+     $                 0.5*dsdouble(I-1) + 0.5*dsdouble(I)
+C                  S(I) = S(I-1) + 0.5*DS(I-1) + 0.5*DS(I)
+                  ds(i) = dsdouble(i)
+                  S(I) = sdouble(i)
+                  DSSUM = DSSUM + DSDOUBLE(I)
+                  
+  260           CONTINUE
+
+               DO  I=IEND-NRSB(NB),IEND
+                  DSDOUBLE(I) = DSIM
+                  SDOUBLE(I) = SDOUBLE(I-1) 
+     $                      + 0.5*(DSDOUBLE(I-1) + DSDOUBLE(I))
+                  DS(I) = DSDOUBLE(I)
+                  S(I) = SDOUBLE(I)
+                  DSSUM = DSSUM + DSIM
+               ENDDO
+               DO  I=IEND+1,IEND+NBND
+                  DS(I) = DS(I-1) 
+                  S(I) = S(I-1) + 0.5*DS(I-1) + 0.5*DS(I)
+               ENDDO
+
+C       DRS(NB) = DS(IEND)
+C       SEND = S(IEND)
+
+               EPSILON = 0.000001
+
+               IF(ABS(SS(NB)-DSSUM).GT.(DSSUM*EPSILON)) THEN
+
+	       write (6,*) '    NB:',NB
+	       write(6,*) '     Streckungsfaktor:   ',fstreck
+	       write (6,*) '   gewuenschte Strecke: ',ss(nb)
+	       write (6,*) '   erreichte Strecke:   ',dssum
+	       write (6,*) '   Abweichung groesser als:   ',EPSILON
+	       write (6,*) '   letzte Maschenweite: ',dsim
+
+	       STOP 'EINGABEPARAMETER FUER KONSTANTEN STRECKUNGSFAKTOR'
+
+	       ENDIF
+
+
+	    ENDIF
+C
+C                             ES WIRD NACH LINKS GESTRECKT
+C
+            IF (DLSKENN.LT.0.0) THEN
+	       NFAK = IEND-IBEG-NRSB(NB)-NLSB(NB)
+               FSTRECK = (DS0/DSIM)**(1./FLOAT(NFAK))
+               DSSUM = FLOAT((1+NRSB(NB)))*DSIM
+C     $               + FLOAT((1+NLSB(NB)))*DS0
+               DS(IEND-NRSB(NB)) = DSIM
+               dsdouble(IEND-NRSB(NB)) = DSIM
+
+               DO 270 I=IEND-NRSB(NB)-1,IBEG+NLSB(NB)+1,-1
+                  
+CCC                  DS(I) = DS(I+1) * FSTRECK
+CCC                  S(I) = S(I+1) - 0.5*DS(I+1) - 0.5*DS(I)
+                  dsdouble(I) = dsdouble(I+1) * FSTRECK
+                  sdouble(I) = sdouble(I+1) - 
+     $                 0.5*dsdouble(I+1) - 0.5*dsdouble(I)
+                  DS(I) = dsdouble(i)
+                  S(I) = sdouble(i)
+                  DSSUM = DSSUM + DSDOUBLE(I)
+                  
+  270           CONTINUE
+               DO I=IBEG+NLSB(NB),IBEG,-1
+                  DSDOUBLE(I) = DS0
+                  SDOUBLE(I) = SDOUBLE(I+1)
+     $                      - 0.5*(DSDOUBLE(I+1) + DSDOUBLE(I))
+                  DS(I) = DSDOUBLE(I)
+                  S(I) = SDOUBLE(I)
+                  DSSUM = DSSUM + DSDOUBLE(I)
+               ENDDO
+               DO I=IBEG-1,IBEG-NBND,-1
+                  SDOUBLE(I)=SDOUBLE(I+1)-DS0
+                  S(I)=SDOUBLE(I)
+               ENDDO
+                  
+C       DRS(NB) = DS(IEND)
+C       SEND = S(IEND)
+
+               EPSILON = 0.000001
+
+               IF(ABS(SS(NB)-DSSUM).GT.(DSSUM*EPSILON)) THEN
+
+	       write (6,*) '    NB:',NB
+	       write(6,*) '     Streckungsfaktor:   ',fstreck
+	       write (6,*) '   gewuenschte Strecke: ',ss(nb)
+	       write (6,*) '   erreichte Strecke:   ',dssum
+	       write (6,*) '   Abweichung groesser als:   ',EPSILON
+	       write (6,*) '   letzte Maschenweite: ',ds0
+
+	       STOP 'EINGABEPARAMETER FUER KONSTANTEN STRECKUNGSFAKTOR'
+
+	       ENDIF
+
+
+	    ENDIF
+	 ELSE
+
+		 CALL ERRR (745,'GRDFMI')
+         CALL GRDFAK  (IM+2, X0, SMAONE, SMAONE, IAUS, MAXIT,IHF,NGRIG,
+     $                 HF, NGRIG ,X1, ITANZ, IFEHL,
+     $                 SREST, DS0, DSIM, SBEGRE, IBEGRE, SENDRE,
+     $                 IENDRE, CS, S, IMS, IM, NB, LGRAPH)
+C
+	 ENDIF
+C
+C                          ENDE DER BEHANDLUNG VON BEREICHEN MIT NTSB>=3
+C
+       ENDIF
+C
+C
+ 2000    IF(NB .EQ. NBS) THEN
+C
+C                                 DIE RANDSCHICHTEN AM RECHTEN RAND
+C                                 DES BERECHNUNGSGEBIETES
+C
+            DO 600 INR = IEND,IEND+NBND
+  600          S (INR) = S(INR-1) + DRS(NB)
+         END IF
+C
+         IBEG   = IEND + 1
+         SBEG   = SEND + DRS(NB)
+  200 CONTINUE
+C
+C                                 BESTIMMUNG DER DS UND DDS AUS DEN
+C                                 NUNMEHR BEKANNTEN S(I)
+C
+      DS  (1)      = S (2) - S (1)
+      DDS (1)      = DS (1)
+      DS  (NTSSUM) = S (NTSSUM) - S (NTSSUM-1)
+      DDS (NTSSUM) = DS (NTSSUM)
+C
+      IF((NTSSUM-1) .GE. 2) THEN
+         DO 300 INS = 2,NTSSUM-1
+            DS  (INS) = S (INS+1) - S (INS)
+  300       DDS (INS) = 0.5 * (DS (INS) + DS (INS-1))
+      END IF
+      IF(LGRAPH) THEN
+C
+C                                 GRAPH. AUSGABE DES  G E S A M T E N
+C                                 MASCHENGITTERS
+C
+C19.2.92         RMSMUL = 1.0 / FLOAT (IMS - 2*NBND)
+C19.2.92         RMSGES = 0.0
+C19.2.92         DO 310 INS = NBND+1,IMS-NBND
+C19.2.92  310       RMSGES = RMSGES + ( (1.0 - DS(INS)/DS(INS-1))**2 ) * RMSMUL
+C19.2.92         RMSGES = SQRT (RMSGES)
+C19.2.92         IGRBEG = NBND + 1
+C19.2.92         IGRIM  = IMS  - 1 - 2*NBND
+C19.2.92         CALL GRDFDR  (CS, S, IMS, IGRBEG, IGRIM, DS(1), DS(IMS-NBND),
+C19.2.92     $                 RMSGES)
+      END IF
+C
+C                                 AUSGABE DER ERGEBNISSE
+C
+      WRITE (6,6110) CSI, CS, CSI, CS, CSI, CS, CSI, CS, CSI, CSI
+      DO 350 INS = 1,NTSSUM
+         IDEL1I = (1/INS) * (INS/1)
+         FAKTI  = DS (INS) / DS (INS-1+IDEL1I)
+         SSTAG  = S(INS) + 0.5*DS(INS)
+  350    WRITE (6,6120) INS, S(INS), SSTAG, DS(INS), DDS(INS), FAKTI
+C
+      RETURN
+ 6001 FORMAT (4X,'********** FEHLERMELDUNG AUS SUBR. GRDFMI **********'
+     $        ,/,4X,'NBSP MUSS IM PARAMETERSTATEMENT DES HAUPTPROGRAMM'
+     $        ,'ES MINDESTENS',/,4X,'AUF EINEN WERT VON ',I4,
+     $        ' GESETZT WERDEN !')
+ 6005 FORMAT (4X,'********** FEHLERMELDUNG AUS SUBR. GRDFMI **********'
+     $        ,/,4X,'DIE GESAMTANZAHL DER GITTERPUNKTE EINSCHLIESSLICH'
+     $        ,' DER ZWEI RAND-',/,4X,'SCHICHTEN STIMMT NICHT MIT',
+     $        ' IMS UEBEREIN :',//,4X,'RANDSCHICHTEN:  2*NBND = ',
+     $        I5)
+ 6007 FORMAT (4X,'BLOCK NR. ',I3,6X,'NBS = ',I5)
+ 6008 FORMAT (27X,'--------',/,21X,'SUMME = ',I5,' =! ',I5,
+     $        ' (IMS)')
+ 6009 FORMAT (1H1,1X,9(1H-),' G R D F M I ',57(1H-),/,2X,
+     $        'DEFINITION DES STRECKUNGSFAKTORS: ',
+     $        'F(I) = DS(I) / DS(I-1)')
+ 6010 FORMAT (4X,'********** FEHLERMELDUNG AUS SUBR. GRDFMI **********'
+     $        ,/,4X,'BLOCK NR.: ',I2,'  GESAMTANZAHL VON GITTERPUNKTEN'
+     $        ,' (NTSB) = ',I4,/,4X,'ANZAHL AEQUIDIST. MASCHENZELLEN',
+     $        ' LINKS (IN NEGATIVER KOORDINATENRI.): ',I4,/,4X,
+     $        'ANZAHL AEQUIDIST. MASCHENZELLEN',
+     $        ' RECHTS (IN POSITIVER KOORDINATENRI.): ',I4,/,4X,
+     $        '--> A B B R U C H')
+ 6020 FORMAT (4X,'BEI DER VORGEGEBENEN ANZAHL VON AEQUIDISTANTEN',
+     $        ' MASCHENZELLEN BLIEBE EINE',/,4X,'LUECKE (POS.',
+     $        ' VORZEICHEN VON SREST) BZW. DAS GITTER WIRD UEBER',
+     $        'EINANDER',/,4X,'GESCHOBEN (NEG. VORZ.). SREST = ',
+     $        1PE12.5,'  --> A B B R U C H')
+ 6030 FORMAT (4X,'BEI DER VORGEGEBENEN ANZAHL VON AEQUIDISTANTEN',
+     $        ' MASCHENZELLEN WUERDE',/,4X,'DAS GITTER',
+     $        ' UEBEREINANDER GESCHOBEN !',/,4X,'S (',I4,') = ',
+     $        1PE12.5,'  S (',I4,') = ',1PE12.5,' --> A B B R U C H')
+ 6110 FORMAT (/,'     ',A1,'         ',A1,'(',A1,')       ',A1,
+     $        '-STAG (',A1,')       D',A1,'(',A1,')         DD',
+     $        A1,'(',A1,')        F(',A1,')',/)
+ 6120 FORMAT (3X,I4,5(4X,F10.5))
+      END
+      SUBROUTINE GRDFAK  (N,X0,EPS,EPSM,IAUS,MAXIT,IHF,NIHF,
+     $                    HF,NHF,X1,ITANZ,IFEHL,
+     $                    SREST, DS0UE, DSIMUE, SBEGRE, IBEGRE,
+     $                    SENDRE, IENDRE, CS, S, IMS, IM, NBLOCK,
+     $                    LGRAPH)
+C*STARLET***************************************************************
+C        G R D F A K      IN GRDFAK ERFOLGT DIE BERECHNUNG DER STREK-
+C                         KUNGSFAKTOREN F_I UND ANSCHLIESSEND DIE
+C                         BESTIMMUNG DER ZELLMITTELPUNKTSKOORDINATEN
+C                         S(I). DABEI WIRD NUR NOCH EIN UNTERBEREICH
+C                         EINES TEILBEREICHES BETRACHTET, DER
+C                         NACH ABZUG DER AEQUIDISTANTEN MASCHENZELLEN
+C                         VERBLEIBT.
+C*STARLET***************************************************************
+C
+C PARAM: N              - DAS NICHTLINEARE GLEICHUNGSSYSTEM BESTEHT AUS
+C                         N GLEICHUNGEN. (N = IM+2)
+C        X0 (N)         + ERSTER SCHAETZWERT FUER DEN LOESUNGSVEKTOR
+C        EPS            - KONVERGENZSCHRANKE, SIEHE SUBR. BROWN
+C        EPSM           - MASCHINENGENAUIGKEIT
+C        IAUS           - IAUS = 1: ZWISCHENERGEBNISSE AUS SUBR. BROWN
+C                                   WERDEN AUSGEGEBEN
+C                         IAUS = 0: NUR FEHLERMELDUNGEN WERDEN AUSGE-
+C                         GEBEN
+C        MAXIT          - MAXIMAL ZULAESSIGE ANZAHL VON ITERATIONEN IN
+C                         SUBR. BROWN
+C        IHF (NIHF,N+1) + HILFSFELD FUER SUBR. BROWN
+C        NIHF           - FUEHRENDE DIMENSION, WIE IM HAUPTPRO-
+C                         GRAMM VEREINBART
+C        HF  (NHF,N+3)  + HILFSFELD FUER SUBR. BROWN
+C        NHF            - FUEHRENDE DIMENSION, WIE IM HAUPTPRO-
+C                         GRAMM VEREINBART
+C        X1 (N)         + LOESUNGSVEKTOR DES NICHTLINEAREN GLEICHUNGS-
+C                         SYSTEMS
+C        ITANZ          + TATSAECHLICHE ANZAHL VON ITERATIONEN IN
+C                         SUBR. BROWN
+C        IFEHL          + PARAMETER ZUR FEHLERMELDUNG IN SUBR. BROWN
+C        SREST          - LAENGE DES NOCH AUFZUTEILENDEN BEREICHES
+C                         ZWISCHEN GITTERPUNKT  IBEGRE  UND  IBEGRE+IM
+C        DS0UE          - ENTHAELT DEN AM LINKEN RAND DES TEILBEREICHES
+C                         VORGESCHRIEBENEN ABSTAND ZWISCHEN DEN ZELL-
+C                         MITTELPUNKTEN
+C        DSIMUE         - ENTHAELT DEN AM RECHTEN RAND DES TEILBEREICHES
+C                         VORGESCHRIEBENEN ABSTAND ZWISCHEN DEN ZELL-
+C                         MITTELPUNKTEN
+C        SBEGRE         - KOORDINATE DES ERSTEN ZELLMITTELPUNKTES INNER-
+C                         HALB DES NOCH ZU BEARBEITENDEN TEILBEREICHES
+C        IBEGRE         - INDES DES MASCHENPUNKTES
+C        SENDRE         - KOORDINATE DES LETZTEN ZELLMITTELPUNKTES
+C                         INNERHALB DES NOCH ZU BEARBEITENDEN TEILBE-
+C                         REICHES
+C        IENDRE         - INDES DES MASCHENPUNKTES
+C        CS             - CHARACTER (LEN=1) VARIABLE ZUR IDENTIFIKATION DER
+C                         KOORDINATENRICHTUNG (X, Y ODER Z)
+C        S   (IMS)      + KOORDINATEN DER ZELLMITTELPUNKTE
+C        IMS            - ARRAYDIMENSION
+C        IM             - IBEGRE + IM = IENDRE
+C        NBLOCK         - NUMMER DES GERADE ABGEARBEITETEN BLOCKES
+C        LGRAPH         - LOGISCHE VARIABLE: .TRUE. --> EINE GRAPHISCHE
+C                         AUSGABE DES ERGEBNISSES ERFOLGT (DATEI ZZZG67)
+C                         .FALSE. --> KEINE GRAPHISCHE AUSGABE
+C
+C DEFINE DIREKTIVEN     : KEINE
+C
+C UPROG                 : BROWN,   GRDFDR,  GRDPRO
+C
+C        11.04.89 (HW)  : ORIGINAL
+C        19.02.92 (MM)  : GRDFDR AUSGEKLAMMERT WEGEN KOLLISION DER 
+C                         LRZ_GRAPHIK MIT SELECT UND INTEGER*8
+C
+C*STARLET***************************************************************
+C
+C     PARAMETER
+C
+      CHARACTER (LEN=1)  CS
+      INTEGER N, IFEHL, NIHF, NHF
+      LOGICAL         LGRAPH
+      REAL EPS, EPSM
+      DIMENSION X0(N),X1(N)
+      DIMENSION IHF(NIHF,N+1),HF(NHF,N+3)
+C
+      REAL            S (IMS)
+C
+C                                 DA DIE ITERATION WESENTLICH STABILER
+C                                 VERLAEUFT WENN DS0 > DSIM (NORMAL = 1)
+C                                 , WIRD GEGEBENENFALLS DIE ITERATIONS-
+C                                 RICHTUNG UMGEKEHRT (NORMAL = -1)
+C
+      DS0    = AMAX1 (DS0UE, DSIMUE)
+      DSIM   = AMIN1 (DS0UE, DSIMUE)
+      NORMAL = 1
+      IF(DS0   .GT.  DS0UE) NORMAL = -1
+C
+C                                 VORBELEGUNG DER HILFSFELDER
+C
+      DO 100 NKK = 1,NIHF
+         DO 100 NJK = 1,N+1
+  100       IHF (NKK,NJK) = 9999
+      DO 110 NKK = 1,NHF
+         DO 110 NJK = 1,N+3
+  110       HF (NKK,NJK) = 9999.9999
+C
+C                                 ALS ERSTE SCHAETZUNG FUER DEN
+C                                 LOESUNGSVEKTOR WIRD EINE ANALYTISCHE
+C                                 NAEHERUNG VERWENDET
+C
+      ANENNE = FLOAT (IM**3 + 2*IM**2 - IM - 2)
+      F1ESTI = (DSIM /DS0 * FLOAT (2*(1-IM**2)))
+     $       + (SREST/DS0 * FLOAT (6*(IM-1)))
+     $       +              FLOAT (IM**3 - 2*IM**2 + 5*IM - 4)
+      F1ESTI = F1ESTI / ANENNE
+      GRESTI = (DSIM /DS0 * FLOAT (6*IM*(IM+1)))
+     $       + (SREST/DS0 * FLOAT (12*(1-IM)))
+     $       +              FLOAT (6*IM*(IM-3))
+      GRESTI = GRESTI / (FLOAT (IM) * ANENNE)
+C
+      DO 120 NKK = 1,IM
+  120    X0 (NKK) = AMAX1 ( (F1ESTI + GRESTI * FLOAT (NKK-1)), 0.05)
+C
+      ITER   = 0
+      ITMAX  = 10
+      DELFAK = SQRT (ABS (EPSM))
+      FAKKO  = 1.0 + DELFAK
+ 2000 ASUM1  = 0.0
+      DO 125 NK = 1,IM
+         CALL GRDPRO  (I, X0, N, NK, EPSM, PRDKO)
+  125    ASUM1  = ASUM1 + (FAKKO**NK) * PRDKO
+      FUNK1  = ASUM1 - SREST/DS0
+      IF(ABS (FUNK1) .LE. (ABS (EPSM)**(3./4.)) ) GOTO 2100
+      IF(ITER        .GT. ITMAX)                  GOTO 2100
+         ASUM1  = 0.0
+         DO 126 NK = 1,IM
+            CALL GRDPRO  (I, X0, N, NK, EPSM, PRDKO)
+  126       ASUM1  = ASUM1 + ((FAKKO + DELFAK) **NK) * PRDKO
+         FUNK2  = ASUM1 - SREST/DS0
+         DFDX   = (FUNK2 - FUNK1) / DELFAK
+         IF(ABS (DFDX) .LE. ABS (EPSM)) THEN
+            WRITE (6,*) ' W A R N U N G : NEWTON-ITERATION ZUR',
+     $                  ' BESTIMMUNG DER SCHAETZWERTE WURDE'
+            WRITE (6,*) ' WEGEN  NENNER = 0 ABGEBROCHEN ! (SUBR. ',
+     $                  'GRDFAK)'
+            GOTO 2100
+         END IF
+         FAKKO  = FAKKO - FUNK1 / DFDX
+         ITER   = ITER + 1
+         GOTO 2000
+C
+ 2100 RMSEST = 0.0
+      DO 130 NKK = 1,IM
+         X0 (NKK) = X0 (NKK) * FAKKO
+         RMSEST   = RMSEST + ( (X0 (NKK) - 1.0)**2 ) / FLOAT (IM)
+  130    X1 (NKK) = X0 (NKK)
+      RMSEST = SQRT (RMSEST)
+      F1ESTI = X0 (1)
+      FIMEST = X0 (IM)
+C
+C                                 SCHAETZWERTE FUER DIE LAGRANGE-
+C                                 MULTIPLIKATOREN LAMBDA_1 U. LAMBDA_2
+C
+      X0 (IM+1) = 0.0
+      X0 (IM+2) = 0.0
+C
+C                                 LOESUNG DES NICHTLINEAREN GLEICHUNGS-
+C                                 SYSTEMS DER STRECKUNGSFAKTOREN UND
+C                                 DER LAGRANGE-MULTIPLIKATOREN
+C
+      CALL BROWN (N,X0,EPS,EPSM,IAUS,MAXIT,IHF,NIHF,
+     1            HF,NHF,X1,ITANZ,IFEHL,
+     $            SREST, DS0, DSIM)
+      IF(IFEHL .EQ. 1) WRITE (6,6020)
+      IF(IFEHL .EQ. 2) WRITE (6,6030)
+C
+C                                 BESTIMMUNG DER S(I)
+C
+      RMSEXA = 0.0
+      SBSTAR = SBEGRE
+      DO 200 IREL = 1,IM
+         RMSEXA   = RMSEXA + ( (X1 (IREL) - 1.0)**2 ) / FLOAT (IM)
+         NKEN1    = (IM+1)*(1-NORMAL)/2 + IREL*NORMAL
+         CALL GRDPRO (IDUM, X1, N, NKEN1, EPSM, PRD1)
+         S (IBEGRE+IREL) = SBSTAR + PRD1 * DS0
+  200    SBSTAR          = S (IBEGRE+IREL)
+      RMSEXA = SQRT (RMSEXA)
+C
+      IF(LGRAPH) THEN
+C
+C                                 GRAPHISCHE AUSGABE DES GENERIERTEN
+C                                 GITTERS
+C
+C19.2.92         CALL GRDFDR  (CS, S, IMS, IBEGRE, IM, DS0UE, DSIMUE, RMSEXA)
+      END IF
+      WRITE (6,6100) NBLOCK, ITANZ, RMSEXA
+      RETURN
+ 6020 FORMAT (4X,'SUBR. GRDFAK: NACH MAXIT ITERATIONSSCHRITTEN WURDE',
+     $        ' IN SUBR. BROWN',/,4X,'NOCH  K E I N E  KONVERGENZ',
+     $        ' ERZIELT !!')
+ 6030 FORMAT (4X,'SUBR. GRDFAK: SINGULAERE FUNKTIONALMATRIX !',
+     $        /,4X,'A B B R U C H  DER ITERATION')
+ 6100 FORMAT (2X,'BLOCK NR. : ',I2,'  ANZ. D. ITERATIONEN : ',
+     $        I2,'  SQRT (SUM_I (1.0 - F_I)**2) = ',F7.5)
+      END
+      SUBROUTINE GRDFKT  (I, X, F, N, SMAONE, SREST, DS0, DSIM)
+C*STARLET***************************************************************
+C        G R D F K T      IN GRDFKT ERFOLGT DIE FUNKTIONSAUSWERTUNG DER
+C                         I-TEN GLEICHUNG DES NICHTLINEAREN GLEICHUNGS-
+C                         SYSTEMS:
+C                            F = F_I ( X(1), X(2), ..., X(N) ) =! 0.0
+C*STARLET***************************************************************
+C
+C PARAM: I              - KENNZEICHNET DIE I-TE GLEICHUNG DES NICHTLI-
+C                         NEAREN GL.-SYSTEMS
+C        X (N)          - LOESUNGSVEKTOR
+C        F              + FUNKTIONSWERT DER I-TEN GLEICHUNG
+C        N              - ARRAYDIMENSION VON X
+C        SMAONE         - MASCHINENGENAUIGKEIT
+C        SREST          - DIE SUMME VON DS_I (I = 1, 2, ..., IM)
+C                         MUSS ! DIE LAENGE SREST ERGEBEN.
+C        DS0            - VORGEGEBENES DS AM LINKEN RAND DES TEILBE-
+C                         REICHES (ZAEHLT GERADE  N I C H T  MEHR MIT
+C                         BEI DER BILDUNG VON SREST).
+C        DSIM           - VORGEGEBENES DS AM RECHTEN RAND DES TEILBE-
+C                         REICHES (ZAEHLT GERADE  N I C H T  MEHR MIT
+C                         BEI DER BILDUNG VON SREST).
+C
+C DEFINE DIREKTIVEN     : KEINE
+C
+C UPROG                 : ERRR,    GRDPRA,  GRDPRO
+C
+C        10.04.89 (HW)  : ORIGINAL
+C
+C*STARLET***************************************************************
+C
+      REAL            X (N)
+C
+      IF((I .LE. 0)  .OR.  (I .GT. N)) CALL ERRR (501,' GRDFKT   ')
+      IM     = N - 2
+      IF(IM .LT. 3)                    CALL ERRR (502,' GRDFKT   ')
+      IF(SREST .LE. SMAONE)            CALL ERRR (503,' GRDFKT   ')
+      IF(DS0   .LE. SMAONE)            CALL ERRR (504,' GRDFKT   ')
+      IF(DSIM  .LE. SMAONE)            CALL ERRR (505,' GRDFKT   ')
+C
+      IF(I  .LE. IM) THEN
+C
+C                                 DIE BEDINGUNGSGLEICHUNGEN
+C
+C                                 D (F) / D (X_I)
+C
+         ASUM0  = 2.0 * (X(I) - 1.0)
+C
+C                                 LAMBDA_1 * D (PHI_1) / D (X_I)
+C
+         CALL GRDPRA  (I, X, N, IM, SMAONE, PRD1)
+         ASUM1  = X(IM+1) * PRD1
+C
+C                                 LAMBDA_2 * D (PHI_2) / D (X_I)
+C
+         ASUM2  = 0.0
+         DO 100 NK = I,IM
+            CALL GRDPRA  (I, X, N, NK, SMAONE, PRD2)
+  100       ASUM2  = ASUM2 + PRD2
+         ASUM2  = X(IM+2) * ASUM2
+C
+         F      = ASUM0 + ASUM1 + ASUM2
+C
+         RETURN
+      END IF
+C
+C                                 DIE ZWANGSBEDINGUNGEN
+C
+      IF(I .EQ. (IM+1)) THEN
+         CALL GRDPRO  (I, X, N, IM, SMAONE, PRD1)
+C
+         F      = PRD1/X(1) - DSIM / DS0
+         RETURN
+      END IF
+      IF(I .EQ. (IM+2)) THEN
+         PRD1   = 0.0
+         ASUM1  = 0.0
+         DO 200 NK = 1,IM
+            CALL GRDPRO  (I, X, N, NK, SMAONE, PRD1)
+  200       ASUM1  = ASUM1 + PRD1
+         F     = ASUM1 - (SREST       ) / DS0
+         RETURN
+      END IF
+C
+      CALL ERRR (501,' GRDFKT   ')
+C
+ 6010 FORMAT (/,4X,'********** FEHLERMELDUNG AUS SUBR. GRDFKT ',
+     $        '**********',/,4X,
+     $        'DIVISION DURCH NULL : X (',I4,') = ',1PE12.5,
+     $        '   --> ABBRUCH !')
+      END
+      SUBROUTINE GRDPRO  (I, X, N, NKEND, SMAONE, PRODUK)
+C*STARLET***************************************************************
+C        G R D P R O      IN GRDPRO WIRD DAS PRODUKT UEBER ALLE X_NK
+C                         GEBILDET, BEGINNEND BEI NK = 1 BIS NK = NKEND.
+C*STARLET***************************************************************
+C
+C PARAM: I              - KENNZEICHNET DAS I-TE ELEMENT VON X --> X(I)
+C        X (N)          - LOESUNGSVEKTOR
+C        N              - ARRAYDIMENSION VON X
+C        NKEND          - ENDINDEX BEI DER PRODUKTBILDUNG
+C        SMAONE         - MASCHINENGENAUIGKEIT
+C        PRODUK         + ERGEBNIS DES PRODUKTES
+C
+C DEFINE DIREKTIVEN     : KEINE
+C
+C UPROG                 : KEINE
+C
+C        10.04.89 (HW)  : ORIGINAL
+C
+C*STARLET***************************************************************
+C
+      REAL            X (N)
+C
+      PRODUK = 1.0
+C
+      DO 100 NK = 1,NKEND
+  100    PRODUK = PRODUK * X (NK)
+      RETURN
+      END
+      SUBROUTINE GRDPRA  (I, X, N, NKEND, SMAONE, PRODUK)
+C*STARLET***************************************************************
+C        G R D P R A      IN GRDPRA WIRD DAS PRODUKT UEBER ALLE X_NK
+C                         GEBILDET, BEGINNEND BEI NK = 1 BIS NK = NKEND.
+C                         O H N E  X(I) !!
+C*STARLET***************************************************************
+C
+C PARAM: I              - KENNZEICHNET DAS I-TE ELEMENT VON X --> X(I)
+C        X (N)          - LOESUNGSVEKTOR
+C        N              - ARRAYDIMENSION VON X
+C        NKEND          - ENDINDEX BEI DER PRODUKTBILDUNG
+C        SMAONE         - MASCHINENGENAUIGKEIT
+C        PRODUK         + ERGEBNIS DES PRODUKTES
+C
+C DEFINE DIREKTIVEN     : KEINE
+C
+C UPROG                 : KEINE
+C
+C        10.04.89 (HW)  : ORIGINAL
+C
+C*STARLET***************************************************************
+C
+      REAL            X (N)
+C
+      PRODUK = 1.0
+C
+      DO 100 NK = 1,NKEND
+         DELNKI = FLOAT ((NK/I) * (I/NK))
+  100    PRODUK = PRODUK * (X (NK) * (1.0-DELNKI) + DELNKI)
+      RETURN
+      END
+      SUBROUTINE BROWN (N,X0,EPS,EPSM,IAUS,MAXIT,IHF,NIHF,
+     1                  HF,NHF,X1,ITANZ,IFEHL,
+     $                  SREST, DS0, DSIM)
+C
+C*****************************************************************
+C                                                                *
+C DAS UNTERPROGRAMM FBROWN BERECHNET DIE NULLSTELLEN EINES NICHT-*
+C LINEAREN GLEICHUNGSSYSTEMS MIT N GLEICHUNGEN UND N UNBEKANNTEN *
+C NACH DEM VERFAHREN VON BROWN AUS DEM KAPITEL 6.2.4.            *
+C                                                                *
+C UM EINEN ITERATIONSSCHRITT MIT DEM BROWN ALGORITHMUS DURCHZU-  *
+C FUEHREN WIRD DAS UNTERPROGRAMM ITER4 AUFGERUFEN. DIE ITERATION *
+C WIRD SOLANGE FORTGESETZT ,BIS DIE VORGEGEBENE MAXIMALE ANZAHL  *
+C VON ITERATIONSSCHRITTEN ERREICHT IST. DIE ITERATION WIRD VOR-  *
+C ZEITIG BEENDET,WENN EINE DER FOLGENDEN ABBRUCHBEDINGUNGEN ER-  *
+C FUELLT IST:                                                    *
+C DIE RELATIVE AENDERUNG ZWEIER AUFEINANDERFOLGENDER ITERATIONS- *
+C SCHRITTE IST KLEINER ALS EPS.                                  *
+C DER FUNKTIONSWERT IST KLEINER ODER GLEICH EPSM.                *
+C DIE GRENZGENAUIGKEIT IST ERREICHT.                             *
+C                                                                *
+C                                                                *
+C EINGABEPARAMETER:                                              *
+C =================                                              *
+C N       : ANZAHL DER GLEICHUNGEN UND DER UNBEKANNTEN           *
+C (GRDFKT)  : FUNKTIONSUNTERPROGRAMM, Z.B. DER FORM                *
+C                 SUBROUTINE GRDFKT (K,X,F, N, EPSM, SREST, DS0, DSIM
+C                 REAL X(2)                                      *
+C                 GO TO (1,2) K                                  *
+C               1 F = F1(X(1),X(2))                              *
+C                 RETURN                                         *
+C               2 F = F2(X(1),X(2))                              *
+C                 RETURN                                         *
+C                 END                                            *
+C X0      : 1-DIM. FELD (1:N); STARTVEKTOR MIT N KOMPONENTEN     *
+C EPS     : GEFORDERTE GENAUIGKEIT                               *
+C EPSM    : MASCHINENGENAUIGKEIT                                 *
+C IAUS    : IAUS=1 NACH JEDEM ITERATIONSSCHRITT                  *
+C                  WIRD DIE DIFFERENZ ZUR LETZTEN                *
+C                  NAEHERUNG,DIE NAEHERUNG UND DER               *
+C                  FUNKTIONSWERT GEDRUCKT.                       *
+C           IAUS=0 KEINE AUSGABE                                 *
+C MAXIT   : MAXIMUM DER ERLAUBTEN ITERATIONSSCHRITTE             *
+C IHF     : 2-DIM. FELD (1:NIHF,1:N+1); ) HILFSFELDER. NUR BE-   *
+C HF      : 2-DIM. FELD (1:NHF,1:N+3);  ) REITSTELLUNG VON SPEI- *
+C                                       ) CHERPLATZ              *
+C NIHF    : FUEHRENDE DIMENSION VON IHF. WIE IM RUFENDEN PROGRAMM*
+C           VEREINBART. NIHF >= N.                               *
+C NHF     : FUEHRENDE DIMENSION VON HF. WIE IM RUFENDEN PROGRAMM *
+C           VEREINBART. NHF >= N.                                *
+C                                                                *
+C                                                                *
+C AUSGABEPARAMETER:                                              *
+C =================                                              *
+C X1      : 1-DIM. FELD (1:N); NAEHERUNGSVEKTOR MIT N KOMPONENTEN*
+C ITANZ   : ANZAHL DER AUSGEFUEHRTEN ITERATIONEN                 *
+C IFEHL   : FEHLERPARAMETER                                      *
+C           =0; ERFOLG                                           *
+C           =1; GENAUIGKEIT NACH MAXIT SCHRITTEN NICHT ERREICHT  *
+C           =2; SINGULAERE MATRIX                                *
+C                                                                *
+C----------------------------------------------------------------*
+C                                                                *
+C  BENOETIGTE UNTERPROGRAMME: ITER4, SUBST.                      *
+C                                                                *
+C                                                                *
+C  QUELLEN : BROWN K.M. A QUADRATICALLY CONVERGENT NEWTON-LIKE   *
+C            METHOD BASED UPON GAUSSIAN ELIMINATION              *
+C            SIAM J.NUMER.ANAL.VOL 6.NO 4 (DEZ 1969),560         *
+C                                                                *
+C*****************************************************************
+C                                                                *
+C  AUTOR     : JOHANNES KARFUSEHR                                *
+C  BEARBEITER: THOMAS EUL                                        *
+C  DATUM     : 21.08.1985                                        *
+C  DATUM     : 11.04.89 (HW)  UEBERGABE ERWEITERT SREST, DS0, DSIM
+C  QUELLCODE : FORTRAN 77                                        *
+C                                                                *
+C*****************************************************************
+C
+C     PARAMETER
+C
+      INTEGER N, IFEHL, NIHF, NHF
+      REAL EPS, EPSM
+      DIMENSION X0(N),X1(N)
+      DIMENSION IHF(NIHF,N+1),HF(NHF,N+3)
+C
+C     LOKALE VARIABLEN
+C
+      LOGICAL SING
+C
+C     VORBESETZEN
+C
+      SING=.FALSE.
+      KRIT=0
+      DELTA0=1.E-2
+      DO 10 J=1,N
+         HF(J,N+2)=X0(J)
+   10 CONTINUE
+      IF(IAUS.EQ.1) WRITE(*,1000)
+C
+C   ITERATION
+C
+      DO 20 M=1,MAXIT
+         CALL ITER4 (N,EPSM,IHF,NIHF,HF,NHF,X1,SING,
+     $               SREST, DS0, DSIM)
+         ITANZ=M
+C
+C   NACH JEDEM ITERATIONSSCHRITT WIRD DER STARTVEKTOR
+C   UND DIE NAECHSTE NAEHERUNG AUSGEGEBEN
+C
+         IF(IAUS.EQ.1) THEN
+            WRITE(*,3000) M
+            IF(.NOT.SING) THEN
+C
+               WRITE(*,4000)
+               DO 30 J=1,N
+                  CALL GRDFKT(J,X1,FWERT, N, EPSM, SREST, DS0, DSIM)
+                  WRITE(*,5000) X1(J)-HF(J,N+2),J,X1(J),FWERT
+   30          CONTINUE
+            ELSE
+               WRITE(*,7000)
+            ENDIF
+         ENDIF
+C
+         IF(.NOT.SING) THEN
+C
+C   ABBRUCHKRITRIEN TESTEN
+C
+C   RELATIVE AENDERUNG DER ITERIERTEN TESTEN
+C
+            DO 40 I=1,N
+               RELF=(X1(I)-HF(I,N+2))/(HF(I,N+2)+EPS)
+               IF(ABS(RELF).GE.EPS) THEN
+                  GOTO 41
+               ENDIF
+   40       CONTINUE
+            KRIT=1
+            GOTO 21
+   41       CONTINUE
+C
+C   FUNKTIONSWERT PRUEFEN
+C
+            DO 50 I=1,N
+               CALL GRDFKT(I,X1,FWERT, N, EPSM, SREST, DS0, DSIM)
+               IF(ABS(FWERT).GT.EPSM) GOTO 51
+   50       CONTINUE
+            KRIT=2
+            GOTO 21
+   51       CONTINUE
+C
+C   GRENZGENAUIGKEIT PRUEFEN
+C
+            DELTA1=ABS(X1(1)-HF(1,N+2))
+            DO 60 I=2,N
+               DELTA1=MAX(DELTA1,ABS(X1(I)-HF(I,N+2)))
+   60       CONTINUE
+            IF(DELTA1.LE.1.E-3) THEN
+               IF(DELTA0.LE.DELTA1) THEN
+                  KRIT=3
+                  GOTO 21
+               ENDIF
+            ENDIF
+            DELTA0=DELTA1
+            IF(ITANZ.LT.MAXIT) THEN
+               DO 70 I=1,N
+                  HF(I,N+2)=X1(I)
+   70          CONTINUE
+            ENDIF
+         ELSE
+            GOTO 21
+         ENDIF
+   20 CONTINUE
+   21 CONTINUE
+      IF (SING) THEN
+         IFEHL = 2
+      ELSE
+         IF (KRIT.EQ.0) THEN
+            IFEHL = 1
+         ELSE
+            IFEHL = 0
+         ENDIF
+      ENDIF
+C
+ 1000 FORMAT ('1')
+ 3000 FORMAT (1X,I4,'-TER ITERATIONSSCHRITT :')
+ 4000 FORMAT (1X,6X,'DIFFERENZ',7X,2X,'KOMP',2X,6X,'NAEHERUNG',7X,
+     1        2X,4X,'FUNKTIONSWERT')
+ 5000 FORMAT (1X,E22.15,2X,I4,2X,E22.15,2X,E22.15)
+ 7000 FORMAT(1X,'DIE JAKOBI-MATRIX IST SINGULAER')
+C
+      RETURN
+      END
+C
+C
+      SUBROUTINE ITER4 (N,EPSM,IHF,NIHF,HF,NHF,X1,SING,
+     $                  SREST, DS0, DSIM)
+C
+C*****************************************************************
+C                                                                *
+C DAS UNTERPROGRAMM ITER4 BERECHNET EINE NAEHERUNG MIT DEM BROWN *
+C ALGORITHMUS.                                                   *
+C                                                                *
+C                                                                *
+C EINGABEPARAMETER:                                              *
+C =================                                              *
+C N       : ANZAHL DER GLEICHUNGEN UND DER UNBEKANNTEN           *
+C (GRDFKT): FUNKTIONSUNTERPROGRAMM (VGL. UNTERPROGRAMM FBROWN)   *
+C EPSM    : MASCHINENGENAUIGKEIT                                 *
+C IHF     : 2-DIM. FELD (1:NIHF,1:N+1); ) HILFSFELDER. NUR BE-   *
+C HF      : 2-DIM. FELD (1:NHF,1:N+3);  ) REITSTELLUNG VON SPEI- *
+C                                       ) CHERPLATZ              *
+C NIHF    : FUEHRENDE DIMENSION VON IHF. WIE IM RUFENDEN PROGRAMM*
+C           VEREINBART. NIHF >= N.                               *
+C NHF     : FUEHRENDE DIMENSION VON HF. WIE IM RUFENDEN PROGRAMM *
+C           VEREINBART. NHF >= N.                                *
+C                                                                *
+C                                                                *
+C AUSGABEPARAMETER:                                              *
+C =================                                              *
+C X1      : 1-DIM. FELD (1:N); NAEHERUNGSVEKTOR MIT N KOMPONENTEN*
+C SING    : FEHLERPARAMETER; GIBT AN,OB DIE FUNKTIONALMATRIX     *
+C           SINGULAER IST.                                       *
+C                                                                *
+C----------------------------------------------------------------*
+C                                                                *
+C  BENOETIGTE UNTERPROGRAMME: SUBST.                             *
+C                                                                *
+C                                                                *
+C  QUELLEN : BROWN K.M. A QUADRATICALLY CONVERGENT NEWTON-LIKE   *
+C            METHOD BASED UPON GAUSSIAN ELIMINATION              *
+C            SIAM J.NUMER.ANAL.VOL 6.NO 4 (DEZ 1969),560         *
+C                                                                *
+C*****************************************************************
+C                                                                *
+C  AUTOR     : JOHANNES KARFUSEHR                                *
+C  BEARBEITER: THOMAS EUL                                        *
+C  DATUM     : 21.08.1985                                        *
+C  DATUM     : 11.04.89 (HW)  UEBERGABE ERWEITERT (SREST,DS0,DSIM)
+C  QUELLCODE : FORTRAN 77                                        *
+C                                                                *
+C*****************************************************************
+C
+C     PARAMETER
+C
+      LOGICAL SING
+      INTEGER N, NIHF, NHF
+      REAL EPSM
+      DIMENSION IHF(NIHF,N+1), HF(NHF,N+3), X1(N)
+C
+C   VORBESETZEN
+C
+      DO 10 J=1,N
+         IHF(1,J)=J
+         X1(J)=HF(J,N+2)
+   10 CONTINUE
+C
+C   LINEARISIERUNG DER K-TEN KOORDINATENFUNKTION
+C
+      DO 20 K=1,N
+         IZAEHL=0
+         FAKTOR=0.001
+         DO 30 J=1,3
+            IF(K.GT.1) CALL SUBST(K,N,IHF,NIHF,HF,NHF,X1)
+            CALL GRDFKT(K,X1,F, N, EPSM, SREST, DS0, DSIM)
+C
+C   BESTIMMUNG DER I-TEN DISKRETISIERUNGSSCHRITTWEITE
+C   UND BERECHNUNG DES I-TEN DIFFERENZENQUOTIENTEN
+C
+            DO 40 I=K,N
+               ITEMP=IHF(K,I)
+               HOLD=X1(ITEMP)
+               H=FAKTOR*HOLD
+               IF(ABS(H).LE.EPSM) H=0.001
+               X1(ITEMP)=HOLD+H
+               IF(K.GT.1) CALL SUBST(K,N,IHF,NIHF,HF,NHF,X1)
+               CALL GRDFKT(K,X1,FPLUS, N, EPSM, SREST, DS0, DSIM)
+               X1(ITEMP)=HOLD
+               HF(ITEMP,N+3)=(FPLUS-F)/H
+               IF(ABS(HF(ITEMP,N+3)).LE.EPSM) THEN
+                  IZAEHL=IZAEHL+1
+               ELSE
+                  IF(ABS(F/HF(ITEMP,N+3)).GE.1.E20)IZAEHL=IZAEHL+1
+               ENDIF
+   40       CONTINUE
+            IF(IZAEHL.LE.N-K) THEN
+               SING=.FALSE.
+               GOTO 31
+            ELSE
+               SING=.TRUE.
+               FAKTOR=FAKTOR*10.
+               IZAEHL=0
+            ENDIF
+   30    CONTINUE
+   31    CONTINUE
+C
+         IF(.NOT.SING) THEN
+            IF(K.LT.N) THEN
+               KMAX=IHF(K,K)
+C
+C   BESTIMMUNG DES BETRAGSGROESSTEN DIFFERENZENQUOTIENTEN
+C
+               DERMAX=ABS(HF(KMAX,N+3))
+               KPLUS=K+1
+               DO 50 I=KPLUS,N
+                  JSUB=IHF(K,I)
+                  TEST=ABS(HF(JSUB,N+3))
+                  IF(TEST.LT.DERMAX) THEN
+                     IHF(KPLUS,I)=JSUB
+                  ELSE
+                     IHF(KPLUS,I)=KMAX
+                     KMAX=JSUB
+                  ENDIF
+   50          CONTINUE
+               IF(ABS(HF(KMAX,N+3)).LE.EPSM) SING=.TRUE.
+               IHF(K,N+1)=KMAX
+               IF(.NOT.SING) THEN
+                  HF(K,N+1)=0.
+C
+C   AUFLOESUNG DER K-TEN GLEICHUNG NACH XMAX
+C
+                  DO 60 J=KPLUS,N
+                     JSUB=IHF(KPLUS,J)
+                     HF(K,JSUB)=-HF(JSUB,N+3)/HF(KMAX,N+3)
+                     HF(K,N+1)=HF(K,N+1)+HF(JSUB,N+3)*X1(JSUB)
+   60             CONTINUE
+                  HF(K,N+1)=(HF(K,N+1)-F)/HF(KMAX,N+3)+X1(KMAX)
+               ELSE
+                  GOTO 21
+               ENDIF
+            ELSE
+C
+C   LOESEN DER N-TEN KOORDINATENFUNKTION MIT DEM
+C   DISKRETEN NEWTON VERFAHREN EINER VERAENDERLICHEN
+C
+               IF(ABS(HF(ITEMP,N+3)).LE.EPSM) THEN
+                  SING=.TRUE.
+               ELSE
+                  HF(K,N+1)=0.
+                  KMAX=ITEMP
+                  HF(K,N+1)=(HF(K,N+1)-F)/HF(KMAX,N+3)+X1(KMAX)
+               ENDIF
+            ENDIF
+         ELSE
+            GOTO 21
+         ENDIF
+   20 CONTINUE
+   21 CONTINUE
+      IF(.NOT.SING) THEN
+C
+C   BERECHNUNG DER NAEHERUNG DURCH RUECKSUBSTITUTION
+C
+         X1(KMAX)=HF(N,N+1)
+         IF(N.GT.1) CALL SUBST(N,N,IHF,NIHF,HF,NHF,X1)
+      ENDIF
+      RETURN
+      END
+C
+C
+      SUBROUTINE SUBST (K,N,IHF,NIHF,HF,NHF,X1)
+C
+C*****************************************************************
+C                                                                *
+C DAS UNTERPROGRAMM SUBST LOEST  EIN LINEARES GLEICHUNGSSYSTEM   *
+C AUF.                                                           *
+C                                                                *
+C                                                                *
+C EINGABEPARAMETER:                                              *
+C =================                                              *
+C K       : INDEX DER KOORDINATENFUNKTION                        *
+C N       : ANZAHL DER GLEICHUNGEN UND DER UNBEKANNTEN           *
+C IHF     : 2-DIM. FELD (1:NIHF,1:N+1); ) HILFSFELDER. NUR BE-   *
+C HF      : 2-DIM. FELD (1:NHF,1:N+3);  ) REITSTELLUNG VON SPEI- *
+C                                       ) CHERPLATZ              *
+C NIHF    : FUEHRENDE DIMENSION VON IHF. WIE IM RUFENDEN PROGRAMM*
+C           VEREINBART. NIHF >= N.                               *
+C NHF     : FUEHRENDE DIMENSION VON HF. WIE IM RUFENDEN PROGRAMM *
+C           VEREINBART. NHF >= N.                                *
+C                                                                *
+C                                                                *
+C AUSGABEPARAMETER:                                              *
+C =================                                              *
+C X1      : 1-DIM. FELD (1:N); NAEHERUNGSVEKTOR MIT N KOMPONENTEN*
+C                                                                *
+C----------------------------------------------------------------*
+C                                                                *
+C  BENOETIGTE UNTERPROGRAMME: KEINE.                             *
+C                                                                *
+C                                                                *
+C  QUELLEN : BROWN K.M. A QUADRATICALLY CONVERGENT NEWTON-LIKE   *
+C            METHOD BASED UPON GAUSSIAN ELIMINATION              *
+C            SIAM J.NUMER.ANAL.VOL 6.NO 4 (DEZ 1969),560         *
+C                                                                *
+C*****************************************************************
+C                                                                *
+C  AUTOR     : JOHANNES KARFUSEHR                                *
+C  BEARBEITER: THOMAS EUL                                        *
+C  DATUM     : 21.08.1985                                        *
+C  QUELLCODE : FORTRAN 77                                        *
+C                                                                *
+C*****************************************************************
+C
+C     PARAMETER
+C
+      INTEGER K, N, NIHF, NHF
+      DIMENSION IHF(NIHF,N+1), HF(NHF,N+3), X1(N)
+C
+      DO 10 KM=K,2,-1
+         KMAX=IHF(KM-1,N+1)
+         X1(KMAX)=0.
+         DO 20 J=KM,N
+            JSUB=IHF(KM,J)
+            X1(KMAX)=X1(KMAX)+HF(KM-1,JSUB)*X1(JSUB)
+   20    CONTINUE
+         X1(KMAX)=X1(KMAX)+HF(KM-1,N+1)
+   10 CONTINUE
+      RETURN
+      END

@@ -1,0 +1,92 @@
+      SUBROUTINE CAL_UBULK(KK,JJ,II,NBND,DDX,
+     $                    DDY,DDZ,U,W,B,
+     $                    UGRID,UBULK,BP)
+C***********************************************************************
+C  U B U L K     BERECHNUNG VON UBULK BEI CHANNEL
+C*************************************************** T.HUETTL 26.01.98 *
+C
+C***********************************************************************
+C
+C     UBULK = Sum ( U*Flaeche) / Sum (Flaeche)
+C   
+      IMPLICIT NONE
+C
+      INTEGER KK,JJ,II,NBND,IP1,IP3,I,J,K
+      REAL    LVRFLU,LVRFLA,DDX(II),DDY(JJ),DDZ(KK),U(KK,JJ,II),
+     $     UGRID,UBULK
+      REAL    B(KK,JJ,II),W(KK,JJ,II),BP(KK,JJ,II)
+C
+      LVRFLA = 0.
+      LVRFLU = 0. 
+C
+#ifdef _UPWARDS_
+
+      K=KK-NBND
+
+#ifdef _FRED_BODY_
+      DO 1100 I=NBND+1,II-NBND
+         DO 1000 J=NBND+1,JJ-NBND
+            LVRFLA = LVRFLA + (DDX(I) * DDY (J))
+     $                       *(SIGN(0.5,B(K,J,I)) + 0.5)
+     $                       *BP(K,J,I)
+            LVRFLU = LVRFLU + (W(K,J,I)*(DDX(I) * DDY(J)))
+     $                       *(SIGN(0.5,B(K,J,I)) + 0.5)
+     $                       *BP(K,J,I)
+ 1000    CONTINUE
+ 1100 CONTINUE
+
+#else
+
+
+C                       HAUPTSTROEMUNGSRICHTUNG IN Z-RICHTUNG
+      K=KK-NBND
+
+      DO 1100 I=NBND+1,II-NBND
+         DO 1000 J=NBND+1,JJ-NBND
+            LVRFLA = LVRFLA + (DDX(I) * DDY (J))
+     $                       *(SIGN(0.5,B(K,J,I)) + 0.5)
+            LVRFLU = LVRFLU + (W(K,J,I)*(DDX(I) * DDY(J)))
+     $                       *(SIGN(0.5,B(K,J,I)) + 0.5)
+ 1000    CONTINUE
+ 1100 CONTINUE
+#endif
+#else
+
+      I=II-NBND
+C
+#ifdef _FRED_BODY_
+
+      DO 1100 J=NBND+1,JJ-NBND
+         DO 1000 K=NBND+1,KK-NBND
+            LVRFLA = LVRFLA + (DDY(J) * DDZ (K))
+     $                       *(SIGN(0.5,B(K,J,I)) + 0.5)
+     $                       *BP(K,J,I)
+            LVRFLU = LVRFLU + (U(K,J,I)*(DDY(J) * DDZ(K)))
+     $                       *(SIGN(0.5,B(K,J,I)) + 0.5)
+     $                       *BP(K,J,I)
+ 1000     CONTINUE
+ 1100  CONTINUE
+
+#else
+      DO 1100 J=NBND+1,JJ-NBND
+         DO 1000 K=NBND+1,KK-NBND
+            LVRFLA = LVRFLA + (DDY(J) * DDZ (K))
+     $                       *(SIGN(0.5,B(K,J,I)) + 0.5)
+            LVRFLU = LVRFLU + (U(K,J,I)*(DDY(J) * DDZ(K)))
+     $                       *(SIGN(0.5,B(K,J,I)) + 0.5)
+ 1000     CONTINUE
+ 1100  CONTINUE
+
+#endif
+#endif
+C
+#ifdef _UBULK_TIMES_AREA_
+
+      UBULK = LVRFLU
+#else
+      UBULK = LVRFLU / LVRFLA
+#endif
+
+C
+      RETURN
+      END

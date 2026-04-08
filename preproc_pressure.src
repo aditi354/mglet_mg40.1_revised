@@ -1,0 +1,107 @@
+      SUBROUTINE PREPROC_PRESSURE(kk,jj,ii,PHI,H3D1,H3D2,H3D3)
+
+C..... Prerpocessing the field to achieve better resolution
+C      26.07.04
+C      by Florian Schwertfirm
+C..........................................................
+
+      IMPLICIT NONE
+      integer i,j,k
+      integer kk,jj,ii
+      
+
+      logical KON
+      real PHI(kk,jj,ii),H3D1(kk,jj,ii),H3D2(kk,jj,ii),H3D3(kk,jj,ii)
+      real DZ(kk)
+c..... filter coefficients
+      real a1,b1,a2,b2,a11,b11
+
+      a1 = 29.0/2240+1.0/560.0*sqrt(565.0)
+      b1 = 911.0/1120.0
+      a2 = -203.0/5466.0+14.0/2733.0*sqrt(565.0)
+      b2 = 4.0/6.0
+
+      CALL DPHI0(kk,jj,ii,kk,jj,ii,H3D1)
+      CALL DPHI0(kk,jj,ii,kk,jj,ii,H3D2)
+c......................................................... x-direction
+c..... first filter step
+        
+      do i=3,ii-2
+       do j=3,jj-2
+        do k=3,kk-2
+       H3D1(k,j,i) = a1*PHI(k,j,i-1) + b1*PHI(k,j,i) + 
+     $               a1*PHI(k,j,i+1)
+        enddo
+       enddo
+      enddo
+
+C---- Preiodic boundary in x
+      do j=1,jj
+       do k=1,kk
+        H3D1(k,j,ii-1) = H3D1(k,j,3)
+        H3D1(k,j,2) = H3D1(k,j,ii-2)
+       enddo
+      enddo
+C---- Periodic boundary in y
+      do i=1,ii
+       do k=1,kk
+        H3D1(k,2,i) = H3D1(k,jj-2,i)
+        H3D1(k,jj-1,i) = H3D1(k,3,i)
+       enddo
+      enddo
+C
+
+c..... second filter step
+      do i=3,ii-2
+       do j=3,jj-2
+        do k=3,kk-2
+       H3D2(k,j,i) = a2*H3D1(k,j,i-1) + b2*H3D1(k,j,i) +
+     $                  a2*H3D1(k,j,i+1)
+        enddo
+       enddo
+      enddo
+
+C---- Preiodic boundary in x
+      do j=1,jj
+       do k=1,kk
+        H3D2(k,j,ii-1) = H3D2(k,j,3)
+        H3D2(k,j,2) = H3D2(k,j,ii-2)
+       enddo
+      enddo
+C---- Periodic boundary in y
+      do i=1,ii
+       do k=1,kk
+        H3D2(k,2,i) = H3D2(k,jj-2,i)
+        H3D2(k,jj-1,i) = H3D2(k,3,i)
+       enddo
+      enddo
+
+c      write(6,*)'PR: ',H3D2(65,70,60)
+
+c..... deconvolution
+      do i=3,ii-2
+       do j=3,jj-2
+        do k=3,kk-2
+        H3D2(k,j,i)= 3.*PHI(k,j,i) 
+     $            - 3.*H3D1(k,j,i) + H3D2(k,j,i)
+        enddo
+       enddo
+      enddo
+C.... Preiodic boundary in x
+      do j=1,jj
+       do k=1,kk
+        H3D2(k,j,ii-1) = H3D2(k,j,3)
+        H3D2(k,j,2) = H3D2(k,j,ii-2)
+       enddo
+      enddo
+C---- Periodic boundary in y
+      do i=1,ii
+       do k=1,kk
+        H3D2(k,2,i) = H3D2(k,jj-2,i)
+        H3D2(k,jj-1,i) = H3D2(k,3,i)
+       enddo
+      enddo
+
+      return
+      end
+

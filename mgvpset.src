@@ -1,0 +1,345 @@
+         SUBROUTINE MGVPSET
+     $             (CIDENT,IIDENT,RIDENT,
+     $              DDX,DDY,DDZ,DX,DY,DZ,X,Y,Z,
+#ifdef _TSCAL_
+     $              U,V,W,T,P,G,BU,BV,BW,BP,BT,
+#else
+     $              U,V,W,P,G,B,BU,BV,BW,BP,	
+#endif	     
+     $              ITSTEP,ITTOT,TIMEPH,
+     $              IDIMF,NGRP1, NGRP3, IGRHF, GRX0, GRX1, HILF,
+     $              IDIM3D,IDIM2D,IDIM1D,NBUF,NBND,IDIMA,IDIM1L,IDIM2L,
+     $              IDIMF2,IGRID,CONV1S)
+C--MGLET----------------------------------------------------------------
+C
+C                   SETZT DIE DUMMYGITTER FUER DRUCKKORREKTUR
+C                  
+C
+C
+C        17. 6.93 (MM)  : ORIGINAL
+C        30.07.03 (TB)  : SCALAR TRANSPORT, T,BT FIELD ADDED
+C
+C--MGLET----------------------------------------------------------------
+
+
+#include "mgpar.h"
+#include "comgrid.h"
+#include "cobound.h"
+#include "costrles.h"
+#include "cophyspar.h"
+#include "cobody.h"
+#include "cogrdpro.h"
+#include "cogrdcon.h"
+#include "colevel.h"
+C
+#ifdef _MPI_
+#include "mpif.h"
+#include "compi.h"
+#endif
+
+C
+      CHARACTER (LEN=8)    CIDENT(10)
+C
+      INTEGER IIDENT(100),
+     $        IGRHF(IDIMF,NGRP1)
+C
+C
+C
+C
+      REAL    RIDENT(100),
+     $            X(IDIM1D),     Y(IDIM1D),     Z(IDIM1D),
+     $           DX(IDIM1D),    DY(IDIM1D),    DZ(IDIM1D),
+     $          DDX(IDIM1D),   DDY(IDIM1D),   DDZ(IDIM1D),
+     $        U( IDIM3D ), V( IDIM3D ), W( IDIM3D ),
+     $        P( IDIM3D ), G( IDIM3D ), B( IDIM3D ),
+     $        BU( IDIM3D ), BV( IDIM3D ), BW( IDIM3D ),
+     $        BP( IDIM3D )
+#ifdef _TSCAL_
+     $       ,T(IDIM3D),BT(IDIM3D)
+#endif      
+
+      REAL   CONV1S(IDIM1D)
+C
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+C
+C                             FALLS GITTER SCHON EINEN "PARENT"
+C                             BESITZT, DARF KEINER ERZEUGT ZU WERDEN
+C
+      IF (LCHILD(IGRID)) THEN
+C         IVPPAR(IGRID) = IPARENT(IGRID)
+          RETURN
+      ENDIF
+
+      IFINE = IGRID
+
+      LEVACT = LEVEL(IGRID)
+
+      DO I=1,NVPGRIDS(IGRID)
+
+         CALL NEXTGRID(IACT)
+
+C                                          "CHILD" == FEINGITTER
+         LCHILD (IFINE)   = .TRUE.
+         IVPCHILD (IACT)  = IFINE
+C                                          "PARENT" == GROBGITTER
+C        IVPPAR   (IFINE) = IACT
+         IPARENT  (IFINE) = IACT
+         LEVACT = LEVACT - 1
+         LEVEL(IACT) = LEVACT
+
+C                            GROBGITTER FUER DRUCKKORR. SIND SCHON GESCHNITTEN
+         LSLICE(IACT) = .FALSE.
+
+         LVP(IACT) = .TRUE.
+
+         II            = (IMX(IFINE)-4)/2 + 4
+         JJ            = (JMX(IFINE)-4)/2 + 4
+         KK            = (KMX(IFINE)-4)/2 + 4
+
+         IF (II.LE.3) GOTO 1000
+         IF (JJ.LE.3) GOTO 1000
+         IF (KK.LE.3) GOTO 1000
+
+         IMX(IACT) = II
+         JMX(IACT) = JJ
+         KMX(IACT) = KK
+
+         XTOT(IACT) = XTOT(IGRID)
+         YTOT(IACT) = YTOT(IGRID)
+         ZTOT(IACT) = ZTOT(IGRID)
+
+         IPOSITION(IFINE) = NBND + 1
+         JPOSITION(IFINE) = NBND + 1
+         KPOSITION(IFINE) = NBND + 1
+
+         DO IDIR=1,7
+            NBOCD(IDIR,IACT) = NBOCD(IDIR,IGRID)
+         ENDDO
+
+C           PARAMETER ZUR BESTIMMUNG VON CONV1S (SUBGRIDSCALEKONSTANTE)
+         CONV1SANF(IACT) = CONV1SANF(IGRID)
+         CONV1SEND(IACT) = CONV1SEND(IGRID)
+         TRANSLES1(IACT) = TRANSLES1(IGRID)
+         TRANSLES2(IACT) = TRANSLES2(IGRID)
+
+         CALL SETCOBOUND  (IACT,IGRID)
+
+         ITST = 0
+         IF (LTST(IACT)) ITST = 1
+         IVP = 0
+         IF (LVP(IACT)) IVP = 1
+
+         IF (     LSLICE(IACT)) ISLCED=1
+         IF (.NOT.LSLICE(IACT)) ISLCED=0
+
+         CALL SETCOLEVEL (IACT,LEVEL(IACT),IVP,ITST,ISLCED,0,0)
+
+#ifdef _MPI_
+         CALL ADDMPI (IACT,IDPROCOFGRD(IGRID),LEVEL(IACT),IVP,ITST)
+#endif
+C
+         CALL SETCOMGRID (IDIM3D,IDIM2D,IDIM1D,NBUF,NBND,
+     $                    IDIMA,IDIM1L,IDIM2L,IDIMF,
+     $                    IACT,1,0,0,0)
+
+C
+C                                 BEREITSTELLUNG DER POINTER
+C                                 BASIS-RANDBEDINGUNGEN
+C
+         CALL MGPOINT (IP3,IP2,IP1,IBB,IB3,IBU,IACT)
+         CALL MGBASB  (NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB,IACT)
+
+C
+C                                 GITTERGENERIERUNG UND VORBELEGUNG VON
+C                                 U,V,W,P UND G.
+C
+         CALL MGGRDGEN (DDX,DDY,DDZ,DX,DY,DZ,X,Y,Z,
+     $                IDIMF,NGRP1, NGRP3, IGRHF, GRX0, GRX1, HILF,
+     $                IDIM3D,IDIM2D,IDIM1D,NBND,
+     $                IACT,1)
+
+#ifdef _MPI_
+             IPACT  = IDPROCOFGRD(IACT)
+             IPFINE  = IDPROCOFGRD(IFINE)
+
+             IF ( MYID .EQ. IPACT ) THEN
+#endif
+C
+C
+C                                 BELEGEN DES WANDERKENNUNGSFELDES
+C
+#ifdef _FRED_BODY_
+         CALL SETS   (KK,JJ,II,KK,JJ,II,B(IP3),1.0)
+#else
+         CALL IBFIELD (KK,JJ,II,KK,JJ,II,NBND,
+     $              DDX(IP1),DDY(IP1),DDZ(IP1),
+     $              DX(IP1),DY(IP1),DZ(IP1),
+     $              X(IP1),Y(IP1),Z(IP1),
+     $              B(IP3),BP(IP3),BU(IP3),BV(IP3),BW(IP3),
+     $              IDIMF,NGRP3,HILF,ZCUB,NCUB,IACT
+#ifdef _TSCAL_
+     $             ,BT(IP3)
+#endif 
+     $                 )     
+#endif
+C
+C
+C                                 BELEGUNG DER GRENZEN DER BOUNDING-BOX
+C
+       CALL SBBC12 (KK,JJ,II,KK,JJ,II,
+     $                  B(IP3),
+     $                  KC1(IACT),KC2(IACT),
+     $                  JC1(IACT),JC2(IACT),
+     $                  IC1(IACT),IC2(IACT),
+     $                  NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB,IACT)
+
+C
+C
+C                                 BELEGUNG VON B MIT LAENGENMASS
+C
+       CALL DMIXLE (KK,JJ,II,KK,JJ,II,B(IP3),HILF,
+     $              X(IP1),Y(IP1),Z(IP1),
+     $              DX(IP1),DY(IP1),DZ(IP1),
+     $              DDX(IP1),DDY(IP1),DDZ(IP1),
+     $              IC1(IACT),IC2(IACT),
+     $              JC1(IACT),JC2(IACT),
+     $              KC1(IACT),KC2(IACT),
+     $              NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB,
+     $              GRADPX(IACT),RHO,GMOL,CONV1S(IP1),
+     $              CONV1SANF(IACT),CONV1SEND(IACT),
+     $              TRANSLES1(IACT),TRANSLES2(IACT),U(IP3))
+
+C
+C
+C                               VORBELEGUNG DER VARIABLEN
+C
+         CALL SETS   (KK,JJ,II,KK,JJ,II,U(IP3),0.0)
+         CALL SETS   (KK,JJ,II,KK,JJ,II,V(IP3),0.0)
+         CALL SETS   (KK,JJ,II,KK,JJ,II,W(IP3),0.0)
+
+         CALL SETS   (KK,JJ,II,KK,JJ,II,P(IP3),0.0)
+         CALL SETS   (KK,JJ,II,KK,JJ,II,G(IP3),GMOL)
+#ifdef _FRED_BODY_
+         CALL SETS   (KK,JJ,II,KK,JJ,II,BP(IP3),1.0)
+#endif
+#ifdef _TSCAL_
+         CALL SETS   (KK,JJ,II,KK,JJ,II,T(IP3),0.0)
+#endif
+
+#ifdef _MPI_
+             ENDIF
+
+             IF (( MYID .EQ. IPACT) .OR. ( MYID .EQ. IPFINE)) THEN
+#endif
+C                                 RESTRICTION OF THE VARIABLES
+C                                 FROM FINE-GRID TO COARSE-GRID
+C
+C                                 BEREITSTELLUNG DER POINTER
+C                                 DIMENSIONIERUNGEN DES FEINGITTERS
+
+         CALL MGDIMS  (KKF,JJF,IIF,IFINE)
+         CALL MGPOINT (IP3F,IP2F,IP1F,IBBF,IB3F,IBUF,IFINE)
+
+         CALL MGFTOC (KKF,JJF,IIF,DX(IP1F),DY(IP1F),DZ(IP1F),
+     &                DDX(IP1F),DDY(IP1F),DDZ(IP1F),U(IP3F),
+     &                KK,JJ,II,DX(IP1),DY(IP1),DZ(IP1),
+     &                DDX(IP1),DDY(IP1),DDZ(IP1),U(IP3),
+     &               IPOSITION(IFINE),JPOSITION(IFINE),KPOSITION(IFINE),
+     &                'U',IPFINE,IPACT,
+     &                      NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,BU(IP3F))
+
+         CALL MGFTOC (KKF,JJF,IIF,DX(IP1F),DY(IP1F),DZ(IP1F),
+     &                DDX(IP1F),DDY(IP1F),DDZ(IP1F),V(IP3F),
+     &                KK,JJ,II,DX(IP1),DY(IP1),DZ(IP1),
+     &                DDX(IP1),DDY(IP1),DDZ(IP1),V(IP3),
+     &               IPOSITION(IFINE),JPOSITION(IFINE),KPOSITION(IFINE),
+     &                'V',IPFINE,IPACT,
+     &                      NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,BV(IP3F))
+
+         CALL MGFTOC (KKF,JJF,IIF,DX(IP1F),DY(IP1F),DZ(IP1F),
+     &                DDX(IP1F),DDY(IP1F),DDZ(IP1F),W(IP3F),
+     &                KK,JJ,II,DX(IP1),DY(IP1),DZ(IP1),
+     &                DDX(IP1),DDY(IP1),DDZ(IP1),W(IP3),
+     &               IPOSITION(IFINE),JPOSITION(IFINE),KPOSITION(IFINE),
+     &                'W',IPFINE,IPACT,
+     &                      NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,BW(IP3F))
+
+         CALL MGFTOC (KKF,JJF,IIF,DX(IP1F),DY(IP1F),DZ(IP1F),
+     &                DDX(IP1F),DDY(IP1F),DDZ(IP1F),P(IP3F),
+     &                KK,JJ,II,DX(IP1),DY(IP1),DZ(IP1),
+     &                DDX(IP1),DDY(IP1),DDZ(IP1),P(IP3),
+     &               IPOSITION(IFINE),JPOSITION(IFINE),KPOSITION(IFINE),
+     &                'P',IPFINE,IPACT,
+     &                      NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,BP(IP3F))
+#ifdef _TSCAL_
+         CALL MGFTOC (KKF,JJF,IIF,DX(IP1F),DY(IP1F),DZ(IP1F),
+     &                DDX(IP1F),DDY(IP1F),DDZ(IP1F),T(IP3F),
+     &                KK,JJ,II,DX(IP1),DY(IP1),DZ(IP1),
+     &                DDX(IP1),DDY(IP1),DDZ(IP1),P(IP3),
+     &               IPOSITION(IFINE),JPOSITION(IFINE),KPOSITION(IFINE),
+     &                'T',IPFINE,IPACT,
+     &                      NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,BT(IP3F))
+#endif
+#ifdef _FRED_BODY_
+        CALL SETS   (KK,JJ,II,KK,JJ,II,BU(IP3),1.0)
+        CALL SETS   (KK,JJ,II,KK,JJ,II,BV(IP3),1.0)
+        CALL SETS   (KK,JJ,II,KK,JJ,II,BW(IP3),1.0)
+        CALL SETS   (KK,JJ,II,KK,JJ,II,BP(IP3),1.0)
+        CALL MGFTOC (KKF,JJF,IIF,DX(IP1F),DY(IP1F),DZ(IP1F),
+     &                DDX(IP1F),DDY(IP1F),DDZ(IP1F),BP(IP3F),
+     &                KK,JJ,II,DX(IP1),DY(IP1),DZ(IP1),
+     &                DDX(IP1),DDY(IP1),DDZ(IP1),BP(IP3),
+     &               IPOSITION(IFINE),JPOSITION(IFINE),KPOSITION(IFINE),
+     &                'A',IPFINE,IPACT,
+     &                      NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,BP(IP3F))
+
+         CALL MGFTOC (KKF,JJF,IIF,DX(IP1F),DY(IP1F),DZ(IP1F),
+     &                DDX(IP1F),DDY(IP1F),DDZ(IP1F),BU(IP3F),
+     &                KK,JJ,II,DX(IP1),DY(IP1),DZ(IP1),
+     &                DDX(IP1),DDY(IP1),DDZ(IP1),BU(IP3),
+     &               IPOSITION(IFINE),JPOSITION(IFINE),KPOSITION(IFINE),
+     &                'B',IPFINE,IPACT,
+     &                      NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,BP(IP3F))
+
+         CALL MGFTOC (KKF,JJF,IIF,DX(IP1F),DY(IP1F),DZ(IP1F),
+     &                DDX(IP1F),DDY(IP1F),DDZ(IP1F),BV(IP3F),
+     &                KK,JJ,II,DX(IP1),DY(IP1),DZ(IP1),
+     &                DDX(IP1),DDY(IP1),DDZ(IP1),BV(IP3),
+     &               IPOSITION(IFINE),JPOSITION(IFINE),KPOSITION(IFINE),
+     &                'C',IPFINE,IPACT,
+     &                      NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,BP(IP3F))
+
+         CALL MGFTOC (KKF,JJF,IIF,DX(IP1F),DY(IP1F),DZ(IP1F),
+     &                DDX(IP1F),DDY(IP1F),DDZ(IP1F),BW(IP3F),
+     &                KK,JJ,II,DX(IP1),DY(IP1),DZ(IP1),
+     &                DDX(IP1),DDY(IP1),DDZ(IP1),BW(IP3),
+     &               IPOSITION(IFINE),JPOSITION(IFINE),KPOSITION(IFINE),
+     &                'D',IPFINE,IPACT,
+     &                      NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,BP(IP3F))
+#endif
+
+#ifdef _MPI_
+             ENDIF
+#endif
+C
+C
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+C
+
+         IFINE = IACT
+
+       ENDDO
+
+ 1000  CONTINUE
+C
+C
+C
+C
+C
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+C
+
+      RETURN
+      END
+
+

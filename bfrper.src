@@ -1,0 +1,111 @@
+      SUBROUTINE BFRPER (KMX,JMX,IMX,     
+     $                    U,V,W,P,G,
+     $                    JSTART,JSTOP,KSTART,KSTOP,ITYP
+#ifdef _TSCAL_
+     $                   ,T
+#endif
+     $                   )     
+C*STARLET***************************************************************
+C        B F R P E R    SETZEN DER RANDBEDINGUNGEN FUER DIE
+C                         GESCHWINDIGKEITSFELDER.
+C                         (LARGE-EDDY-SIMULATION)
+C*STARLET***************************************************************
+C
+C PARAM: 
+C        KMX, JMX, IMX  - DIMENSIONEN DES GITTERS 
+C        U(KMX,JMX,IMX) + GESCHWINDIGKEITSFELD
+C        V(KMX,JMX,IMX) + GESCHWINDIGKEITSFELD
+C        W(KMX,JMX,IMX) + GESCHWINDIGKEITSFELD
+C        T(KMX,JMX,IMX) + SCALAR T FIELD
+C        P(KMX,JMX,IMX) - DRUCKFELD
+C        G(KMX,JMX,IMX) - EFFEKTIVE DYNAMISCHE VISKOSITAET (= MUE)
+C        ITYP           - HOLLERITH-KONSTANTE:
+C                         'P'  VOR DER DRUCKKORREKTUR
+C                         'T'  VOR DEM ZEITSCHRITT
+C
+C VERS:   8. 3.93 (MM)  : ORIGINAL
+C                         AUS BFROLE (BFROL) ABGELEITET
+C        28.02.03 (TB)  : SCALAR BOUNDARY TREATMENT IMPLEMENTED
+C
+C DEFINE-DIREKTIVEN     : QUD 
+C
+C*STARLET***************************************************************
+C
+      CHARACTER (LEN=1)  ITYP
+C
+      REAL
+     $            U(KMX,JMX,IMX),   V(KMX,JMX,IMX),   W(KMX,JMX,IMX),
+     $            P(KMX,JMX,IMX),   G(KMX,JMX,IMX)
+C
+#ifdef _TSCAL_
+      REAL        T(KMX,JMX,IMX)
+#endif
+C
+      IM2 = IMX-2
+      IM3 = IMX-3
+C
+C                                 **************************************
+C                                 PERIODISCHE RANDBEDINGUNGEN IN
+C                                 X-RICHTUNG
+C                                 **************************************
+C
+C
+C                                 FUER ZEITSCHRITT
+      IF (ITYP.EQ.'T') THEN
+         DO J=JSTART,JSTOP
+         DO K=KSTART,KSTOP
+
+               U(K,J,  2) = U(K,J,IM2)
+               V(K,J,  2) = V(K,J,IM2)
+               W(K,J,  2) = W(K,J,IM2)
+               P(K,J,  2) = P(K,J,IM2)
+               G(K,J,  2) = G(K,J,IM2)
+#ifdef _TSCAL_
+               T(K,J,  2) = T(K,J,IM2)
+#endif
+
+         ENDDO
+         ENDDO
+
+
+#ifdef _QUD_
+
+         DO J=JSTART,JSTOP
+         DO K=KSTART,KSTOP
+
+               U(K,J,  1) = U(K,J,IM3)
+               V(K,J,  1) = V(K,J,IM3)
+               W(K,J,  1) = W(K,J,IM3)
+               P(K,J,  1) = P(K,J,IM3)
+               G(K,J,  1) = G(K,J,IM3)
+#ifdef _TSCAL_
+               T(K,J,  1) = T(K,J,IM3)
+#endif               
+
+         ENDDO
+         ENDDO
+
+#endif
+C                                 FUER DRUCKKORREKTUR
+C                                 NUR NORMALKOMPONENTE MUSS
+C                                 GESETZT WERDEN
+       ELSEIF (ITYP.EQ.'P') THEN
+
+         DO J=JSTART,JSTOP
+         DO K=KSTART,KSTOP
+
+               U(K,J,  2) = U(K,J,IM2)
+
+         ENDDO
+         ENDDO
+
+ 
+       ELSE
+                CALL ERRR (501,' BFRPER')
+       ENDIF
+
+
+
+      RETURN
+      END
+

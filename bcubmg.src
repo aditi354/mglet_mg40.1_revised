@@ -1,0 +1,191 @@
+      SUBROUTINE BCUBMG  
+     $             (IDIM3D,IDIM2D,IDIM1D,
+     $              X,Y,Z,DX,DY,DZ,DDX,DDY,DDZ,
+     $              U,V,W,P,G,B,UFR,VRI,WBO,HILF,
+     $              ITYP,IGRID,IRB,JRB,KRB
+#ifdef _TSCAL_
+     $              ,T
+#endif
+     $              )      
+C*STARLET***************************************************************
+C        B C U B M G      SETZEN DER RANDBEDINGUNGEN FUER DIE
+C                         GESCHWINDIGKEITSFELDER  AND SCALAR T.
+C                         (LARGE-EDDY-SIMULATION)
+C*STARLET***************************************************************
+C
+C PARAM: KK, JJ, II     - ARRAYDIMENSIONEN
+C        KMX, JMX, IMX  - GRENZEN DES BERECHNUNGSGEBIETES (MIT BOUND)
+C        X, Y, Z        - KOORDINATEN DER ZELLDEFINITIONSPUNKTE
+C        DX,DY,DZ       - ABSTAND DER GITTERPUNKTE
+C        DDX,DDY,DDZ    - KANTENLAENGEN DER KONTROLLVOLUMINA
+C        U(KK,JJ,II)    + GESCHWINDIGKEITSFELD
+C        V(KK,JJ,II)    + GESCHWINDIGKEITSFELD
+C        W(KK,JJ,II)    + GESCHWINDIGKEITSFELD
+C        T(KK,JJ,II)    + SCALAR T FIELD
+C        P(KK,JJ,II)    - DRUCKFELD
+C        G(KK,JJ,II)    - EFFEKTIVE DYNAMISCHE VISKOSITAET (= MUE)
+C        TK(KK,JJ,II)   - TURBULENZENERGIE
+C        UFR(KK,JJ, 2)  - ENTHAELT DIE I=1 U. I=2 EBENEN DES U-PROFILS
+C        VRI(KK, 2,II)  -    "      "  J=1 U. J=2    "    "  V-PROFILS
+C        WBO( 2,JJ,II)  -    "      "  K=1 U. K=2    "    "  W-PROFILS
+C        GMOL           - MOLEKULARE DYNAMISCHE VISKOSITAET
+C        RHO            - DICHTE (= CONST)
+C        UGRID          - GESCHWINDIGKEIT DES KOORDINATENSYSTEMS IN
+C                         X-RICHTUNG (GALILEI-TRANSFORMATION)
+C        XTOT           - LAENGE DES BERECHNUNGSGEBIETES IN X-RICHTUNG
+C        YTOT           -    "    "           ""          IN Y-RICHTUNG
+C        ZTOT           -    "    "                     IN Z-RICHTUNG
+C        MTURB          - SCHALTER: 0 = LAMINAR; 1 = TURBULENT
+C        ITYP           - HOLLERITH-KONSTANTE:
+C                         'P'  VOR DER DRUCKKORREKTUR
+C                         'T'  VOR DEM ZEITSCHRITT
+C
+C VERS:  18.03.86 (HW)  : ORIGINAL
+C VERS:   5. 3.92 (MM)  : BEINHALTET BFROL UND BFOLI, 
+C                         VOELLIG NEUE VERSION
+C                         SCHLEIFEN LAUFEN GRUNDSAETZLICH UEBER GANZES
+C                         BERECHNUNGSGEBIET
+C        28.02.03 (TB)  : SCALAR BOUNDARY TREATMENT IMPLEMENTED
+C
+C DEFINE-DIREKTIVEN     : QUD, BAPER, FRFIX, FRPER
+C
+C*STARLET***************************************************************
+C
+#include "mgpar.h"
+#include "comgrid.h"
+#include "cobound.h"
+#include "cobody.h"
+C
+      CHARACTER (LEN=1)  ITYP
+C
+      REAL        X(IDIM1D),         Y(IDIM1D),         Z(IDIM1D),
+     $           DX(IDIM1D),        DY(IDIM1D),        DZ(IDIM1D),
+     $          DDX(IDIM1D),       DDY(IDIM1D),       DDZ(IDIM1D),
+     $          U( IDIM3D ),       V( IDIM3D ),       W( IDIM3D ),
+     $          P( IDIM3D ),       G( IDIM3D ),       B( IDIM3D ),
+     $        UFR(IDIM2D,2),     VRI(IDIM2D,2),     WBO(IDIM2D,2),
+     $       HILF( IDIM3D )
+C
+#ifdef _TSCAL_
+      REAL     T( IDIM3D )
+#endif
+C
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+
+       CALL MGDIMS  (KK,JJ,II,IGRID)
+       CALL MGPOINT (IP3,IP2,IP1,IBB,IB3,IBU,IGRID)
+
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+C
+#ifdef _FRED_BODY_
+      IF (CTYP(1)(1:8).EQ.'NEWBLOCK'.OR.CTYP(1)(1:8).EQ.'USEBLOCK') THEN
+c     write(*,*) 'going in xpol'
+      IF (ITYP.EQ.'X') THEN
+!        write(*,*) 'doing EXTRAPOLATION DONE WITH UPDATING'
+
+       CALL XPOLQUAD(KK,JJ,II,0,IGRID,1,U(IP3),1.0)
+       CALL XPOLQUAD(KK,JJ,II,0,IGRID,2,V(IP3),1.0)
+       CALL XPOLQUAD(KK,JJ,II,0,IGRID,3,W(IP3),1.0)
+       CALL XPOLQUAD(KK,JJ,II,0,IGRID,4,P(IP3),1.0)
+#ifdef _TSCAL_
+       CALL XPOLQUAD(KK,JJ,II,0,IGRID,5,T(IP3),1.0)
+#endif
+!        write(*,*) 'EXTRAPOLATION DONE WITH UPDATING'
+c     write(*,*) 'out of xpol'
+         RETURN
+      ELSE IF (ITYP.EQ.'Y') THEN
+       CALL XPOLQUAD(KK,JJ,II,0,IGRID,1,U(IP3),0.0)
+       CALL XPOLQUAD(KK,JJ,II,0,IGRID,2,V(IP3),0.0)
+       CALL XPOLQUAD(KK,JJ,II,0,IGRID,3,W(IP3),0.0)
+       CALL XPOLQUAD(KK,JJ,II,0,IGRID,4,P(IP3),0.0)
+#ifdef _TSCAL_
+       CALL XPOLQUAD(KK,JJ,II,0,IGRID,5,T(IP3),0.0)
+#endif
+c     write(*,*) 'out of xpol'
+        return
+c        write(*,*) 'EXTRAPOLATION DONE WITHOUT UPDATE'
+      ELSE IF (ITYP.EQ.'Z') THEN
+       CALL XPOLQUAD(KK,JJ,II,0,IGRID,1,U(IP3),
+     & -999.0)
+       CALL XPOLQUAD(KK,JJ,II,0,IGRID,2,V(IP3),
+     $ -999.0)
+       CALL XPOLQUAD(KK,JJ,II,0,IGRID,3,W(IP3),
+     $ -999.0)
+       CALL XPOLQUAD(KK,JJ,II,0,IGRID,4,P(IP3),
+     $ -999.0)
+#ifdef _TSCAL_
+       CALL XPOLQUAD(KK,JJ,II,0,IGRID,5,T(IP3),
+     $ -999.0)
+#endif 
+c     write(*,*) 'out of xpol'
+      return
+      END IF
+      END IF
+#endif
+      DO IBOCOND = 1,NBOCONDS( 7 , IGRID )
+
+         ISTART = IC1(IGRID)
+         ISTOP  = IC2(IGRID) 
+         JSTART = JC1(IGRID)
+         JSTOP  = JC2(IGRID)
+         KSTART = KC1(IGRID)
+         KSTOP  = KC2(IGRID)
+
+
+      IF (IRB.EQ.1) ISTOP  = MIN(ISTOP,II/2)
+      IF (IRB.EQ.2) ISTART = MAX(ISTART,II/2+1)
+      IF (JRB.EQ.1) JSTOP  = MIN(JSTOP,JJ/2)
+      IF (JRB.EQ.2) JSTART = MAX(JSTART,JJ/2+1)
+
+
+         ITYPBC = ITYPBOCONDS( IBOCOND , 7 , IGRID )
+
+         IF ( ITYPBC .EQ. 5 ) THEN
+
+              CALL BCUNOS (KK,JJ,II,
+     $                      U(IP3),V(IP3),W(IP3),P(IP3),
+     $                      G(IP3),B(IP3),HILF(IP3),
+     $                      ISTART,ISTOP,JSTART,JSTOP,
+     $                      KSTART,KSTOP,ITYP)
+
+         ELSEIF ( ITYPBC .EQ. 6 ) THEN
+
+              CALL BCUSLI (KK,JJ,II,
+     $                      U(IP3),V(IP3),W(IP3),P(IP3),
+     $                      G(IP3),B(IP3),HILF(IP3),
+     $                      ISTART,ISTOP,JSTART,JSTOP,
+     $                      KSTART,KSTOP,ITYP
+#ifdef _TSCAL_
+     $                      ,T(IP3)
+#endif
+     $                     )     
+
+#ifdef _TSCAL_
+         ELSEIF ( ITYPBC .EQ. 15 ) THEN
+
+C           FIXED GRADIENT/FLUX CONDITION DIRECTLY IMPLEMENTED IN        	
+C           SCALAR TRANSPORT WALL CORRECTION (SWCLESCA)         	
+
+         ELSEIF ( ITYPBC .EQ. 16 ) THEN  
+
+            TSCACU = TSCA(IBOCOND,7,IGRID)         	 
+            CALL BCUSCA (KK,JJ,II,T(IP3),B(IP3),TSCACU,
+     $                   JSTART,JSTOP,KSTART,KSTOP,ITYP)            	      	
+
+#endif
+
+         ELSE
+
+            CALL ERRR (711,' BCUBMG ')
+
+         ENDIF
+
+
+      ENDDO
+
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+
+
+      RETURN
+      END
+

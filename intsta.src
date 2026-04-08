@@ -1,0 +1,258 @@
+      SUBROUTINE INTSTA  (PHIA,KSTAGA,JSTAGA,ISTAGA,
+     $                    PHIB,KSTAGB,JSTAGB,ISTAGB,
+     $                    PHIAIN,PHIBIN,K, J, I, KKA, JJA, IIA)
+C*STARLET***************************************************************
+C        I N T S T A      ZWEI IM AUSWERTEFELD (DIMENSION!) BELIEBIG VER
+C                         SCHOBENE GROESSEN 'PHIA' UND 'PHIB' WERDEN
+C                         AUF EINEN GEMEINSAMEN PUNKT INTERPOLIERT,
+C                         DER AUS DER VERSCHIEBUNG VON 'PHIA' UND
+C                         'PHIB' BESTIMMT WIRD. NSTAGA UND NSTAGB
+C                         DUERFEN BELIEBIG VERSCHIEDEN SEIN.
+C*STARLET***************************************************************
+C
+C PARAM: PHIA(KKA,JJA,IIA) - ENTHAELT DIE STATISTISCHEN MITTELWERTE
+C                            <PHIRMS> DER ROOT-MEAN-SQUARE-WERTE DER
+C                            GROESSE 'A'
+C        K-, J-, ISTAGA - KENNZEICHNET DIE VERSCHIEBUNG DER GROESSE 'A'
+C                         NSTAGA = 0: KEINE VERSCHIEBUNG IN N-RICHTUNG
+C                         NSTAGA = 1: DIE GROESSE 'A' IST IN POSITIVER
+C                                     N-RICHTUNG IM MASCHENGITTER VER-
+C                                     SCHOBEN
+C        PHIB(KKA,JJA,IIA) - ENTHAELT DIE STATISTISCHEN MITTELWERTE
+C                            <PHIRMS> DER ROOT-MEAN-SQUARE-WERTE DER
+C                            GROESSE 'B'
+C        K-, J-, ISTAGB - KENNZEICHNET DIE VERSCHIEBUNG DER GROESSE 'B'
+C                         NSTAGB = 0: KEINE VERSCHIEBUNG IN N-RICHTUNG
+C                         NSTAGB = 1: DIE GROESSE 'B' IST IN POSITIVER
+C                                     N-RICHTUNG IM MASCHENGITTER VER-
+C                                     SCHOBEN
+C        PHIAIN         + INTERPOLIERTER WERT DER GROESSE 'A' AM
+C                         GITTERPUNKT K, J, I
+C        PHIBIN         + INTERPOLIERTER WERT DER GROESSE 'B' AM
+C                         GITTERPUNKT K, J, I
+C        K, J, I        - MOMENTAN BETRACHTETER MASCHENGITTERPUNKT
+C        KK, JJ, II     - ARRAYDIMENSIONEN
+C
+C UPROG                 : ERRR
+C
+C DEFINE-DIREKTIVEN     : XHOMOG, YHOMOG, ZHOMOG
+C
+C        14.09.88 (HW)  : ORIGINAL
+C
+C*STARLET***************************************************************
+C
+      REAL     PHIA (KKA,JJA,IIA),   PHIB (KKA,JJA,IIA)
+C
+C                                 UEBERPRUEFUNG, OB DIE GROESSEN
+C                                 IN ZULAESSIGER WEISE VERSCHOBEN SIND
+C
+      LTNULL = MIN0 (KSTAGA,JSTAGA,ISTAGA,KSTAGB,JSTAGB,ISTAGB)
+      MTEINS = MAX0 (KSTAGA,JSTAGA,ISTAGA,KSTAGB,JSTAGB,ISTAGB)
+C
+      IF(LTNULL .LT. 0 .OR. MTEINS .GT. 1) CALL ERRR (501,' INTSTA   ')
+C
+C                                 BETRAG DER DIFFERENZ ZWISCHEN
+C                                 NSTAGA UND NSTAGB. (IST ENTWEDER
+C                                 0.0 ODER 1.0)
+C
+      IDKS   = IABS (KSTAGA - KSTAGB)
+      IDJS   = IABS (JSTAGA - JSTAGB)
+      IDIS   = IABS (ISTAGA - ISTAGB)
+      DKS    = FLOAT (IDKS)
+      DJS    = FLOAT (IDJS)
+      DIS    = FLOAT (IDIS)
+C
+      FRACT  = 1.0 / FLOAT(2**(IDKS + IDJS + IDIS))
+C
+C                                 BESTIMMUNG DER INDIZES
+C
+C                                 INTERPOLATION DER VARIABLEN "A"
+#ifdef _ZHOMOG_
+C
+C                                 BEACHTE: DIE Z-RICHTUNG IST EINE
+C                                 HOMOGENE RICHTUNG !
+C
+      KA1    = 1
+      KA2    = 1
+      KA3    = 1
+      KA4    = 1
+      KA5    = 1
+      KA6    = 1
+      KA7    = 1
+      KA8    = 1
+#else
+C
+C                                 BEACHTE: DIE Z-RICHTUNG IST  K E I N E
+C                                 HOMOGENE RICHTUNG !
+C
+      KA1    = K
+      KA2    = K + KSTAGB
+      KA3    = K
+      KA4    = K
+      KA5    = K
+      KA6    = K + KSTAGB
+      KA7    = K + KSTAGB
+      KA8    = K + KSTAGB
+#endif
+#ifdef _YHOMOG_
+C
+C                                 BEACHTE: DIE Y-RICHTUNG IST EINE
+C                                 HOMOGENE RICHTUNG !
+C
+      JA1    = 1
+      JA2    = 1
+      JA3    = 1
+      JA4    = 1
+      JA5    = 1
+      JA6    = 1
+      JA7    = 1
+      JA8    = 1
+#else
+C
+C                                 BEACHTE: DIE Y-RICHTUNG IST  K E I N E
+C                                 HOMOGENE RICHTUNG !
+C
+      JA1    = J
+      JA2    = J
+      JA3    = J + JSTAGB
+      JA4    = J
+      JA5    = J + JSTAGB
+      JA6    = J
+      JA7    = J + JSTAGB
+      JA8    = J + JSTAGB
+#endif
+#ifdef _XHOMOG_
+C
+C                                 BEACHTE: DIE X-RICHTUNG IST EINE
+C                                 HOMOGENE RICHTUNG !
+C
+      IA1    = 1
+      IA2    = 1
+      IA3    = 1
+      IA4    = 1
+      IA5    = 1
+      IA6    = 1
+      IA7    = 1
+      IA8    = 1
+#else
+C
+C                                 BEACHTE: DIE X-RICHTUNG IST  K E I N E
+C                                 HOMOGENE RICHTUNG !
+C
+      IA1    = I
+      IA2    = I
+      IA3    = I
+      IA4    = I + ISTAGB
+      IA5    = I + ISTAGB
+      IA6    = I + ISTAGB
+      IA7    = I
+      IA8    = I + ISTAGB
+#endif
+C
+      PHIAIN = FRACT * (
+     $         PHIA (KA1 ,JA1 ,IA1)
+     $       + PHIA (KA2 ,JA2 ,IA2) * DKS
+     $       + PHIA (KA3 ,JA3 ,IA3)       * DJS
+     $       + PHIA (KA4 ,JA4 ,IA4)             * DIS
+     $       + PHIA (KA5 ,JA5 ,IA5)       * DJS * DIS
+     $       + PHIA (KA6 ,JA6 ,IA6) * DKS       * DIS
+     $       + PHIA (KA7 ,JA7 ,IA7) * DKS * DJS
+     $       + PHIA (KA8 ,JA8 ,IA8) * DKS * DJS * DIS
+     $       )
+C
+C                                 INTERPOLATION DER VARIABLEN "B"
+#ifdef _ZHOMOG_
+C
+C                                 BEACHTE: DIE Z-RICHTUNG IST EINE
+C                                 HOMOGENE RICHTUNG !
+C
+      KB1    = 1
+      KB2    = 1
+      KB3    = 1
+      KB4    = 1
+      KB5    = 1
+      KB6    = 1
+      KB7    = 1
+      KB8    = 1
+#else
+C
+C                                 BEACHTE: DIE Z-RICHTUNG IST  K E I N E
+C                                 HOMOGENE RICHTUNG !
+C
+      KB1    = K
+      KB2    = K + KSTAGA
+      KB3    = K
+      KB4    = K
+      KB5    = K
+      KB6    = K + KSTAGA
+      KB7    = K + KSTAGA
+      KB8    = K + KSTAGA
+#endif
+#ifdef _YHOMOG_
+C
+C                                 BEACHTE: DIE Y-RICHTUNG IST EINE
+C                                 HOMOGENE RICHTUNG !
+C
+      JB1    = 1
+      JB2    = 1
+      JB3    = 1
+      JB4    = 1
+      JB5    = 1
+      JB6    = 1
+      JB7    = 1
+      JB8    = 1
+#else
+C
+C                                 BEACHTE: DIE Y-RICHTUNG IST  K E I N E
+C                                 HOMOGENE RICHTUNG !
+C
+      JB1    = J
+      JB2    = J
+      JB3    = J + JSTAGA
+      JB4    = J
+      JB5    = J + JSTAGA
+      JB6    = J
+      JB7    = J + JSTAGA
+      JB8    = J + JSTAGA
+#endif
+#ifdef _XHOMOG_
+C
+C                                 BEACHTE: DIE X-RICHTUNG IST EINE
+C                                 HOMOGENE RICHTUNG !
+C
+      IB1    = 1
+      IB2    = 1
+      IB3    = 1
+      IB4    = 1
+      IB5    = 1
+      IB6    = 1
+      IB7    = 1
+      IB8    = 1
+#else
+C
+C                                 BEACHTE: DIE X-RICHTUNG IST  K E I N E
+C                                 HOMOGENE RICHTUNG !
+C
+      IB1    = I
+      IB2    = I
+      IB3    = I
+      IB4    = I + ISTAGA
+      IB5    = I + ISTAGA
+      IB6    = I + ISTAGA
+      IB7    = I
+      IB8    = I + ISTAGA
+#endif
+C
+      PHIBIN = FRACT * (
+     $         PHIB (KB1 ,JB1 ,IB1)
+     $       + PHIB (KB2 ,JB2 ,IB2) * DKS
+     $       + PHIB (KB3 ,JB3 ,IB3)       * DJS
+     $       + PHIB (KB4 ,JB4 ,IB4)             * DIS
+     $       + PHIB (KB5 ,JB5 ,IB5)       * DJS * DIS
+     $       + PHIB (KB6 ,JB6 ,IB6) * DKS       * DIS
+     $       + PHIB (KB7 ,JB7 ,IB7) * DKS * DJS
+     $       + PHIB (KB8 ,JB8 ,IB8) * DKS * DJS * DIS
+     $       )
+C
+      RETURN
+      END

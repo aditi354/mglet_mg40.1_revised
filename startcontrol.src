@@ -1,0 +1,27 @@
+       SUBROUTINE STARTCONTROL
+       character *80 STARTSTRING, STARTERFILE
+#ifdef _VPP_
+#ifdef _MPI_
+
+#include "mpif.h"
+
+      CALL MPI_COMM_RANK (MPI_COMM_WORLD,MYID,IERR2)
+      CALL MPI_COMM_SIZE (MPI_COMM_WORLD,NUMPROCS,IERR3)
+      CALL MPI_BARRIER (MPI_COMM_WORLD,IERR4)
+       if (MYID==0) then
+#endif
+          call getenv('STARTSTRING',STARTSTRING)
+          call getenv('STARTERFILE',STARTERFILE)
+         open (UNIT=61,FILE=STARTERFILE)
+          write(0,*)  'STARTCONTROL: ', STARTSTRING
+          write(6,*)  'STARTCONTROL: ', STARTSTRING 
+         write(61,*) 'STARTCONTROL: ', STARTSTRING 
+          close(61)
+#ifdef _MPI_
+      endif 
+      CALL MPI_BARRIER (MPI_COMM_WORLD,IERR4)
+          
+#endif
+#endif
+       return
+       end

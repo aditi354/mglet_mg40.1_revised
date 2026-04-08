@@ -1,0 +1,405 @@
+
+
+
+
+
+
+
+
+
+
+
+CCCCC        DEFINITIONEN FUER C-PREPROZESSOR
+C            MASCHINE
+
+C              MESSAGE PASSING INTERFACE
+
+C            RAEUMLICHE DISKRETISIERUNG
+C
+***********************************************************************
+C                       KOMPAKT-UPWIND in X-RICHTUNG (3-TER ORDNUNG) fuer
+C                       die U-Komponente (V und W bleiben Kompakt 4ter ordnung)
+C                       falls im Stroemungsfeld eine Koerper vorhanden ist
+C
+***********************************************************************
+C                       KOMPAKTVERF. in XYZ-RICHTUNG (4-TER ORDNUNG)
+
+
+**********************************************************************
+C                      Preprocessing with ADM for 2nd Order Central
+***********************************************************************
+CCC                     Bei periodischen Randbedingungen in X-Richtung
+CCC                     ist eine hoehere O
+C
+CCC                     Bei periodischen Randbedingungen in Y-Richtung
+CCC                     ist eine hoehere Ordnung moeglich
+C
+CCC                     Bei periodischen Randbedingungen in Y-Richtung:
+CCC                     Zentraldiff. 4-ter Ordnung (Parallelisieung moeglich)
+C
+***********************************************************************
+C
+C
+C            INTERPOLATION AN GITTER-GRENZEN
+
+C            BEHANDLUNG DER TOPAR-RANDBEDINGUNG
+
+C            ZEITLICHE DISKRETISIERUNG
+
+C            FEINSTRUKTURMODELL
+
+C            NICHT-NEWTONSCHE SPANNUNGEN
+
+
+C            TRANSPORT UND ORIENTIERUNG VON PARTIKELN
+
+
+C            SCALAR HEAT/TEMPERATURE TRANSPORT
+C            APROXIMATE DECONVOLUTION FOR SCALAR
+C            TURBULENT PRANDTL NUMBER 
+C            PLOT LOCAL SCALAR CONVECTION DIFFUSION EXTREMES 
+C            ANALYZE AND PLOT NEAR WALL GRID RESLOLUTION 
+C            WRITE SPECIAL 1D LINE FOR TMIX FOR SPECTRA AND PDF
+C            SCALAR TIME ADVANCEMENT/DISCRETISATION METHOD
+
+C            STROEMUNG NACH OBEN?
+
+
+C            BEHANDLUNG DER FLUKTUATIONS-RANDBEDINGUNG
+
+C            BEHANDLUNG VON PPHYS ALS QUELLTERM IN TSTLE2
+
+C            POSITIONIERUNG DER EINSTROEMPROFILE
+
+C           STATISTIK
+
+
+C                 GEMISCHTES
+
+C                GRDFMI WIRD NICHT VERWENDET, DAHER EINSPARUNG DER FELDER
+C                IGRHF UND GRHF
+
+C                VERGROESSERN DER KJI-RICHTUNG BEI FORTSETZUNGSLAUF ERLAUBT!
+
+C                RAUSSCHREIBEN VON ZEITRECORDS
+
+C                FUER KORRELATIONEN UND HAEFIGKEITSVERTEILUNGEN
+      SUBROUTINE ASDFUN  (PHIF ,KSTAG,JSTAG,ISTAG,
+     $                    ASNAA ,SSNAA ,KSNL,JJ1L,ILIMXP,
+     $                    IVAR            ,KK,JJ,II,
+     $                    KMX,JMX,IMX,X,Y,Z,DX,DY,DZ,DDX,DDY,DDZ,
+     $                    ILIMX,ISLINP,ISLIDI,FVT,IDIMF,NBND,
+     $                    LINFB,NZERON,NXGRAE,NYGRAE,NZGRAE,
+     $                    XHOMOG,YHOMOG,ZHOMOG)
+C*STARLET***************************************************************
+C        A S D F U N      IN ASDFUN WIRD DIE A_UTO-S_PECTRAL-D_ENSITY-
+C                         FUN_CTION (POWER-SPEKTRUM) GEBILDET.
+C                         DIE VARIABLE PHI DARF BELIEBIG IM MASCHEN-
+C                         GITTER VERSCHOBEN SEIN.
+C
+C                         DIE RICHTUNG IN DER DAS POWER-SPEKTRUM
+C                         GEBILDET WIRD, DARF EINE DER DREI
+C                         KOORDINATENRICHTUNGEN X-, Y-, ODER Z  SEIN.
+C                         ASDFUN SETZT VORAUS, DASS :
+C                         A) DIE RICHTUNG IN DER DAS P-SPEKTRUM
+C                            GEBILDET WIRD EINE  H O M O G E N E  RICH-
+C                            TUNG IST
+C                         B) DAS MASCHENGITTER IN DIESER RICHTUNG
+C                            A E Q U I D I S T A N T  IST
+C                         C) DER FUNKTIONSVERLAUF STRIKT PERIODISCH IST
+C                            (FVT(NLARGE) =(IDENTISCH !) FVT(0))
+C*STARLET***************************************************************
+C
+C PARAM: PHIF (KK,JJ,II)- ENTHAELT DIE FLUKTUATIONEN DER GROESSE PHI
+C        K-, J-, ISTAG  - KENNZEICHNET DIE VERSCHIEBUNG DER GROESSE PHI
+C                         NSTAGA = 0: KEINE VERSCHIEBUNG IN N-RICHTUNG
+C                         NSTAGA = 1: DIE GROESSE PHI IST IN POSITIVER
+C                                     N-RICHTUNG IM MASCHENGITTER VER-
+C                                     SCHOBEN
+C        ASNAA (KSNL,   + ENTHAELT DIE STATISTISCHEN MITTELWERTE
+C        JJ1L,ILIMXP)     DES POWER-SPEKTRUMS AN DEN AUF-
+C                         PUNKTEN  2 ... ILIMX
+C        SSNAA (KSNL,   + SUMMATIONSFELD FUER DIE POWER-SPEKTREN
+C        JJ1L,ILIMXP)     AN DEN AUFPUNKTEN  2 ... ILIMX
+C        KSNL,JJ1L,ILIMXP - ARRAYDIMENSIONEN
+C        ILIMXP         - MAXIMAL MOEGLICHE ANZAHL VON I-LINIEN WAEHREND
+C                         DES MOMENTANEN LAUFES
+C        IVAR           - CHARACTER-VARIABLE (DIENT HAUPTSAECHLICH ZUR
+C                         IDENTIFIKATION DER RICHTUNG IN DER DAS
+C                         POWER-SPEKTRUM GEBILDET WERDEN SOLL)
+C        KK, JJ, II     - ARRAYDIMENSIONEN
+C        KMX, JMX, IMX  - GRENZEN DES BERECHNUNGSGEBIETES (MIT BOUND)
+C        X, Y, Z        - KOORDINATEN DER ZELLDEFINITIONSPUNKTE
+C        DX,DY,DZ       - ABSTAND DER GITTERPUNKTE
+C        DDX,DDY,DDZ    - KANTENLAENGEN DER KONTROLLVOLUMINA
+C        ILIMX          - TATSAECHLICH BENOETIGTE I-LINIEN WAEHREND
+C                         DES MOMENTANEN LAUFES
+C        ISLINP(ISLIDI) - INHALTSVERZEICHNIS DER KODIERTEN AUFPUNKTE
+C                         DES MOMENTANEN LAUFES (P FUER PRESENT)
+C        ISLIDI         - DIMENSION DER ISLIN.-FELDER
+C        FVT (0:IDIMF)  + PUFFERFELD FUER DIE JEWEILS EXTRAHIERTE
+C                         "ZEIT"REIHE
+C        IDIMF          - ARRAYDIMENSION DES FVT-FELDES
+C        NBND           - ANZAHL DER RANDSCHICHTEN DES BERECHNUNGS-
+C                         GEBIETES
+C        LINFB          - ANZAHL DER INFORMATIONSBLOECKE (-FELDER)
+C                         JEDER "LINIE"
+C        NZERON         + NZERON = 0 : FALLS LRETUR = .TRUE.
+C                         NZERON = 1 : FALLS LRETUR = .FALSE.
+C
+C UPROG                 : ASDCHE,  ASDVAL,  ERRR,  EXPAN1,  KJIDCO,
+C                         RKJIAE
+C
+C DEFINE-DIREKTIVEN     : XHOMOG,  YHOMOG,  ZHOMOG
+C
+C        09.11.88 (HW)  : ORIGINAL (TESTS AM 11.11.88 ABGESCHLOSSEN)
+C        28.11.88 (HW)  : IN ASDVAL WIRD ALARGK, PHIK ZUSAETZLICH
+C                         AUSGEWERTET --> UEBERGABE GEAENDERT
+C
+C*STARLET***************************************************************
+C
+
+      COMMON /KONSTA/  GREAT,SMALL,RINDEF,SMAONE,PRESET
+      SAVE   /KONSTA/
+C
+      CHARACTER (LEN=16)  IVAR
+      CHARACTER (LEN=1)  CDIRC
+C
+      INTEGER  ISLINP (ISLIDI)
+C
+      LOGICAL  LODD,  LRETUR
+      LOGICAL  XHOMOG,YHOMOG,ZHOMOG
+C
+      REAL     PHIF  (KK,JJ,II),
+     $         ASNAA (KSNL,JJ1L,ILIMXP),  SSNAA (KSNL,JJ1L,ILIMXP)
+C
+      REAL        X(II),         Y(JJ),         Z(KK),
+     $           DX(II),        DY(JJ),        DZ(KK),
+     $          DDX(II),       DDY(JJ),       DDZ(KK)
+      REAL     FVT (0:IDIMF)
+C
+C                                 DER K-INDEX (KINB) BEGINNT IN DEN DO-
+C                                 SCHLEIFEN 520 UND 550 BEI 1, DA DIE
+C                                 WELLENZAHL 0 BEI LOGARITHMISCHER DAR-
+C                                 STELLUNG NICHT ABGEBILDET WERDEN KANN
+C
+      PI     = ACOS (-1.0)
+      KINB   = 1
+      NZERON = 0
+C
+C                                 WICHTIGE UEBERPRUEFUNGEN, FESTSTELLEN
+C                                 DER RICHTUNG, IN DER DAS P-SPEKTRUM
+C                                 GEBILDET WERDEN SOLL
+C
+      CALL ASDCHE  (KMX, JMX, IMX, KDIR, JDIR, IDIR, NBND,
+     $              LODD, LRETUR, IVAR,NXGRAE,NYGRAE,NZGRAE,
+     $                    XHOMOG,YHOMOG,ZHOMOG)
+      IF(LRETUR) GOTO 9999
+C
+C                                 DO 100: DURCHBLAETTERN DES INHALTSVER-
+C                                 ZEICHNISSES DER AUFPUNKTE
+C
+      IF(ILIMX .LT. 2) CALL ERRR (510,' ASDFUN   ')
+C
+      NZERON = 1
+      ILI    = 1
+      DO 100 ISLIN = 2,ISLIDI
+         CALL KJIDCO (ISLINP(ISLIN), CDIRC, IDIRC, KAUFP, JAUFP, IAUFP)
+C
+C                                 FALLS DER LETZTE EINTRAG IM INHALTS-
+C                                 VERZEICHNIS GELESEN WURDE --> RETURN
+C
+         IF(CDIRC .EQ. '0'  .AND.  KAUFP .EQ. 0  .AND.
+     $      JAUFP .EQ.  0   .AND.  IAUFP .EQ. 0)       GOTO 9999
+C
+C                                 NUR WENN DIE RICHTUNG IN DER DAS
+C                                 P-SPEKTRUM GEBILDET WERDEN SOLL
+C                                 MIT DER DES GERADE BETRACHTETEN
+C                                 AUFPUNKTES UEBEREINSTIMMT, WIRD
+C                                 DAS P-SPEKTRUM BERECHNET. ANDERN-
+C                                 FALLS WIRD IM INHALTSVERZEICHNIS
+C                                 WEITERGEBLAETTERT
+C
+         IF(IVAR(3:3) .NE. CDIRC) GOTO 95
+C
+         ILI    = ILI + 1
+C
+C
+         IF(IABS ( IFIX (ASNAA(KSNL   , 1,ILI))) .EQ. 0) THEN
+C
+C                                 DER INFORMATIONSBLOCK IN DER
+C                                 LINIE 'ILI' WAR BISHER NOCH NICHT
+C                                 BELEGT WORDEN. DAHER WIRD JETZT
+C                                 DIE BELEGUNG DURCHGEFUEHRT.
+C
+C                                 DIE NAUFP SIND VORZEICHENBEHAFTET
+C                                 (BEI HOMOGENER N-RICHTUNG IST DAS
+C                                 VORZEICHEN NEGATIV)
+C
+            IAKAUF = IABS (KAUFP)
+            IAJAUF = IABS (JAUFP)
+            IAIAUF = IABS (IAUFP)
+            KJIM2  = (KMX*KDIR + JMX*JDIR + IMX*IDIR) - NBND
+            CALL RKJIAE  (KK,JJ,II,KMX,JMX,IMX,X,Y,Z,IAKAUF,IAJAUF,
+     $                    IAIAUF,KDIR,JDIR,IDIR,NBND,GREAT,
+     $                    ISLIN,KJIBEG,KJIEND,KLAGDU)
+C
+            IF(KJIBEG .NE. (NBND+1) .OR. KJIEND .NE. KJIM2) THEN
+C
+C                                 BEI DEM MOMENTANEN AUFPUNKT KOLLIDIERT
+C                                 DIE LINIE DER FUER DAS P-SPEKTRUM
+C                                 BENOETIGTEN GITTERPUNKTWERTE MIT DEM
+C                                 EINBAU IM STROEMUNGSFELD
+C
+               WRITE (6,6010) ISLIN-1, IAKAUF, IAJAUF, IAIAUF, CDIRC
+               CALL ERRR (101,' ASDFUN   ')
+               ILI = ILI - 1
+               GOTO 95
+            END IF
+C
+C                                 BELEGUNG DES INFO-BLOCKES
+C
+            ASNAA (KSNL   , 1,ILI) =  1.1
+            ASNAA (KSNL- 1, 1,ILI) = FLOAT (KAUFP)
+            ASNAA (KSNL- 2, 1,ILI) = FLOAT (JAUFP)
+            ASNAA (KSNL- 3, 1,ILI) = FLOAT (IAUFP)
+            ASNAA (KSNL- 4, 1,ILI) = FLOAT (IDIRC)
+*           ASNAA (KSNL- 5, 1,ILI) =
+            ASNAA (KSNL- 6, 1,ILI) = Z(IAKAUF) + 0.5*DZ(IAKAUF)
+     $                             * FLOAT(KSTAG)
+            ASNAA (KSNL- 7, 1,ILI) = Y(IAJAUF) + 0.5*DY(IAJAUF)
+     $                             * FLOAT(JSTAG)
+            ASNAA (KSNL- 8, 1,ILI) = X(IAIAUF) + 0.5*DX(IAIAUF)
+     $                             * FLOAT(ISTAG)
+*           ASNAA (KSNL- 9, 1,ILI) =
+*           ASNAA (KSNL-10, 1,ILI) =
+*           ASNAA (KSNL-11, 1,ILI) =
+            ASNAA (KSNL-12, 1,ILI) = FLOAT (((KMX*KDIR + JMX*JDIR
+     $                             +          IMX*IDIR) - 2*NBND +1) / 2
+     $                             +          1 - KINB)
+C
+C                                 HIER: ABPRUEFEN, OB DIE FELDDIMEN-
+C                                 SIONIERUNG IN K-RICHTUNG AUSREICHT
+C
+            IF( (IFIX ( ASNAA (KSNL-12, 1,ILI)) + LINFB) .GT. KSNL)
+     $         CALL ERRR (520,' ASDFUN   ')
+            ASNAA (KSNL-13, 1,ILI) = FLOAT ( 0 )
+         ELSE
+C
+C                                 HIER: DER INFORMATIONSBLOCK IST
+C                                 BEREITS RICHTIG BELEGT
+C
+            IAKAUF = IABS (IFIX (ASNAA(KSNL- 1, 1,ILI)))
+            IAJAUF = IABS (IFIX (ASNAA(KSNL- 2, 1,ILI)))
+            IAIAUF = IABS (IFIX (ASNAA(KSNL- 3, 1,ILI)))
+         END IF
+C
+         IBEG   = IAIAUF
+         IEND   = IAIAUF
+C
+C                                 ANZAHL DER I-SCHLEIFEN
+         IANZSL = IEND - IBEG + 1
+C
+         DO 200 I  = IBEG,IEND
+            JBEG   = IAJAUF
+            JEND   = IAJAUF
+C
+C                                 ANZAHL DER J-SCHLEIFEN
+            JANZSL = JEND - JBEG + 1
+C
+            DO 300 J  = JBEG,JEND
+               KBEG   = IAKAUF
+               KEND   = IAKAUF
+C
+C                                 ANZAHL DER K-SCHLEIFEN
+               KANZSL = KEND - KBEG + 1
+C
+C                                 IANZSL*JANZSL*KANZSL IST DIE
+C                                 GESAMTE ZAHL VON PUNKTEN, UEBER DIE
+C                                 GEMITTELT WIRD.
+C
+               RANZAH = 1.0 / FLOAT(IANZSL*JANZSL*KANZSL)
+C
+               DO 400 K  = KBEG,KEND
+C
+C                                 NULLBELEGUNG DES FVT-FELDES
+C
+                  DO 450 IDF = 0,IDIMF
+  450                FVT (IDF) = 0.0
+                  KJIAPB = 1 + NBND
+                  KJIAPE = (KMX*KDIR + JMX*JDIR + IMX*IDIR) - NBND
+C
+                  DO 500 KJIAP  = KJIAPB,KJIAPE
+C
+C                                 EXTRAKTION DER FUNKTIONSWERTE AUS
+C                                 DEM 3D-FELD UND SPEICHERN IN DAS
+C                                 FVT-FELD
+C
+                     KA     = K * (1-KDIR) +  KJIAP        * KDIR
+                     JA     = J * (1-JDIR) +  KJIAP        * JDIR
+                     IA     = I * (1-IDIR) +  KJIAP        * IDIR
+  500             FVT(KJIAP-KJIAPB) = PHIF (KA,JA,IA)
+C
+C                                 FOLGENDE ANWEISUNG SETZT EINEN STRIKT
+C                                 PERIODISCHEN FUNKTIONSVERLAUF VORAUS
+C
+                  FVT(KJIAPE+1-KJIAPB) = FVT (0)
+C
+                  DELTO  = DDZ(NBND+1)*KDIR + DDY(NBND+1)*JDIR
+     $                   + DDX(NBND+1)*IDIR
+                  NPHYS  = KJIAPE - KJIAPB + 1
+C
+                  IF(LODD) THEN
+C
+C                                 DIE ANZAHL DER STUETZPUNKTE IM
+C                                 BERECHNUNGSGEBIET IST UNGERADZAHLIG,
+C                                 DAHER WIRD EINE INTERPOLATION AUF
+C                                 EINE GERADE ANZAHL VON STUETZSTELLEN
+C                                 VORGENOMMEN
+C
+                     CALL EXPAN1 (FVT,IDIMF,DELTO,DELT,NPHYS,NLARGE)
+                  ELSE
+                     NLARGE = NPHYS
+                     DELT   = DELTO
+                  END IF
+C
+                  IF(ILI .EQ. 2) THEN
+C
+C                                 BESTIMMUNG DER WELLENZAHLEN
+C                                 (NUR EINMAL NOTWENDIG !)
+C
+                     WAVEMU = 2.0 * PI / (FLOAT(NLARGE) * DELT)
+C
+                     DO 520 KIN = KINB,NLARGE/2
+  520                   ASNAA (KIN-KINB+1,1,1) = FLOAT (KIN) * WAVEMU
+                  END IF
+C
+C                                 BESTIMMUNG DER ORDINATEN DES
+C                                 POWER-SPEKTRUMS
+C
+                  DO 550 KIN = KINB,NLARGE/2
+                     CALL ASDVAL (FVT,IDIMF,NLARGE,AKIN,BKIN,ALARGK,
+     $                            PHIKIN,ASDKIN,SMAONE, KIN)
+C
+C                                 DEFINITION DES LEISTUNGSDICHTE-
+C                                 SPEKTRUMS: G_XX(F_K) = 2 / T_PERIODE
+C                                 * ABS ( X(F_K, T_PERIODE) )**2  =
+C                                 T_PERIODE / 2 * (A(K)**2 + B(K)**2)
+C
+                     SSNAA (KIN-KINB+1,1,ILI) = SSNAA (KIN-KINB+1,1,ILI)
+     $                                        + ASDKIN*DELT*RANZAH
+  550             CONTINUE
+  400          CONTINUE
+  300       CONTINUE
+  200    CONTINUE
+         SSNAA (KSNL-13, 1,ILI) = FLOAT( IFIX (SSNAA(KSNL-13, 1,ILI))+1)
+   95    CONTINUE
+  100 CONTINUE
+C
+ 9999 RETURN
+ 6010 FORMAT (1X,'SUBR. ASDFUN: DER ',I4,'. IN SUBR. SELAUF ANGEGEBENE',
+     $        ' AUFPUNKT (K=',I4,', J=',I4,',',/,1X,'I=',I4,') IST',
+     $        ' FUER DIE BILDUNG EINES POWER-SPEKTRUMS IN ',A1,
+     $        '-RICHTUNG UNZULAESSIG',/,1X,'(KOLLISION MIT EINBAU',
+     $        ' !) ER WIRD DAHER IGNORIERT.')
+      END

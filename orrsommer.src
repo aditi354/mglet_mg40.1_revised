@@ -1,0 +1,702 @@
+      subroutine orrsommer(kk,jj,ii,u,w,z,x,dz,hz,ampl,phase,daz,dpz,
+     $ Iaz,Ipz,hpdx,hmdx,hergpxpz,hergpxmz,hergmxpz,hergmxmz,
+     $ hz2,z2,alpha)
+
+      implicit none
+      integer n
+      parameter (n=512)
+
+      integer i,j,k,Lx,kk,jj,ii
+      real u(kk,jj,ii),w(kk,jj,ii),z(kk),x(ii),dz(kk)
+      real alpha,pi,eps
+      real hz(n),ampl(n),phase(n),daz(n),dpz(n)
+      real hmdx(n),hpdx(n),hz2(n),z2(kk)
+
+      real Iaz(n),Ipz(n)
+      real hergpxpz(n),hergmxpz(n),hergpxmz(n),hergmxmz(n)
+#ifdef _DOUBLE_PRECISION_
+      pi = acos(-1.0)
+      write(6,*)'PI: ',pi
+#else
+      pi = acos(-1.0)
+#endif
+      eps = 0.00001
+c      eps = 0.0
+      Lx = ii-4
+      open(24,file='eigenfunction_512',form='UNFORMATTED')
+      write(6,*)'--- reading from file eigenfunction_512 ----'
+      do i=1,n
+       read(24)j,hz(i),ampl(i),phase(i)
+C      write(6,*)'EIGEN: ',hz(i),ampl(i),phase(i)
+      
+      write(6,*)'EIGEN: ',hz(i),sqrt(ampl(i)**2+phase(i)**2),
+     $                    atan2(phase(i),ampl(i))
+      enddo
+C      stop'debug'
+c.... transformation von mathews z=[1-(-1)] auf mglet z=[0-2]
+      do i=1,n
+        hz2(n-i+1)=hz(i)
+        daz(n-i+1)=ampl(i)
+        dpz(n-i+1)=phase(i)
+      enddo
+      do i=1,n
+        hz(i) = hz2(i) + 1.0
+        ampl(i) = daz(i)
+        phase(i)= dpz(i)
+      enddo
+
+C..... moeglichkeit 2: einlesen von real und imaginaerteil
+c..... ampl ist realteil, phase ist imaginaerteil
+C..... berechnung der ableitung...brauch ich gar nicht
+C      daz(1) = (ampl(2)-(-ampl(2)))/((hz(2)-hz(1))*2)
+C      daz(n) = (-ampl(n-1)-(ampl(n-1)))/((hz(n)-hz(n-1))*2)
+C      dpz(1) = (phase(2)-(-phase(2)))/((hz(2)-hz(1))*2)
+C      dpz(n) = (-phase(n-1)-(phase(n-1)))/((hz(n)-hz(n-1))*2)
+c..... bildung der ableitung
+C      do i=2,n-1
+C       daz(i) = (ampl(i+1) - ampl(i-1))/(hz(i+1)-hz(i-1))
+C       dpz(i) = (phase(i+1) - phase(i-1))/(hz(i+1)-hz(i-1))
+C      enddo
+
+c..... bildung des integrals
+c..... Hier integriere Ich den Real (=ampl) und Imaginaerteil (=phase)
+c..... um spaeter die finite volumen stoergeschwindigkeit berechnen
+c..... zu koennen
+      Iaz(1) = 0.0
+      Ipz(1) = 0.0
+      do i=2,n-1
+      Iaz(i)=Iaz(i-1)+ampl(i)*(0.5*(hz(i)-hz(i-1))+0.5*(hz(i+1)-hz(i)))
+      Ipz(i)=Ipz(i-1)+phase(i)*(0.5*(hz(i)-hz(i-1))+0.5*(hz(i+1)-hz(i)))
+      enddo
+      Iaz(n) = Iaz(n-1)+ampl(n)*(hz(n)-hz(n-1))
+      Ipz(n) = Ipz(n-1)+phase(n)*(hz(n)-hz(n-1))
+C***********************************************************************
+C**** Hallo Johannes, folgende Formeln gibts:
+C**** Die Stromfunktion psi(z) wird von mathews code geliefert:
+C
+C     psi(z,x) = [Real(z) + i*Imag(z)] * exp i*( alpha*x-omega*t)
+C
+C     u = d(psi)/dz ;   w = -d(psi)/dx
+C
+C     u'' = REALTEIL [ d(psi(z))/d(z) * exp i*( alpha*x-omega*t) ]
+C     w'' = REALTEIL [ -psi(z)*i*alpha* exp i*( alpha*x-omega*t) ] 
+C
+C     am anfang ist t=0
+C     
+C..... berechnung der stoerung fuer U-Komponente
+      do i=2,ii-1
+      do k=1,n
+
+c...... amplitude und phase
+C hu(k) = daz(k)*cos((float(i)-2)*2*pi/float(Lx) + phase(k))-
+C $ ampl(k)*dpz(k)*sin((float(i)-2)*2*pi/float(Lx) + phase(k))
+C hv(k) = ampl(k)*sin((float(i)-2.5)*2*pi/float(Lx) + phase(k))
+c...... real und imaginaerteil
+C hu(k) = daz(k)*cos((float(i)-2.0)*2.0*pi/float(Lx)) -
+C $ dpz(k)*sin((float(i)-2.0)*2.0*pi/float(Lx))
+C hv(k) = ampl(k)*sin((float(i)-2.5)*2.0*pi/float(Lx)) +
+C $ phase(k)*cos((float(i)-2.5)*2.0*pi/float(Lx))
+c...... fuer finite volumen formulierung
+
+
+C**** hier wird fuer u'' ausmultipliziert und schon integriert in
+C**** x und ind z-Richtung
+C**** pdx heisst plus-delta-x
+C**** mdx heisst minus-delta-x
+C**** hier werden die werte an der positiven und negativen
+C**** seite der impulszelle berechnet, an den entsprechenden x und
+C**** fuer alle 512 z punkte
+        hpdx(k) = ampl(k)*sin((float(i)-1.5)*2.0*pi/float(Lx)) +
+     $ phase(k)*cos((float(i)-1.5)*2.0*pi/float(Lx))
+        hmdx(k) = ampl(k)*sin((float(i)-2.5)*2.0*pi/float(Lx)) +
+     $ phase(k)*cos((float(i)-2.5)*2.0*pi/float(Lx))
+      enddo
+
+c..... interpolation der stoerung auf gitter
+c..... und aufschlag auf grundstroemung
+c..... hier werden die werte mit spline auf die pdz und
+c..... mdz punkte vom mglet gitter interpoliert
+      do k=1,kk
+       z2(k)=z(k)+0.5*dz(k)
+      enddo
+      call spline5(n,hz,hpdx,z2,hergpxpz,3,kk-2,1)
+      call spline5(n,hz,hmdx,z2,hergmxpz,3,kk-2,1)
+      do k=1,kk
+       z2(k)=z(k)-0.5*dz(k-1)
+      enddo
+      call spline5(n,hz,hpdx,z2,hergpxmz,3,kk-2,1)
+      call spline5(n,hz,hmdx,z2,hergmxmz,3,kk-2,1)
+
+
+c.... hier wird der volumenmittelwert fuer die impulszelle
+c.... berechnet
+      do k=1,kk
+       do j=3,jj-2
+         u(k,j,i) = u(k,j,i) +
+     $ eps*(hergpxpz(k)-hergmxpz(k)-hergpxmz(k)+hergmxmz(k))/
+     $ (0.5*(dz(k)+dz(k-1))*2*x(3))
+C         u(k,4,i) = u(k,4,i) +
+C     $ eps*(hergpxpz(k)-hergmxpz(k)-hergpxmz(k)+hergmxmz(k))/
+C     $ (0.5*(dz(k)+dz(k-1))*2*x(3))
+C         u(k,2,i) = u(k,2,i) +
+C     $ eps*(hergpxpz(k)-hergmxpz(k)-hergpxmz(k)+hergmxmz(k))/
+C     $ (0.5*(dz(k)+dz(k-1))*2*x(3))
+C         u(k,5,i) = u(k,5,i) +
+C     $ eps*(hergpxpz(k)-hergmxpz(k)-hergpxmz(k)+hergmxmz(k))/
+C     $ (0.5*(dz(k)+dz(k-1))*2*x(3))
+C         u(k,6,i) = u(k,6,i) +
+C     $ eps*(hergpxpz(k)-hergmxpz(k)-hergpxmz(k)+hergmxmz(k))/
+C     $ (0.5*(dz(k)+dz(k-1))*2*x(3))
+       enddo
+      enddo
+c.... Stoerung fuer w-kompoente
+c.... analog zu u'', bloss hier brauch ich das integral.....
+      do k=1,n
+        hpdx(k) = Ipz(k)*sin((float(i)-2.0)*2.0*pi/float(Lx)) -
+     $ Iaz(k)*cos((float(i)-2.0)*2.0*pi/float(Lx))
+        hmdx(k) = Ipz(k)*sin((float(i)-3.0)*2.0*pi/float(Lx)) -
+     $ Iaz(k)*cos((float(i)-3.0)*2.0*pi/float(Lx))
+      enddo
+
+      call spline5(n,hz,hpdx,z,hergpxpz,3,kk-2,1)
+      call spline5(n,hz,hmdx,z,hergmxpz,3,kk-2,1)
+       do k=3,kk-3
+        do j=3,jj-2
+         w(k,j,i) = w(k,j,i) +
+     $ eps*(hergpxpz(k+1)-hergpxpz(k)-hergmxpz(k+1)+hergmxpz(k))/
+     $ (0.5*(dz(k)+dz(k-1))*2*x(3))
+C         w(k,4,i) = w(k,4,i) +
+C     $ eps*(hergpxpz(k+1)-hergpxpz(k)-hergmxpz(k+1)+hergmxpz(k))/
+C     $ (0.5*(dz(k)+dz(k-1))*2*x(3))
+C         w(k,2,i) = w(k,2,i) +
+C     $ eps*(hergpxpz(k+1)-hergpxpz(k)-hergmxpz(k+1)+hergmxpz(k))/
+C     $ (0.5*(dz(k)+dz(k-1))*2*x(3))
+CC         w(k,5,i) = w(k,5,i) +
+C     $ eps*(hergpxpz(k+1)-hergpxpz(k)-hergmxpz(k+1)+hergmxpz(k))/
+CC     $ (0.5*(dz(k)+dz(k-1))*2*x(3))
+C         w(k,6,i) = w(k,6,i) +
+C     $ eps*(hergpxpz(k+1)-hergpxpz(k)-hergmxpz(k+1)+hergmxpz(k))/
+C     $ (0.5*(dz(k)+dz(k-1))*2*x(3))
+        enddo
+       enddo
+      enddo
+C      do i=3,ii
+C       write(6,*)'STOER: ',x(i),w(kk/2,4,i)
+C      enddo
+      return
+      end
+
+
+!!! ------------------------------------------------------------------------------
+!!! Spline interpolation 5.Ordnung
+!!! ------------------------------------------------------------------------------
+      subroutine spline5(n,x,y,xint,out,n1,n2,v)
+      integer n,v,n1,n2
+      real x(n),y(n)
+      real xint(n2+4)
+      real out(n2)
+C real,dimension(0:),intent(in),optional :: deriv
+!!! -------------------------------------------------------------------------------
+      integer nint,i,l,k,j
+      real b(n),c(n),d(n),e(n),f(n),xvor(n),yvor(n)
+      real S(n2+4)
+      real eps,P
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!! n : number of datapoints
+!!! x : x-values
+!!! y : function-values
+!!! xint : x-values at which y is interpolated
+!!! out : result
+!!! version : kind of routine (0: equidistant knots, 1: arbitrary knots, 2: 1+
+!!! prescribed derivatives )
+!!! deriv : prescribed derivatives
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+C allocate(S(n1:n2))
+      do k=1,n
+      xvor(k) = x(k)
+      yvor(k) = y(k)
+      enddo
+
+      if(v.eq.0) then
+        call quineq(n,yvor,b,c,d,e,f)
+      else if(v.eq.1) then
+        call quinat(n,xvor,yvor,b,c,d,e,f)
+      else
+C b(1:n)=deriv(0:)
+C call quinat(n,xvor,yvor,b,c,d,e,f)
+      end if
+
+
+      eps=1.0D-9
+
+      do l=n1,n2
+
+        P=dsign(1.0,(xvor(n)-xvor(1)))
+        if (abs(xvor(n)-xvor(1)).le.eps) then
+          P=0.0
+        end if
+        k=0
+
+        i=k
+        k=k+1
+        if(k.eq.n+1) then
+          P = xint(l)-xvor(i)
+          S(l)=((((f(i)*P+e(i))*P+d(i))*P+c(i))*P+b(i))*P+yvor(i)
+          cycle
+        end if
+        do while(P*(xint(l)-xvor(k)).ge.0.0)
+          i=k
+          k=k+1
+          if(k.eq.n+1) then
+            P =xint(l)-xvor(i)
+            S(l)=((((f(i)*P+e(i))*P+d(i))*P+c(i))*P+b(i))*P+yvor(i)
+            do j=n1,n2
+             out(j)=S(j)
+            enddo
+            return
+          end if
+        end do
+
+        if(i.eq.0) then
+         i=i+1
+        end if
+
+        P =xint(l)-xvor(i)
+        S(l)=((((f(i)*P+e(i))*P+d(i))*P+c(i))*P+b(i))*P+yvor(i)
+
+
+      end do
+      do j=n1,n2
+      out(j)=S(j)
+      enddo
+      return
+      end subroutine spline5
+
+
+
+
+
+!!! ------------------------------------------------------------------------------
+! ALGORITHM 600, COLLECTED ALGORITHMS FROM ACM.
+! ALGORITHM APPEARED IN ACM-TRANS. MATH. SOFTWARE, VOL.9, NO. 2,
+! JUN., 1983, P. 258-259.
+      SUBROUTINE QUINAT(N, X, Y, B, C, D, E, F)
+!
+      INTEGER N
+      real*8 X(N), Y(N), B(N), C(N), D(N), E(N), F(N)
+!
+!
+!
+! QUINAT COMPUTES THE COEFFICIENTS OF A QUINTIC NATURAL QUINTIC SPLI
+! S(X) WITH KNOTS X(I) INTERPOLATING THERE TO GIVEN FUNCTION VALUES:
+! S(X(I)) = Y(I) FOR I = 1,2, ..., N.
+! IN EACH INTERVAL (X(I),X(I+1)) THE SPLINE FUNCTION S(XX) IS A
+! POLYNOMIAL OF FIFTH DEGREE:
+! S(XX) = ((((F(I)*P+E(I))*P+D(I))*P+C(I))*P+B(I))*P+Y(I) (*)
+! = ((((-F(I)*Q+E(I+1))*Q-D(I+1))*Q+C(I+1))*Q-B(I+1))*Q+Y(I+1)
+! WHERE P = XX - X(I) AND Q = X(I+1) - XX.
+! (NOTE THE FIRST SUBSCRIPT IN THE SECOND EXPRESSION.)
+! THE DIFFERENT POLYNOMIALS ARE PIECED TOGETHER SO THAT S(X) AND
+! ITS DERIVATIVES UP TO S"" ARE CONTINUOUS.
+!
+! INPUT:
+!
+! N NUMBER OF DATA POINTS, (AT LEAST THREE, I.E. N > 2)
+! X(1:N) THE STRICTLY INCREASING OR DECREASING SEQUENCE OF
+! KNOTS. THE SPACING MUST BE SUCH THAT THE FIFTH POWER
+! OF X(I+1) - X(I) CAN BE FORMED WITHOUT OVERFLOW OR
+! UNDERFLOW OF EXPONENTS.
+! Y(1:N) THE PRESCRIBED FUNCTION VALUES AT THE KNOTS.
+!
+! OUTPUT:
+!
+! B,C,D,E,F THE COMPUTED SPLINE COEFFICIENTS AS IN (*).
+! (1:N) SPECIFICALLY
+! B(I) = S´(X(I)), C(I) = SÂ´´(X(I))/2, D(I) = S´´´(X(I))/6,
+! E(I) = S´´´´(X(I))/24, F(I) = S´´´´´(X(I))/120.
+! F(N) IS NEITHER USED NOR ALTERED. THE FIVE ARRAYS
+! B,C,D,E,F MUST ALWAYS BE DISTINCT.
+!
+! OPTION:
+!
+! IT IS POSSIBLE TO SPECIFY VALUES FOR THE FIRST AND SECOND
+! DERIVATIVES OF THE SPLINE FUNCTION AT ARBITRARILY MANY KNOTS.
+! THIS IS DONE BY RELAXING THE REQUIREMENT THAT THE SEQUENCE OF
+! KNOTS BE STRICTLY INCREASING OR DECREASING. SPECIFICALLY:
+!
+! IF X(J) = X(J+1) THEN S(X(J)) = Y(J) AND S´(X(J)) = Y(J+1),
+! IF X(J) = X(J+1) = X(J+2) THEN IN ADDITION S´´(X(J)) = Y(J+2).
+!
+! NOTE THAT S´´´´(X) IS DISCONTINUOUS AT A DOUBLE KNOT AND, IN
+! ADDITION, S´´´(X) IS DISCONTINUOUS AT A TRIPLE KNOT. THE
+! SUBROUTINE ASSIGNS Y(I) TO Y(I+1) IN THESE CASES AND ALSO TO
+! Y(I+2) AT A TRIPLE KNOT. THE REPRESENTATION (*) REMAINS
+! VALID IN EACH OPEN INTERVAL (X(I),X(I+1)). AT A DOUBLE KNOT,
+! X(J) = X(J+1), THE OUTPUT COEFFICIENTS HAVE THE FOLLOWING VALUES:
+! Y(J) = S(X(J)) = Y(J+1)
+! B(J) = S´(X(J)) = B(J+1)
+! C(J) = S´´(X(J))/2 = C(J+1)
+! D(J) = S´´´(X(J))/6 = D(J+1)
+! E(J) = S´´´´(X(J)-0)/24 E(J+1) = S´´´´(X(J)+0)/24
+! F(J) = S´´´´´(X(J)-0)/120 F(J+1) = S´´´´´(X(J)+0)/120
+! AT A TRIPLE KNOT, X(J) = X(J+1) = X(J+2), THE OUTPUT
+! COEFFICIENTS HAVE THE FOLLOWING VALUES:
+! Y(J) = S(X(J)) = Y(J+1) = Y(J+2)
+! B(J) = S´(X(J)) = B(J+1) = B(J+2)
+! C(J) = S´´(X(J))/2 = C(J+1) = C(J+2)
+! D(J) = S´´´((X(J)-0)/6 D(J+1) = 0 D(J+2) = S´´´(X(J)+0)/6
+! E(J) = S´´´´(X(J)-0)/24 E(J+1) = 0 E(J+2) = S´´´´(X(J)+0)/24
+! F(J) = S´´´´´(X(J)-0)/120 F(J+1) = 0 F(J+2) = S´´´´´(X(J)+0)/120
+!
+      INTEGER I, M
+      real*8 B1, P, PQ, PQQR, PR, P2,P3,Q,QR,Q2,Q3,R,R2,S,T,U,V
+!
+      IF (N.LE.2) GO TO 190
+!
+! COEFFICIENTS OF A POSITIVE DEFINITE, PENTADIAGONAL MATRIX,
+! STORED IN D,E,F FROM 2 TO N-2.
+!
+      M = N - 2
+      Q = X(2) - X(1)
+      R = X(3) - X(2)
+      Q2 = Q*Q
+      R2 = R*R
+      QR = Q + R
+      D(1) = 0.
+      E(1) = 0.
+      D(2) = 0.
+      IF (Q.NE.0.) D(2) = 6.*Q*Q2/(QR*QR)
+!
+      IF (M.LT.2) GO TO 40
+      DO 30 I=2,M
+        P = Q
+        Q = R
+        R = X(I+2) - X(I+1)
+        P2 = Q2
+        Q2 = R2
+        R2 = R*R
+        PQ = QR
+        QR = Q + R
+        IF (Q) 20, 10, 20
+   10 D(I+1) = 0.
+        E(I) = 0.
+        F(I-1) = 0.
+        GO TO 30
+   20 Q3 = Q2*Q
+        PR = P*R
+        PQQR = PQ*QR
+        D(I+1) = 6.*Q3/(QR*QR)
+        D(I) = D(I) + (Q+Q)*(15.*PR*PR+(P+R)*Q*(20.*PR+7.*Q2)+Q2*(8.*
+     & (P2+R2)+21.*PR+Q2+Q2))/(PQQR*PQQR)
+        D(I-1) = D(I-1) + 6.*Q3/(PQ*PQ)
+        E(I) = Q2*(P*QR+3.*PQ*(QR+R+R))/(PQQR*QR)
+        E(I-1) = E(I-1) + Q2*(R*PQ+3.*QR*(PQ+P+P))/(PQQR*PQ)
+        F(I-1) = Q3/PQQR
+   30 CONTINUE
+!
+   40 IF (R.NE.0.) D(M) = D(M) + 6.*R*R2/(QR*QR)
+!
+! FIRST AND SECOND ORDER DIVIDED DIFFERENCES OF THE GIVEN FUNCTION
+! VALUES, STORED IN B FROM 2 TO N AND IN C FROM 3 TO N
+! RESPECTIVELY. CARE IS TAKEN OF DOUBLE AND TRIPLE KNOTS.
+!
+      DO 60 I=2,N
+        IF (X(I).NE.X(I-1)) GO TO 50
+        B(I) = Y(I)
+        Y(I) = Y(I-1)
+        GO TO 60
+   50 B(I) = (Y(I)-Y(I-1))/(X(I)-X(I-1))
+   60 CONTINUE
+      DO 80 I=3,N
+        IF (X(I).NE.X(I-2)) GO TO 70
+        C(I) = B(I)*0.5
+        B(I) = B(I-1)
+        GO TO 80
+   70 C(I) = (B(I)-B(I-1))/(X(I)-X(I-2))
+   80 CONTINUE
+!
+! SOLVE THE LINEAR SYSTEM WITH C(I+2) - C(I+1) AS RIGHT-HAND SIDE.
+!
+      IF (M.LT.2) GO TO 100
+      P = 0.
+      C(1) = 0.
+      E(M) = 0.
+      F(1) = 0.
+      F(M-1) = 0.
+      F(M) = 0.
+      C(2) = C(4) - C(3)
+      D(2) = 1./D(2)
+
+      IF (M.LT.3) GO TO 100
+      DO 90 I=3,M
+        Q = D(I-1)*E(I-1)
+        D(I) = 1./(D(I)-P*F(I-2)-Q*E(I-1))
+        E(I) = E(I) - Q*F(I-1)
+        C(I) = C(I+2) - C(I+1) - P*C(I-2) - Q*C(I-1)
+        P = D(I-1)*F(I-1)
+   90 CONTINUE
+!
+  100 I = N - 1
+      C(N-1) = 0.
+      C(N) = 0.
+      IF (N.LT.4) GO TO 120
+      DO 110 M=4,N
+! I = N-2, ..., 2
+        I = I - 1
+        C(I) = (C(I)-E(I)*C(I+1)-F(I)*C(I+2))*D(I)
+  110 CONTINUE
+!
+! INTEGRATE THE THIRD DERIVATIVE OF S(X).
+!
+  120 M = N - 1
+      Q = X(2) - X(1)
+      R = X(3) - X(2)
+      B1 = B(2)
+      Q3 = Q*Q*Q
+      QR = Q + R
+      IF (QR) 140, 130, 140
+  130 V = 0.
+      T = 0.
+      GO TO 150
+  140 V = C(2)/QR
+      T = V
+  150 F(1) = 0.
+      IF (Q.NE.0.) F(1) = V/Q
+      DO 180 I=2,M
+        P = Q
+        Q = R
+        R = 0.
+        IF (I.NE.M) R = X(I+2) - X(I+1)
+        P3 = Q3
+        Q3 = Q*Q*Q
+        PQ = QR
+        QR = Q + R
+        S = T
+        T = 0.
+        IF (QR.NE.0.) T = (C(I+1)-C(I))/QR
+        U = V
+        V = T - S
+        IF (PQ) 170, 160, 170
+  160 C(I) = C(I-1)
+        D(I) = 0.
+        E(I) = 0.
+        F(I) = 0.
+        GO TO 180
+  170 F(I) = F(I-1)
+        IF (Q.NE.0.) F(I) = V/Q
+        E(I) = 5.*S
+        D(I) = 10.*(C(I)-Q*S)
+        C(I) = D(I)*(P-Q) + (B(I+1)-B(I)+(U-E(I))*P3-(V+E(I))*Q3)/PQ
+        B(I) = (P*(B(I+1)-V*Q3)+Q*(B(I)-U*P3))/PQ-P*Q*(D(I)+E(I)*(Q-P))
+  180 CONTINUE
+!
+! END POINTS X(1) AND X(N).
+!
+      P = X(2) - X(1)
+      S = F(1)*P*P*P
+      E(1) = 0.
+      D(1) = 0.
+      C(1) = C(2) - 10.*S
+      B(1) = B1 - (C(1)+S)*P
+!
+      Q = X(N) - X(N-1)
+      T = F(N-1)*Q*Q*Q
+      E(N) = 0.
+      D(N) = 0.
+      C(N) = C(N-1) + 10.*T
+      B(N) = B(N) + (C(N)-T)*Q
+  190 RETURN
+      end subroutine quinat
+! QUI 10
+! QUI 20
+      SUBROUTINE QUINEQ(N, Y, B, C, D, E, F)
+!
+      INTEGER N
+      real*8 Y(N), B(N), C(N), D(N), E(N), F(N)
+!
+!
+!
+! QUINEQ COMPUTES THE COEFFICIENTS OF QUINTIC NATURAL QUINTIC SPLINE
+! S(X) WITH EQUIDISTANT KNOTS X(I) INTERPOLATING THERE TO GIVEN
+! FUNCTION VALUES:
+! S(X(I)) = Y(I) FOR I = 1,2, ..., N.
+! IN EACH INTERVAL (X(I),X(I+1)) THE SPLINE FUNCTION S(XX) IS
+! A POLYNOMIAL OF FIFTH DEGREE:
+! S(XX)=((((F(I)*P+E(I))*P+D(I))*P+C(I))*P+B(I))*P+Y(I) (*)
+! =((((-F(I)*Q+E(I+1))*Q-D(I+1))*Q+C(I+1))*Q-B(I+1))*Q+Y(I+1)
+! WHERE P = (XX - X(I))/X(I+1) - X(I))
+! AND Q = (X(I+1) - XX)/(X(I+1) - X(I)).
+! (NOTE THE FIRST SUBSCRIPT IN THE SECOND EXPRESSION.)
+! THE DIFFERENT POLYNOMIALS ARE PIECED TOGETHER SO THAT S(X) AND
+! ITS DERIVATIVES UP TO S´´´´ ARE CONTINUOUS.
+!
+! INPUT:
+!
+! N NUMBER OF DATA POINTS, (AT LEAST THREE, I.E. N > 2)
+! Y(1:N) THE PRESCRIBED FUNCTION VALUES AT THE KNOTS
+!
+! OUTPUT:
+!
+! B,C,D,E,F THE COMPUTED SPLINE COEFFICIENTS AS IN (*).
+! (1:N) IF X(I+1) - X(I) = 1., THEN SPECIFICALLY:
+! B(I) = S´X(I)), C(I) = S´´(X(I))/2, D(I) = SÂ´´´(X(I))/6,
+! E(I) = S´´´´(X(I))/24, F(I) = S´´´´´(X(I)+0)/120.
+! F(N) IS NEITHER USED NOR ALTERED. THE ARRAYS
+! Y,B,C,D MUST ALWAYS BE DISTINCT. IF E AND F ARE
+! NOT WANTED, THE CALL QUINEQ(N,Y,B,C,D,D,D) MAY
+! BE USED TO SAVE STORAGE LOCATIONS.
+!
+      INTEGER I, M
+      real*8 P, Q, R, S, T, U, V
+!
+      IF (N.LE.2) GO TO 50
+!
+      M = N - 3
+      P = 0.
+      Q = 0.
+      R = 0.
+      S = 0.
+      T = 0.
+      D(M+1) = 0.
+      D(M+2) = 0.
+      IF (M.LE.0) GO TO 30
+      DO 10 I=1,M
+        U = P*R
+        B(I) = 1./(66.-U*R-Q)
+        R = 26. - U
+        C(I) = R
+        D(I) = Y(I+3) - 3.*(Y(I+2)-Y(I+1)) - Y(I) - U*S - Q*T
+        Q = P
+        P = B(I)
+        T = S
+        S = D(I)
+   10 CONTINUE
+!
+      I = N - 2
+      DO 20 M=4,N
+! I = N-3, ..., 1
+        I = I - 1
+        D(I) = (D(I)-C(I)*D(I+1)-D(I+2))*B(I)
+   20 CONTINUE
+!
+   30 M = N - 1
+      Q = 0.
+      R = D(1)
+      T = R
+      V = R
+      DO 40 I=2,M
+        P = Q
+        Q = R
+        R = D(I)
+        S = T
+        T = P - Q - Q + R
+        F(I) = T
+        U = 5.*(-P+Q)
+        E(I) = U
+        D(I) = 10.*(P+Q)
+        C(I) = 0.5*(Y(I+1)+Y(I-1)+S-T) - Y(I) - U
+        B(I) = 0.5*(Y(I+1)-Y(I-1)-S-T) - D(I)
+   40 CONTINUE
+!
+      F(1) = V
+      E(1) = 0.
+      D(1) = 0.
+      C(1) = C(2) - 10.*V
+      B(1) = Y(2) - Y(1) - C(1) - V
+      E(N) = 0.
+      D(N) = 0.
+      C(N) = C(N-1) + 10.*T
+      B(N) = Y(N) - Y(N-1) + C(N) - T
+   50 RETURN
+      end subroutine quineq
+! QUI 10
+! QUI 20
+! QUI 30
+! QUI 40
+! QUI 50
+      SUBROUTINE QUINDF(N, X, Y, B, C, D, E, F)
+!
+      INTEGER N
+      real*8 X(N), Y(N), B(N), C(N), D(N), E(N), F(N)
+!
+!
+!
+! QUINDF COMPUTES THE COEFFICIENTS OF A QUINTIC NATURAL QUINTIC
+! SPLINE S(X) WITH KNOTS X(I) FOR WHICH THE FUNCTION VALUES Y(I) AND
+! THE FIRST DERIVATIVES B(I) ARE SPECIFIED AT X(I), I = 1,2, ...,N.
+! IN EACH INTERVAL (X(I),X(I+1)) THE SPLINE FUNCTION S(XX) IS
+! A POLYNOMIAL OF FIFTH DEGREE:
+! S(XX)=((((F(I)*P+E(I))*P+D(I))*P+C(I))*P+B(I))*P+Y(I) (*)
+! WHERE P = XX - X(I).
+!
+! INPUT:
+!
+! N NUMBER OF DATA POINTS, (AT LEAST TWO, I.E. N > 1)
+! X(1:N) THE STRICTLY INCREASING OR DECREASING SEQUENCE OF
+! KNOTS. THE SPACING MUST BE SUCH THAT THE FIFTH
+! POWER OF X(I+1) - X(I) CAN BE FORMED WITHOUT
+! OVERFLOW OR UNDERFLOW OF EXPONENTS
+! Y(1:N) THE PRESCRIBED FUNCTION VALUES AT THE KNOTS
+! B(1:N) THE PRESCRIBED DERIVATIVE VALUES AT THE KNOTS
+!
+! OUTPUT:
+!
+! C,D,E,F THE COMPUTED SPLINE COEFFICIENTS AS IN (*).
+! (1:N) E(N) AND F(N) ARE NEITHER USED NOR ALTERED.
+! THE ARRAYS C,D,E,F MUST ALWAYS BE DISTINCT.
+!
+      INTEGER I, M, N1
+      real*8 CC, G, H, HH, H2, P, PP, Q, QQ, R, RR
+!
+      IF (N.LE.1) GO TO 40
+      N1 = N - 1
+      CC = 0.
+      HH = 0.
+      PP = 0.
+      QQ = 0.
+      RR = 0.
+      G = 0.
+      DO 10 I=1,N1
+        H = 1./(X(I+1)-X(I))
+        H2 = H*H
+        D(I) = 3.*(HH+H) - G*HH
+        P = (Y(I+1)-Y(I))*H2*H
+        Q = (B(I+1)+B(I))*H2
+        R = (B(I+1)-B(I))*H2
+        CC = 10.*(P-PP) - 5.*(Q-QQ) + R + RR + G*CC
+        C(I) = CC
+        G = H/D(I)
+        HH = H
+        PP = P
+        QQ = Q
+        RR = R
+   10 CONTINUE
+!
+      C(N) = (-10.*PP+5.*QQ+RR+G*CC)/(3.*HH-G*HH)
+      I = N
+      DO 20 M=1,N1
+! I = N-1, ..., 1
+        I = I - 1
+        D(I+1) = 1./(X(I+1)-X(I))
+        C(I) = (C(I)+C(I+1)*D(I+1))/D(I)
+   20 CONTINUE
+!
+      DO 30 I=1,N1
+        H = D(I+1)
+        P = (((Y(I+1)-Y(I))*H-B(I))*H-C(I))*H
+        Q = ((B(I+1)-B(I))*H-C(I)-C(I))*H
+        R = (C(I+1)-C(I))*H
+        G = Q - 3.*P
+        RR = R - 3.*(P+G)
+        QQ = -RR - RR + G
+        F(I) = RR*H*H
+        E(I) = QQ*H
+        D(I) = -RR - QQ + P
+   30 CONTINUE
+!
+      D(N) = 0.
+      E(N) = 0.
+      F(N) = 0.
+   40 RETURN
+      end subroutine quindf

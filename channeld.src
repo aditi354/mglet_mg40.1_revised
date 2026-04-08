@@ -1,0 +1,261 @@
+      SUBROUTINE CHANNELD(KK,JJ,II,NBND,
+     $     DX,DY,DZ,DDX,DDY,DDZ,U,V,W,
+     $     WALLSSX,WALLSSY,WALLSSZ,GMOL,RHO,UGRID,
+     $     NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,IGRID
+#ifdef _TSCAL_
+     $     ,NFROSCA,NBACSCA,NRGTSCA,NLFTSCA,NBOTSCA,NTOPSCA
+     $     ,WALLQX,T
+#endif
+     $     )
+
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
+C
+C     BERECHNUNG DER GEMITTELTEN WANDSCHUBSPANNUNG
+C
+C     VERSION VOM 25.1.1998 (MM) 
+C                           (NICHT ALLE SCHUBSPANNUNGEN IMPLEMENTIERT!)
+C
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+#include "mgpar.h"
+#include "cobound.h"
+
+      REAL U(KK,JJ,II), V(KK,JJ,II), W(KK,JJ,II)
+
+      REAL DDX(II),     DDY(JJ),     DDZ(KK)
+      REAL  DX(II),      DY(JJ),      DZ(KK)
+
+      REAL WALLSSX(6), WALLSSY(6), WALLSSZ(6)
+
+      REAL LX,LY,LZ
+#ifdef _TSCAL_
+      REAL T(KK,JJ,II)
+      REAL WALLQX(6)
+#endif
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+      IMX = II
+      JMX = JJ
+      KMX = KK
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+
+      DO I=1,6
+         WALLSSX(I) = 0.0
+         WALLSSY(I) = 0.0
+         WALLSSZ(I) = 0.0
+#ifdef _TSCAL_
+         WALLQX(I) = 0.0
+#endif
+      ENDDO
+
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+C     BOTTOM- FLAECHE
+
+      IF (NBOT .EQ. 5) THEN
+
+         WALLSSX(5) = 0.0
+         WALLSSY(5) = 0.0
+#ifdef _TSCAL_
+         WALLQX(5) = 0.0
+#endif
+         LX   = 0.0
+         LY   = 0.0
+      
+         DO I=NBND+1,IMX-NBND
+            LX = LX+DDX(I)
+         ENDDO
+         DO J=NBND+1,JMX-NBND
+            LY = LY+DDY(J)
+         ENDDO
+
+
+         DO I=NBND+1,IMX-NBND
+            DO J=NBND+1,JMX-NBND
+               WALLSSX(5) = WALLSSX(5) + 
+     $              (U(NBND+1,J,I)+UGRID)*DDY(J)*DX(I)
+               WALLSSY(5) = WALLSSY(5) + 
+     $              (V(NBND+1,J,I))*DY(J)*DDX(I)
+#ifdef _TSCAL_
+         IF(NBOTSCA .EQ. 16)  THEN
+               WALLQX(5) = WALLQX(5) -
+     $              (T(NBND+1,J,I)-TSCA(2,5,IGRID))*DDX(I)*DDY(J)
+         ENDIF
+#endif
+            ENDDO
+         ENDDO
+
+         WALLSSX(5) = WALLSSX(5)*GMOL / (LX*LY* 0.5*DDZ(1+NBND) )
+         WALLSSY(5) = WALLSSY(5)*GMOL / (LX*LY* 0.5*DDZ(1+NBND) )
+#ifdef _TSCAL_
+C noch mit Pr / Sc dividieren?
+         WALLQX(5) = WALLQX(5)*GMOL / (LX*LY*0.5*DDZ(1+NBND))
+#endif
+
+      ENDIF
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+C     TOP- FLAECHE
+
+      IF (NTOP .EQ. 5) THEN
+
+         WALLSSX(6) = 0.0
+         WALLSSY(6) = 0.0
+#ifdef _TSCAL_
+         WALLQX(6) = 0.0
+#endif
+         LX   = 0.0
+         LY   = 0.0
+      
+         DO I=NBND+1,IMX-NBND
+            LX = LX+DDX(I)
+         ENDDO
+         DO J=NBND+1,JMX-NBND
+            LY = LY+DDY(J)
+         ENDDO
+
+
+         DO I=NBND+1,IMX-NBND
+            DO J=NBND+1,JMX-NBND
+               WALLSSX(6) = WALLSSX(6) + 
+     $              (U(KMX-NBND,J,I)+UGRID)*DDY(J)*DX(I)
+               WALLSSY(6) = WALLSSY(6) + 
+     $              (V(KMX-NBND,J,I))*DY(J)*DDX(I)
+#ifdef _TSCAL_
+         IF(NTOPSCA .EQ. 16)  THEN
+               WALLQX(6) = WALLQX(6) -
+     $              (TSCA(2,6,IGRID)-T(KMX-NBND,J,I))*DDX(I)*DDY(J)
+         ENDIF
+#endif
+
+            ENDDO
+         ENDDO
+
+         WALLSSX(6) = WALLSSX(6)*GMOL / (LX*LY* 0.5*DDZ(KMX-NBND) )
+         WALLSSY(6) = WALLSSY(6)*GMOL / (LX*LY* 0.5*DDZ(KMX-NBND) )
+#ifdef _TSCAL_
+C noch mit Pr / Sc dividieren?
+         WALLQX(6) = WALLQX(6)*GMOL / (LX*LY*0.5*DDZ(KMX-NBND))
+#endif
+
+      ENDIF
+
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+C     RIGHT- FLAECHE
+
+      IF (NRGT .EQ. 5) THEN
+
+         WALLSSX(3) = 0.0
+         WALLSSZ(3) = 0.0
+
+         LX   = 0.0
+         LZ   = 0.0
+      
+         DO I=NBND+1,IMX-NBND
+            LX = LX+DDX(I)
+         ENDDO
+         DO K=NBND+1,KMX-NBND
+            LZ = LZ+DDZ(K)
+         ENDDO
+
+
+         DO I=NBND+1,IMX-NBND
+            DO K=NBND+1,KMX-NBND
+               WALLSSX(3) = WALLSSX(3) + 
+     $              (U(K,1+NBND,I)+UGRID)*DDZ(K)*DDX(I)
+               WALLSSZ(3) = WALLSSZ(3) +
+     $              W(K,1+NBND,I) *DDZ(K)*DDX(I)
+            ENDDO
+         ENDDO
+
+         WALLSSX(3) = WALLSSX(3)*GMOL / (LX*LZ* 0.5*DDY(1+NBND) )
+         WALLSSZ(3) = WALLSSZ(3)*GMOL / (LX*LZ* 0.5*DDY(1+NBND) )
+      ENDIF
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+C     LEFT- FLAECHE
+
+      IF (NLFT .EQ. 5) THEN
+
+         WALLSSX(4) = 0.0
+         WALLSSZ(4) = 0.0
+         LX   = 0.0
+         LZ   = 0.0
+      
+         DO I=NBND+1,IMX-NBND
+            LX = LX+DDX(I)
+         ENDDO
+         DO K=NBND+1,KMX-NBND
+            LZ = LZ+DDZ(K)
+         ENDDO
+
+
+         DO I=NBND+1,IMX-NBND
+            DO K=NBND+1,KMX-NBND
+               WALLSSX(4) = WALLSSX(4) + 
+     $              (U(K,JMX-NBND,I)+UGRID)*DDZ(K)*DDX(I)
+               WALLSSZ(4) = WALLSSZ(4) +
+     $              W(K,JMX-NBND,I) *DDZ(K)*DDX(I)
+            ENDDO
+         ENDDO
+
+         WALLSSX(4) = WALLSSX(4)*GMOL / (LX*LZ* 0.5*DDY(JMX-NBND) ) 
+         WALLSSZ(4) = WALLSSZ(4)*GMOL / (LX*LZ* 0.5*DDY(JMX-NBND) ) 
+
+      ENDIF
+
+
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+C     FRONT- FLAECHE
+
+      IF (NFRO .EQ. 5) THEN
+
+         WALLSSZ(1) = 0.0
+         LY   = 0.0
+         LZ   = 0.0
+      
+         DO J=NBND+1,JMX-NBND
+            LY = LY+DDY(J)
+         ENDDO
+         DO K=NBND+1,KMX-NBND
+            LZ = LZ+DDZ(K)
+         ENDDO
+
+
+         DO J=NBND+1,JMX-NBND
+            DO K=NBND+1,KMX-NBND
+               WALLSSZ(1) = WALLSSZ(1) + 
+     $              W(K,J,1+NBND)*DDZ(K)*DDY(J)
+            ENDDO
+         ENDDO
+
+         WALLSSZ(1) = WALLSSZ(1)*GMOL / (LY*LZ* 0.5*DDX(1+NBND) ) 
+      ENDIF
+
+
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+C     BACK - FLAECHE
+
+      IF (NBAC .EQ. 5) THEN
+
+         WALLSSZ(2) = 0.0
+         LY   = 0.0
+         LZ   = 0.0
+      
+         DO J=NBND+1,JMX-NBND
+            LY = LY+DDY(J)
+         ENDDO
+         DO K=NBND+1,KMX-NBND
+            LZ = LZ+DDZ(K)
+         ENDDO
+
+
+         DO J=NBND+1,JMX-NBND
+            DO K=NBND+1,KMX-NBND
+               WALLSSZ(2) = WALLSSZ(2) + 
+     $              W(K,J,IMX-NBND)*DDZ(K)*DDY(J)
+            ENDDO
+         ENDDO
+
+         WALLSSZ(2) = WALLSSZ(2)*GMOL / (LY*LZ* 0.5*DDX(IMX-NBND) ) 
+      ENDIF
+
+
+      RETURN
+      END
+

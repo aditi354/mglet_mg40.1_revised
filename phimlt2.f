@@ -1,0 +1,216 @@
+
+
+
+
+
+
+
+
+
+
+
+CCCCC        DEFINITIONEN FUER C-PREPROZESSOR
+C            MASCHINE
+
+C              MESSAGE PASSING INTERFACE
+
+C            RAEUMLICHE DISKRETISIERUNG
+C
+***********************************************************************
+C                       KOMPAKT-UPWIND in X-RICHTUNG (3-TER ORDNUNG) fuer
+C                       die U-Komponente (V und W bleiben Kompakt 4ter ordnung)
+C                       falls im Stroemungsfeld eine Koerper vorhanden ist
+C
+***********************************************************************
+C                       KOMPAKTVERF. in XYZ-RICHTUNG (4-TER ORDNUNG)
+
+
+**********************************************************************
+C                      Preprocessing with ADM for 2nd Order Central
+***********************************************************************
+CCC                     Bei periodischen Randbedingungen in X-Richtung
+CCC                     ist eine hoehere O
+C
+CCC                     Bei periodischen Randbedingungen in Y-Richtung
+CCC                     ist eine hoehere Ordnung moeglich
+C
+CCC                     Bei periodischen Randbedingungen in Y-Richtung:
+CCC                     Zentraldiff. 4-ter Ordnung (Parallelisieung moeglich)
+C
+***********************************************************************
+C
+C
+C            INTERPOLATION AN GITTER-GRENZEN
+
+C            BEHANDLUNG DER TOPAR-RANDBEDINGUNG
+
+C            ZEITLICHE DISKRETISIERUNG
+
+C            FEINSTRUKTURMODELL
+
+C            NICHT-NEWTONSCHE SPANNUNGEN
+
+
+C            TRANSPORT UND ORIENTIERUNG VON PARTIKELN
+
+
+C            SCALAR HEAT/TEMPERATURE TRANSPORT
+C            APROXIMATE DECONVOLUTION FOR SCALAR
+C            TURBULENT PRANDTL NUMBER 
+C            PLOT LOCAL SCALAR CONVECTION DIFFUSION EXTREMES 
+C            ANALYZE AND PLOT NEAR WALL GRID RESLOLUTION 
+C            WRITE SPECIAL 1D LINE FOR TMIX FOR SPECTRA AND PDF
+C            SCALAR TIME ADVANCEMENT/DISCRETISATION METHOD
+
+C            STROEMUNG NACH OBEN?
+
+
+C            BEHANDLUNG DER FLUKTUATIONS-RANDBEDINGUNG
+
+C            BEHANDLUNG VON PPHYS ALS QUELLTERM IN TSTLE2
+
+C            POSITIONIERUNG DER EINSTROEMPROFILE
+
+C           STATISTIK
+
+
+C                 GEMISCHTES
+
+C                GRDFMI WIRD NICHT VERWENDET, DAHER EINSPARUNG DER FELDER
+C                IGRHF UND GRHF
+
+C                VERGROESSERN DER KJI-RICHTUNG BEI FORTSETZUNGSLAUF ERLAUBT!
+
+C                RAUSSCHREIBEN VON ZEITRECORDS
+
+C                FUER KORRELATIONEN UND HAEFIGKEITSVERTEILUNGEN
+      SUBROUTINE PHIMLT2 (KK,JJ,II,KMX,JMX,IMX,
+     $                    PHI12,IVAR,PHI1,PHI2,
+     $                    NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB)
+C*STARLET***************************************************************
+C        P H I M L T 2    IN  PHIMLT2 WERDEN ZWEI VARIABLEN MIT EINANDER
+C                         MULTIPLIZIERT UM SIE STATISTISCH AUSWERTEN ZU 
+C                         KOENNEN ("NEUE" STATISTIK MIT SPEICHERUNG DER
+C                         MOMENTANWERTE)
+C                         PHI12=PHI1 * PHI2
+C*STARLET***************************************************************
+C
+C PARAM: KK, JJ, II     - ARRAYDIMENSIONEN
+C        KMX, JMX, IMX  - GRENZEN DES BERECHNUNGSGEBIETES (MIT BOUND)
+C        TAUXY(KK,JJ,II)+ PRODUKT DER EINGANGSVARIABLEN
+C        PHI1 (KK,JJ,II)- 1. EINGANGSVARIABLE
+C        PHI2 (KK,JJ,II)- 2. EINGANGSVARIABLE
+C        IVAR           - CHARACTER-VARIABLE DER FORM 'XX' 'UV', 'VW'
+C                         zur Definition der Interpolationen
+C UPROG                 : ERRR
+C
+C DEFINE-DIREKTIVEN     : KEINE
+C
+C        11.05.00 (SE)  : Original abgeleitet von TAUFG
+C                         UND EINFUEHRUNG DER "NEUEN" STATISTIK
+C*STARLET***************************************************************
+C
+      CHARACTER (LEN=2)  IVAR
+C
+C
+      REAL     PHI1(KK,JJ,II),  PHI2(KK,JJ,II),  PHI12(KK,JJ,II)
+      INTEGER  I,J,K,I1,I2,J1,J2,K1,K2,IM2,JM2,KM2,IMX,JMX,KMX
+      INTEGER  IFRFIX,JRIFIX
+      INTEGER  ISTART,JSTART,KSTART,NFRO,NRGT
+C
+      IM2    = IMX - 2
+      JM2    = JMX - 2
+      KM2    = KMX - 2
+      IFRFIX = 0
+      JRIFIX = 0
+
+      K1     = 0
+      J1     = 0
+      I1     = 0
+      K2     = 0
+      J2     = 0
+      I2     = 0
+
+
+C     DEFINITION DER INTERPOLATIONEN FUER UEBRIGE TERME:
+C
+C     FUER UU,VV,WW ETC. KEINE INTERPOLATION NOETIG
+C
+      IF ( IVAR .EQ. 'XX' ) THEN
+
+         CONTINUE
+
+      ELSEIF (IVAR .EQ. 'UV') THEN
+
+         J1     = 1
+         I2     = 1
+
+      ELSEIF (IVAR .EQ. 'UW') THEN
+
+         K1     = 1
+         I2     = 1
+
+      ELSEIF (IVAR .EQ. 'VW') THEN
+
+         K1     = 1
+         J2     = 1
+
+      ELSEIF (IVAR .EQ. 'UP') THEN
+
+         I1     = -1
+
+      ELSEIF(IVAR .EQ. 'VP') THEN
+
+         J2     = -1
+
+      ELSEIF(IVAR .EQ. 'WP') THEN
+
+         K2     = -1
+
+C      ELSEIF (IVAR .EQ. 'UT') THEN
+C
+C         I1     = -1
+C
+C      ELSEIF(IVAR .EQ. 'VT') THEN
+C
+C         J2     = -1
+C
+C      ELSEIF(IVAR .EQ. 'WT') THEN
+C
+C         K2     = -1
+      ELSE
+
+      CALL ERRR (501,' PHIMLT2 ')
+
+      ENDIF
+C
+C
+      IF (NFRO .EQ. 2) THEN
+      IF(I1+I2 .EQ. 0) IFRFIX = 1
+      ENDIF
+      IF (NRGT .EQ. 2) THEN
+      IF(J1+J2 .EQ. 0) JRIFIX = 1
+      ENDIF
+C
+C                                 **************************************
+C                                 BEHANDLUNG DER RANDFLAECHEN
+C                                 **************************************
+C
+      ISTART = 3 - I1 - I2 - IFRFIX
+      DO 100 I = ISTART,IM2
+         JSTART = 3 - J1 - J2 - JRIFIX
+         DO 110 J = JSTART,JM2
+C
+            KSTART = 3-K1-K2
+C
+            DO 120 K = KSTART,KM2
+               PHI12(K,J,I) = .25
+     $                      * (PHI1(K,J,I) + PHI1(K+K1,J+J1,I+I1))
+     $                      * (PHI2(K,J,I) + PHI2(K+K2,J+J2,I+I2))
+
+  120       CONTINUE
+  110    CONTINUE
+  100 CONTINUE
+
+      RETURN
+      END

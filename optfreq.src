@@ -1,0 +1,193 @@
+      SUBROUTINE OPTFREQ(VAROPT,NDIMVAROPT
+     +                   ,IDIM2D,NTO1,TIMEPH,ITTOT)
+C
+C
+C*MGLET***************************************************************
+C        O P T F R E Q     OPTIMIERUNG DER KONTROLLFREQUENZ 
+C*MGLET***************************************************************
+C
+C PARAM: NDIMVAROPT     - ANZAHL DER STICHPROBEN FUER ANALYSE VON XR
+C        VAROPT(2,NDIMVAROPT)    - WERTE DER VARIABLEN, DIE AUSGEWERTET WIRD
+C        IDIM2D         - DIMENSIONIERUNG DES FELDES VAROPT
+C        NTO1           - ZEITSCHRITT, AB DEM OPTIMIERT WERDEN SOLL
+C        TIMEPH         - AKTUELLE PHYSIKALISCHE ZEIT
+C	
+C ALGOTRITHMUS:   NACH JEWEILS .PER. PERIODEN DER EINGESTELLTEN FREQUENZ
+C                 WIRD EINE AUSWERTUNG VON VAROPT DURCHGEFUEHRT.
+C                 DABEI WIRD DIE FREQUENZ VERAENDERT, WENN SICH AUFGRUND
+C                 DIESER VERAENDERUNG EINE ERHOEHUNG/ERNIEDRIGUNG DER
+C                 AUGENBLICKLICHEN REZIRKULATIONSLAENGE ERGIBT.
+C
+C*MGLET***************************************************************
+C
+      REAL VAROPT(2,IDIM2D*8)
+
+#include "mgpar.h"
+#include "colevel.h"
+#include "compi.h"
+#include "costrles.h"
+#include "cobound.h" 
+#ifdef _MPI_
+C
+C               MPI-INCLUDE
+C
+#include "mpif.h"
+#endif
+
+#ifdef _MPI_
+      IF (MYID .EQ.0) THEN                                           
+#endif
+C*******************************************************************
+C*******************************************************************
+C          1. PHASE: WENN NTO1 DANN DEFINIERE ANFANGSPARAMETER
+C*******************************************************************
+C*******************************************************************
+      IF(ITTOT.EQ.NTO1) THEN
+         FREQOPT = 1.00
+         TIMEALT = TIMEPH
+         ITALT   = ITTOT+1
+         PERIODE = MIN( MAX(5.0,20.0*FREQOPT) , 80.0*FREQOPT)
+         NDIMVAROPT = INT(PERIODE/(FREQOPT*DT)+1.)
+         TRAN = TIMEPH+NDIMVAROPT*DT
+         WRITE(6,*)'OPTF: 1.PHASE >>>> INITIALISIERUNG <<<<!'
+         WRITE(6,*)'OPTF: BIS           ',TRAN 
+         WRITE(6,*)'OPTF: TIMEPH,OPTFREQ',TIMEALT,FREQOPT
+
+         IF (FREQOPT.GT.0.4) THEN
+           XRTALT1 = 2.0
+           XRTALT2 = 1.0
+         ELSE
+           XRTALT1 = 100.0
+           XRTALT2 = 150.0
+         ENDIF
+         FREQALT1 = 0.0
+	 XRMIN    = 100.0
+	 NXRMIN   = 0
+	 GOTO 10
+      ENDIF
+
+C*******************************************************************
+C*******************************************************************
+C           2. PHASE: WENN VAROPT VOLLSTAENDIG, DANN ANALYSIERE
+C                     VAROPT
+C*******************************************************************
+C*******************************************************************
+      IF(ITTOT.GE.ITALT+NDIMVAROPT) THEN
+        FREQRATIO1 = 0.75
+        FREQRATIO11= 0.55
+        FREQRATIO2 = 1.36
+        FREQRATIO22= 1.80
+
+        CALL WRIVAROPT(VAROPT,IDIM2D,NDIMVAROPT)
+        WRITE(6,*)'OPTF: 2.PHASE >>>> XR ANALYSE <<<<!' 
+        FREQALT2=FREQALT1
+        FREQALT1=FREQOPT
+
+	XRSUM=0.0
+        DO I=1,NDIMVAROPT
+          XRSUM = XRSUM + VAROPT(2,I)
+        ENDDO
+        XRT = XRSUM / (FLOAT(NDIMVAROPT))
+
+        NXRMIN=NXRMIN+1
+        IF (XRT.LE.XRMIN) THEN
+           XRMIN  = XRT
+           FXRMIN = FREQOPT
+           NXRMIN = 0
+        ENDIF
+
+        WRITE(6,*)'OPTF: TIMEPH,OPTFREQ',TIMEPH,FREQOPT 
+        WRITE(6,*)'OPTF: XRT',TIMEPH,XRT,XRTALT1,FREQOPT
+        WRITE(6,*)'OPTF: XRMIN',TIMEPH,XRMIN,FXRMIN,NXRMIN
+
+C*******************************************************************
+C                 DECISION:
+C                     CASE X: NXRMIN > 5 => JUMP BACK TO FXRMIN
+C                     CASE A: XRT < XRTALT1
+C                     CASE B: XRT > XRTALT1
+C                     CASE C: XRT ~ XRTALT1  &&  XRTALT1 ~ XRTALT2
+C                     CASE D: XRT ~ XRTALT1  &&  XRTALT1 <> XRTALT2 
+C*******************************************************************
+
+        IF(NXRMIN.GT.5) THEN
+          FREQOPT=FXRMIN
+	  NXRMIN =0
+          WRITE(6,*)'OPTF: ST:=ST(XRMIN) (CASE X)'
+     +               ,TIMEPH,FREQOPT 
+        ELSEIF(XRT*0.99.GE.XRTALT1) THEN 
+          IF(FREQALT2.GT.FREQOPT) THEN
+            FREQOPT=FREQOPT*FREQRATIO2
+            WRITE(6,*)'OPTF: ST UP (CASE A1)'
+     +                 ,TIMEPH,FREQOPT 
+          ELSE
+            FREQOPT=FREQOPT*FREQRATIO1
+            WRITE(6,*)'OPTF: ST DOWN (CASE A2)'
+     +                 ,TIMEPH,FREQOPT 
+          ENDIF
+        ELSEIF(XRT*1.01.LT.XRTALT1) THEN 
+          IF(FREQALT2.GT.FREQOPT) THEN       
+            FREQOPT=FREQOPT*FREQRATIO1      
+            WRITE(6,*)'OPTF: ST DOWN (CASE B1)'
+     +                 ,TIMEPH,FREQOPT 
+          ELSE
+            FREQOPT=FREQOPT*FREQRATIO2
+            WRITE(6,*)'OPTF: ST UP (CASE B2)'
+     +                 ,TIMEPH,FREQOPT 
+          ENDIF
+        ELSEIF( (XRTALT1*0.99.LT.XRTALT2) .AND. 
+     +          (XRTALT1*1.01.GE.XRTALT2) ) THEN
+          IF(FREQALT2.GT.FREQOPT) THEN
+            FREQOPT=FREQOPT*FREQRATIO11
+            WRITE(6,*)'OPTF: XR GLEICH GEBLIEBEN'
+            WRITE(6,*)'OPTF: ST DOWN_DOWN (CASE C1)'
+     +                 ,TIMEPH,FREQOPT 
+          ELSE
+            FREQOPT=FREQOPT*FREQRATIO22
+            WRITE(6,*)'OPTF: XR GLEICH GEBLIEBEN'
+            WRITE(6,*)'OPTF: ST UP_UP (CASE C2)'
+     +                 ,TIMEPH,FREQOPT 
+          ENDIF
+        ELSE
+          IF(FREQALT2.GT.FREQOPT) THEN       
+            FREQOPT=FREQOPT*FREQRATIO1      
+            WRITE(6,*)'OPTF: ST DOWN (CASE D1)'
+     +                 ,TIMEPH,FREQOPT 
+          ELSE
+            FREQOPT=FREQOPT*FREQRATIO2
+            WRITE(6,*)'OPTF: ST UP (CASE D2)'
+     +                 ,TIMEPH,FREQOPT 
+          ENDIF
+        ENDIF
+
+C*******************************************************************
+C                                            ENDE DER IF-ABFRAGEN
+C*******************************************************************
+                                         
+        DO I=1,IDIM2D*8
+          VAROPT(1,I)  = 0.0
+          VAROPT(2,I)  = 0.0
+        ENDDO
+        PERIODE = MIN( MAX(5.0,20.0*FREQOPT) , 80.0*FREQOPT)
+        NDIMVAROPT = INT(PERIODE/(FREQOPT*DT)+1.)
+        TIMEALT = TIMEPH
+        ITALT   = ITTOT
+        XRTALT2 = XRTALT1
+        XRTALT1 = XRT
+
+
+      ENDIF
+   10 CONTINUE
+
+#ifdef _MPI_
+      ENDIF
+#endif
+#ifdef _MPI_
+      CALL MPI_BCAST(FREQOPT,1,
+     $ MPI_DOUBLE_PRECISION,0,MPI_COMM_WORLD,IERR)
+      CALL MPI_BCAST(ITALT,1,MPI_INTEGER,0,MPI_COMM_WORLD,IERR)
+#endif
+  
+      RETURN
+      END
+
+

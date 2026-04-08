@@ -1,0 +1,104 @@
+      SUBROUTINE DOBHEAD (CIDENT,IIDENT,RIDENT,
+     $                    ISELEP,ISAMPP,ISLINP,ISLIDI)
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+C          SCHREIBT HEADERINFORMATION AUF ERGEBNISFILE
+C          BINAER
+C
+C
+C     16. 5.93 (MM) : ORIGINAL
+C
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+C
+
+#include "mgpar.h"
+#include "costrles.h"
+#include "comgrid.h"
+#include "cogrddef.h"
+#include "cogrdpro.h"
+#include "cobound.h"
+#include "cogrdcon.h"
+#include "cobody.h"
+
+      CHARACTER (LEN=8) CIDENT(10)
+      INTEGER     IIDENT(100)
+      REAL        RIDENT(100)
+
+      INTEGER     ISELEP(2*752)    ,ISLINP(ISLIDI),
+     $            ISAMPP  (752*MAXGRIDS)
+
+C
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+C
+      
+      WRITE(2) CIDENT
+      WRITE(2) IIDENT
+      WRITE(2) RIDENT
+      WRITE(2) NGRID,NBODY,NAUFP
+      DO I=1,NGRID
+         WRITE(2) IMX(I),JMX(I),KMX(I)
+         WRITE(2) LEVEL(I),LCHILD(I),IPARENT(I)
+         WRITE(2) IPOSITION(I),JPOSITION(I),KPOSITION(I)
+         WRITE(2) XTOT(I),YTOT(I),ZTOT(I)
+
+            WRITE(2) (NBOCD(J,I),J=1,7)
+             
+            WRITE(2) ( FRONT(J,I),J=1, NBOCD(1,I))
+            WRITE(2) (  BACK(J,I),J=1, NBOCD(2,I))
+            WRITE(2) ( RIGHT(J,I),J=1, NBOCD(3,I))
+            WRITE(2) (  LEFT(J,I),J=1, NBOCD(4,I))
+            WRITE(2) (BOTTOM(J,I),J=1, NBOCD(5,I))
+            WRITE(2) (   TOP(J,I),J=1, NBOCD(6,I))
+            WRITE(2) (  CUBE(J,I),J=1, NBOCD(7,I))
+
+            WRITE(2) (IFRNBR(J,I),J=1, NBOCD(1,I))
+            WRITE(2) (IBANBR(J,I),J=1, NBOCD(2,I))
+            WRITE(2) (IRINBR(J,I),J=1, NBOCD(3,I))
+            WRITE(2) (ILENBR(J,I),J=1, NBOCD(4,I))
+            WRITE(2) (IBONBR(J,I),J=1, NBOCD(5,I))
+            WRITE(2) (IBONBR(J,I),J=1, NBOCD(6,I))
+
+            DO ID = 1,7
+             WRITE(2) (IBPOS(J,ID,I),J=1,NBOCD(ID,I))
+             WRITE(2) (JBPOS(J,ID,I),J=1,NBOCD(ID,I))
+             WRITE(2) (KBPOS(J,ID,I),J=1,NBOCD(ID,I))
+             WRITE(2) (IBANF(J,ID,I),J=1,NBOCD(ID,I))
+             WRITE(2) (JBANF(J,ID,I),J=1,NBOCD(ID,I))
+             WRITE(2) (KBANF(J,ID,I),J=1,NBOCD(ID,I))
+             WRITE(2) (IBEND(J,ID,I),J=1,NBOCD(ID,I))
+             WRITE(2) (JBEND(J,ID,I),J=1,NBOCD(ID,I))
+             WRITE(2) (KBEND(J,ID,I),J=1,NBOCD(ID,I))
+            ENDDO
+
+
+
+
+
+
+         WRITE(2) XHOMOG(I),YHOMOG(I),ZHOMOG(I)
+         WRITE(2) LPLEVEL(I)
+
+      ENDDO
+
+      DO I=1,NBODY
+         WRITE(2) CTYP(I)
+         WRITE(2)
+     $        IB1(I),IB2(I),JB1(I),JB2(I),KB1(I),KB2(I)
+         WRITE(2) 
+     $        XB1(I),XB2(I),YB1(I),YB2(I),ZB1(I),ZB2(I)
+         WRITE(2) 
+     $        NCOUN(I),XMIT(I),HEIGHT(I),ALPHA(I),CDIR(I)
+      ENDDO
+
+      WRITE(2)  (ISELEP(I),I=1,2*752)
+      WRITE(2)  (ISAMPP(I),I=1,752*NGRID)
+      WRITE(2)  (ISLINP(N),N=1,NAUFP)
+
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+
+      RETURN
+
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+C                                    FEHLERBEHANDLUNG
+
+
+      END

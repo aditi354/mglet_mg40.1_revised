@@ -1,0 +1,60 @@
+      SUBROUTINE RANDWERTIJ(KK,K,DX,DDX,LCOL,DIAG,RCOL,
+     $			    RSIDE1,RSIDE2,RSIDE3)
+C*MGLET***************************************************************
+C
+C     UNTERPROGRAMM ZU BERECHNUNG DER KOEFFIZIENTEN AM RAND
+C     HIER DIE WERTE FUER DEN AUSSTROEMRAND !
+C     MODEFIZIERTER ANSATZ !!!!!!!!!!!!!!!!!!
+C
+C*MGLET***************************************************************
+C
+C
+C DEFINE DIREKTIVEN     : KEINE
+C
+C UPROG                 : KEINE                                      
+C                                                            
+C 06.08.1996            : ADNAN MERI (ORIGINAL)
+C
+C*MGLET***************************************************************
+C
+
+      REAL LCOL,RCOL,DIAG,RSIDE1, RSIDE2,RSIDE3,
+     $     alfa,gama,teta,phi
+      REAL a,b,c,d,e,f,g,h,q,r,DX(KK),DDX(KK)
+
+      a = 0.5 * DX(K)
+      b = DX(K-1)+ (0.5 * DX(K))
+      c = DX(K-2) + DX(K-1) + (0.5*DX(K))
+      d = DDX(K-1)                                     
+
+      e = ((b-d)*(d+a)) + ((d-b)*(d+b))                  
+      f = ((c-d)*(d+a)) + ((d-c)*(d+c))                  
+      g = (b-d)*((a**3) - (d**3)) - (a-d)*((b**3) - (d**3)) 
+
+      h = (c-d)*((a**3) - (d**3)) - (a-d)*((c**3) - (d**3))             
+      r = -d*((a**3) - (d**3)) + ((d**3) * (a-d))  
+      q = -d*a               
+
+
+
+      teta = (r*e - q*g)/(h*e - g*f)               
+      phi  = (q - f*teta)/e                 
+      gama = (-d - (c-d)*teta -(b-d)*phi) / (a-d)         
+      alfa = -1.0 + phi + teta + gama
+c
+c*******************************************************************
+c
+      LCOL = alfa 
+      DIAG = 1.0
+      RCOL = 0.0
+      RSIDE1 = gama 
+      RSIDE2 = phi 
+      RSIDE3 = teta
+c
+c*******************************************************************
+c
+      RETURN
+      END
+
+
+

@@ -1,0 +1,5 @@
+
+      INTEGER MAXGRIDS,MAXBOCONDS
+      PARAMETER ( MAXGRIDS         =128 )
+      PARAMETER ( MAXBOCONDS       = 10 )
+

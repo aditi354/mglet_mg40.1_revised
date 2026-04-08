@@ -1,0 +1,120 @@
+      SUBROUTINE CAL_RR(NPART, NFAM, CONF, LOUT, 
+     $                  IT, DT, RR)
+      REAL CONF(NFAM,NPART, 3), RR(NFAM,9)
+
+      LOGICAL LDOB, LOUT
+
+#ifdef _VPP_
+
+      FNORM = 1.0/FLOAT(NPART)
+
+      DO IFAM = 1,NFAM
+
+        RR (IFAM,1) = 0.0
+        RR (IFAM,2) = 0.0
+        RR (IFAM,3) = 0.0
+        RR (IFAM,4) = 0.0
+        RR (IFAM,5) = 0.0
+        RR (IFAM,6) = 0.0
+        RR (IFAM,7) = 0.0
+        RR (IFAM,8) = 0.0
+        RR (IFAM,9) = 0.0
+
+      ENDDO
+               
+      DO IP = 1,NPART
+      DO IFAM = 1,NFAM
+         
+         RR (IFAM,1) = RR (IFAM,1) + CONF(IFAM,IP,1) * CONF(IFAM,IP,1)
+         RR (IFAM,2) = RR (IFAM,2) + CONF(IFAM,IP,1) * CONF(IFAM,IP,2)
+         RR (IFAM,3) = RR (IFAM,3) + CONF(IFAM,IP,1) * CONF(IFAM,IP,3)
+         RR (IFAM,5) = RR (IFAM,5) + CONF(IFAM,IP,2) * CONF(IFAM,IP,2)
+         RR (IFAM,6) = RR (IFAM,6) + CONF(IFAM,IP,2) * CONF(IFAM,IP,3)
+         RR (IFAM,9) = RR (IFAM,9) + CONF(IFAM,IP,3) * CONF(IFAM,IP,3)
+
+      ENDDO
+      ENDDO
+
+      DO IFAM = 1,NFAM
+
+        RR (IFAM,1) = RR (IFAM,1) * FNORM
+        RR (IFAM,2) = RR (IFAM,2) * FNORM
+        RR (IFAM,3) = RR (IFAM,3) * FNORM
+        RR (IFAM,4) = RR (IFAM,2)
+        RR (IFAM,5) = RR (IFAM,5) * FNORM
+        RR (IFAM,6) = RR (IFAM,6) * FNORM
+        RR (IFAM,7) = RR (IFAM,3)
+        RR (IFAM,8) = RR (IFAM,6)
+        RR (IFAM,9) = RR (IFAM,9) * FNORM
+
+      ENDDO
+
+C---------------------------------- 
+
+      
+#else
+
+      DO IFAM = 1,NFAM
+
+      RR_11 = 0.0
+      RR_12 = 0.0
+      RR_13 = 0.0
+      RR_22 = 0.0
+      RR_23 = 0.0
+      RR_33 = 0.0
+
+      DO IP = 1,NPART
+
+         RR_11 = RR_11 + CONF(IFAM,IP,1) * CONF(IFAM,IP,1)
+         RR_12 = RR_12 + CONF(IFAM,IP,1) * CONF(IFAM,IP,2)
+         RR_13 = RR_13 + CONF(IFAM,IP,1) * CONF(IFAM,IP,3)
+         RR_22 = RR_22 + CONF(IFAM,IP,2) * CONF(IFAM,IP,2)
+         RR_23 = RR_23 + CONF(IFAM,IP,2) * CONF(IFAM,IP,3)
+         RR_33 = RR_33 + CONF(IFAM,IP,3) * CONF(IFAM,IP,3)
+
+      ENDDO
+
+      FNORM = 1.0/FLOAT(NPART)
+
+      RR_11 = RR_11 * FNORM
+      RR_12 = RR_12 * FNORM
+      RR_13 = RR_13 * FNORM
+      RR_22 = RR_22 * FNORM
+      RR_23 = RR_23 * FNORM
+      RR_33 = RR_33 * FNORM
+
+      RR (IFAM,1) = RR_11
+      RR (IFAM,2) = RR_12
+      RR (IFAM,3) = RR_13
+      RR (IFAM,4) = RR_12
+      RR (IFAM,5) = RR_22
+      RR (IFAM,6) = RR_23
+      RR (IFAM,7) = RR_13
+      RR (IFAM,8) = RR_23
+      RR (IFAM,9) = RR_33
+
+
+      ENDDO
+
+#endif
+C---------------------------------- output
+
+#ifdef _WRITE_PARTICLES_
+
+      IF ( LOUT) THEN
+         
+         ifam = 100
+
+         WRITE (25,1000) IT*DT,
+     $        RR(ifam,1),rr(ifam,2),rr(ifam,3),
+     $        rr(ifam,5),rr(ifam,6),rr(ifam,9)
+
+         WRITE (27,*) IT*DT, DEGREE(IFAM), ANGLE(IFAM)
+      ENDIF
+
+#endif
+C---------------------------------- 
+
+      RETURN
+ 1000 FORMAT (E12.5E3, 6(1X,E12.5E3))
+      END

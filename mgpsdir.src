@@ -1,0 +1,305 @@
+#undef _RECOUT_
+         SUBROUTINE MGPSDIR (IDIM3D,IDIM2D,IDIM1D,NBND,
+     $                      X,Y,Z,DX,DY,DZ,DDX,DDY,DDZ,
+     $                      RDX,RDY,RDZ,RDDX,RDDY,RDDZ,
+     $                      FPSFAK,FCOSMY,FCOSNY,
+     $                      IFFTX,IPERMUX,RFFTX,IFFTY,IPERMUY,RFFTY,    
+     $                      U,V,W,P,DP,G,B,DIV,UFR,VFR,WFR,
+     $                      UTO,VTO,WTO,PTO,GTO,VRI,HILF,
+     $                      H2D1,H2D2,H2D3,H2D4,H2D5,H2D6,
+     $                      WSOR, RHO,DIVG,
+     $                      ILEVEL,EPIT,MPIT,TIMEPH,
+     $                      UBA,VBA,WBA,PBA,GBA,UBO,VBO,WBO,
+     $                      PFR,GFR,BU,BV,BW,SDIV
+#ifdef _HITACHI_
+     $   ,CXY,CTB,CWK,CHILF
+#endif
+#ifdef _TSCAL_
+     $                      ,T,TFR,TBA,TTO,TBO
+#endif
+     $                      )     
+
+C**MGLET****************************************************************
+C
+C   M G P S D I R    DIRECT-SOLUTION OF POIISON-EQUATION
+C
+C     4.10.93  (MM):  ORIGINAL
+C     29.01.03 (TB): _KSR_ REMOVED
+C
+C**MGLET****************************************************************
+C
+#include "konsta.h"
+#include "mgpar.h"
+#include "costrles.h"
+#include "comgrid.h"
+#include "colevel.h"
+#include "cogrdcon.h"
+#include "comgvp.h"
+C
+      REAL        RDDX(IDIM1D),     RDDY(IDIM1D),     RDDZ(IDIM1D),
+     $             RDX(IDIM1D),      RDY(IDIM1D),      RDZ(IDIM1D),
+     $             DDX(IDIM1D),      DDY(IDIM1D),      DDZ(IDIM1D),
+     $              DX(IDIM1D),       DY(IDIM1D),       DZ(IDIM1D),
+     $               X(IDIM1D),        Y(IDIM1D),        Z(IDIM1D)
+
+      REAL        U (   IDIM3D  ), V (   IDIM3D  ), W (   IDIM3D  ),
+     $            P (   IDIM3D  ), G (   IDIM3D  ), B (   IDIM3D  ),
+     $            DP(   IDIM3D  ),BU (   IDIM3D  ),BV (   IDIM3D  ),
+     $            BW(   IDIM3D  ),SDIV(   IDIM3D  )
+#ifdef _TSCAL_
+      REAL        T (   IDIM3D  ),
+     $           TFR(IDIM2D*2),TBA(IDIM2D*2),TTO(IDIM2D*2),TBO(IDIM2D*2)      
+#endif
+#ifdef _HITACHI_
+      COMPLEX*16    CXY(IDIM3D),CTB(IDIM1D),CWK(IDIM2D),CHILF(IDIM2D)
+#endif
+C                                 FELDER FUER DEN DIREKTEN POISSONLOESER
+C
+      REAL
+     $           FPSFAK(IDIM2D),FCOSMY(IDIM1D),FCOSNY(IDIM1D)
+C
+C                                 FELDER FUER DIE FOURIERTRANSFORMATION
+C
+      INTEGER IFFTX(19,MAXGRIDS),IFFTY(19,MAXGRIDS)
+      INTEGER IPERMUX(IDIM1D)	     ,IPERMUY(IDIM1D)
+      REAL    RFFTX(IDIM1D*2)     ,RFFTY(IDIM1D*2)
+C
+
+      REAL        UFR(IDIM2D*2),VRI(IDIM2D*2)
+      REAL        UBO(IDIM2D*2),VBO(IDIM2D*2),WBO(IDIM2D*2)
+      REAL        VFR(IDIM2D*2),WFR(IDIM2D*2)
+      REAL        PFR(IDIM2D*2),GFR(IDIM2D*2)
+      REAL        UBA(IDIM2D*2),VBA(IDIM2D*2),WBA(IDIM2D*2)
+      REAL      UTO(IDIM2D*2),  VTO(IDIM2D*2),  WTO(IDIM2D*2),
+     $           PTO(IDIM2D*2),  GTO(IDIM2D*2)
+C
+      REAL     HILF( IDIM3D ),  DIV( IDIM3D ), DIVG( IDIM2D )
+      REAL     H2D1( IDIM2D ), H2D2( IDIM2D ), H2D3( IDIM2D ),
+     $         H2D4( IDIM2D ), H2D5( IDIM2D ), H2D6( IDIM2D )
+C
+C
+C
+C                                 VORBELEGUNG DER MAX. DIVERGENZ
+         F = 1
+         DO I = 1,NOFPSDIR(ILEVEL)
+           IGRID = IGRDOFPSDIR( I , ILEVEL )
+           DIVGMX(IGRID) = 0.0
+         ENDDO
+C
+C---- -------------------------------------- CONNECTIVITY-BEDINGUNGEN
+C
+         CALL CONNECTMG
+     $             (IDIM3D,IDIM2D,IDIM1D,
+     $              X,Y,Z,DX,DY,DZ,DDX,DDY,DDZ,
+#ifdef _TSCAL_
+     $              U,V,W,T,P,G,B,UFR,VRI,WBO,HILF,UTO,VTO,WTO,PTO,GTO,
+#else     
+     $              U,V,W,P,G,B,UFR,VRI,WBO,HILF,UTO,VTO,WTO,PTO,GTO,
+#endif
+     $              VFR,WFR,PFR,GFR, 
+     $              'T',ILEVEL,0,0,0,
+     $              NOFPSDIR(ILEVEL),IGRDOFPSDIR(1,ILEVEL))
+         F = 2.0
+C
+C---- --------------------------------------------------------------------
+C
+         DO I = 1,NOFPSDIR(ILEVEL)
+           IGRID = IGRDOFPSDIR( I , ILEVEL )
+
+C
+C---- --------------------------------------- POINTER UND DIMENSIONIERUNGEN
+C
+              CALL MGDPB (KK,JJ,II,IP3,IP2,IP1,IBB,IBU,
+     $                      NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB,IGRID)
+
+C
+C                              ZUERST EINMAL RANDBEDINGUNGEN SICHERSTELLEN
+C
+              CALL BOUNDMG
+     $                (IDIM3D,IDIM2D,IDIM1D,
+     $                 X,Y,Z,DX,DY,DZ,DDX,DDY,DDZ,
+     $                 U,V,W,P,G,B,UFR,VFR,WFR,VRI,HILF,
+     $                 UTO,VTO,WTO,PTO,GTO,
+     $                 'P',IGRID,0,0,0,
+     $                 TIMEPH,UBA,VBA,WBA,PBA,GBA,UBO,VBO,WBO,
+     $                 PFR,GFR
+#ifdef _TSCAL_
+     $                ,T,TFR,TBA,TTO,TBO
+#endif
+     $                )       
+              F = 3.0
+C
+C                              DP-FELD AUF NULL SETZEN
+C
+              CALL SETS   (KK,JJ,II,KK,JJ,II,DP(IP3),0.0)
+C
+C---- ----------------------------------------- BERECHNUNG DER DIVERGENZ
+C
+C                           DER TRIDIAGONALLOESER VERLANGT EINEN
+C                           VORFAKTOR 
+
+              PREFAK = FPSFAK ( IP2 + 3 )/DT*RHO
+
+C              WRITE (6,*) 'PREFAK IN MGPSDIR: ',PREFAK
+
+              IREZIP = -1
+              IF (IVPINF .EQ. 2) IREZIP = -3 
+              CALL DIVCAL
+     $                    (KK,JJ,II,KK,JJ,II,
+     $                    RDDX(IP1),RDDY(IP1),RDDZ(IP1),
+     $                    U(IP3),V(IP3),W(IP3),B(IP3),DP(IP3),
+     $                    PREFAK,IREZIP,DIVGMX(IGRID),
+     $                    BU(IP3),BV(IP3),BW(IP3),SDIV(IP3))
+
+#ifdef _RECOUT_
+C
+C---- -------------------------------------- INITIALLISIEREN D. OUTPUTS
+C
+      IF (II .EQ. 196) THEN
+C                                                         PHYS. RAUM:
+         IOUT = 3
+         IF (TIMEPH .GT. SMALL) IOUT = 1
+         CALL RECOUT(KK,JJ,II,3,KK-2,3,JJ-2,3,II-2,X(IP1),Y(IP1),
+     $        Z(IP1),DP(IP3),60,61,'KMG27     ',TIMEPH,IOUT)
+
+C                                                       FOURIER RAUM:
+         IOUT = 2
+         IF (TIMEPH .GT. SMALL) IOUT = 4
+         CALL RECOUT(JJ,KK,II,3,JJ-2,3,KK-2,3,II-2,X(IP1),Z(IP1),
+     $        Y(IP1),DP(IP3),62,63,'KMG27     ',TIMEPH,IOUT)
+      ENDIF
+
+#endif
+C
+C---- -------------------------------------- LOESUNG DER POISSONGLEICHUNG
+C
+#if defined _IRIS_ || defined _HITACHI_
+           CALL CAP1262 (FPSFAK(IP2),FCOSMY(IP1),FCOSNY(IP1)
+     $                    ,RFFTX(IP1*2),IPERMUX(IP1),IFFTX(1,IGRID)
+     $                    ,RFFTY(IP1*2),IPERMUY(IP1),IFFTY(1,IGRID)
+     $                    ,KK,JJ,II,NBND,DP(IP3),HILF(IP3)
+     $                    ,H2D1(IP2),H2D2(IP2),H2D3(IP2)
+     $                    ,H2D4(IP2),H2D5(IP2),H2D6(IP2)
+     $                    ,NFRO,NBAC,NRGT,NLFT,NBOT,NTOP
+#ifdef _HITACHI_
+     $                    ,CXY(IP3),CTB(IP1),CWK(IP2),CHILF(IP2)
+#endif
+     $                     )
+#else
+            CALL CAP1252 (FPSFAK(IP2),FCOSMY(IP1),FCOSNY(IP1)
+     $                    ,RFFTX(IP1*2),IPERMUX(IP1),IFFTX(1,IGRID)
+     $                    ,RFFTY(IP1*2),IPERMUY(IP1),IFFTY(1,IGRID)
+     $                    ,KK,JJ,II,NBND,DP(IP3),HILF(IP3)
+     $                    ,H2D1(IP2),H2D2(IP2),H2D3(IP2)
+     $                    ,H2D4(IP2),H2D5(IP2),H2D6(IP2)
+     $                    ,NFRO,NBAC,NRGT,NLFT,NBOT,NTOP)
+#endif
+C
+C---- -------------------------------------- SCHREIBEN D. KORREKTURDRUCKES
+C
+#ifdef _RECOUT_
+      IF (II .EQ. 196) THEN
+         CALL RECOUT(KK,JJ,II,3,KK-2,3,JJ-2,3,II-2,
+     $        X(IP1),Y(IP1),Z(IP1),DP(IP3),60,61,'KMG27     ',TIMEPH,0)
+      ENDIF
+#endif
+C
+C---- -------------------------------------- SETZEN DER RANDBED. FUER DRUCK
+C
+              CALL BOUNDMG
+     $                (IDIM3D,IDIM2D,IDIM1D,
+     $                 X,Y,Z,DX,DY,DZ,DDX,DDY,DDZ,
+     $                 U,V,W,DP,G,B,UFR,VFR,WFR,VRI,HILF,
+     $                 UTO,VTO,WTO,PTO,GTO,
+     $                 'T',IGRID,0,0,0,
+     $                 TIMEPH,UBA,VBA,WBA,PBA,GBA,UBO,VBO,WBO,
+     $                 PFR,GFR
+#ifdef _TSCAL_
+     $                ,T,TFR,TBA,TTO,TBO
+#endif
+     $                )
+C
+C---- -------------------------------------- AUSFUEHREN DER DRUCKKORREKTUR
+C
+              CALL MGPCORR
+     $                    (KK,JJ,II,KK,JJ,II,
+     $                     DX(IP1),DY(IP1),DZ(IP1),
+     $                    DDX(IP1),DDY(IP1),DDZ(IP1),
+     $                    RDX(IP1),RDY(IP1),RDZ(IP1),
+     $                   RDDX(IP1),RDDY(IP1),RDDZ(IP1),
+     $                     U(IP3),V(IP3),W(IP3),P(IP3),B(IP3),DP(IP3),
+     $                     B(IP3),BU(IP3),BV(IP3),BW(IP3),
+     $                       RHO,DT,WSOR,NBND,
+     $                       NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,0)
+#ifdef _RECOUT_
+C
+C---- -------------------------------------- SCHREIBEN D. DRUCKES
+C
+      IF (II .EQ. 196) THEN
+         CALL RECOUT(KK,JJ,II,3,KK-2,3,JJ-2,3,II-2,
+     $        X(IP1),Y(IP1),Z(IP1),P(IP3),60,61,'KMG27     ',TIMEPH,0)
+      ENDIF
+#endif
+C
+C---- ------------------------------ SETZEN DER RANDBED. FUER GESCHWINDIGKEITEN
+C
+              CALL BOUNDMG
+     $                (IDIM3D,IDIM2D,IDIM1D,
+     $                 X,Y,Z,DX,DY,DZ,DDX,DDY,DDZ,
+     $                 U,V,W,P,G,B,UFR,VFR,WFR,VRI,HILF,
+     $                 UTO,VTO,WTO,PTO,GTO,
+     $                 'T',IGRID,0,0,0,
+     $                 TIMEPH,UBA,VBA,WBA,PBA,GBA,UBO,VBO,WBO,
+     $                 PFR,GFR
+#ifdef _TSCAL_
+     $                ,T,TFR,TBA,TTO,TBO
+#endif
+     $                )
+
+C        DO F=IP1,(IP1+JJ)
+C           WRITE(6,*)'IPERMUY: ',IPERMUY(F),F
+C        ENDDO     
+C
+C
+C---- ----------------------------------------
+      ENDDO
+
+
+C
+C---- ----------------------------------------------------------------------
+C
+       DO I = 1,NOFPSDIR(ILEVEL)
+         IGRID = IGRDOFPSDIR( I , ILEVEL )
+
+              IPCORR(IGRID) = IPCORR(IGRID) + 1
+              IPCGES(IGRID) = IPCGES(IGRID) + 1
+
+C
+C---- ----------------------------------------- KONTROLLE DER DIVERGENZ
+C
+      IF (IVPINF.EQ.2) THEN
+
+              CALL MGDPB (KK,JJ,II,IP3,IP2,IP1,IBB,IBU,
+     $                      NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB,IGRID)
+
+              PREFAK = 1.0
+
+              CALL DIVCAL
+     $                    (KK,JJ,II,KK,JJ,II,
+     $                    RDDX(IP1),RDDY(IP1),RDDZ(IP1),
+     $                    U(IP3),V(IP3),W(IP3),B(IP3),DIV(IP3),
+     $                    PREFAK,-3,DIVGMX(IGRID),
+     $                    BU(IP3),BV(IP3),BW(IP3),SDIV(IP3))
+
+      ENDIF
+           IF (IVPINF.EQ.2) WRITE (6,1000)
+     $        'MGPSDIR, GRD',IGRID,'LEVEL',ILEVEL,
+     $        'IPCORR',IPCORR(IGRID),'DIV',DIVGMX(IGRID)
+
+
+       ENDDO
+ 
+
+         RETURN
+ 1000    FORMAT (1X,A,I4,3X,A,I4,3X,A,2X,I4,2X,A,2X,E10.4)
+         END

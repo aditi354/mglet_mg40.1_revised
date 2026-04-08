@@ -1,0 +1,236 @@
+
+
+
+
+
+
+
+
+
+
+
+CCCCC        DEFINITIONEN FUER C-PREPROZESSOR
+C            MASCHINE
+
+C              MESSAGE PASSING INTERFACE
+
+C            RAEUMLICHE DISKRETISIERUNG
+C
+***********************************************************************
+C                       KOMPAKT-UPWIND in X-RICHTUNG (3-TER ORDNUNG) fuer
+C                       die U-Komponente (V und W bleiben Kompakt 4ter ordnung)
+C                       falls im Stroemungsfeld eine Koerper vorhanden ist
+C
+***********************************************************************
+C                       KOMPAKTVERF. in XYZ-RICHTUNG (4-TER ORDNUNG)
+
+
+**********************************************************************
+C                      Preprocessing with ADM for 2nd Order Central
+***********************************************************************
+CCC                     Bei periodischen Randbedingungen in X-Richtung
+CCC                     ist eine hoehere O
+C
+CCC                     Bei periodischen Randbedingungen in Y-Richtung
+CCC                     ist eine hoehere Ordnung moeglich
+C
+CCC                     Bei periodischen Randbedingungen in Y-Richtung:
+CCC                     Zentraldiff. 4-ter Ordnung (Parallelisieung moeglich)
+C
+***********************************************************************
+C
+C
+C            INTERPOLATION AN GITTER-GRENZEN
+
+C            BEHANDLUNG DER TOPAR-RANDBEDINGUNG
+
+C            ZEITLICHE DISKRETISIERUNG
+
+C            FEINSTRUKTURMODELL
+
+C            NICHT-NEWTONSCHE SPANNUNGEN
+
+
+C            TRANSPORT UND ORIENTIERUNG VON PARTIKELN
+
+
+C            SCALAR HEAT/TEMPERATURE TRANSPORT
+C            APROXIMATE DECONVOLUTION FOR SCALAR
+C            TURBULENT PRANDTL NUMBER 
+C            PLOT LOCAL SCALAR CONVECTION DIFFUSION EXTREMES 
+C            ANALYZE AND PLOT NEAR WALL GRID RESLOLUTION 
+C            WRITE SPECIAL 1D LINE FOR TMIX FOR SPECTRA AND PDF
+C            SCALAR TIME ADVANCEMENT/DISCRETISATION METHOD
+
+C            STROEMUNG NACH OBEN?
+
+
+C            BEHANDLUNG DER FLUKTUATIONS-RANDBEDINGUNG
+
+C            BEHANDLUNG VON PPHYS ALS QUELLTERM IN TSTLE2
+
+C            POSITIONIERUNG DER EINSTROEMPROFILE
+
+C           STATISTIK
+
+
+C                 GEMISCHTES
+
+C                GRDFMI WIRD NICHT VERWENDET, DAHER EINSPARUNG DER FELDER
+C                IGRHF UND GRHF
+
+C                VERGROESSERN DER KJI-RICHTUNG BEI FORTSETZUNGSLAUF ERLAUBT!
+
+C                RAUSSCHREIBEN VON ZEITRECORDS
+
+C                FUER KORRELATIONEN UND HAEFIGKEITSVERTEILUNGEN
+      SUBROUTINE GRDCHK (IGRID,IFAIL)
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+C                    PRUEFT, OB DIE IN COGRDDEF LIEGENDEN
+C                    GITTERDEFINITIONEN ZULAESSIG SIND.
+C                    HIER WIRD DAS MIT IGRID SPEZIFIZIERTE GITTER 
+C                    GEPRUEFT
+C
+C     21. 5.93 (MM) : ORIGINAL
+C
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+C
+
+
+      INTEGER MAXGRIDS,MAXBOCONDS
+      PARAMETER ( MAXGRIDS         =128 )
+      PARAMETER ( MAXBOCONDS       = 10 )
+
+
+      COMMON /COMGRID/
+     &               NGRID,    NGRDOLD,   NGRDSET, NGRDDFD,
+     &               NAUFP,    NAUFOLD,
+     &                 KMX,  JMX,  IMX,
+     &                 KMXA, JMXA, IMXA,
+     &                IP3D, IP2D, IP1D, IPBB,IPB3, IPBU,
+     &                NOF3D,NOF2D,NOF1D,NOFBB,NOFB3,NOFBU,
+     &                IPA,   IP1L,  IP2L,
+     &                NOFA,  NOF1L, NOF2L,  
+     &                 IC1,  IC2,  JC1,  JC2,  KC1,  KC2
+
+      INTEGER
+     &         KMX(MAXGRIDS),     JMX(MAXGRIDS),       IMX(MAXGRIDS),
+     &        KMXA(MAXGRIDS),    JMXA(MAXGRIDS),      IMXA(MAXGRIDS),
+     &        IP3D(MAXGRIDS),    IP2D(MAXGRIDS),      IP1D(MAXGRIDS),
+     &        IPBB(MAXGRIDS),    IPB3(MAXGRIDS),      IPBU(MAXGRIDS),
+     &        NOF3D,   NOF2D,   NOF1D,    NOFBB,   NOFBU,
+     &         IPA(MAXGRIDS),    IP1L(MAXGRIDS),      IP2L(MAXGRIDS),
+     &         NOFA,   NOF1L,   NOF2L,    NAUFP,
+     &         IC1(MAXGRIDS),     IC2(MAXGRIDS),
+     &         JC1(MAXGRIDS),     JC2(MAXGRIDS),
+     &         KC1(MAXGRIDS),     KC2(MAXGRIDS)
+ 
+
+      
+      COMMON /COGRDPRO/ LEVEL,LCHILD,XMIN,YMIN,ZMIN,XTOT,YTOT,ZTOT
+      COMMON /COGRDPRO/ XHOMOG,YHOMOG,ZHOMOG,NXGRAE,NYGRAE,NZGRAE
+      COMMON /COGRDPRO/ GRADPX,UBULKX,LTST,LVP,LSCAI,LPLEVEL,LPOISSONDIR
+      COMMON /COGRDPRO/ LSLICE,NXSLICE,NYSLICE,NZSLICE,NVPGRIDS
+      COMMON /COGRDPRO/ CONV1SANF,CONV1SEND,TRANSLES1,TRANSLES2
+      COMMON /COGRDPRO/ GRADPXOLD
+
+      INTEGER LEVEL(MAXGRIDS),NVPGRIDS(MAXGRIDS)
+      INTEGER NXGRAE(MAXGRIDS),NYGRAE(MAXGRIDS),NZGRAE(MAXGRIDS)
+      INTEGER NXSLICE(MAXGRIDS),NYSLICE(MAXGRIDS),NZSLICE(MAXGRIDS)
+
+      REAL XTOT(MAXGRIDS),YTOT(MAXGRIDS),ZTOT(MAXGRIDS)
+      REAL XMIN(MAXGRIDS),YMIN(MAXGRIDS),ZMIN(MAXGRIDS)
+      REAL GRADPX(MAXGRIDS),UBULKX(MAXGRIDS)
+      REAL CONV1SANF(MAXGRIDS),CONV1SEND(MAXGRIDS)
+      REAL TRANSLES1(MAXGRIDS),TRANSLES2(MAXGRIDS),GRADPXOLD(MAXGRIDS)
+
+      LOGICAL LCHILD(MAXGRIDS),LSLICE(MAXGRIDS),LPOISSONDIR(MAXGRIDS)
+      LOGICAL XHOMOG(MAXGRIDS),YHOMOG(MAXGRIDS),ZHOMOG(MAXGRIDS)
+      LOGICAL LTST(MAXGRIDS),LVP(MAXGRIDS),LSCAI(MAXGRIDS)
+      LOGICAL LPLEVEL(MAXGRIDS)
+      
+      COMMON /COGRDCON/
+     &                 IVPCHILD,
+     &                 IPARENT,ISLPAR,
+     &                 IPOSITION, JPOSITION, KPOSITION,
+     &                 NOFSLCHILDS,IGRDOFSLCHILD,
+     &                 ISLPOS, JSLPOS, KSLPOS,
+     &                 IFRNBR, IBANBR, IRINBR, ILENBR,
+     &                 IBONBR, ITONBR
+
+
+      INTEGER
+     &       IVPCHILD(MAXGRIDS),
+     &       IPARENT(MAXGRIDS),ISLPAR(MAXGRIDS),
+     & IPOSITION(MAXGRIDS), JPOSITION(MAXGRIDS), KPOSITION(MAXGRIDS),
+     & NOFSLCHILDS(MAXGRIDS),IGRDOFSLCHILD(MAXGRIDS,MAXGRIDS),
+     &    ISLPOS(MAXGRIDS), JSLPOS(MAXGRIDS), KSLPOS(MAXGRIDS),
+     &       IFRNBR(MAXBOCONDS,MAXGRIDS), IBANBR(MAXBOCONDS,MAXGRIDS),
+     &       IRINBR(MAXBOCONDS,MAXGRIDS), ILENBR(MAXBOCONDS,MAXGRIDS),
+     &       IBONBR(MAXBOCONDS,MAXGRIDS), ITONBR(MAXBOCONDS,MAXGRIDS)
+
+C
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+C
+      IFAIL = 0
+
+C
+C                           UM BUCHSTABEN ZU SPAREN !
+      I = IGRID 
+C
+C                            FALLS LEVEL GROESSER ALS 1, MUSS EIN
+C                            "PARENT"-GITTER VORHANDEN SEIN
+
+      IF (LEVEL(I).GT.1) THEN
+         IF (.NOT.LCHILD(I)) THEN
+            WRITE (6,6004) 'GRD',IGRID,
+     $      ' DIESES GITTER MUSS ALS CHILD DEFINIERT SEIN !!!!!'
+            IFAIL = IFAIL+1
+         ENDIF
+
+         IF ((IPARENT(I).LT.1).OR.(IPARENT(I).GT.NGRDDFD)) THEN
+            WRITE (6,6004) 'GRD',IGRID,
+     $      ' DAS PARENT-GITTER MUSS EXISTIEREN!!!!'
+            IFAIL = IFAIL+1
+         ENDIF
+
+C                           CHILD-GITTER MUSS VOLLSTAENDIG IM PARENT-
+C                           GITTER LIEGEN
+C
+         IF  ((XMIN(I)         .LT.XMIN(IPARENT(I))).AND.
+     $   (XMIN(I)+XTOT(I).GT.XMIN(IPARENT(I))+XTOT(IPARENT(I))))
+     $      THEN
+            WRITE (6,6004) 'GRD',IGRID,
+     $      ' DAS GITTER LIEGT NICHT IM PARENT-GITTER (X-RICHTUNG) '
+            IFAIL = IFAIL+1
+         ENDIF
+
+         IF  ((YMIN(I)         .LT.YMIN(IPARENT(I))).AND.
+     $   (YMIN(I)+YTOT(I).GT.YMIN(IPARENT(I))+YTOT(IPARENT(I))))
+     $      THEN
+            WRITE (6,6004) 'GRD',IGRID,
+     $      ' DAS GITTER LIEGT NICHT IM PARENT-GITTER (Y-RICHTUNG) '
+            IFAIL = IFAIL+1
+         ENDIF
+
+         IF  ((ZMIN(I)         .LT.ZMIN(IPARENT(I))).AND.
+     $   (ZMIN(I)+ZTOT(I).GT.ZMIN(IPARENT(I))+ZTOT(IPARENT(I))))
+     $      THEN
+            WRITE (6,6004) 'GRD',IGRID,
+     $      ' DAS GITTER LIEGT NICHT IM PARENT-GITTER (Z-RICHTUNG) '
+            IFAIL = IFAIL+1
+         ENDIF
+
+      ENDIF
+
+C
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+C
+ 6000 FORMAT(1X,A3,I3,A10,I3,A10,I3,A10,I3)
+ 6001 FORMAT(1X,A3,I3,A10,F8.3,A10,F8.3,A10,F8.3)
+ 6002 FORMAT(1X,A3,I3,A30,I8)
+ 6003 FORMAT(1X,A3,I3,A10,A10,A10,A10)
+ 6004 FORMAT(1X,A3,I3,A60)
+
+      RETURN
+      END

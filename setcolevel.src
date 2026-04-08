@@ -1,0 +1,115 @@
+      SUBROUTINE SETCOLEVEL (IGRID,LEVEL,IVP,ITST,ISCAI,
+     $                       ISLCED,ISLICE,IPSDIR)
+
+
+C*MGLET***************************************************************
+C    S E T C O L E V E L     SETZEN DES COMMON-BLOCKES COLEVEL
+C
+C*MGLET***************************************************************
+C
+C      MAXLEVEL,   MINLEVEL,     : MAXIMALE UND MINIMALE GITTERLEVEL,
+C                                  DIE BELEGT SIND
+C      NOFLEVEL,  IGRDOFLEVEL,   : ANZAHL UND NUMMERN DER GITTER
+C                                  PRO LEVEL UEBERHAUPT
+C      IVP   BELEGT:
+C      NOFVPIT ,  IGRDOFVPIT,    : ANZAHL UND NUMMERN DER GITTER
+C                                  PRO LEVEL, DIE DRUCKITERATIONEN
+C                                  DURCHLAUFEN
+C      ITST  BELEGT:
+C      NOFTST  ,  IGRDOFTST ,    : ANZAHL UND NUMMERN DER GITTER
+C                                  PRO LEVEL, AUF DENEN ZEITSCHRITT
+C                                  GEMACHT WIRD
+C      ISLCED   BELEGT:
+C      NOFSLCED,  IGRDOFSLCED    : ANZAHL UND NUMMERN DER GITTER
+C                                  PRO LEVEL, DIE DURCH GEBIETSZERLEGUNG
+C                                  ZERSCHNITTEN WERDEN
+C      ISLICE   BELEGT:
+C      NOFSLICE,  IGRDOFSLICE    : ANZAHL UND NUMMERN DER GITTER
+C                                  PRO LEVEL, DIE DURCH GEBIETSZERLEGUNG
+C                                  ENTSTANDEN SIND 
+C                                  (SUBGITTER VON IGRDOFSLCED)
+C
+C      IPSDIR  BELEGT:
+C      NOFPSDIR,  IGRDOFPSDIR    :ANZAHL UND NUMMERN DER GITTER
+C                                  PRO LEVEL, IN DENEN DER DRUCK DURCH
+C                                  DIREKTE LOESUNG DER POISSONGL. 
+C                                  BERECHNET WERDEN SOLL
+C                                  NUR MOEGLICH, FALLS PERIODISCH UND 
+C                                  AEQUIDISTANT IN X- UND Y- RICHTUNG
+
+C
+C VERS:   6.10.93 (MM)  : ORIGINAL
+C        18. 1.94 (MM)  : ERWEITERUNG
+C
+C
+C*STARLET***************************************************************
+C
+#include "colevel.h"
+C
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+C
+ 
+      MAXLEVEL = MAX(MAXLEVEL,LEVEL)
+      MINLEVEL = MIN(MINLEVEL,LEVEL)
+
+      IF (MAXLEVEL .GT. MAXLVLMAX) CALL ERRR (501,' SETCOLEVEL ')
+      IF (MINLEVEL .LT. MINLVLMIN) CALL ERRR (502,' SETCOLEVEL ')
+
+
+             NOFLEVEL ( LEVEL ) =  NOFLEVEL ( LEVEL ) + 1
+
+          IGRDOFLEVEL ( NOFLEVEL ( LEVEL ) , LEVEL ) = IGRID
+
+      IF (IVP .EQ. 1) THEN
+
+             NOFVPIT ( LEVEL ) =  NOFVPIT ( LEVEL ) + 1
+
+          IGRDOFVPIT ( NOFVPIT ( LEVEL ) , LEVEL ) = IGRID
+
+      ENDIF
+
+      IF (ITST .EQ. 1) THEN
+
+             NOFTST ( LEVEL ) =  NOFTST ( LEVEL ) + 1
+
+          IGRDOFTST ( NOFTST ( LEVEL ) , LEVEL ) = IGRID
+
+      ENDIF
+
+      IF (ISCAI .EQ. 1) THEN
+      
+             NOFSCAI ( LEVEL ) =  NOFSCAI ( LEVEL ) + 1
+
+          IGRDOFSCAI ( NOFSCAI ( LEVEL ) , LEVEL ) = IGRID
+
+      ENDIF
+
+      IF (ISLCED .EQ. 1) THEN
+
+             NOFSLCED ( LEVEL ) =  NOFSLICE ( LEVEL ) + 1
+
+          IGRDOFSLCED ( NOFSLCED ( LEVEL ) , LEVEL ) = IGRID
+
+      ENDIF
+
+      IF (ISLICE .EQ. 1) THEN
+
+             NOFSLICE ( LEVEL ) =  NOFSLICE ( LEVEL ) + 1
+
+          IGRDOFSLICE ( NOFSLICE ( LEVEL ) , LEVEL ) = IGRID
+
+      ENDIF
+
+      IF (IPSDIR .EQ. 1) THEN
+
+             NOFPSDIR ( LEVEL ) =  NOFPSDIR ( LEVEL ) + 1
+
+          IGRDOFPSDIR ( NOFPSDIR ( LEVEL ) , LEVEL ) = IGRID
+
+      ENDIF
+
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+C
+
+      RETURN
+      END

@@ -1,0 +1,174 @@
+      SUBROUTINE MGPCORR(KK,JJ,II,KMX,JMX,IMX,
+     $                   DX,DY,DZ,DDX,DDY,DDZ,
+     $                   RDX,RDY,RDZ,RDDX,RDDY,RDDZ,
+     $                   U,V,W,P,B,DP,
+     $                   BP,BU,BV,BW,
+     $                   RHO,DT,WSOR,NBND,
+     $                   NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,IDP)
+C*MGLET*****************************************************************
+C  M G P C O R R  DRUCKKORREKTUR BEI GEGEBENEM DP
+C                 (PERIODISCHE RANDBEDINGUNGEN IN X- UND Y-RICHTUNG
+C                 SIND MOEGLICH)
+C*MGLET*****************************************************************
+C
+C  PARAMETER KK, JJ, II           - ARRAYGRENZEN
+C            KMX,JMX,IMX          - GRENZE D. BER.-GEB.(MIT BOUND)
+C            DX(I),DY(J),DZ(K)    - ABSTAND DER GITTERPUNKTE
+C            DDX(I),DDY(J),DDZ(K) - KANTENLAENGE DER KONTROLLVOLUMINA
+C            OMBETA               - FAKTOR FUER DRUCKKORREKTUR
+C            DT                   - ZEITINKREMENT
+C            U(KK,JJ,II)          + GESCHWINDIGKEITSFELD
+C            V(KK,JJ,II)          + GESCHWINDIGKEITSFELD
+C            W(KK,JJ,II)          + GESCHWINDIGKEITSFELD
+C            P(KK,JJ,II)          + DRUCKFELD
+C            WSOR                 - WICHTUNGSFAKTOR FUER DEN QUELLTERM
+C            NBND                 - ANZAHL DER RANDSCHICHTEN
+C            IDP                  - IF IDP = 1, THEN DP IS NEW PRESSURE
+C
+C  VERS:  28.06.93 (MM)  : ORIGINAL AUS VPLESC ABGELEITET
+C          2. 8.95 (MM)  : DP CAN CONTAIN NEW PRESSURE, SO THAT
+C                          DELTA_P = DP - P
+C         14.08.03 (TB)  : CHANGED FOR SIP AND OLD BODY TREATMENT
+C
+C UPROG                  : ERRR
+C
+C  DEFINE-DIREKTIVEN     : KEINE
+C
+C*STAR******************************************************************
+c
+      IMPLICIT NONE
+
+      INTEGER KK, JJ, II, K, J, I, KMX, JMX, IMX, KM2, JM2, IM2,
+     &     NBND, NFRO, NBAC, NRGT, NLFT, NBOT, NTOP, IDP,
+     &     NFU,  NRV,  NBW,  NTW,  NBU
+
+      REAL    DX(II),DY(JJ),DZ(KK),DDX(II),DDY(JJ),DDZ(KK),
+     $        RDX(II),RDY(JJ),RDZ(KK),RDDX(II),RDDY(JJ),RDDZ(KK)
+
+      REAL    U (KK,JJ,II), V(KK,JJ,II), W(KK,JJ,II), P(KK,JJ,II),
+     $        B (KK,JJ,II),DP(KK,JJ,II)
+
+      REAL    BP(KK,JJ,II),BU(KK,JJ,II),BV(KK,JJ,II),BW(KK,JJ,II)
+
+      REAL RFAK, RHO, WSOR, DT
+
+      IM2  = IMX-NBND
+      JM2  = JMX-NBND
+      KM2  = KMX-NBND
+
+      RFAK = DT/RHO*WSOR
+
+C                                 BEI LOKAL VERFEINERTEM GITTER
+C                                 WIRD DIE NORMALKOMPONENTE DER ERSTEN
+C                                 ZELLE BERECHNET, ANSONSTEN WIRD SIE IN
+C                                 BOUNDMG GESETZT
+      NFU = 0
+      IF ( NFRO .EQ. 8 .OR. NFRO .EQ. 3 ) NFU = 1
+      NRV = 0
+      IF ( NRGT .EQ. 8 .OR. NRGT .EQ. 3 ) NRV = 1
+      NBW = 0
+      IF ( NBOT .EQ. 8 .OR. NBOT .EQ. 3 ) NBW = 1
+      NTW = 0
+#ifdef _TOPAR_FIXED_
+      IF (NTOP.EQ.8) NTW = 1
+#endif
+      NBU = 0
+#ifdef _BAPAR_FIXED_
+      IF (NBAC.EQ.8) NBU = 1
+#endif
+
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
+      IF (IDP .EQ. 1) THEN
+C
+C                                CALCULATION OF DELTA_P
+C
+      DO I=2,IMX-1
+      DO J=2,JMX-1
+      DO K=2,KMX-1
+  
+               DP(K,J,I)    =   DP(K,J,I) - P(K,J,I)
+CTBC  200803: BP NOW USED FOR OLD BODY, TOO!
+C#ifdef _FRED_BODY_
+               DP(K,J,I)    =   DP(K,J,I)*BP(K,J,I)
+C#endif
+      ENDDO
+      ENDDO
+      ENDDO
+C
+      ENDIF
+C
+C                                 KORREKTUR DES DRUCKES
+C
+C                                 PPPPPPPPPPPPPPPPPPPP
+C
+
+      DO I=2,IMX-1
+      DO J=2,JMX-1
+      DO K=2,KMX-1
+  
+               P(K,J,I)    =   P(K,J,I) + DP(K,J,I)
+#ifdef _FRED_BODY_
+     $                                  * BP(K,J,I) 
+#endif 
+      ENDDO
+      ENDDO
+      ENDDO
+C
+C                                 KORREKTUR DES GESCHWINDIGKEITSFELDES
+C
+C                                 UUUUUUUUUUUUUUUUUUUU
+C
+      DO I=3-NFU,IMX-2-NBU
+      DO J=3,JMX-2
+      DO K=3,KMX-2
+
+           U(K,J,I)    =  ( U(K,J,I) + (DP(K,J,I) - DP(K,J,I+1))
+#if defined _FRED_BODY_ && defined _POISSONITER_
+     $                     *BU(K,J,I)
+#endif
+     $                     *RDX(I)*RFAK)
+#if defined _FRED_BODY_ && defined _MULTIGRID_
+     $                     *BU(K,J,I)
+#endif
+      ENDDO
+      ENDDO
+      ENDDO
+C
+C
+C                                 VVVVVVVVVVVVVVVVVVVV
+C
+      DO I=3,IMX-2
+      DO J=3-NRV,JMX-2
+      DO K=3,KMX-2
+
+            V(K,J,I)    =   (V(K,J,I) + (DP(K,J,I) - DP(K,J+1,I))
+#if defined _FRED_BODY_ && defined _POISSONITER_
+     $                       *BV(K,J,I)
+#endif
+     $                       *RDY(J)*RFAK)
+#if defined _FRED_BODY_ && defined _MULTIGRID_
+     $                       *BV(K,J,I)
+#endif
+      ENDDO
+      ENDDO
+      ENDDO
+C
+C                                 WWWWWWWWWWWWWWWWWWWW
+C
+      DO I=3,IMX-2
+      DO J=3,JMX-2
+      DO K=3-NBW,KMX-2-NTW
+
+            W(K,J,I)    =   (W(K,J,I) + (DP(K,J,I) - DP(K+1,J,I))
+#if defined _FRED_BODY_ && defined _POISSONITER_
+     $                       *BW(K,J,I)
+#endif
+     $                       *RDZ(K)*RFAK)
+#if defined _FRED_BODY_ && defined _MULTIGRID_
+     $                       *BW(K,J,I)
+#endif
+      ENDDO
+      ENDDO
+      ENDDO
+      RETURN
+      END

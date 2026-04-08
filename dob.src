@@ -1,0 +1,446 @@
+      SUBROUTINE DOB  (CIDENT,IIDENT,RIDENT,KK,JJ,II,KMX,JMX,IMX,NBND,
+     $                DDX,DDY,DDZ,DX,DY,DZ,X,Y,Z,NVAR,
+#ifdef _TSCAL_
+     $                U,V,W,T,P,G,B,TK,TE,HILF,IGRID,IDIM3D)
+#else
+     $                U,V,W,P,G,B,TK,TE,HILF,IGRID,IDIM3D)
+#endif
+C*STAR******************************************************************
+C  D O B        AUSGABE VON DATEN (BINAER,KANAL2)
+C*STAR********************************************** W.STEITZ 20.08.81 *
+C                                         GEAENDERT: ST.FRANK 20.10.83 *
+C                                                    ST.FRANK 23.05.84 *
+C                                                    ST.FRANK 02.07.84 *
+C                                                    H.WERNER 19.09.85
+C                                                    M.MANHART 6. 4.92
+C
+C  PARAMETER
+C             KK, JJ, II     - ARRAYGRENZEN
+C             KMX, JMX, IMX  - ANZAHL DER GITTERPKTE. IN Z-,Y-,X-DIR.
+C             X(II)          - KOORDINATEN IN X-RICHTUNG
+C             Y(JJ)          - KOORDINATEN IN Y-RICHTUNG
+C             Z(KK)          - KOORDINATEN IN Z-RICHTUNG
+C             DDX(II)        - X-KANTENLAENGE DER KONTROLLVOLUMINA
+C             DDY(JJ)        - Y-KANTENLAENGE DER KONTROLLVOLUMINA
+C             DDZ(KK)        - Z-KANTENLAENGE DER KONTROLLVOLUMINA
+C             DX(II)         - X-ABSTAND DER GITTERPUNKTE
+C             DY(JJ)         - Y-ABSTAND DER GITTERPUNKTE
+C             DZ(KK)         - Z-ABSTAND DER GITTERPUNKTE
+C             NVAR           - ANZAHL DER AUSZUGEBENDEN DATENFELDER
+C             U(KK,JJ,II)    - GESCHWINDIGKEITSFELD
+C             V(KK,JJ,II)    - GESCHWINDIGKEITSFELD
+C             W(KK,JJ,II)    - GESCHWINDIGKEITSFELD
+C             P(KK,JJ,II)    - DRUCKFELD
+C             G(KK,JJ,II)    - GAMMAFELD
+C             TK(KK,JJ,II)   - DISSIPATIONSFELD
+C             TE(KK,JJ,II)   -TURBULENZENERGIEFELD
+C
+C  ANMERKUNG  CIDENT(10) ENTHAELT KENNUNG
+C
+C             CIDENT( 1) = "F.BAETKE"
+C             CIDENT( 2) = PROGRAMMNAME
+C             CIDENT( 3) = LAUFENDE NUMMER
+C             CIDENT( 4) = DATE()
+C             CIDENT( 5) = CLOCK()
+C
+C             IIDENT(100) ENTHAELT INTEGER-KONSTANTEN
+C
+C             IIDENT( 1) = MTSTEP
+C             IIDENT( 2) = MPCORR
+C             IIDENT( 5) : VERSIONSNUMMER
+C             IIDENT(10) = KB
+C             IIDENT(11) = JB1
+C             IIDENT(12) = JB2
+C             IIDENT(13) = IB1
+C             IIDENT(14) = IB2
+C             IIDENT(50) = SCALAR FIELD IDENTIFIER
+C                           0:= SCALAR FIELD UNSET, FIELD NOT READ
+C                           1:= SCALAR FIELD SET, FIELD CAN BE READ & 
+C                                                WILL BE WRITTEN)
+C
+C             RIDENT(100) ENTHAELT REAL-KONSTANTEN
+C
+C             RIDENT( 1) = RE
+C             RIDENT( 2) = DT
+C             RIDENT( 3) = EPCORR
+C             RIDENT(10) = ZWIDTH
+C             RIDENT(11) = YWIDTH
+C             RIDENT(12) = XWIDTH
+C             RIDENT(13) = BETA
+C
+C  UPROG                 : ERRR
+C
+C VERS:   18.12.86 (HW)  : TIDENT IN CIDENT (CHARACTER (LEN=8) !!) UMGE-
+C                          WANDELT WEGEN NOS/VE.
+C     26. 5.95 (MM) : MPI EINGEFUEHRT, KOPF UM HILF ERWEITERT
+C     11.02.03 (TB) : SCALAR TRANSPORT IMPLEMENTED
+C
+C*STAR******************************************************************
+      CHARACTER (LEN=8)   CIDENT(10)
+      CHARACTER (LEN=80)  CT,  CH1680, TEXT
+      INTEGER KK, JJ, II, KMX, JMX, IMX, NVAR, IIDENT(100)
+      REAL    RIDENT(100), X(II), Y(JJ), Z(KK),
+     $        DX(II), DY(JJ), DZ(KK), DDX(II), DDY(JJ), DDZ(KK),
+#ifdef _TSCAL_
+     $        U(KK,JJ,II), V(KK,JJ,II), W(KK,JJ,II), T(KK,JJ,II),
+#else
+     $        U(KK,JJ,II), V(KK,JJ,II), W(KK,JJ,II),
+#endif
+     $        P(KK,JJ,II), G(KK,JJ,II), TK(KK,JJ,II), TE(KK,JJ,II),
+     $        B(KK,JJ,II), HILF(KK,JJ,II)
+      DATA    TEXT /'GRID            '/
+#ifdef _MPI_
+C
+C               MPI-INCLUDE
+#include "mpif.h"
+C
+#include "mgpar.h"
+#include "colevel.h"
+#include "compi.h"
+C
+C                 MPI-VARIABLEN
+      INTEGER ISTATUS(MPI_STATUS_SIZE)
+#endif
+C
+C					UPDATE DER VERSIONSNUMMER
+C
+      IIDENT(5) = IIDENT(6)
+C
+#ifdef _MPI_
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
+C
+C                 MPI-ROUTINEN ZUR UEBERGABE VON PARAMETERN
+C                 
+C     CALL MPI_COMM_RANK (MPI_COMM_WORLD,MYID,IERR)
+C     CALL MPI_COMM_SIZE (MPI_COMM_WORLD,NUMPROCS,IERR)
+C
+C                               ES WIRD NUR VOM MASTER GESCHRIEBEN
+       IF (MYID .EQ. 0) THEN
+C
+#endif
+C
+C
+      WRITE(2) TEXT
+      WRITE(2) IGRID
+      WRITE(2) KK,JJ,II,KMX,JMX,IMX
+C
+      WRITE(2)(X(I),I=1,IMX),(DX(I),I=1,IMX),(DDX(I),I=1,IMX),
+     $        (Y(J),J=1,JMX),(DY(J),J=1,JMX),(DDY(J),J=1,JMX),
+     $        (Z(K),K=1,KMX),(DZ(K),K=1,KMX),(DDZ(K),K=1,KMX)
+C
+#ifdef _MPI_
+      ENDIF
+#endif
+C
+C                                    **********************************
+C
+C                                    AB HIER VERSION VOR 6.4.92
+C
+C                                    **********************************
+	IF (IIDENT(6).LT.8) THEN
+#ifdef _TSCAL_
+      STOP ' Scalar Transport not supported in version older 6.4.92'
+#endif
+C
+      WRITE(2) NVAR
+      IF (NVAR .LT. 4 .OR. NVAR .GT. 7) CALL ERRR(704,' DOB      ')
+C
+      DO 10 I=1,IMX
+   10 WRITE(2) ((U(K,J,I),K=1,KMX),J=1,JMX)
+C
+      DO 20 I=1,IMX
+   20 WRITE(2) ((V(K,J,I),K=1,KMX),J=1,JMX)
+C
+      DO 30 I=1,IMX
+   30 WRITE(2) ((W(K,J,I),K=1,KMX),J=1,JMX)
+C
+      DO 40 I=1,IMX
+   40 WRITE(2) ((P(K,J,I),K=1,KMX),J=1,JMX)
+      IF (NVAR .EQ. 4) RETURN
+C
+      DO 50 I=1,IMX
+   50 WRITE(2) ((G(K,J,I),K=1,KMX),J=1,JMX)
+      IF (NVAR .EQ. 5) RETURN
+C
+      DO 60 I=1,IMX
+   60 WRITE(2) ((TK(K,J,I),K=1,KMX),J=1,JMX)
+      IF (NVAR .EQ. 6) RETURN
+C
+      DO 70 I=1,IMX
+   70 WRITE(2) ((TE(K,J,I),K=1,KMX),J=1,JMX)
+C
+C
+C                                    **********************************
+C
+C                                    AB HIER VERSION NACH 6.4.92
+C
+C                                    **********************************
+      ELSEIF (IIDENT(6).GE.8) THEN
+
+            KANAL = 2
+
+            CT = CH1680 (' U              ')
+            CALL DOBC   (KK ,JJ ,II ,KMX,JMX,IMX,NBND,KANAL,'BINAER  ',
+     $                   0    ,0    ,1    ,
+     $                   1.0 ,1.0 ,1.0 ,1.0 ,1.0 ,1.0 ,1.0 ,1.0 ,1.0,
+     $                   U      ,CT,HILF,IGRID,IDIM3D)
+            CT = CH1680 (' V              ')
+            CALL DOBC   (KK ,JJ ,II ,KMX,JMX,IMX,NBND,KANAL,'BINAER  ',
+     $                   0    ,1    ,0    ,
+     $                   1.0 ,1.0 ,1.0 ,1.0 ,1.0 ,1.0 ,1.0 ,1.0 ,1.0,
+     $                   V      ,CT,HILF,IGRID,IDIM3D)
+            CT = CH1680 (' W              ')
+            CALL DOBC   (KK ,JJ ,II ,KMX,JMX,IMX,NBND,KANAL,'BINAER  ',
+     $                   1    ,0    ,0    ,
+     $                   1.0 ,1.0 ,1.0 ,1.0 ,1.0 ,1.0 ,1.0 ,1.0 ,1.0,
+     $                   W      ,CT,HILF,IGRID,IDIM3D)
+#ifdef _TSCAL_
+	 IF (IIDENT(50).EQ.1) THEN
+            CT = CH1680 (' T              ')
+            CALL DOBC   (KK ,JJ ,II ,KMX,JMX,IMX,NBND,KANAL,'BINAER  ',
+     $                   0    ,0    ,0    ,
+     $                   1.0 ,1.0 ,1.0 ,1.0 ,1.0 ,1.0 ,1.0 ,1.0 ,1.0,
+     $                   T      ,CT,HILF,IGRID,IDIM3D)
+         ENDIF
+#endif  
+            CT = CH1680 (' P              ')
+            CALL DOBC   (KK ,JJ ,II ,KMX,JMX,IMX,NBND,KANAL,'BINAER  ',
+     $                   0    ,0    ,0    ,
+     $                   1.0 ,1.0 ,1.0 ,1.0 ,1.0 ,1.0 ,1.0 ,1.0 ,1.0,
+     $                   P      ,CT,HILF,IGRID,IDIM3D)
+            CT = CH1680 (' G              ')
+            CALL DOBC   (KK ,JJ ,II ,KMX,JMX,IMX,NBND,KANAL,'BINAER  ',
+     $                   0    ,0    ,0    ,
+     $                   1.0 ,1.0 ,1.0 ,1.0 ,1.0 ,1.0 ,1.0 ,1.0 ,1.0,
+     $                   G      ,CT,HILF,IGRID,IDIM3D)
+            CT = CH1680 (' B              ')
+            CALL DOBC   (KK ,JJ ,II ,KMX,JMX,IMX,NBND,KANAL,'BINAER  ',
+     $                   0    ,0    ,0    ,
+     $                   1.0 ,1.0 ,1.0 ,1.0 ,1.0 ,1.0 ,1.0 ,1.0 ,1.0,
+     $                   B      ,CT,HILF,IGRID,IDIM3D)
+
+      ELSE
+      WRITE (0,*) 'UNBEKANNTE VERSIONSNUMMER IN DOB'
+        CALL ERRR ( 555 ,' DOB ')
+      ENDIF
+C
+C
+      RETURN
+      END
+      SUBROUTINE DOBC (KKA,JJA,IIA,KMXA,JMXA,IMXA,NBND,KANAL,MODUS,
+     $                 KSTAG,JSTAG,ISTAG,ZSLM,ZELM,YSLM,YELM,XSLM,
+     $                 XELM,TSEM,TEEM,DTEM,PHI,TEXT,HILF,IGRID,IDIM3D)
+C*STAR******************************************************************
+C  D O B C          FORMATIERTE ODER UNFORMATIERTE AUSGABE VON DATEN
+C                   (S. VARIABLE 'MODUS'). KANALNUMMER WIRD UEBERGEBEN.
+C                   DOBC ERLAUBT DIE AUSGABE VON FELDERN MIT UNTER-
+C                   SCHIEDLICHSTEN FELDDIMENSIONEN. DIE IDENTIFIKATION
+C                   DER AUSZUGEBENDEN GROESSE ERFOLGT DURCH DIE
+C                   CHARACTER-VARIABLE 'TEXT'.
+C*STAR******************************************************************
+C
+C PARAM: KKA,JJA,IIA    - ARRAYDIMENSIONEN
+C        KMXA,JMXA,IMXA - GRENZEN DES FELDES (MIT BOUND)
+C        KANAL          - DIE DATEN WERDEN UEBER DIESEN KANAL
+C                         AUSGEGEBEN
+C        MODUS          - CHARACTER-VARIABLE:
+C                         'BINAER  ' : DATEN WERDEN UNFORMA-
+C                                      TIERT GESCHRIEBEN
+C                         'CODIERT ' : DATEN WERDEN FORMA-
+C                                      TIERT GESCHRIEBEN
+C        KSTAG,J..,I..  - INTEGER KENNZAHLEN, DIE ANGEBEN OB DER
+C                         DEFINITIONSPUNKT DER UEBERGEBENEN
+C                         VARIABLEN 'PHI' IN Z-, Y-, ODER X-RICHTUNG
+C                         VERSCHOBEN IST.
+C                         0 : DEFINITIONPKT. IST ZELLMITTELPUNKT
+C                         1 :       ""        IST DIE IN POS. KO-
+C                                            ORDINATENRICHTUNG VER-
+C                                            SCHOBENE GRENZFLAECHE
+C        ZSLM, ZELM     - START- UND STOPKOORDINATE DER LINIEN-
+C                         MITTELUNG IN Z-RICHTUNG (Z. ZT. KEINE
+C                         LINIENMITTELUNG IN Z-RI. REALISIERT
+C                         12.08.86)
+C        YSLM, YELM     - WIE OBEN, JEDOCH IN Y-RICHTUNG
+C        XSLM, XELM     - WIE OBEN, JEDOCH IN X-RICHTUNG
+C        TSEM, TEEM     - PHYSIKAL. ZEIT, ZU DER DIE ERSTE BZW.
+C                         LETZTE STICHPROBE FUER DIE BILDUNG VON
+C                         ENSEMBLE-MITTELWERTEN GENOMMEN WURDE
+C        DTEM           - IN DIESEN ZEITABSTAENDEN WURDEN JEWEILS
+C                         STICHPROBEN GENOMMEN
+C        PHI(KKA,JJA,IIA)- ALLGEMEINE VARIABLE
+C        TEXT           - CHARACTER VARIABLE ZUR IDENTIFIKATION
+C
+C UPROG:                : ERRR
+C
+C DEFINE-DIREKTIVEN     : CRAY, C205, CYBER
+C
+C VERS:  16.06.86 (HW)  : ORIGINAL
+C        03.07.86 (HW)  : KSTAG,JSTAG,.. EINGEFUEHRT
+C        12.08.86 (HW)  : DOBC VOELLIG NEU UEBERARBEITET
+C        09.12.86 (HW)  : ES KANN WAHLWEISE FORMATIERT ODER UNFORMA-
+C                         TIERT GESCHRIEBEN WERDEN. (VARIABLE 'MODUS'
+C                         EINGEFUEHRT)
+C        27.02.92 (MM)  : BELEGUNG der UNDEFINIERTEN WERTE MIT 
+C                         GREAT AUSGESCHALTET
+C     26. 5.95 (MM) : MPI EINGEFUEHRT, KOPF UM HILF UND IGRID ERWEITERT
+C
+C*STAR******************************************************************
+C
+#include "konsta.h"
+C
+      CHARACTER (LEN=1)   BLANK
+      CHARACTER (LEN=8)   MODUS
+      CHARACTER (LEN=80)  TEXT,TEXTO
+      REAL           PHI(IDIM3D),HILF(IDIM3D)
+#ifdef _MPI_
+C
+C               MPI-INCLUDE
+#include "mpif.h"
+C
+#include "mgpar.h"
+#include "colevel.h"
+#include "cogrdpro.h"
+#include "compi.h"
+C
+C                 MPI-VARIABLEN
+      INTEGER ISTATUS(MPI_STATUS_SIZE)
+#endif
+C
+      DATA           BLANK /' '/
+      TEXTO(1:80) = ' '
+C
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
+C
+#ifdef _MPI_
+C
+C                 MPI-ROUTINEN ZUR UEBERGABE VON PARAMETERN
+C                 
+      CALL MPI_COMM_RANK (MPI_COMM_WORLD,MYID,IERR)
+      CALL MPI_COMM_SIZE (MPI_COMM_WORLD,NUMPROCS,IERR)
+C
+C                               ES WIRD NUR VOM MASTER GESCHRIEBEN
+      IF (MYID .EQ. 0) THEN
+C
+#endif
+C
+         IF(MODUS .EQ. 'BINAER  ') THEN
+C
+C                                 **************************************
+C                                 UNFORMATIERTE AUSGABE
+C                                 **************************************
+C
+            TEXTO(1:16) = TEXT
+C
+        WRITE (KANAL) TEXTO
+        WRITE (KANAL) KKA,JJA,IIA,KMXA,JMXA,IMXA
+        WRITE (KANAL) KSTAG,JSTAG,ISTAG
+        WRITE (KANAL) ZSLM,ZELM,YSLM,YELM,XSLM,XELM,TSEM,TEEM,DTEM
+C
+C
+       ENDIF
+C
+       IF(MODUS .EQ. 'CODIERT ') THEN
+C
+C                                 **************************************
+C                                 FORMATIERTE AUSGABE
+C                                 **************************************
+C
+        DO 500 I = 1,80
+  500       TEXTO(I:I) = BLANK
+C
+        TEXTO(1:16) = TEXT
+C
+        WRITE (KANAL,6010)  TEXTO
+        WRITE (KANAL,6020)  KKA,JJA,IIA,KMXA,JMXA,IMXA
+        WRITE (KANAL,6030)  KSTAG,JSTAG,ISTAG
+        WRITE (KANAL,6040)  ZSLM,ZELM,YSLM,YELM
+        WRITE (KANAL,6040)  XSLM,XELM,TSEM,TEEM
+        WRITE (KANAL,6050)  DTEM
+
+C                                 UNDEFINIERTE WERTE IM FELD WERDEN
+C                                 MIT GREAT BELEGT
+C
+C                   AM 27.2.92 AUSGESCHALTET 
+C
+C
+       ENDIF
+#ifdef _MPI_
+      ENDIF
+#endif
+
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
+C
+C
+#ifdef _MPI_
+CCC      IF (LSLICE(IGRID)) THEN
+         CALL WRITESLICED ( KKA,JJA,IIA,PHI,HILF,IGRID,
+     $        KANAL,MODUS,IDIM3D)
+CCC      ELSE
+CCC         IF (MYID .EQ. IDPROCOFGRD(IGRID)) THEN
+CCC            IF(MODUS .EQ. 'BINAER  ') THEN
+CCC               DO I = 0,IMXA-1
+CCC                  WRITE (KANAL)
+CCC     $            ((PHI( K + J*KKA + I*JJA*KKA),K=1,KMXA),J=0,JMXA-1)      
+CCC               ENDDO
+CCC            ELSE
+CCC               DO  I = 0,IMXA-1
+CCC                  WRITE (KANAL,6040)
+CCC     $            ((PHI( K + J*KKA + I*JJA*KKA),K=1,KMXA),J=0,JMXA-1)
+CCC               ENDDO
+CCC            ENDIF
+CCC         ENDIF
+CCC      ENDIF
+#else
+C                 ZUSAMMENSETZEN DES FELDES
+C
+      CALL COMPOSEFIELD (PHI,HILF,IDIM3D,IGRID,NBND)
+C
+       CALL MGPOINT (IP3,IP2,IP1,IBB,IB3,IBU,IGRID)
+
+C------------------------------------------- IS IT A STATIST. ARRAY
+
+      IF (TEXT(1:1) .EQ. "<" ) THEN
+
+          CALL MGPOINA (IP3,I1L,I2L,IGRID)
+
+      ENDIF
+
+      CALL WRITE3D(KMXA,JMXA,IMXA,PHI(IP3),MODUS,KANAL)
+
+#endif
+
+      RETURN
+C
+      CALL ERRR (501,' DOBC     ')
+C
+ 6010 FORMAT (A80)
+ 6020 FORMAT (6(I9,1X))
+ 6030 FORMAT (3(I9,1X))
+ 6040 FORMAT (6(E12.5E3,1X))
+ 6050 FORMAT (E19.12E3)
+      END
+      SUBROUTINE WRITE3D(KMXAI,JMXAI,IMXAI,PHI,MODUS,KANAL)
+
+      CHARACTER (LEN=8)   MODUS
+      REAL PHI(KMXAI,JMXAI,IMXAI)
+
+      IF(MODUS .EQ. 'BINAER  ') THEN
+
+         DO 10220 I = 1,IMXAI
+            WRITE (KANAL) ((PHI(K,J,I),K=1,KMXAI),J=1,JMXAI)
+10220    CONTINUE
+
+      ELSE
+
+         DO 700 I = 1,IMXAI
+            WRITE (KANAL,6040) ((PHI(K,J,I),K=1,KMXAI),J=1,JMXAI)
+  700    CONTINUE
+         
+      ENDIF
+
+ 6040 FORMAT (6(E12.5E3,1X))
+
+      RETURN
+      END
+
+

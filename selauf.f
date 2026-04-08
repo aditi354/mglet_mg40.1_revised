@@ -1,0 +1,314 @@
+
+
+
+
+
+
+
+
+
+
+
+CCCCC        DEFINITIONEN FUER C-PREPROZESSOR
+C            MASCHINE
+
+C              MESSAGE PASSING INTERFACE
+
+C            RAEUMLICHE DISKRETISIERUNG
+C
+***********************************************************************
+C                       KOMPAKT-UPWIND in X-RICHTUNG (3-TER ORDNUNG) fuer
+C                       die U-Komponente (V und W bleiben Kompakt 4ter ordnung)
+C                       falls im Stroemungsfeld eine Koerper vorhanden ist
+C
+***********************************************************************
+C                       KOMPAKTVERF. in XYZ-RICHTUNG (4-TER ORDNUNG)
+
+
+**********************************************************************
+C                      Preprocessing with ADM for 2nd Order Central
+***********************************************************************
+CCC                     Bei periodischen Randbedingungen in X-Richtung
+CCC                     ist eine hoehere O
+C
+CCC                     Bei periodischen Randbedingungen in Y-Richtung
+CCC                     ist eine hoehere Ordnung moeglich
+C
+CCC                     Bei periodischen Randbedingungen in Y-Richtung:
+CCC                     Zentraldiff. 4-ter Ordnung (Parallelisieung moeglich)
+C
+***********************************************************************
+C
+C
+C            INTERPOLATION AN GITTER-GRENZEN
+
+C            BEHANDLUNG DER TOPAR-RANDBEDINGUNG
+
+C            ZEITLICHE DISKRETISIERUNG
+
+C            FEINSTRUKTURMODELL
+
+C            NICHT-NEWTONSCHE SPANNUNGEN
+
+
+C            TRANSPORT UND ORIENTIERUNG VON PARTIKELN
+
+
+C            SCALAR HEAT/TEMPERATURE TRANSPORT
+C            APROXIMATE DECONVOLUTION FOR SCALAR
+C            TURBULENT PRANDTL NUMBER 
+C            PLOT LOCAL SCALAR CONVECTION DIFFUSION EXTREMES 
+C            ANALYZE AND PLOT NEAR WALL GRID RESLOLUTION 
+C            WRITE SPECIAL 1D LINE FOR TMIX FOR SPECTRA AND PDF
+C            SCALAR TIME ADVANCEMENT/DISCRETISATION METHOD
+
+C            STROEMUNG NACH OBEN?
+
+
+C            BEHANDLUNG DER FLUKTUATIONS-RANDBEDINGUNG
+
+C            BEHANDLUNG VON PPHYS ALS QUELLTERM IN TSTLE2
+
+C            POSITIONIERUNG DER EINSTROEMPROFILE
+
+C           STATISTIK
+
+
+C                 GEMISCHTES
+
+C                GRDFMI WIRD NICHT VERWENDET, DAHER EINSPARUNG DER FELDER
+C                IGRHF UND GRHF
+
+C                VERGROESSERN DER KJI-RICHTUNG BEI FORTSETZUNGSLAUF ERLAUBT!
+
+C                RAUSSCHREIBEN VON ZEITRECORDS
+
+C                FUER KORRELATIONEN UND HAEFIGKEITSVERTEILUNGEN
+      SUBROUTINE SELAUF  (ISLINP, ISLINA, ISLIDI, ISLINI, ILIMXP, ILIMX,
+     $                    IB1, IB2, JB1, JB2, KB, NBND,
+     $                    IL0, ILX, ILY, ILZ)
+C*STARLET***************************************************************
+C        S E L A U F      IN SELAUF LEGT DER PROGRAMMBENUTZER DIE
+C                         AUFPUNKTE FUER AUSWERTUNGEN IN RICHTUNG DER
+C                         KOORDINATENACHSEN (X ODER Y ODER Z) FEST.
+C                         DIESE AUFPUNKTE WERDEN BEISPIELSWEISE FUER
+C                         DIE BILDUNG VON KORRELATIONSFUNKTIONEN,
+C                         KORRELATIONSKOEFFIZIENTEN, POWER-SPEKTREN,
+C                         HAEUFIGKEITSVERTEILUNGEN USW. USW. BENOETIGT.
+C                         AUSSERDEM WIRD EINE ZU JEDEM AUFPUNKT EINE
+C                         KOORDINATENRICHTUNG ZUGEORDNET (0 -> KEINE,
+C                         X -> X-RI., Y -> Y-RI., Z -> Z-RI. ), DIE
+C                         BEISPIELWEISE DIE KORRELATIONSRICHTUNG
+C                         ANGIBT.
+C
+C                         ES WIRD UEBERPRUEFT, OB DER SPEICHERBEDARF AUS
+C                         REICHT. GEGEBENENFALLS WIRD DEM BENUTZER DER
+C                         MINIMAL BENOETIGTE PLATZ MITGETEILT. DIE
+C                         UEBERPRUEFUNG AUF ZULAESSIGKEIT DER AUFPUNKTE
+C                         ERFOLGT IN SUBR. RKJIAE
+C*STARLET***************************************************************
+C
+C PARAM: ISLINP(ISLIDI) + ENTHAELT DIE AUFPUNKTE IN KODIERTER FORM
+C                         FUER DEN MOMENTANEN LAUF
+C        ISLINA(ISLIDI) + ENTHAELT DIE AUFPUNKTE IN KODIERTER FORM
+C                         FUER DEN VORANGEGANGENEN LAUF. ISLINA
+C                         WIRD IN DIESER ROUTINE MIT 0 VORBELEGT UND
+C                         IN SUBR. DIBCA ENDGUELTIG BELEGT.
+C        ISLIDI         - ARRAYDIMENSION
+C        ISLINI (ISLIDI)+ REINES INFORMATIONSFELD UM DIE ZUORDNUNG DER
+C                         AUFPUNKTE WIE SIE IN  SELAUF  ANGEGEBEN WERDEN
+C                         UND WIE SIE IM ISLINP-FELD ABGELEGT WERDEN
+C                         HERZUSTELLEN
+C        ILIMXP         - VOM BENUTZER KOENNEN MAXIMAL ILIMXP-1
+C                         AUFPUNKTE SPEZIFIZIERT WERDEN
+C        ILIMX          + DIE TATSAECHLICH VOM BENUTZER SPEZIFIZIERTE
+C                         ZAHL VON AUFPUNKTEN IST ILIMX-1 (2 ... ILIMX)
+C        IB1            - I-INDEX DER ERSTEN  MASCHENZELLE  I M  KUBUS
+C        IB2            - I-INDEX DER LETZTEN MASCHENZELLE  I M  KUBUS
+C        JB1            - J-INDEX DER ERSTEN  MASCHENZELLE  I M  KUBUS
+C        JB2            - J-INDEX DER LETZTEN MASCHENZELLE  I M  KUBUS
+C        KB             - K-INDEX DER LETZTEN MASCHENZELLE  I M  KUBUS
+C        NBND           - ANZAHL DER RANDSCHICHTEN
+C        IL0            + ANZAHL DER AUFPUNKTE MIT RICHTUNGSINFORMATION
+C                         '0' + 1 (2 ... IL0)
+C        ILX            + ANZAHL DER AUFPUNKTE MIT RICHTUNGSINFORMATION
+C                         'X' + 1 (2 ... ILX)
+C        ILY            + ANZAHL DER AUFPUNKTE MIT RICHTUNGSINFORMATION
+C                         'Y' + 1 (2 ... ILY)
+C        ILZ            + ANZAHL DER AUFPUNKTE MIT RICHTUNGSINFORMATION
+C                         'Z' + 1 (2 ... ILZ)
+C
+C UPROG                 : KJIECO, SELACO
+C
+C DEFINE-DIREKTIVEN     : KEINE
+C
+C        20.09.88 (HW)  : ORIGINAL
+C        23.11.88 (HW)  : UEBERGABE GEAENDERT, WEGEN KJIECO
+C        14.12.88 (HW)  : UEBERGABE GEAENDERT (IL0 ILX, ILY, ILZ)
+C        24.02.89 (HW)  : ISLINI(ILIMXP) --> ISLINI(ISLIDI)
+C
+C*STARLET***************************************************************
+C
+      CHARACTER (LEN=1)  CD
+      INTEGER        ISLINP (ISLIDI),  ISLINA (ISLIDI),  ISLINI (ISLIDI)
+      INTEGER  IHOR1 (0:20),   KHOR1 (0:20),
+     $         IVER1 (0:20),   KVER1 (0:20),
+     $         IVER2 (0:20),   KVER2 (0:20)
+C
+C                                  FESTLEGUNG DER GITTERPUNKTE FUER
+C                                  HORIZONTALE LINIEN
+C
+*     DATA   IHOR   /   0,
+*    $                  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
+*    $                  0,   0,   0,   0,   0,   0,   0,   0,   0,   0/
+*     DATA   IHOR1  /   1,
+*    $                 27,   0,   0,   0,   0,   0,   0,   0,   0,   0,
+*    $                  0,   0,   0,   0,   0,   0,   0,   0,   0,   0/
+*     DATA   KHOR1  /   1,
+*    $                  8,   0,   0,   0,   0,   0,   0,   0,   0,   0,
+*    $                  0,   0,   0,   0,   0,   0,   0,   0,   0,   0/
+C
+C                                  FESTLEGUNG DER GITTERPUNKTE FUER
+C                                  VERTIKALE LINIEN (KSTART = 3)
+C
+      DATA   IVER1  /   1,
+     $                 34,   0,   0,   0,   0,   0,   0,   0,   0,   0,
+     $                  0,   0,   0,   0,   0,   0,   0,   0,   0,   0/
+      DATA   KVER1  /  16,
+     $                  3,   4,   5,   6,   7,   8,   9,  10,  11,  12,
+     $                 13,  14,  15,  16,  17,  18,   0,   0,   0,   0/
+C
+C                                  FESTLEGUNG DER GITTERPUNKTE FUER
+C                                  VERTIKALE LINIEN (KSTART = KB)
+C
+*     DATA   IVER2  /   0,
+*    $                 46,  50,  54,  58,   0,   0,   0,   0,   0,   0,
+*    $                  0,   0,   0,   0,   0,   0,   0,   0,   0,   0/
+*     DATA   KVER2  /   0,
+*    $                 19,  21,  23,  25,  27,  29,  31,  33,   0,   0,
+*    $                  0,   0,   0,   0,   0,   0,   0,   0,   0,   0/
+C
+      DATA           I1,  I2,  I3,  I4,  I5    /0, 0, 0, 0, 0/
+C
+C                                 VORBELEGUNG (DARF NICHT GEAENDERT
+C                                 WERDEN !)
+C
+      DO 100 I = 1,ISLIDI
+         ISLINI (I) = 0
+         ISLINA (I) = 0
+  100    ISLINP (I) = 0
+C
+      ILI    = 1
+      IL0    = 1
+      ILX    = 1
+      ILY    = 1
+      ILZ    = 1
+C
+C                                 *******************************
+C                                 AB HIER TRAEGT DER BENUTZER DIE
+C                                 GEWUENSCHTEN AUFPUNKTE EIN (DAS
+C                                 SCHEMA IST IMMER GLEICH !)
+C                                 *******************************
+C
+C                                 INFORMATION UEBER DIE KOORDINATEN-
+C                                 RICHTUNG, DIE VON DIESEM AUFPUNKT
+C                                 BESONDERS BERUECKSICHTIGT WERDEN SOLL
+C                                 (Z. B. FUER KORRELATIONSFUNKTIONEN
+C                                 ODER POWER-SPEKTREN, WELCHE  I N  DIES
+C                                 RICHTUNG GEBILDET WERDEN SOLLEN)
+C
+C                                 ZULAESSIG SIND:
+C                                 '0' : KEINE BEVORZUGTE RICHTUNG
+C                                 'X' : X-RICHTUNG IST AUSGEZEICHNET
+C                                 'Y' : Y-RICHTUNG IST AUSGEZEICHNET
+C                                 'Z' : Z-RICHTUNG IST AUSGEZEICHNET
+C
+C
+C                                  FESTLEGUNG DER GITTERPUNKTE FUER
+C                                  HORIZONTALE LINIEN
+C
+C+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+*        CD     =  '0'
+*        K      =   3
+*        J      =  14
+*        I      =  27
+*        CALL KJIECO  (ISLINP,ISLIDI,ISLINI,ILIMXP,ILI,IL0,ILX,ILY,ILZ,
+*    $                 CD,K,J,I,IB1,IB2,JB1,JB2,KB,NBND,I1,I2,I3,I4,I5)
+*     DO 120 ICD = 1,4
+*        IF(ICD .EQ. 1) CD = '0'
+*        IF(ICD .EQ. 2) CD = 'X'
+*        IF(ICD .EQ. 3) CD = 'Y'
+*        IF(ICD .EQ. 4) CD = 'Z'
+C
+*        KEND   = KHOR1 (0)
+*        DO 120 KL = 1,KEND
+*           K      = KHOR1  (KL)
+*           J      =  18
+*           IEND   = IHOR1  (0)
+*           DO 120 IL = 1,IEND
+*              I      = IHOR1  (IL)
+*              CALL KJIECO  (ISLINP,ISLIDI,ISLINI,ILIMXP,
+*    $                       ILI,IL0,ILX,ILY,ILZ,CD,
+*    $                       K,J,I,IB1,IB2,JB1,JB2,KB,
+*    $                       NBND,I1,I2,I3,I4,I5)
+* 120 CONTINUE
+C
+C                                  FESTLEGUNG DER GITTERPUNKTE FUER
+C                                  VERTIKALE LINIEN (KSTART = 3)
+C
+      DO 150 ICD = 1,3
+         IF(ICD .EQ. 1) CD = '0'
+         IF(ICD .EQ. 2) CD = 'X'
+         IF(ICD .EQ. 3) CD = 'Y'
+         IF(ICD .EQ. 4) CD = 'Z'
+C
+         IEND   = IVER1  (0)
+         DO 150 IL = 1,IEND
+            I      = IVER1  (IL)
+            J      =  18
+            KEND   = KVER1 (0)
+            DO 150 KL = 1,KEND
+               K      = KVER1  (KL)
+               CALL KJIECO  (ISLINP,ISLIDI,ISLINI,ILIMXP,
+     $                       ILI,IL0,ILX,ILY,ILZ,CD,
+     $                       K,J,I,IB1,IB2,JB1,JB2,KB,
+     $                       NBND,I1,I2,I3,I4,I5)
+  150 CONTINUE
+C
+C                                  FESTLEGUNG DER GITTERPUNKTE FUER
+C                                  VERTIKALE LINIEN (KSTART = KB)
+C
+*     DO 200 ICD = 1,4
+*        IF(ICD .EQ. 1) CD = '0'
+*        IF(ICD .EQ. 2) CD = 'X'
+*        IF(ICD .EQ. 3) CD = 'Y'
+*        IF(ICD .EQ. 4) CD = 'Z'
+C
+*        IEND   = IVER2  (0)
+*        DO 200 IL = 1,IEND
+*           I      = IVER2  (IL)
+*           J      =  18
+*           KEND   = KVER2 (0)
+*           DO 200 KL = 1,KEND
+*              K      = KVER2  (KL)
+*              CALL KJIECO  (ISLINP,ISLIDI,ISLINI,ILIMXP,
+*    $                       ILI,IL0,ILX,ILY,ILZ,CD,
+*    $                       K,J,I,IB1,IB2,JB1,JB2,KB,
+*    $                       NBND,I1,I2,I3,I4,I5)
+* 200 CONTINUE
+C
+C                                 ******************************
+C                                 HIER: ENDE DES VOM BENUTZER ZU
+C                                 SPEZIFIZIERENDEN PROGRAMMTEILS
+C                                 ******************************
+C
+C                                 FESTSTELLEN DES MINIMAL NOTWENDIGEN
+C                                 SPEICHERBEDARFES
+C
+      ILIMX   = MAX0 (IL0, ILX, ILY, ILZ)
+C
+      CALL SELACO  (ILIMX, I1, I2, I3, I4, I5, IL0, ILX, ILY, ILZ,
+     $              ISLINP, ISLIDI, ISLINI, ILIMXP)
+C
+      RETURN
+      END

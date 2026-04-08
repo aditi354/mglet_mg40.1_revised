@@ -1,0 +1,335 @@
+      SUBROUTINE MGBOFLU (U,V,W,P,G,AU,AV,AW,
+     $                    HILF,UBO,VBO,WBO,PBO,GBO,X,Y,Z,
+     $                    IDIM3D,IDIM2D,IDIM1D,IDIMA,
+     $                    NBND,IGRID,ITSTEP,NB,NBOT)
+C--MGLET----------------------------------------------------------
+C
+C     ADDS FLUCTUATIONS TO FRONT-BUFFERS FOR 
+C     "STRUKTUR-PERIODISCHE" BOUNDARY CONDITION
+C
+C        UBO(X0)=UMEAN + (U(X) - <U>(X))
+C
+C    10.12.96 (MM.):    ORIGINAL
+C
+C-------10--------20--------30--------40--------50--------60--------7072
+#include "mgpar.h"
+#include "cophyspar.h"
+#include "colevel.h"
+#include "cogrdpro.h"
+#include "cobound.h"
+#include "compi.h"
+
+C-------10--------20--------30--------40--------50--------60--------7072
+      REAL U(IDIM3D),V(IDIM3D),W(IDIM3D),
+     $     P(IDIM3D),G(IDIM3D),HILF(IDIM2D,5)
+      REAL UBO(IDIM2D*2), VBO(IDIM2D*2), WBO(IDIM2D*2),
+     $     PBO(IDIM2D*2), GBO(IDIM2D*2)
+      REAL AU(IDIMA),AV(IDIMA),AW(IDIMA)
+      REAL X(IDIM1D),Y(IDIM1D),Z(IDIM1D)
+C
+C-------10--------20--------30--------40--------50--------60--------7072
+C                  IS IDIM3D SUFFICIENT?
+
+      IF (IDIM3D .LT. IDIM2D*6) CALL ERRR (501,"MGBOFLU")
+C
+C-------10--------20--------30--------40--------50--------60--------7072
+C
+           CALL MGDPB (KK,JJ,II,IP3,IP2,IP1,IBB,IBU,
+     $               NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB,IGRID)
+           CALL MGDIMA  (KKA,JJA,IIA,IGRID)
+           CALL MGPOINA (IAV,I2L,I1L,IGRID)
+
+           ZPOS = ZBANF(NB,5,IGRID)
+C
+C-------10--------20--------30--------40--------50--------60--------7072
+C                              BEIM ERSTEN ZEITSCHRITT SONDERBEHANDLUNG
+           IF (ITSTEP .EQ. 0) THEN
+CCCCCCCCCCC           IF (ITSTEP .GE. -100) THEN
+
+#ifdef _MPI_
+             IP = IDPROCOFGRD(IGRID)
+             IF ( MYID .EQ. IP) THEN
+#else
+                IP=0
+#endif
+            CALL COPYREGION(KK,JJ,II,U(IP3),
+     $           IP,2,2,1,JJ,1,II,
+     $           1,JJ,II,UBO(IBB),IP,
+     $           -1,0,0,
+     $           HILF(1,5),MYID)
+            CALL COPYREGION(JJ,II,2,UBO(IBB),
+     $           IP,1,JJ,1,II,1,1,
+     $           JJ,II,2,UBO(IBB),IP,
+     $           0,0,1,
+     $           HILF(1,5),MYID)
+
+            CALL COPYREGION(KK,JJ,II,V(IP3),
+     $           IP,2,2,1,JJ,1,II,
+     $           1,JJ,II,VBO(IBB),IP,
+     $           -1,0,0,
+     $           HILF(1,5),MYID)
+            CALL COPYREGION(JJ,II,2,VBO(IBB),
+     $           IP,1,JJ,1,II,1,1,
+     $           JJ,II,2,VBO(IBB),IP,
+     $           0,0,1,
+     $           HILF(1,5),MYID)
+
+            CALL COPYREGION(KK,JJ,II,W(IP3),
+     $           IP,2,2,1,JJ,1,II,
+     $           1,JJ,II,WBO(IBB),IP,
+     $           -1,0,0,
+     $           HILF(1,5),MYID)
+            CALL COPYREGION(JJ,II,2,WBO(IBB),
+     $           IP,1,JJ,1,II,1,1,
+     $           JJ,II,2,WBO(IBB),IP,
+     $           0,0,1,
+     $           HILF(1,5),MYID)
+
+#ifndef _DNS_
+            CALL COPYREGION(KK,JJ,II,G(IP3),
+     $           IP,2,2,1,JJ,1,II,
+     $           1,JJ,II,GBO(IBB),IP,
+     $           0,0,0,
+     $           HILF(1,5),MYID)
+            CALL COPYREGION(JJ,II,2,GBO(IBB),
+     $           IP,1,JJ,1,II,1,1,
+     $           JJ,II,2,GBO(IBB),IP,
+     $           0,0,1,
+     $           HILF(1,5),MYID)
+#endif
+#ifdef _MPI_
+      ENDIF
+#endif
+
+              RETURN
+           ENDIF
+C                          ENDE DER SONDERBEHANDLUNG
+C-------10--------20--------30--------40--------50--------60--------7072
+C                         SUCHE NACH DER POSITION
+
+      ILEVEL = LEVEL(IGRID)
+        DO I = 1,NOFTST(ILEVEL)
+           IGSEARCH = IGRDOFTST(I,ILEVEL)
+
+           CALL MGDPB (KK2,JJ2,II2,IP32,IP22,IP12,IBB2,IBU2,
+     $               NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB,IGSEARCH)
+           CALL MGDIMA  (KKA2,JJA2,IIA2,IGSEARCH)
+           CALL MGPOINA (IAV2,I2L2,I1L2,IGSEARCH)
+
+           CALL FINDPOSITION(KK2,Z(IP12),ZPOS,INDEX,2)
+
+           IF (INDEX .GT. 0 .AND. INDEX .LT. KK) THEN
+
+C-------10--------20--------30--------40--------50--------60--------7072
+
+              CALL MGOVERLAP (JJ,Y(IP1),JJ2,Y(IP12),NBND, 0.0 ,
+     $                  JA1,JE1,JA2,JE2)
+              CALL MGOVERLAP (II,X(IP1),II2,X(IP12),NBND, 0.0 ,
+     $                  IA1,IE1,IA2,IE2)
+
+          IF  (( JE1 .EQ. JJ ) .AND. ( JA1 .EQ. 1 )
+     $   .AND. ( IE1 .EQ. II ) .AND. ( IA1 .EQ. 1 ))
+     $    THEN
+C                                             POSITION AND GRID FOUND!!!
+C-------10--------20--------30--------40--------50--------60--------7072
+
+#ifdef _MPI_
+             IP = IDPROCOFGRD(IGRID)
+             IP2= IDPROCOFGRD(IGSEARCH)
+             IF ( MYID .EQ. IP .OR. MYID .EQ. IP2) THEN
+#else
+                IP=0
+                IP2=0
+#endif
+
+C
+C-------10--------20--------30--------40--------50--------60--------7072
+C                   IF BOUND.-COND. IS "RECYCLE" THEN ANALYSE AVERAGE 
+C                   FIELD FIRST
+C
+             IF (NBOT .EQ. 12) THEN
+                CALL COPYREGION(KKA2,JJA2,IIA2,AW(IAV2),
+     $               IP2,INDEX,INDEX,1,JJA2,1,IIA2,
+     $               1,JJA2,IIA2,HILF(1,1),IP,
+     $               1-INDEX,0,0,
+     $               HILF(1,5),MYID)
+             
+#ifdef _MPI_
+             IF ( MYID .EQ. IP ) THEN
+#endif
+C-----------------------------------------  ONLY FOR HOMOGENEOUS Y-DIRECTIONS:
+C                                           BL_DIAGNOSE NEEDS A 1D-FIELD
+C                                           THIS IS DONE BY SWITCHING ONLY
+C                                           THE DIMENSIONS IN THE CALL!!!
+
+	                IF ( JJA2 .NE. 1 ) CALL ERRR(555,' MGBOFLU ')
+
+                CALL BL_DIAGNOSE (IIA2,1,1,NBND,HILF(1,1),X(IP1),
+     $               XBANF(NB,5,IGRID),
+     $               DELTA_ACT,UTAU_ACT,UMAX_ACT)
+
+C	write (6,*) 'delta...',DELTA_ACT,UTAU_ACT,UMAX_ACT
+
+#ifdef _MPI_
+      ENDIF
+#endif
+             ENDIF
+C
+C                   ANALYSIS OF AVERAGE FIELD FINISHED
+C-------10--------20--------30--------40--------50--------60--------7072
+C                                     GETTING INFLOW PROFILE INTO HILF
+C                                     AND PUTTING IT (WITH APPROPRIATE
+C                                     SCALING)ONTO UFR, VFR, WFR, GFR
+C
+C---------------------------------------------------------------------72
+C                                     HERE: U
+
+            CALL COPYREGION(KK2,JJ2,II2,U(IP32),
+     $           IP2,INDEX,INDEX,1,JJ2,1,II2,
+     $           1,JJ,II,HILF(1,1),IP,
+     $           1-INDEX,0,0,
+     $           HILF(1,2),MYID)
+
+#ifdef _MPI_
+      IF ( MYID .EQ. IP ) THEN
+#endif
+         IF (NBOT .EQ. 11) THEN
+#ifdef _BOFLU_TIME_AVERAGE_
+CTEST                   CALL COPYREGION(KKA2,JJA2,IIA2,AU(IAV2),
+CTEST     $                  IP2,INDEX,INDEX,1,JJA2,1,IIA2,
+CTEST     $                  1,JJA2,IIA2,HILF(1,3),IP,
+CTEST     $                  1-INDEX,0,0,
+CTEST     $                  HILF(1,5),MYID)
+      CALL SETS   (JJA,II,1,JJA,II,1,HILF(1,3),0.0)
+#endif
+C      write (6,*) 'Calling boflu',igrid,kk,jj,ii
+            CALL BOFLU(KK,JJ,II,UBO(IBB),HILF(1,1),HILF(1,2),
+     $           HILF(1,3),JJA,2,
+     $           X(IP1),XBANF(NB,5,IGRID),XBEND(NB,5,IGRID))
+                ELSEIF (NBOT .EQ. 12) THEN
+            CALL BOREC(KK,JJ,II,NBND,UBO(IBB),HILF(1,1),HILF(1,2),
+     $           HILF(1,3),HILF(1,4),Z(IP1),ZBANF(NB,1,IGRID),
+     $           DELTA,DELTA_ACT,UTAUX,UTAU_ACT,UFRCON,UMAX_ACT,
+     $           GMOL)
+                ENDIF
+#ifdef _MPI_
+             ENDIF
+#endif
+
+C
+C---------------------------------------------------------------------72
+C                                     HERE: V
+            CALL COPYREGION(KK2,JJ2,II2,V(IP32),
+     $           IP2,INDEX,INDEX,1,JJ2,1,II2,
+     $           1,JJ,II,HILF(1,1),IP,
+     $           1-INDEX,0,0,
+     $           HILF(1,2),MYID)
+
+#ifdef _MPI_
+      IF ( MYID .EQ. IP ) THEN
+#endif
+         IF (NBOT .EQ. 11) THEN
+#ifdef _BOFLU_TIME_AVERAGE_
+                   CALL COPYREGION(KKA2,JJA2,IIA2,AV(IAV2),
+     $                  IP2,INDEX,INDEX,1,JJA2,1,IIA2,
+     $                  1,JJA2,IIA2,HILF(1,3),IP,
+     $                  1-INDEX,0,0,
+     $                  HILF(1,5),MYID)
+#endif
+            CALL BOFLU(KK,JJ,II,VBO(IBB),HILF(1,1),HILF(1,2),
+     $           HILF(1,3),JJA,2,
+     $           X(IP1),XBANF(NB,5,IGRID),XBEND(NB,5,IGRID))
+                ELSEIF (NBOT .EQ. 12) THEN
+            CALL BOREC(KK,JJ,II,NBND,VBO(IBB),HILF(1,1),HILF(1,2),
+     $           HILF(1,3),HILF(1,4),Z(IP1),ZBANF(NB,1,IGRID),
+     $           DELTA,DELTA_ACT,UTAUX,UTAU_ACT,UFRCON,UMAX_ACT,
+     $           GMOL)
+                ENDIF
+#ifdef _MPI_
+             ENDIF
+#endif
+
+
+C
+C---------------------------------------------------------------------72
+C                                     HERE: W
+C
+            CALL COPYREGION(KK2,JJ2,II2,W(IP32),
+     $           IP2,INDEX,INDEX,1,JJ2,1,II2,
+     $           1,JJ,II,HILF(1,1),IP,
+     $           1-INDEX,0,0,
+     $           HILF(1,2),MYID)
+
+#ifdef _MPI_
+      IF ( MYID .EQ. IP ) THEN
+#endif
+         IF (NBOT .EQ. 11) THEN
+#ifdef _BOFLU_TIME_AVERAGE_
+                   CALL COPYREGION(KKA2,JJA2,IIA2,AW(IAV2),
+     $                  IP2,INDEX,INDEX,1,JJA2,1,IIA2,
+     $                  1,JJA2,IIA2,HILF(1,3),IP,
+     $                  1-INDEX,0,0,
+     $                  HILF(1,5),MYID)
+#endif
+            CALL BOFLU(KK,JJ,II,WBO(IBB),HILF(1,1),HILF(1,2),
+     $           HILF(1,3),JJA,2,
+     $           X(IP1),XBANF(NB,5,IGRID),XBEND(NB,5,IGRID))
+                ELSEIF (NBOT .EQ. 12) THEN
+            CALL BOREC(KK,JJ,II,NBND,WBO(IBB),HILF(1,1),HILF(1,2),
+     $           HILF(1,3),HILF(1,4),Z(IP1),ZBANF(NB,1,IGRID),
+     $           DELTA,DELTA_ACT,UTAUX,UTAU_ACT,UFRCON,UMAX_ACT,
+     $           GMOL)
+                ENDIF
+#ifdef _MPI_
+             ENDIF
+#endif
+
+
+#ifndef _DNS_
+C
+C---------------------------------------------------------------------72
+C                                     HERE: G
+            CALL COPYREGION(KK2,JJ2,II2,G(IP32),
+     $           IP2,INDEX,INDEX,1,JJ2,1,II2,
+     $           1,JJ,II,HILF(1,1),IP,
+     $           1-INDEX,0,0,
+     $           HILF(1,2),MYID)
+
+#ifdef _MPI_
+      IF ( MYID .EQ. IP ) THEN
+#endif
+         IF (NBOT .EQ. 11) THEN
+#ifdef _BOFLU_TIME_AVERAGE_
+                   CALL COPYREGION(KKA2,JJA2,IIA2,AG(IAV2),
+     $                  IP2,INDEX,INDEX,1,JJA2,1,IIA2,
+     $                  1,JJA2,IIA2,HILF(1,3),IP,
+     $                  1-INDEX,0,0,
+     $                  HILF(1,5),MYID)
+#endif
+            CALL BOFLU(KK,JJ,II,GBO(IBB),HILF(1,1),HILF(1,2),
+     $           HILF(1,3),JJA,2,
+     $           X(IP1),XBANF(NB,5,IGRID),XBEND(NB,5,IGRID))
+                ELSEIF (NBOT .EQ. 12) THEN
+            CALL BOREC(KK,JJ,II,NBND,GBO(IBB),HILF(1,1),HILF(1,2),
+     $           HILF(1,3),HILF(1,4),Z(IP1),ZBANF(NB,1,IGRID),
+     $           DELTA,DELTA_ACT,UTAUX,UTAU_ACT,UFRCON,UMAX_ACT,
+     $           GMOL)
+                ENDIF
+#ifdef _MPI_
+             ENDIF
+#endif
+#endif
+
+#ifdef _MPI_
+      ENDIF
+#endif
+
+      GOTO 1000
+      ENDIF
+      ENDIF
+      ENDDO
+     
+ 1000  CONTINUE
+C-------10--------20--------30--------40--------50--------60--------7072
+      RETURN
+      END

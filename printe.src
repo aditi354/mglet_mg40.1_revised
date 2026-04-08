@@ -1,0 +1,32 @@
+      SUBROUTINE PRINTE
+C***********************************************************************
+C   P R I N T E     DUMMY-ROUTINE MIT PRINTER STEUERUNG
+C   P A G E    NEUE SEITE
+C   P A G E 6  NEUE SEITE MIT 6 INCH/ZEILE
+C   P A G E 8  NEUE SEITE MIT 8 INCH/ZEILE
+C   S E T E J T  SETZE AUTOEJECT
+C   N O E J T  LOESCHE AUTOEJCT
+C*************************************************** F.BAETKE 02.03.81 *
+C                                                    H.WERNER 12.02.86
+      RETURN
+      ENTRY PAGE
+      WRITE(6,6000)
+ 6000 FORMAT(1H1)
+      RETURN
+      ENTRY PAGE6
+      WRITE(6,6010)
+ 6010 FORMAT(1HS/1H1)
+      RETURN
+      ENTRY PAGE8
+      WRITE(6,6020)
+ 6020 FORMAT(1HT/1H1)
+      RETURN
+      ENTRY SETEJT
+      WRITE(6,6030)
+ 6030 FORMAT(1HR)
+      RETURN
+      ENTRY NOEJT
+      WRITE(6,6040)
+ 6040 FORMAT(1HQ)
+      RETURN
+      END

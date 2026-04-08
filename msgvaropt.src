@@ -1,0 +1,245 @@
+      SUBROUTINE MSGVAROPT (U,V,W,P,G,
+     $                    HILF,VAROPT,X,Y,Z,
+     $                    IDIM3D,IDIM2D,IDIM1D,IDIMA,
+     $                    NBND,IGRID,ITOPT,NB,ITTOT,NTOP1,NTOP2,TIMEPH)
+C--MGLET----------------------------------------------------------
+C
+C     ADDS XRT = XR(TIMEPH) TO BUFFER VAROPT
+C     WORKS ONLY IF YHOMOG=.T.
+C
+C     OUTPUT:
+C        VAROPT(ITOPT)
+C
+C     VERSION 30.07.2000 (J.N.)
+C
+C-------10--------20--------30--------40--------50--------60--------7072
+#include "mgpar.h"
+#include "cobound.h"
+#include "cogrdpro.h"
+#include "colevel.h"
+#include "comgrid.h"
+#include "cophyspar.h"
+#include "konsta.h"
+#ifdef _MPI_
+#include "compi.h"
+#include "mpif.h"
+#endif
+
+C-------10--------20--------30--------40--------50--------60--------7072
+#ifdef _MPI_
+      INTEGER ISTATUS(MPI_STATUS_SIZE),ANSTYPE
+     $        ,WSTATUS(MPI_STATUS_SIZE),REQUEST
+#endif
+      REAL U(IDIM3D),V(IDIM3D),W(IDIM3D),
+     $     P(IDIM3D),G(IDIM3D)
+      REAL X(IDIM1D),Y(IDIM1D),Z(IDIM1D)
+      REAL VAROPT(2,IDIM2D*8)
+      REAL UWALL(IDIM1D,IDIM1D),HILF(IDIM1D)
+      REAL XRT,XRTF,XRTL,XRTI
+C
+C-------10--------20--------30--------40--------50--------60--------7072
+C                  IS IDIM3D SUFFICIENT?
+
+      IF (NTOP2-NTOP1 .GT. IDIM2D*2) CALL ERRR (501,"MSGVAROPT")
+
+C
+C---------------------------------------------------------------------72
+C
+           CALL MGDPB (KK,JJ,II,IP3,IP2,IP1,IBB,IBU,
+     $               NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB,IGRID)
+           CALL MGDIMA  (KKA,JJA,IIA,IGRID)
+           CALL MGPOINA (IAV,I2L,I1L,IGRID)
+
+           XPOS1 = XMPOS1(NB,IGRID)
+           XPOS2 = XMPOS2(NB,IGRID)
+           YPOS1 = YMPOS1(NB,IGRID)
+           YPOS2 = YMPOS2(NB,IGRID)
+           ZPOS  = ZMPOS1(NB,IGRID)
+
+C
+C ANALYSE ON PLANE Z=ZPOS=ZMPOS1 , ZMPOS2 EMPTY
+C
+C-------10--------20--------30--------40--------50--------60--------7072
+C                         SUCHE NACH DER POSITION
+
+      ILEVEL = LEVEL(IGRID)
+        DO I = 1,NOFTST(ILEVEL)
+           IGSEARCH = IGRDOFTST(I,ILEVEL)
+
+           CALL MGDIMS  (KK2,JJ2,II2,IGSEARCH)
+           CALL MGPOINT (IP32,IP22,IP12,IBB2,IB32,IBU2,IGSEARCH)
+           CALL MGDIMA  (KKA2,JJA2,IIA2,IGSEARCH)
+           CALL MGPOINA (IAV2,I2L2,I1L2,IGSEARCH)
+
+           CALL FINDPOSITION(II2,X(IP12),XPOS1,INDX1,2)
+           CALL FINDPOSITION(II2,X(IP12),XPOS2,INDX2,2)
+           CALL FINDPOSITION(JJ2,Y(IP12),YPOS1,INDY1,2)
+           CALL FINDPOSITION(JJ2,Y(IP12),YPOS2,INDY2,2)
+           CALL FINDPOSITION(KK2,Z(IP12),ZPOS ,INDZ,2)
+
+           CALL MGOVERLAP (II,X(IP1),II2,X(IP12),NBND, 0.0 ,
+     $                  IA1,IE1,IA2,IE2)
+           CALL MGOVERLAP (JJ,Y(IP1),JJ2,Y(IP12),NBND, 0.0 ,
+     $                  JA1,JE1,JA2,JE2)
+
+          IF  (( IE1 .EQ. II ) .AND. ( IA1 .EQ. 1 )
+     $   .AND. ( JE1 .EQ. JJ ) .AND. ( JA1 .EQ. 1 ))
+     $    THEN
+
+          INDX1=3
+          INDX2=II-2
+          INDY1=3
+          INDY2=JJ-2
+
+C                                             POSITION AND GRID FOUND!!!
+C---------------------------------------------------------------------72
+
+#ifdef _MPI_
+             IP = 0
+             IP2= IDPROCOFGRD(IGSEARCH)
+             IF ( MYID .EQ. IP  .OR.  MYID .EQ. IP2) THEN              
+#else
+                IP=0
+                IP2=0
+#endif
+
+C---------------------------------------------------------------------72
+C---------------------------------------------------------------------72
+C                                     GETTING VARIABLE (OPTIMISE) 
+C                                     AND PUTTING IT TO FIELD VAROPT
+C                                     HERE: U
+C---------------------------------------------------------------------72
+C                                     1. STEP: AVERAGE SPANWISE
+#ifdef _MPI_
+       IF (MYID.EQ.IP2) THEN
+         DO IV=1,II
+           SENDBUF(IV)=0.0
+           DO JV=1,JJ-1
+             DO KV=1,KK
+               IF (KV.EQ.3 .AND. IV.GT.2 .AND. IV.LT.(II-1) ) THEN
+                 SENDBUF(IV) = SENDBUF(IV) 
+     $                       + U(KV + JV*KK + IV*JJ*KK)
+               ENDIF
+             ENDDO
+           ENDDO
+           SENDBUF(IV) = SENDBUF(IV) / (FLOAT(JJ))
+C          write(6,*)'MSG_AV:',MYID,IV,SENDBUF(IV)
+         ENDDO
+         CALL MPI_SEND ( SENDBUF(1) , II , 
+     $ MPI_DOUBLE_PRECISION , 0 , IP2
+     $                  , MPI_COMM_WORLD , IERR )
+C        write(6,*)'MSG_MPISEND:',MYID,IERR
+       ENDIF
+
+C---------------------------------------------------------------------72
+C                                     2. STEP: COLLECT DATA
+       IF (MYID.EQ.IP) THEN
+         DO IPR = 1 , NUMPROCS
+           CALL MPI_RECV ( RECVBUF , II , 
+     $ MPI_DOUBLE_PRECISION
+     $                   , IPR-1 , MPI_ANY_TAG
+     $                   , MPI_COMM_WORLD , ISTATUS , IERR )
+           anstype = ISTATUS(MPI_TAG)
+C          write(6,*)'MSG_MPIRECV:',MYID,IERR,anstype
+           DO IV = 1 , II
+C            write(*,*)'MSG_RECV:',IV,RECVBUF(IV)
+             UWALL(anstype+1,IV) = RECVBUF(IV)
+             RECVBUF(IV)         = 0.0  
+           ENDDO
+         ENDDO
+       ENDIF
+#endif
+
+#ifdef _MPI_
+             ENDIF
+#endif
+
+C---------------------------------------------------------------------72
+C                                     3. STEP: PROCESS DATA 
+C                                              ON MASTER PROC
+C                                       3A: AVERAGE SPANWISE BLOCKS
+C                                       3B: PUT U(I,K=3) INTO HILF
+       IF ( MYID .EQ. 0 ) THEN
+         IPRCOUNT = 0
+         IGSEARCH = 1
+         IPRLAST  = NYSLICE(IGSEARCH)*(NXSLICE(IGSEARCH)-1) + 1
+         DO IPR = 1 , IPRLAST , NYSLICE(IGSEARCH)
+           DO IPRO = IPR , IPR+NYSLICE(IGSEARCH)-1
+             DO IV = 1+NBND , II-NBND
+               UWALL(IPR,IV) = 0.5*(UWALL(IPR,IV) + UWALL(IPRO,IV))
+             ENDDO
+           ENDDO
+           DO IW = IPRCOUNT*(II-2*NBND)+1,(IPRCOUNT+1)*(II-2*NBND)
+             HILF(IW)=UWALL(IPR,IW-IPRCOUNT*(II-2*NBND)+2)
+C            write(6,*)'HILF::',IW,IPR,IPRCOUNT,HILF(IW)
+           ENDDO
+           IPRCOUNT = IPRCOUNT + 1
+         ENDDO
+
+C---------------------------------------------------------------------72
+C                                     4. STEP: CREATE VAROPT (3 METHODS)
+C                                              COUNTING STARTS AT XPOS1
+C                                              COUNTING ENDS AT XPOS2
+C                                       4A: FIRST UPWARDS ZEROCROSSING (XRTF)
+C                                       4B: LAST UPWARDS ZEROCROSSING (XRTL)
+C                                       4C: INTEGRAL ZEROCROSSING (XRTI)
+         XRTF=XPOS2
+         XRTL=XPOS1
+         XRTI=XPOS1
+
+         DO IW=2,IMX(IGSEARCH)-2*NBND
+           IF ( ABS(HILF(IW)-HILF(IW-1)) .LT. SMALL ) GOTO 10
+           IF ( (X(IW+3).LE.XPOS1) .OR. (X(IW+2).GE.XPOS2) ) GOTO 10
+C                                      CASE: 2 TIMES U<0
+           IF ( (HILF(IW-1).LT.0.0)  .AND. (HILF(IW).LT.0.0) ) THEN
+              IF (X(IW+2).LE.XPOS1) THEN
+                XRTI = XRTI + (X(IW+3)-XPOS1)
+              ELSE IF (X(IW+3).GE.XPOS2) THEN
+                XRTI = XRTI + (XPOS2-X(IW+2))
+              ELSE
+                XRTI = XRTI + (X(IW+3)-X(IW+2))
+              ENDIF
+           ENDIF
+C                                      CASE: ZEROCROSSING UPWARDS
+           IF ( (HILF(IW-1).LT.0.0) .AND. (HILF(IW).GE.0.0) ) THEN
+             XRT = X(IW+2) -
+     $             HILF(IW-1)* 
+     $             ( X(IW+3)-X(IW+2) ) / ( HILF(IW)-HILF(IW-1) )
+             IF ( (XRT .LE. XPOS1) .OR. (XRT .GE. XPOS2) ) GOTO 10
+             IF ( XRT .LT. XRTF ) XRTF = XRT
+             IF ( XRT .GT. XRTL ) XRTL = XRT
+             IF ( X(IW+2).GT.XPOS1 ) THEN
+               XRTI = XRTI + (XRT-X(IW+2))
+             ELSE
+               XRTI = XRTI + (XRT-XPOS1)
+             ENDIF
+           ENDIF
+C                                      CASE: ZEROCROSSING DOWNWARDS
+           IF ( (HILF(IW-1).GE.0.0) .AND. (HILF(IW).LT.0.0) ) THEN
+             XRT = X(IW+2) -
+     $             HILF(IW-1)* 
+     $             ( X(IW+3)-X(IW+2) ) / ( HILF(IW)-HILF(IW-1) )
+             IF ( (XRT .LE. XPOS1) .OR. (XRT .GE. XPOS2) ) GOTO 10
+             IF ( X(IW+3).LT.XPOS2 ) THEN
+               XRTI = XRTI + (X(IW+3)-XRT)
+             ELSE
+               XRTI = XRTI + (XPOS2-XRT)
+             ENDIF
+           ENDIF
+
+   10      CONTINUE
+         ENDDO
+
+         VAROPT(1,ITOPT) = TIMEPH
+         VAROPT(2,ITOPT) = XRTI
+         write(6,*)'XRT ( F , L , I )',TIMEPH,XRTF,XRTL,XRTI
+
+       ENDIF
+C---------------------------------------------------------------------72
+
+
+      ENDIF
+      ENDDO
+
+      RETURN
+      END

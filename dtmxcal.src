@@ -1,0 +1,234 @@
+C#ifdef _TSCAL_
+      SUBROUTINE DTMXCAL(KK,JJ,II,KMX,JMX,IMX,X,Y,Z,T,TO,B,DTMAX,TMAX,
+     $                   ITMAX,JTMAX,KTMAX,XTMAX,YTMAX,ZTMAX,IGRID,
+     $                   IC1,IC2,JC1,JC2,KC1,KC2,
+     $                   DIV,DIVMAX,TFR,IDIVMAX,JDIVMAX,KDIVMAX,
+     $                   XDIVMAX,YDIVMAX,ZDIVMAX
+#ifdef _SCALGRIDDIAGNOSE_
+     $ ,DDSPLUS,SMPLUS,SPLUS,
+     $  DDSMAX,SMMAX,SPMAX,
+     $  ISPMAX,JSPMAX,KSPMAX,
+     $  XSPMAX,YSPMAX,ZSPMAX     
+                       
+#endif      
+#ifdef _SCALTRANSDIAGNOSE_
+     $ ,QCTE,QCTW,QCTN,QCTS,QCTT,QCTB,QDTE,QDTW,QDTN,QDTS,QDTT,QDTB,QDTC
+     $ ,QCE,QCW,QCN,QCS,QCT,QCB,QDE,QDW,QDN,QDS,QDT,QDB,QDC            
+#endif  
+#ifdef _FRED_BODY_
+     $ ,BP
+#endif    
+     $                  )
+C*MGLET********************************************************
+C  D T M X C A L     CALCULATES MAXIMUM SCALAR CHANGE AND 
+C                    DIVERGENCE
+C
+C
+C    07.05.03  (TB):   ORIGINAL IMPLEMETED FOR SCALAR TRANSPORT
+C
+C*MGLET********************************************************
+C
+#include "costrles.h"
+C
+      REAL T(KK,JJ,II), TO(KK,JJ,II),B(KK,JJ,II), X(II), Y(JJ), Z(KK)
+      REAL DIV(KK,JJ,II)
+#ifdef _FRED_BODY_
+      REAL BP(KK,JJ,II)
+#endif
+#ifdef _SCALGRIDDIAGNOSE_
+      REAL DDSPLUS(KK,JJ,II),SMPLUS(KK,JJ,II),SPLUS(KK,JJ,II)                  
+#endif       
+#ifdef _SCALTRANSDIAGNOSE_
+      REAL QCTE(KK,JJ,II),QCTW(KK,JJ,II),QCTN(KK,JJ,II),
+     $     QCTS(KK,JJ,II),QCTT(KK,JJ,II),QCTB(KK,JJ,II),      
+     $     QDTE(KK,JJ,II),QDTW(KK,JJ,II),QDTN(KK,JJ,II),
+     $     QDTS(KK,JJ,II),QDTT(KK,JJ,II),QDTB(KK,JJ,II),QDTC(KK,JJ,II)     
+#endif      
+C
+C---- --------------------------------------------------------
+C
+#ifdef _TSCAL_     
+
+        DIVMAX = 0.0
+        DTMAX = 0.0
+#ifdef _SCALGRIDDIAGNOSE_
+        DDSMAX = 0.0
+        SMMAX  = 0.0
+        SPMAX  = 0.0
+        ISPMAX = 0
+        JSPMAX = 0
+        KSPMAX = 0
+        XSPMAX = 0.0
+        YSPMAX = 0.0
+        ZSPMAX = 0.0                  
+#endif         
+#ifdef _SCALTRANSDIAGNOSE_        
+        QCE   = 0.0
+        QCW   = 0.0  
+        QCN   = 0.0
+        QCS   = 0.0 
+        QCT   = 0.0
+        QCB   = 0.0  
+        QDE   = 0.0
+        QDW   = 0.0  
+        QDN   = 0.0
+        QDS   = 0.0 
+        QDT   = 0.0
+        QDB   = 0.0 
+        QDC   = 0.0 
+#endif                                             
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC     
+C     CALCULATE MAXIMUM DIVERGENCE AND POSITION   
+        DO I=3,IMX-2
+        DO J=3,JMX-2
+        DO K=3,KMX-2
+        
+         IF (ABS(DIV(K,J,I)) .GT. ABS(DIVMAX)) THEN
+
+           KDIVMAX = K
+           JDIVMAX = J
+           IDIVMAX = I
+           
+           XDIVMAX = X(I)
+           YDIVMAX = Y(J)
+           ZDIVMAX = Z(K)           
+           
+           DIVMAX = ABS(DIV(K,J,I))
+         
+         ENDIF
+         
+        ENDDO
+        ENDDO
+        ENDDO
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC        
+C     NOW MAXIMUM SCALAR CHANGE               
+        DO I=3,IMX-2
+        DO J=3,JMX-2
+        DO K=3,KMX-2
+                
+#ifdef _FRED_BODY_
+               FACTOR = BP(K,J,I)
+#else
+               FACTOR = SIGN(0.5,B(K,J,I))+0.5
+#endif
+C          DELTAT = T(K,J,I) - TO(K,J,I)
+          DELTAT = T(K,J,I)
+          DELTAT = FACTOR * ABS(DELTAT)*SIGN(1.0,DELTAT) 
+          IF (ABS(DELTAT) .GT. ABS(DTMAX)) THEN
+
+           ITMAX = I
+           JTMAX = J
+           KTMAX = K
+
+           XTMAX = X(I)
+           YTMAX = Y(J)
+           ZTMAX = Z(K)   
+                   
+           DTMAX = DELTAT
+           TMAX  = T(K,J,I)
+C     FOR SCALAR FLUX ANALYSIS RETURN TOTAL FLUXES AT MAXIMUM SCALAR 
+C     CHANGE CELL 
+#ifdef _SCALTRANSDIAGNOSE_ 
+           QCE   = QCTE(K,J,I)
+           QCW   = QCTW(K,J,I)
+           QCN   = QCTN(K,J,I)
+           QCS   = QCTS(K,J,I)
+           QCT   = QCTT(K,J,I)
+           QCB   = QCTB(K,J,I)  
+           QDE   = QDTE(K,J,I)
+           QDW   = QDTW(K,J,I)
+           QDN   = QDTN(K,J,I)
+           QDS   = QDTS(K,J,I)
+           QDT   = QDTT(K,J,I)
+           QDB   = QDTB(K,J,I)  
+           QDC   = QDTC(K,J,I)                                                               
+#endif
+          ENDIF          
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC     
+#ifdef _SCALGRIDDIAGNOSE_
+C     CALCULATE MAXIMUM SPLUS (WALL NORMAL GRID RESOLUTION) AND POSITION   
+      
+         IF (ABS(SPLUS(K,J,I)) .GT. ABS(SPMAX)) THEN
+
+           IF (.NOT. LLIMITSPDIAG) THEN
+             
+             KSPMAX = K
+             JSPMAX = J
+             ISPMAX = I
+             
+             XSPMAX = X(I)
+             YSPMAX = Y(J)
+             ZSPMAX = Z(K)           
+             
+             SPMAX  = SPLUS(K,J,I)
+             DDSMAX = DDSPLUS(K,J,I)
+             SMMAX  = SMPLUS(K,J,I)
+           
+           ELSE  
+           	   
+             IF (X(I) .GE. SPXSTART .AND. X(I) .LE. SPXSTOP .AND.
+     $           Y(J) .GE. SPYSTART .AND. Y(J) .LE. SPYSTOP .AND.
+     $           Z(K) .GE. SPZSTART .AND. Z(K) .LE. SPZSTOP) THEN     	     
+                KSPMAX = K
+                JSPMAX = J
+                ISPMAX = I
+                
+                XSPMAX = X(I)
+                YSPMAX = Y(J)
+                ZSPMAX = Z(K)           
+                
+                SPMAX  = SPLUS(K,J,I)
+                DDSMAX = DDSPLUS(K,J,I)
+                SMMAX  = SMPLUS(K,J,I)  
+             ENDIF
+           	
+           ENDIF
+         
+         ENDIF
+         
+#endif
+
+        ENDDO
+        ENDDO
+        ENDDO
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
+CTBC  REALIZE LIMITATION OF SCALAR TRANSPORT TO X >= TXSTART
+         IF (LTXSTART) THEN
+           IF (X(I) .LT. TXSTART) THEN
+
+        DO I=3,IMX-2
+        DO J=3,JMX-2
+        DO K=2,KMX-2
+
+              T(K,J,I) = TFR           	
+CTBC          PARALLISATION DOES NOT WORK SO FAR FOR TFR!           	
+C             T(K,J,I) = TFR(K,J,  2)          
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
+CTBC  INTRODUCED TO LIMIT T AROUND CUBE
+C      IC1L = IC1-1
+C      IC2L = IC2+1
+C      JC1L = JC1-1
+C      JC2L = JC2+1
+C      KC1L = KC1-1
+C      KC2L = KC2+1            
+C      IF ( I .GE. IC1L .AND. I .LE. IC2L .AND.
+C     $     J .GE. JC1L .AND. J .LE. JC2L .AND.
+C     $     K .GE. KC1L .AND. K .LE. KC2L) THEN
+C         IF (T(K,J,I) .LT. 1.0) T(K,J,I) = 1.0
+C         IF (T(K,J,I) .GT. 1.01) T(K,J,I) = 1.01         
+C      ENDIF
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC 
+C
+        ENDDO
+        ENDDO
+        ENDDO
+
+           ENDIF
+         ENDIF
+C
+C
+C---- --------------------------------------------------------
+#endif
+      RETURN
+      END
+C#endif

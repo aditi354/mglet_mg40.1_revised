@@ -1,0 +1,657 @@
+
+
+
+
+
+
+
+
+
+
+
+CCCCC        DEFINITIONEN FUER C-PREPROZESSOR
+C            MASCHINE
+
+C              MESSAGE PASSING INTERFACE
+
+C            RAEUMLICHE DISKRETISIERUNG
+C
+***********************************************************************
+C                       KOMPAKT-UPWIND in X-RICHTUNG (3-TER ORDNUNG) fuer
+C                       die U-Komponente (V und W bleiben Kompakt 4ter ordnung)
+C                       falls im Stroemungsfeld eine Koerper vorhanden ist
+C
+***********************************************************************
+C                       KOMPAKTVERF. in XYZ-RICHTUNG (4-TER ORDNUNG)
+
+
+**********************************************************************
+C                      Preprocessing with ADM for 2nd Order Central
+***********************************************************************
+CCC                     Bei periodischen Randbedingungen in X-Richtung
+CCC                     ist eine hoehere O
+C
+CCC                     Bei periodischen Randbedingungen in Y-Richtung
+CCC                     ist eine hoehere Ordnung moeglich
+C
+CCC                     Bei periodischen Randbedingungen in Y-Richtung:
+CCC                     Zentraldiff. 4-ter Ordnung (Parallelisieung moeglich)
+C
+***********************************************************************
+C
+C
+C            INTERPOLATION AN GITTER-GRENZEN
+
+C            BEHANDLUNG DER TOPAR-RANDBEDINGUNG
+
+C            ZEITLICHE DISKRETISIERUNG
+
+C            FEINSTRUKTURMODELL
+
+C            NICHT-NEWTONSCHE SPANNUNGEN
+
+
+C            TRANSPORT UND ORIENTIERUNG VON PARTIKELN
+
+
+C            SCALAR HEAT/TEMPERATURE TRANSPORT
+C            APROXIMATE DECONVOLUTION FOR SCALAR
+C            TURBULENT PRANDTL NUMBER 
+C            PLOT LOCAL SCALAR CONVECTION DIFFUSION EXTREMES 
+C            ANALYZE AND PLOT NEAR WALL GRID RESLOLUTION 
+C            WRITE SPECIAL 1D LINE FOR TMIX FOR SPECTRA AND PDF
+C            SCALAR TIME ADVANCEMENT/DISCRETISATION METHOD
+
+C            STROEMUNG NACH OBEN?
+
+
+C            BEHANDLUNG DER FLUKTUATIONS-RANDBEDINGUNG
+
+C            BEHANDLUNG VON PPHYS ALS QUELLTERM IN TSTLE2
+
+C            POSITIONIERUNG DER EINSTROEMPROFILE
+
+C           STATISTIK
+
+
+C                 GEMISCHTES
+
+C                GRDFMI WIRD NICHT VERWENDET, DAHER EINSPARUNG DER FELDER
+C                IGRHF UND GRHF
+
+C                VERGROESSERN DER KJI-RICHTUNG BEI FORTSETZUNGSLAUF ERLAUBT!
+
+C                RAUSSCHREIBEN VON ZEITRECORDS
+
+C                FUER KORRELATIONEN UND HAEFIGKEITSVERTEILUNGEN
+        SUBROUTINE GRDREC (NMREC,NVREC,ITREC,MAXREC,LREC,NTREC,
+     +                    CIDREC,CIDRE2,
+     +                    IVEL,IVOR,KANREC,KANGEO,
+     +                    INXREC,INYREC,INZREC,
+     +                    XUG,XOG,YUG,YOG,ZUG,ZOG,
+     +                    XREC,YREC,ZREC,
+     +                    IARR,JARR,KARR,
+     +                    KK,JJ,II,
+     +                    X,Y,Z,DX,DY,DZ,IREC)
+C
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+C
+C    SUBROUTINE FUER DIE ERZEUGUNG DER TESTVOLUMEN-GITTER    
+C    FUER RAUSSCHREIBEN VON ZEITRECORDS
+C    MM 22.2 1991
+C    MM  5. 1.1993            ZWEITE MOEGLICHKEIT DER GITTERGENERIERUNG
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+C   NVREC :    ANZAHL DER ZEITRECORDS
+C   ITREC :    SPRUNG ZWISCHEN DEN ZEITSCHRITTEN
+C   MAXREC:    ANSCHLAG, MAXIMALE ANZAHL DER RECORDS
+C   LREC  :    LOGICAL, .TRUE. FALLS ZEITRECORDS RAUSGESCHRIEBEN
+C              WERDEN SOLL, .FALSE.  FALLS KANAL 52 LEER
+C   NTREC :    ANZAHL DER BIS JETZT GESCHRIEBENEN ZEITRECORDS
+C
+C   IVORX,Y,Z=+1 FUER POSITIVES INKREMENT(XOG>XUG,YOG>YUG,Z..)
+C   IVORX,Y,Z=-1 FUER NEGATIVES INKREMENT(XOG<XUG,YOG<YUG,Z..)
+C
+C   IVEL  :    AUSWAHL DER RAUSGESCHRIEBENEN GROESSE,
+C              FALLS IVEL>10  WIRD AUTOMATISCH JEDER ZWEITE GITTERPUNKT
+C              GENOMMEN
+C
+C
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+        INTEGER
+     +           KANREC(NMREC),KANGEO(NMREC)
+     +          ,IVEL(NMREC),IVOR(NMREC)
+     +          ,INXREC(NMREC),INYREC(NMREC),INZREC(NMREC)
+     +          ,IARR(NMREC,II),JARR(NMREC,JJ),KARR(NMREC,KK)
+     +          ,NTREC(NMREC)
+C
+C
+C
+        DIMENSION  XUG(NMREC),XOG(NMREC)
+     +            ,YUG(NMREC),YOG(NMREC)
+     +            ,ZUG(NMREC),ZOG(NMREC)
+        DIMENSION X(II),Y(JJ),Z(KK),DX(II),DY(JJ),DZ(KK)
+        DIMENSION  XREC(NMREC,II)
+     +            ,YREC(NMREC,JJ)
+     +            ,ZREC(NMREC,KK)
+C
+       CHARACTER (LEN=16) CIDREC(NMREC),CIDRE2
+C
+        LOGICAL LREC
+C
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+
+       KMX = KK
+       JMX = JJ
+       IMX = II
+C
+        WRITE(44,*)'TESTVOLUMEN:',IREC
+C
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+C
+C                      MODUL ZUM EINLESEN SCHON ERZEUGTER GEOMETRIEN
+C
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+C
+       IF(IVEL(IREC).ne.41) THEN
+       OPEN (KANGEO(IREC),FORM='FORMATTED')
+       REWIND KANGEO(IREC)
+C
+C
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+C
+C      READ (KANGEO(IREC),'A10',END=999) CIDRE2
+       READ (KANGEO(IREC),'(A)',END=999) CIDRE2
+C
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+C
+       IF (CIDRE2.NE.CIDREC(IREC)) THEN
+       WRITE(44,*)'FALSCHE IDENTITAET VON GEOMETRIEFILE'
+       LREC=.FALSE.
+       RETURN
+       ENDIF
+C
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+C
+       READ (KANGEO(IREC),6050,END=999)
+       READ (KANGEO(IREC),6050,END=999)
+     +                                 (XREC(IREC,I), I=1,INXREC(IREC))
+       READ (KANGEO(IREC),6050,END=999)
+       READ (KANGEO(IREC),6050,END=999)
+     +                                (YREC(IREC,I), I=1,INYREC(IREC))
+       READ (KANGEO(IREC),6050,END=999)
+       READ (KANGEO(IREC),6050,END=999)
+     +                                (ZREC(IREC,I), I=1,INZREC(IREC))
+C
+       READ (KANGEO(IREC),6060,END=999)
+       READ (KANGEO(IREC),6060,END=999)
+     +                                (IARR(IREC,I), I=1,INXREC(IREC))
+       READ (KANGEO(IREC),6060,END=999)
+       READ (KANGEO(IREC),6060,END=999)
+     +                                (JARR(IREC,I), I=1,INYREC(IREC))
+       READ (KANGEO(IREC),6060,END=999)
+       READ (KANGEO(IREC),6060,END=999)
+     +                                (KARR(IREC,I), I=1,INZREC(IREC))
+C
+       READ (KANGEO(IREC),6060,END=999)
+       READ (KANGEO(IREC),6060,END=999)
+     +                                  NTREC(IREC)
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+C               ABFRAGE, OB ANSCHLAG ERREICHT
+C      IF(NTREC(IREC).GE.MAXREC) THEN
+C      LREC = .FALSE.
+C      RETURN
+C      ENDIF
+C
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+        WRITE (44,*)'GITTER WURDE EINGELESEN'
+        WRITE(44,*)'CIDREC:',CIDREC(IREC)
+        WRITE (44,*) 'ANZAHL DER ZEITRECORDS',NTREC(IREC)
+C
+        WRITE (44,*) 'XREC'
+        WRITE (44,*) (XREC(IREC,I), I=1,INXREC(IREC))
+        WRITE (44,*) 'YREC'
+        WRITE (44,*) (YREC(IREC,I), I=1,INYREC(IREC))
+        WRITE (44,*) 'ZREC'
+        WRITE (44,*) (ZREC(IREC,I), I=1,INZREC(IREC))
+C
+        WRITE (44,*) 'IARR'
+        WRITE (44,*) (IARR(IREC,I),I=1,INXREC(IREC))
+        WRITE (44,*) 'JARR'
+        WRITE (44,*) (JARR(IREC,I),I=1,INYREC(IREC))
+        WRITE (44,*) 'KARR'
+        WRITE (44,*) (KARR(IREC,I),I=1,INZREC(IREC))
+C
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+C
+         GOTO 1000
+       ENDIF
+C
+C        GITTER KONNTE EINGELESEN WERDEN, WIRD SOMIT UEBERNOMMEN
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+C
+  999   NTREC(IREC) = 0
+C
+C         GITTER KONNTE NICHT EINGELESEN WERDEN, MUSS ALSO ERZEUGT
+C         WERDEN
+C
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+C                           BELEGUNG DER STEUERGROESSEN IVORX,Y,Z
+C                           DIE ENTSCHEIDEN, OB GITTER NACH POSITIV
+C                           ODER NEGATIV VERSCHOBEN WIRD
+C
+        IVORX = INT(SIGN(1.,(XOG(IREC)-XUG(IREC))))
+        IVORY = INT(SIGN(1.,(YOG(IREC)-YUG(IREC))))
+        IVORZ = INT(SIGN(1.,(ZOG(IREC)-ZUG(IREC))))
+C
+C
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+C                        WELCHER ALGORITHMUS WIRD GENOMMEN
+
+      IF ( IVEL(IREC) .LT. 10 )  THEN
+
+C
+C               MOEGLICHST AEQUIDISTANTES GITTER WIRD ERZEUGT
+C 
+C 
+C                    VORLAEUFIGES GITTER IN X-RICHTUNG (AEQUIDISTANT)
+C
+	if (INXREC(IREC).gt.1) then
+        DO 2 IIND=1,INXREC(IREC)
+    2   XREC(IREC,IIND)=XUG(IREC)+FLOAT(IIND-1)*(XOG(IREC)-XUG(IREC))/
+     +            FLOAT(INXREC(IREC)-1)
+        else
+         XREC(IREC,1)=XUG(IREC)
+        endif
+C
+C
+C
+C                   VORLAEUFIGES GITTER IN Y-RICHTUNG (AEQUIDISTANT)
+C
+	if (INYREC(IREC).gt.1) then
+        DO 4 JIND=1,INYREC(IREC)
+    4   YREC(IREC,JIND)=YUG(IREC)+FLOAT(JIND-1)*(YOG(IREC)-YUG(IREC))/
+     +            FLOAT(INYREC(IREC)-1)
+        else
+         YREC(IREC,1)=YUG(IREC)
+        endif
+C
+C
+C
+C                   VORLAEUFIGES GITTER IN Z-RICHTUNG (AEQUIDISTANT)
+C
+	if (INZREC(IREC).gt.1) then
+        DO 6 KIND=1,INZREC(IREC)
+    6   ZREC(IREC,KIND)=ZUG(IREC)+FLOAT(KIND-1)*(ZOG(IREC)-ZUG(IREC))/
+     +            FLOAT(INZREC(IREC)-1)
+        else
+         ZREC(IREC,1)=ZUG(IREC)
+        endif
+C
+C
+C                       GITTERINDIZES IN X-RICHTUNG (NICHT AEQUIDISTANT)
+C
+        DO 11 I=1,IMX 
+	   IARR(IREC,I)=1
+C	   write(KANREC+3,*) I,X(I)
+   11   CONTINUE
+
+        DO 10 J=1,INXREC(IREC)
+         DO 10 I=1,IMX-1
+          IF ((X(I)-XREC(IREC,J)+0.5*DX(I))*(X(I+1)-
+     +       XREC(IREC,J)+0.5*DX(I+1)).LE.0.) THEN
+             IARR(IREC,J)=I+1
+          END IF
+   10   CONTINUE
+C
+C
+C
+C                       GITTERINDIZES IN Y-RICHTUNG (NICHT AEQUIDISTANT)
+C
+
+        DO 21 J=1,JMX 
+	   JARR(IREC,J)=1
+C	   write(KANREC+4,*) J,Y(J)
+   21   CONTINUE
+
+        DO 20 J=1,INYREC(IREC)
+         DO 20 I=1,JMX-1
+          IF ((Y(I)-YREC(IREC,J)+0.5*DY(I))*(Y(I+1)-
+     +       YREC(IREC,J)+0.5*DY(I+1)).LE.0.) THEN
+             JARR(IREC,J)=I+1
+          END IF
+   20   CONTINUE
+C
+C
+C
+C                       GITTERINDIZES IN Z-RICHTUNG (NICHT AEQUIDISTANT)
+C
+        DO 31 K=1,KMX 
+	   KARR(IREC,K)=1
+C	   write(KANREC+5,*) K,Z(K)
+   31   CONTINUE
+
+        DO 30 J=1,INZREC(IREC)
+         DO 30 I=1,KMX-1
+          IF ((Z(I)-ZREC(IREC,J)+0.5*DZ(I))*(Z(I+1)-
+     +     ZREC(IREC,J)+0.5*DZ(I+1)).LE.0.) THEN
+             KARR(IREC,J)=I+1
+          END IF
+   30   CONTINUE
+C
+C
+C
+C                                     VERMEIDUNG VON DOPPELZAEHLUNGEN
+C
+C
+        DO 41 I=1,INXREC(IREC)-1
+C
+          IF (IARR(IREC,I)*IVORX.GE.IARR(IREC,I+1)*IVORX) THEN
+              IARR(IREC,I+1)=IARR(IREC,I)+IVORX
+          END IF
+C           
+   41   CONTINUE
+C
+C
+        DO 43 I=1,INYREC(IREC)-1
+C           
+          IF (JARR(IREC,I)*IVORY.GE.JARR(IREC,I+1)*IVORY) THEN
+              JARR(IREC,I+1)=JARR(IREC,I)+IVORY
+          END IF
+C          
+   43   CONTINUE
+C
+C
+        DO 45 I=1,INZREC(IREC)-1
+C          
+          IF (KARR(IREC,I)*IVORZ.GE.KARR(IREC,I+1)*IVORZ) THEN
+              KARR(IREC,I+1)=KARR(IREC,I)+IVORZ
+          END IF
+C         
+   45   CONTINUE
+C
+C
+C             INDIZES EINES MOEGLICHST AEQ.DIST. GITTERS STEHEN FEST
+C
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+
+C JEDER GITTERPUNKT WIRD GENOMMEN
+
+       ELSEIF(IVEL(IREC).EQ.3 .OR. IVEL(IREC).EQ.4) THEN
+C X-RICHTUNG
+C
+C ERSTER INDEX
+
+          IARR(IREC,1)=-1000
+
+          DO I=1,IMX-2
+             IF ( (X(I) - 0.5*DX(I-1) - XUG(IREC) )
+     & *(X(I) + 0.5*DX(I ) - XUG(IREC) ) .LE. 0.0)
+     & IARR(IREC,1)=I
+          ENDDO
+C
+C FOLGENDE INDIZES
+C
+          DO I=1,INXREC(IREC)
+             IARR(IREC,I) = IARR(IREC,1) + (I-1)
+          ENDDO
+C
+C Y-RICHTUNG
+C
+C ERSTER INDEX
+
+          JARR(IREC,1)=-1000
+
+          DO I=1,JMX-2
+             IF ( (Y(I) - 0.5*DY(I-1) - YUG(IREC) )
+     & *(Y(I) + 0.5*DY(I ) - YUG(IREC) ) .LE. 0.0)
+     & JARR(IREC,1)=I+1
+          ENDDO
+C
+C FOLGENDE INDIZES
+C
+          DO I=1,INYREC(IREC)
+             JARR(IREC,I) = JARR(IREC,1) + (I-1)
+          ENDDO
+C
+C Z-RICHTUNG
+C
+C ERSTER INDEX
+
+          KARR(IREC,1)=-1000
+
+          DO I=1,KMX-2
+             IF ( (Z(I) - 0.5*DZ(I-1) - ZUG(IREC) )
+     & *(Z(I) + 0.5*DZ(I ) - ZUG(IREC) ) .LE. 0.0)
+     & KARR(IREC,1)=I+1
+          ENDDO
+C
+C FOLGENDE INDIZES
+C
+          DO I=1,INZREC(IREC)
+             KARR(IREC,I) = KARR(IREC,1) + (I-1)
+          ENDDO
+C
+
+C UEBERPRUEFUNG DER INDIZES
+C
+      IF((IARR(IREC,1).LE.0).OR.
+     & (JARR(IREC,1).LE.0).OR.
+     & (KARR(IREC,1).LE.0).OR.
+     & (IARR(IREC,INXREC(IREC)).GT.IMX).OR.
+     & (JARR(IREC,INYREC(IREC)).GT.JMX).OR.
+     & (KARR(IREC,INZREC(IREC)).GT.KMX) ) THEN
+       WRITE(6,*) 'FALSCHE EINGABE DER KOORDINATEN FUER RECORDS'
+     & ,IMX,JMX,KMX
+       WRITE(6,*) 'TESTVOLUMEN NR.:   ',IREC
+       WRITE(6,*) 'IARR:',(IARR(IREC,I),I=1,INXREC(IREC))
+       WRITE(6,*) 'JARR:',(JARR(IREC,I),I=1,INYREC(IREC))
+       WRITE(6,*) 'KARR:',(KARR(IREC,I),I=1,INZREC(IREC))
+       STOP ' FALSCHE EINGABE FUER RECORDS'
+      ENDIF
+C------------------ Wirklich jeder Gitterpunkt wird genommen
+      ELSEIF (IVEL(IREC) .EQ. 41) THEN
+        IF((INXREC(IREC).ne.IMX).or.(INYREC(IREC).ne.JMX) 
+     $     .or.(INZREC(IREC).ne.KMX)) STOP 'FEHLER IN GRDREC'
+        DO I=1,IMX
+         IARR(IREC,I) = I
+        ENDDO
+        DO J=1,JMX
+         JARR(IREC,J) = J
+        ENDDO
+        DO K=1,KMX
+         KARR(IREC,K) = K
+        ENDDO 
+C------------------------------------------------------------------------------
+C             JEDER ZWEITER GITTERPUNKT WIRD GENOMMEN
+
+       ELSE
+
+C
+C                                      X-RICHTUNG
+C
+C                       ERSTER INDEX
+
+          IARR(IREC,1)=3
+
+          DO I=3,IMX-2
+             IF ( (X(I) - 0.5*DX(I-1)  - XUG(IREC) )
+     &           *(X(I) + 0.5*DX(I  )  - XUG(IREC) ) .LE. 0.0)
+     &                    IARR(IREC,1)=I
+          ENDDO
+C
+C                       FOLGENDE INDIZES
+C
+          DO I=2,INXREC(IREC)
+             IARR(IREC,I) = IARR(IREC,1) + (I-1)*2
+          ENDDO
+C
+C                                      Y-RICHTUNG
+C
+C                       ERSTER INDEX
+
+          JARR(IREC,1)=3
+
+          DO I=3,JMX-2
+             IF ( (Y(I) - 0.5*DY(I-1)  - YUG(IREC) )
+     &           *(Y(I) + 0.5*DY(I  )  - YUG(IREC) ) .LE. 0.0)
+     &                    JARR(IREC,1)=I
+          ENDDO
+C
+C                       FOLGENDE INDIZES
+C
+          DO I=2,INYREC(IREC)
+             JARR(IREC,I) = JARR(IREC,1) + (I-1)*2
+          ENDDO
+C
+C                                      Z-RICHTUNG
+C
+C                       ERSTER INDEX
+
+          KARR(IREC,1)=3
+
+          DO I=3,KMX-2
+             IF ( (Z(I) - 0.5*DZ(I-1)  - ZUG(IREC) )
+     &           *(Z(I) + 0.5*DZ(I  )  - ZUG(IREC) ) .LE. 0.0)
+     &                    KARR(IREC,1)=I
+          ENDDO
+C
+C                       FOLGENDE INDIZES
+C
+          DO I=2,INZREC(IREC)
+             KARR(IREC,I) = KARR(IREC,1) + (I-1)*2
+          ENDDO
+C
+
+C
+C                    UEBERPRUEFUNG DER INDIZES
+C
+      IF((IARR(IREC,1).LE.0).OR.
+     &   (JARR(IREC,1).LE.0).OR.
+     &   (KARR(IREC,1).LE.0).OR.
+     &   (IARR(IREC,INXREC(IREC)).GT.IMX).OR.
+     &   (JARR(IREC,INYREC(IREC)).GT.JMX).OR.
+     &   (KARR(IREC,INZREC(IREC)).GT.KMX)    )    THEN
+       WRITE(6,*) 'FALSCHE EINGABE DER KOORDINATEN FUER RECORDS'
+     &   ,IMX,JMX,KMX
+       WRITE(6,*) 'TESTVOLUMEN NR.:   ',IREC
+       WRITE(6,*) 'IARR:',(IARR(IREC,I),I=1,INXREC(IREC))
+       WRITE(6,*) 'JARR:',(JARR(IREC,I),I=1,INYREC(IREC))
+       WRITE(6,*) 'KARR:',(KARR(IREC,I),I=1,INZREC(IREC))
+       STOP ' FALSCHE EINGABE FUER RECORDS'
+      ENDIF
+C
+
+      ENDIF
+
+C
+C                                JETZT STEHEN DIE GITTERINDIZES FEST
+C
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+C
+C                                 ENDGUELTIGES GITTER BELEGEN
+C
+CCCCCC      IF (IVEL(IREC) .LT. 20) THEN
+C 
+         DO I=1,INXREC(IREC)
+            XREC(IREC,I)=X(IARR(IREC,I))
+         ENDDO
+C
+C 
+C
+         DO J=1,INYREC(IREC)
+            YREC(IREC,J)=Y(JARR(IREC,J))
+         ENDDO
+C     
+C     
+C
+         DO K=1,INZREC(IREC)
+            ZREC(IREC,K)=Z(KARR(IREC,K))
+         ENDDO
+C
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCC  PUNKTE WERDEN JEWEILS IN DIE MITTE VON
+C                                8 ZELLEN GELEGT
+
+CCCCCC      ELSE
+
+C         DO I=1,INXREC(IREC)
+C            INDEX = IARR(IREC,I)
+C            XREC(IREC,I)=0.5*( X( INDEX ) + X( INDEX + 1))
+C         ENDDO
+CC
+C         DO J=1,INYREC(IREC)
+C            INDEX = JARR(IREC,J)
+C            YREC(IREC,J)=0.5*( Y( INDEX ) + Y( INDEX + 1))
+C         ENDDO
+CC
+C         DO K=1,INZREC(IREC)
+C            INDEX = KARR(IREC,K)
+C            ZREC(IREC,K)=0.5*( Z( INDEX ) + Z( INDEX + 1))
+C         ENDDO
+
+CCCCCC      ENDIF
+
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+C
+C       INFO-BLOCK (GITTERGEOMETRIE) SCHREIBEN
+C
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+C
+       REWIND KANGEO(IREC)
+       WRITE (KANGEO(IREC),'(A)') CIDREC(IREC)
+       WRITE (KANGEO(IREC),'(''   X  '')')
+       WRITE (KANGEO(IREC),6050)
+     +                                 (XREC(IREC,I), I=1,INXREC(IREC))
+       WRITE (KANGEO(IREC),'(''   Y  '')')
+       WRITE (KANGEO(IREC),6050)
+     +                                (YREC(IREC,I), I=1,INYREC(IREC))
+       WRITE (KANGEO(IREC),'(''   Z  '')')
+       WRITE (KANGEO(IREC),6050)
+     +                                (ZREC(IREC,I), I=1,INZREC(IREC))
+C
+       WRITE (KANGEO(IREC),'('' IARR '')')
+       WRITE (KANGEO(IREC),6060)
+     +                                (IARR(IREC,I), I=1,INXREC(IREC))
+       WRITE (KANGEO(IREC),'('' JARR '')')
+       WRITE (KANGEO(IREC),6060)
+     +                                (JARR(IREC,I), I=1,INYREC(IREC))
+       WRITE (KANGEO(IREC),'('' KARR '')')
+       WRITE (KANGEO(IREC),6060)
+     +                                (KARR(IREC,I), I=1,INZREC(IREC))
+C
+       WRITE (KANGEO(IREC),'('' NTREC'')')
+       WRITE (KANGEO(IREC),6060)
+     +                                  NTREC(IREC)
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+C                                         KONTROLLAUSDRUCK IN CHECK-FILE
+C
+C
+        WRITE (44,*)'GITTER WURDE ERZEUGT'
+        WRITE (44,*) 'ANZAHL DER ZEITRECORDS',NTREC(IREC)
+        WRITE (44,*) 'IDENTITAET VON GEO-FILE:',CIDREC(IREC)
+C
+        WRITE (44,*) 'XREC'
+        WRITE (44,*) (XREC(IREC,I), I=1,INXREC(IREC))
+        WRITE (44,*) 'YREC'
+        WRITE (44,*) (YREC(IREC,I), I=1,INYREC(IREC))
+        WRITE (44,*) 'ZREC'
+        WRITE (44,*) (ZREC(IREC,I), I=1,INZREC(IREC))
+C
+        WRITE (44,*) 'IARR'
+        WRITE (44,*) (IARR(IREC,I),I=1,INXREC(IREC))
+        WRITE (44,*) 'JARR'
+        WRITE (44,*) (JARR(IREC,I),I=1,INYREC(IREC))
+        WRITE (44,*) 'KARR'
+        WRITE (44,*) (KARR(IREC,I),I=1,INZREC(IREC))
+C
+C
+C
+C
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+ 1000   CONTINUE
+        RETURN
+C
+ 6050   FORMAT (6(E12.5E3,1X))
+ 6060   FORMAT (4(I9,1X))
+C
+        END

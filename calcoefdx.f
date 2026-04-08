@@ -1,0 +1,344 @@
+
+
+
+
+
+
+
+
+
+
+
+CCCCC        DEFINITIONEN FUER C-PREPROZESSOR
+C            MASCHINE
+
+C              MESSAGE PASSING INTERFACE
+
+C            RAEUMLICHE DISKRETISIERUNG
+C
+***********************************************************************
+C                       KOMPAKT-UPWIND in X-RICHTUNG (3-TER ORDNUNG) fuer
+C                       die U-Komponente (V und W bleiben Kompakt 4ter ordnung)
+C                       falls im Stroemungsfeld eine Koerper vorhanden ist
+C
+***********************************************************************
+C                       KOMPAKTVERF. in XYZ-RICHTUNG (4-TER ORDNUNG)
+
+
+**********************************************************************
+C                      Preprocessing with ADM for 2nd Order Central
+***********************************************************************
+CCC                     Bei periodischen Randbedingungen in X-Richtung
+CCC                     ist eine hoehere O
+C
+CCC                     Bei periodischen Randbedingungen in Y-Richtung
+CCC                     ist eine hoehere Ordnung moeglich
+C
+CCC                     Bei periodischen Randbedingungen in Y-Richtung:
+CCC                     Zentraldiff. 4-ter Ordnung (Parallelisieung moeglich)
+C
+***********************************************************************
+C
+C
+C            INTERPOLATION AN GITTER-GRENZEN
+
+C            BEHANDLUNG DER TOPAR-RANDBEDINGUNG
+
+C            ZEITLICHE DISKRETISIERUNG
+
+C            FEINSTRUKTURMODELL
+
+C            NICHT-NEWTONSCHE SPANNUNGEN
+
+
+C            TRANSPORT UND ORIENTIERUNG VON PARTIKELN
+
+
+C            SCALAR HEAT/TEMPERATURE TRANSPORT
+C            APROXIMATE DECONVOLUTION FOR SCALAR
+C            TURBULENT PRANDTL NUMBER 
+C            PLOT LOCAL SCALAR CONVECTION DIFFUSION EXTREMES 
+C            ANALYZE AND PLOT NEAR WALL GRID RESLOLUTION 
+C            WRITE SPECIAL 1D LINE FOR TMIX FOR SPECTRA AND PDF
+C            SCALAR TIME ADVANCEMENT/DISCRETISATION METHOD
+
+C            STROEMUNG NACH OBEN?
+
+
+C            BEHANDLUNG DER FLUKTUATIONS-RANDBEDINGUNG
+
+C            BEHANDLUNG VON PPHYS ALS QUELLTERM IN TSTLE2
+
+C            POSITIONIERUNG DER EINSTROEMPROFILE
+
+C           STATISTIK
+
+
+C                 GEMISCHTES
+
+C                GRDFMI WIRD NICHT VERWENDET, DAHER EINSPARUNG DER FELDER
+C                IGRHF UND GRHF
+
+C                VERGROESSERN DER KJI-RICHTUNG BEI FORTSETZUNGSLAUF ERLAUBT!
+
+C                RAUSSCHREIBEN VON ZEITRECORDS
+
+C                FUER KORRELATIONEN UND HAEFIGKEITSVERTEILUNGEN
+      SUBROUTINE CALCOEFDX (II,ISTART,ISTOP,DX,DDX,NFRO,NBAC,
+     $                      COEFDX)
+C*MGLET***************************************************************
+C        C A L C O E F D          
+C        BERECHNUNG DER KOEFFIZIENTEN FUER DIE DIFFISIVEN TERME
+C        FUER DAS KOMPAKTVERFAHREN VIERTER ORDNUNG IN EINER
+C        KOORDIANTENRICHTUNG
+C*MGLET***************************************************************
+C
+C PARAM: COEFDX         - FELD FUER DIE KOEFFIZIENTEN IN X-RICHTUNG 
+C 
+C      ISTAG = 1        
+C      : COEFDX(I,1)    - ENTHAELT KOEFFIZIENTEN DER "LINKEN SPALTE"
+C                         PARALLEL ZUR HAUPTDIAGONALEN
+C      : COEFDX(I,2)    - ENTHAELT KOEFFIZIENTEN DER HAUPTDIAGONALEN
+C      : COEFDX(I,3)    - ENTHAELT KOEFFIZIENTEN DER "RECHTEN SPALTE"
+C                         PARALLEL ZUR HAUPTDIAGONALEN
+C      : COEFDX(I,4)    - ERSTER KOEFFIZIENT AUF DER RECHTEN SEITE DES 
+C                         GLEICHUNGSSYSTEMS
+C      : COEFDX(I,5)    - ZWEITER KOEFFIZIENT AUF DER RECHTEN SEITE DES 
+C                         GLEICHUNGSSYSTEMS
+C      : COEFDX(I,6)    - DRITTER KOEFFIZIENT AUF DER RECHTEN SEITE DES 
+C                         GLEICHUNGSSYSTEMS
+CCC
+C      ISTAG = 0
+C      : COEFDX(I,7)    - ENTHAELT KOEFFIZIENTEN DER "LINKEN SPALTE"
+C                         PARALLEL ZUR HAUPTDIAGONALEN
+C      : COEFDX(I,8)    - ENTHAELT KOEFFIZIENTEN DER HAUPTDIAGONALEN
+C      : COEFDX(I,9)    - ENTHAELT KOEFFIZIENTEN DER "RECHTEN SPALTE"
+C                         PARALLEL ZUR HAUPTDIAGONALEN
+C      : COEFDX(I,10)    - ERSTER KOEFFIZIENT AUF DER RECHTEN SEITE DES 
+C                         GLEICHUNGSSYSTEMS
+C      : COEFDX(I,11)   - ZWEITER KOEFFIZIENT AUF DER RECHTEN SEITE DES 
+C                         GLEICHUNGSSYSTEMS
+C      : COEFDX(I,12)   - DRITTER KOEFFIZIENT AUF DER RECHTEN SEITE DES 
+C                         GLEICHUNGSSYSTEMS
+C
+C DEFINE DIREKTIVEN     : KEINE 
+C
+C UNTERPROGRAMME      : INTERCOEF3, INTERCOEF5,RANDWERTIJDW,
+C                     : RANDWERTAND,RANDWERTD,RANDWERTIJAND,RANDWERTIJD
+C
+C VERS:  02.12.96 (AM)  : ORIGINAL        (KOMPAKT 4. ORDNUNG)
+C
+C*MGLET***************************************************************
+C
+
+      INTEGER    ISTART,          ISTOP
+CC    REAL       DX(II), DDX(II), COEFDX(ISTART:ISTOP+1,12)      
+      REAL       DX(II), DDX(II), COEFDX(II,12)      
+C
+C
+C************************  ISTAG = 1  **************************
+C
+       DO I = ISTART,ISTOP+1
+          COEFDX(I,1) = 0.0
+          COEFDX(I,2) = 0.0
+          COEFDX(I,3) = 0.0
+          COEFDX(I,4) = 0.0
+          COEFDX(I,5) = 0.0
+          COEFDX(I,6) = 0.0
+       ENDDO
+
+C                                    ***************************
+C                                    PERIODISCHE RANDBEDINGUNGEN
+C                                    ***************************
+      IF (NFRO .EQ.1) THEN
+C
+        DO I = ISTART,ISTOP+1
+        CALL INTERCOEF3(II,I,DX,DDX,COEFDX(I,1),COEFDX(I,2),
+     $  	 COEFDX(I,3),COEFDX(I,4),COEFDX(I,5),COEFDX(I,6))
+	 WRITE (6,*) I,COEFDX(I,1),COEFDX(I,2),COEFDX(I,3),
+     $                COEFDX(I,4),COEFDX(I,5),COEFDX(I,6)
+        ENDDO               
+C
+      ELSE                
+C
+C                                    ***************************
+C                                    NICHT-PERIODISCHE RANDBED.
+C                                    ***************************
+C
+      DO 100 I = ISTART,ISTOP+1
+C                                    ERSTER PHYSIKALISCHER PUNKT
+        IF(I.EQ.ISTART) THEN
+      	 CALL RANDWERTAND(II,I,DX,DDX,COEFDX(I,1),COEFDX(I,2),
+     $		  COEFDX(I,3),COEFDX(I,4),COEFDX(I,5),COEFDX(I,6))
+	 WRITE (6,*) I,COEFDX(I,1),COEFDX(I,2),COEFDX(I,3),
+     $                COEFDX(I,4),COEFDX(I,5),COEFDX(I,6)
+C
+C                                    LETZTER PHYSIKALISCHER PUNKT
+        ELSEIF(I.EQ.ISTOP) THEN 
+         CALL RANDWERTDW (II,I,DX,DDX,COEFDX(I,1),COEFDX(I,2),
+     $	 	  COEFDX(I,3),COEFDX(I,4),COEFDX(I,5),COEFDX(I,6))
+C       CALL INTERCOEF3(II,I,DX,DDX,COEFDX(I,1),COEFDX(I,2),
+C    $  	 COEFDX(I,3),COEFDX(I,4),COEFDX(I,5),COEFDX(I,6))
+	 WRITE (6,*) I,COEFDX(I,1),COEFDX(I,2),COEFDX(I,3),
+     $                COEFDX(I,4),COEFDX(I,5),COEFDX(I,6)
+C
+C                                    KOEFFIZIENTEN FUER DEN 
+C                                    RECHTEN(OBEREN) RAND
+        ELSEIF(I.EQ.ISTOP+1) THEN
+C                                     -SLIP ODER NOSLIP-WAND
+	 IF(NBAC.EQ.5 .OR. NBAC.EQ.6) THEN
+C        CALL RANDWERTD (II,I,DX,DDX,0.0,COEFDX(I,2),
+C    $    	         0.0,0.0,0.0,0.0)
+          COEFDX(I,1) = 0.0
+          COEFDX(I,2) = 1.0
+          COEFDX(I,3) = 0.0
+          COEFDX(I,4) = 0.0
+          COEFDX(I,5) = 0.0
+          COEFDX(I,6) = 0.0
+C
+	 WRITE (6,*) I,COEFDX(I,1),COEFDX(I,2),COEFDX(I,3),
+     $                COEFDX(I,4),COEFDX(I,5),COEFDX(I,6)
+C                                     -AUSSTROEMRAND         
+         ELSE
+         CALL RANDWERTD (II,I,DX,DDX,COEFDX(I,1),COEFDX(I,2),
+     $    	  COEFDX(I,3),COEFDX(I,4),COEFDX(I,5),COEFDX(I,6))
+	 WRITE (6,*) I,COEFDX(I,1),COEFDX(I,2),COEFDX(I,3),
+     $                COEFDX(I,4),COEFDX(I,5),COEFDX(I,6)
+	 ENDIF
+C
+C                                    INNERHALB DES GEBIETES       
+        ELSE
+	 CALL INTERCOEF3(II,I,DX,DDX,COEFDX(I,1),COEFDX(I,2),
+     $	 	  COEFDX(I,3),COEFDX(I,4),COEFDX(I,5),COEFDX(I,6))
+	 WRITE (6,*) I,COEFDX(I,1),COEFDX(I,2),COEFDX(I,3),
+     $                COEFDX(I,4),COEFDX(I,5),COEFDX(I,6)
+	ENDIF
+C
+  100 CONTINUE
+C
+      ENDIF
+C
+C************************  ISTAG = 0  **************************
+C
+       DO I = ISTART,ISTOP+1
+          COEFDX(I,7) = 0.0
+          COEFDX(I,8) = 0.0
+          COEFDX(I,9) = 0.0
+          COEFDX(I,10) = 0.0
+          COEFDX(I,11) = 0.0
+          COEFDX(I,12) = 0.0
+       ENDDO
+
+C                                    ***************************
+C                                    PERIODISCHE RANDBEDINGUNGEN
+C                                    ***************************
+      IF (NFRO .EQ.1) THEN
+C
+      DO I = ISTART,ISTOP+1
+	 CALL INTERCOEF5(II,I,DX,DDX,COEFDX(I,7),COEFDX(I,8),
+     $             COEFDX(I,9),COEFDX(I,10),COEFDX(I,11),COEFDX(I,12))
+	 WRITE (6,*) I,COEFDX(I,7),COEFDX(I,8),COEFDX(I,9),
+     $                COEFDX(I,10),COEFDX(I,11),COEFDX(I,12)
+      ENDDO               
+C
+      ELSE                
+C                                    ***************************
+C                                    NICHT-PERIODISCHE RANDBED.
+C                                    ***************************
+C
+      DO 200 I = ISTART,ISTOP+1
+C                                    ERSTER PHYSIKALISCHER PUNKT
+C
+        IF(I.EQ.ISTART) THEN
+C                                      -SLIP WAND
+	 IF (NFRO .EQ.6) THEN
+C	 CALL RANDWERTIJAND(II,I,DX,DDX,0.0,COEFDX(I,8),
+C    $                     0.0,0.0,0.0,0.0) 
+          COEFDX(I,7) = 0.0
+          COEFDX(I,8) = 1.0
+          COEFDX(I,9) = 0.0
+          COEFDX(I,10) = 0.0
+          COEFDX(I,11) = 0.0
+          COEFDX(I,12) = 0.0
+	 WRITE (6,*) I,COEFDX(I,7),COEFDX(I,8),COEFDX(I,9),
+     $                COEFDX(I,10),COEFDX(I,11),COEFDX(I,12)
+C
+C                                      -NOSLIP WAND   
+C	 ELSEIF (NFRO .EQ.5) THEN
+C	 CALL RANDWERTIJANDW(II,I,DX,DDX,COEFDX(I,7),COEFDX(I,8),
+C    $             COEFDX(I,9),COEFDX(I,10),COEFDX(I,11),COEFDX(I,12))         
+C        WRITE (6,*) I,COEFDX(I,7),COEFDX(I,8),COEFDX(I,9),
+C    $                COEFDX(I,10),COEFDX(I,11),COEFDX(I,12)
+C
+C                                      -EINSTROEMRAND 
+	 ELSE
+         CALL RANDWERTIJAND(II,I,DX,DDX,COEFDX(I,7),COEFDX(I,8),
+     $              COEFDX(I,9),COEFDX(I,10),COEFDX(I,11),COEFDX(I,12))
+	 WRITE (6,*) I,COEFDX(I,7),COEFDX(I,8),COEFDX(I,9),
+     $                COEFDX(I,10),COEFDX(I,11),COEFDX(I,12)
+ 	 ENDIF
+C
+C                                    LETZTER PHYSIKALISCHER PUNKT
+        ELSEIF(I.EQ.ISTOP) THEN
+C
+ 	 IF (NBAC .EQ.5 .OR. NBAC .EQ.6) THEN
+ 	 CALL INTERCOEF5(II,I,DX,DDX,COEFDX(I,7),COEFDX(I,8),
+     $	      COEFDX(I,9),COEFDX(I,10),COEFDX(I,11),COEFDX(I,12))
+C030487
+	 COEFDX(I,9) = 0.0
+ 	 ELSE
+C        CALL RANDWERTIJDW(II,I,DX,DDX,COEFDX(I,7),COEFDX(I,8),
+C    $              COEFDX(I,9),COEFDX(I,10),COEFDX(I,11),COEFDX(I,12))
+	 CALL INTERCOEF5(II,I,DX,DDX,COEFDX(I,7),COEFDX(I,8),
+     $             COEFDX(I,9),COEFDX(I,10),COEFDX(I,11),COEFDX(I,12))
+ 	 ENDIF
+	 WRITE (6,*) I,COEFDX(I,7),COEFDX(I,8),COEFDX(I,9),
+     $                COEFDX(I,10),COEFDX(I,11),COEFDX(I,12)
+C
+C                                    KOEFFIZIENTEN FUER DEN RECHTEN RAND
+        ELSEIF(I.EQ.ISTOP+1) THEN
+C                                        -SLIP WAND
+	  IF (NBAC .EQ.6) THEN
+C          CALL RANDWERTIJD(II,I,DX,DDX,0.0,COEFDX(I,8),
+C    $                      0.0,0.0,0.0,0.0)
+          COEFDX(I,7) = 0.0
+          COEFDX(I,8) = 1.0
+          COEFDX(I,9) = 0.0
+          COEFDX(I,10) = 0.0
+          COEFDX(I,11) = 0.0
+          COEFDX(I,12) = 0.0
+	 WRITE (6,*) I,COEFDX(I,7),COEFDX(I,8),COEFDX(I,9),
+     $                COEFDX(I,10),COEFDX(I,11),COEFDX(I,12)
+
+C                                        -NOSLIP WAND
+C	  ELSE IF (NBAC .EQ.5) THEN
+C          CALL RANDWERTIJDW(II,I,DX,DDX,COEFDX(I,7),COEFDX(I,8),
+C    $              COEFDX(I,9),COEFDX(I,10),COEFDX(I,11),COEFDX(I,12))
+C	 WRITE (6,*) I,COEFDX(I,7),COEFDX(I,8),COEFDX(I,9),
+C    $                COEFDX(I,10),COEFDX(I,11),COEFDX(I,12)
+C
+C                                        -AUSSTROEMRAND
+ 	  ELSE
+           CALL RANDWERTIJD(II,I,DX,DDX,COEFDX(I,7),COEFDX(I,8),
+     $	  	    COEFDX(I,9),COEFDX(I,10),COEFDX(I,11),COEFDX(I,12))
+	 WRITE (6,*) I,COEFDX(I,7),COEFDX(I,8),COEFDX(I,9),
+     $                COEFDX(I,10),COEFDX(I,11),COEFDX(I,12)
+ 	  ENDIF
+C
+C                                    KOEFFIZIENTEN IM GEBIET       
+        ELSE
+	 CALL INTERCOEF5(II,I,DX,DDX,COEFDX(I,7),COEFDX(I,8),
+     $	            COEFDX(I,9),COEFDX(I,10),COEFDX(I,11),COEFDX(I,12))
+	 WRITE (6,*) I,COEFDX(I,7),COEFDX(I,8),COEFDX(I,9),
+     $                COEFDX(I,10),COEFDX(I,11),COEFDX(I,12)
+        ENDIF
+C
+  200 CONTINUE
+C
+      ENDIF
+C
+C
+C
+C***********************  E   N   D  ***************************
+      RETURN
+      END

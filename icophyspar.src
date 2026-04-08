@@ -1,0 +1,82 @@
+       SUBROUTINE ICOPHYSPAR ()
+
+
+C*STARLET***************************************************************
+C        I C O P H Y S P A R     INITIALISIEREN DES COMMON-BLOCKES
+C                          COPHYSPAR
+C                          ZUM STEUERN DER PHYSIKALISCHEN PARAMETER
+C*STARLET***************************************************************
+C
+C PARAM: MTURB
+C        TU_LEVEL
+C        RHO
+C        GMOL
+C        UGRID
+C        VREF
+C        EXPON
+C        CIDUFR
+C        UFRCON
+C        UFRFREQ
+C        DELTA
+C        XREF
+C        IPP, JPP, KPP
+C        XPER, YPER, ZPER
+C        NXPER, NYPER, NZPER
+C        NPPHYS
+C        PPHYS
+C        XPPHYS
+C        
+C
+C VERS:   3.7.97 (MM)  : ORIGINAL
+C         12.12.02 (TB)  : PARAMETERS FOR SCALAR(HEAT) TRANSPORT ADDED
+C
+C
+C*STARLET***************************************************************
+C
+#include "cophyspar.h"
+C
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC  VORBELEGUNG 
+C
+ 	 MTURB         = 0
+         TU_LEVEL      = 0.1
+         RHO           = 1.0
+         GMOL          = 0.1 
+         UGRID         = 0.0 
+         VREF          = 1.0
+         EXPON         = 0.14286
+         CIDUFR        = 'UNIFORM'
+         UFRCON        = 1.0
+         UFRFREQ       = 0.0
+         DELTA         = 1.0
+         XREF          = 1.0
+         IPP           = 3
+         JPP           = 3
+         KPP           = 3 
+         XPER          = 1.0
+         YPER          = 1.0
+         ZPER          = 1.0
+         NXPER         = 0 
+         NYPER         = 0
+         NZPER         = 0
+         NPPHYS        = 0
+         DO I=1,NPPHYS_MAX
+
+            PPHYS (I)   = 0.0
+            XPPHYS(I)   = FLOAT(I)
+
+        ENDDO
+         LAMDA	       = 1.0
+         PRMOL         = 0.7
+         PRTURB        = 0.7 
+         TREF          = 1.0
+         EXPONT        = 0.14286
+         CIDUFR        = 'UNIFORM'
+         TFRCON        = 1.0
+         DELTAT        = 1.0        
+C
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC  
+C
+      RETURN
+      END
+
+

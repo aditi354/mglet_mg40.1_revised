@@ -1,0 +1,84 @@
+      SUBROUTINE EXTENDK(KK,JJ,II,KMXAI,JMXAI,IMXAI,PHI,TEXT,NRGT,NLFT)
+C---------------------------------------------------------------------72
+C
+C     BELEGT WERTE VON PHI, DIE ZWISCHEN KMXAI UND KK LIEGEN
+C
+C MM. 26.10.1998
+C
+C---------------------------------------------------------------------72
+
+      REAL PHI(KK,JJ,II)
+      CHARACTER (LEN=16) TEXT
+
+#ifdef _ALLOW_K_EXTEND_
+      IF (TEXT(2:2) .EQ. 'P') THEN
+         DO I=1,II
+            DO J=1,JJ
+               DO K=KMXAI-1, KK                  
+                  PHI(K,J,I) = PHI(KMXAI-2,J,I)
+               ENDDO
+            ENDDO
+         ENDDO
+      ELSE
+         DO I=1,II
+            DO J=1,JJ
+               DO K=KMXAI, KK                  
+                  PHI(K,J,I) = PHI(KMXAI-1,J,I)
+               ENDDO
+            ENDDO
+         ENDDO
+      ENDIF
+#endif
+#ifdef _ALLOW_J_EXTEND_
+      	IF (NRGT .EQ. 1 .AND. NLFT .EQ. 1) THEN
+C        PERIODIC ELONGATION
+         DO I=1,II
+            DO K=1,KK
+               DO J=JMXAI-1, JJ                  
+                  PHI(K,J,I) = PHI(K,J-JMXAI+4,I)
+               ENDDO
+            ENDDO
+         ENDDO     		
+        ELSE
+C        EQUIDISTANT ELONGATION        	
+         IF (TEXT(2:2) .EQ. 'P') THEN
+            DO I=1,II
+               DO K=1,KK
+                  DO J=JMXAI-1, JJ                  
+                     PHI(K,J,I) = PHI(K,JMXAI-2,I)
+                  ENDDO
+               ENDDO
+            ENDDO
+         ELSE
+            DO I=1,II
+               DO K=1,KK
+                  DO J=JMXAI, JJ                  
+                     PHI(K,J,I) = PHI(K,JMXAI-1,I)
+                  ENDDO
+               ENDDO
+            ENDDO
+         ENDIF 
+        ENDIF
+#endif     
+#ifdef _ALLOW_I_EXTEND_
+      IF (TEXT(2:2) .EQ. 'P') THEN
+         DO J=1,JJ
+            DO K=1,KK
+               DO I=IMXAI-1, II                  
+                  PHI(K,J,I) = PHI(K,J,IMXAI-2)
+               ENDDO
+            ENDDO
+         ENDDO
+      ELSE
+         DO J=1,JJ
+            DO K=1,KK
+               DO I=IMXAI, II                  
+                  PHI(K,J,I) = PHI(K,J,IMXAI-1)
+               ENDDO
+            ENDDO
+         ENDDO
+      ENDIF
+#endif       
+      RETURN
+      END
+

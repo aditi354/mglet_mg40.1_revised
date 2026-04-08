@@ -1,0 +1,61 @@
+C#ifdef _TSCAL_
+      SUBROUTINE BTOSCA (KMX,JMX,IMX,
+     $                    T,TSCATO,
+     $                    ISTART,ISTOP,JSTART,JSTOP,ITYP)
+C*STARLET***************************************************************
+C        B T O S C A    SETTING SCALAR BOUNDARY CONDITION FIXED-SCALAR
+C*STARLET***************************************************************
+C
+C PARAM: 
+C        KMX, JMX, IMX  - DIMENSIONEN DES GITTERS 
+C        T(KMX,JMX,IMX) + SCALAR T FIELD
+C        ITYP           - HOLLERITH-KONSTANTE:
+C                         'P'  VOR DER DRUCKKORREKTUR
+C                         'T'  VOR DEM ZEITSCHRITT
+C
+C VERS:  28.02.03 (TB)  : ORIGINAL
+C
+C
+C*STARLET***************************************************************
+C
+#include "konsta.h"
+C
+      CHARACTER (LEN=1)  ITYP
+C
+      REAL  T(KMX,JMX,IMX)
+C
+C
+C                                 **************************************
+C                                 FIXED SCALAR-CONDITION AT TOP
+C                                 **************************************
+C
+C
+C
+
+      KM1 = KMX - 1
+      IF ( ITYP .EQ. 'T' ) THEN
+
+       
+         DO I=ISTART,ISTOP
+         DO J=JSTART,JSTOP
+
+            T(KM1,J,I) = TSCATO
+
+         ENDDO
+         ENDDO
+#ifdef _QUD_
+
+         DO I=ISTART,ISTOP
+         DO J=JSTART,JSTOP
+
+            T(KMX,J,I) = TSCATO
+
+         ENDDO
+         ENDDO
+
+#endif
+      ENDIF
+
+      RETURN
+      END
+C#endif

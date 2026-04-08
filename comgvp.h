@@ -1,0 +1,13 @@
+
+C
+C                            DARF NUR NACH COMGRID STEHEN !!!!
+C
+      COMMON /COMGVP/
+     &               IPCORR, IPCGES,   NDIVLEPS,  LDIVLEPS, DIVGMX
+
+      INTEGER
+     &         IPCORR(MAXGRIDS),   IPCGES(MAXGRIDS),   
+     &       NDIVLEPS(MAXGRIDS), LDIVLEPS(MAXGRIDS)
+
+      REAL   DIVGMX(MAXGRIDS)
+ 

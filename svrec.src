@@ -1,0 +1,102 @@
+      SUBROUTINE SVREC(KK,JJ,II,NBND,UFR,U,HILF,ZINNER,ZOUTER,
+     $     Z,ZWAND,DELTA,DELTA_ACT,UTAU,UTAU_ACT,UFRCON,UMAX_ACT,
+     $     GMOL)
+C--MGLET----------------------------------------------------------
+C
+C     "RECYCLING" BOUNDARY CONDITION (LUND, SPALART)
+C     
+C
+C        UFR(X0)=U_I^INNER + U_I^OUTER
+C
+C    24.03.98 (MM.):    ORIGINAL 
+C
+C-------10--------20--------30--------40--------50--------60--------7072
+
+      REAL
+     $     UFR(KK,JJ, 2),U(KK,JJ),HILF(KK,JJ),
+     $     Z(KK),ZINNER(KK),ZOUTER(KK)
+
+C---------------------------------------------------------------------72
+C                                        BLENDING FACTORS
+C                                        WF(BETA) = 0.5
+            ALPHA = 4.0
+            BETA  = 0.2
+
+C---------------------------------------------------------------------72
+      IF (NBND .LT. 1) CALL ERRR(501,"SVREC")
+C---------------------------------------------------------------------72
+C                               CALCULATION OF INNER COORDINATES
+      DO K=1,KK
+         ZINNER(K) = (Z(K)-ZWAND) * UTAU_ACT / GMOL
+      ENDDO
+C---------------------------------------------------------------------72
+C                               CALCULATION OF OUTER COORDINATES
+      DO K=1,KK
+         ZOUTER(K) = (Z(K)-ZWAND)/DELTA_ACT 
+      ENDDO
+C---------------------------------------------------------------------72
+C                               INTERPOLATION ON INNER COORDINATES
+
+      DO J=NBND,JJ-NBND+1
+         DO K=NBND+1,KK-NBND
+            
+            D_INNER = (Z(K) - ZWAND) * UTAU/GMOL
+            D_OUTER = (Z(K) - ZWAND) / DELTA
+ 
+            IF (D_OUTER .GT. 0.0 ) THEN
+               IF (D_INNER .GE. ZINNER(KK-NBND)) THEN
+                  UINNER = UTAU/UTAU_ACT * U(KK-NBND,J)
+               ELSE
+                  DO K2=1,KK
+                     IF (D_INNER - ZINNER(K2+1) .LE. 0.0) THEN
+                        
+                        UINNER = UTAU/UTAU_ACT * 
+     $                       ( U(K2,J) + ((U(K2+1,J) - U(K2,J))*
+     $                       (D_INNER - ZINNER(K2))/
+     $                       (ZINNER(K2+1)-ZINNER(K2))))
+                        
+                        GOTO 100
+                     ENDIF
+                  ENDDO
+  100              CONTINUE
+               ENDIF
+               IF (D_OUTER .GE. ZOUTER(KK-NBND)) THEN
+                  UOUTER = UFRCON/UMAX_ACT * U(KK-NBND,J)
+               ELSE
+                  DO K2=1,KK
+                     IF (D_OUTER - ZOUTER(K2+1) .LE. 0.0) THEN
+                        
+                        UOUTER = UFRCON/UMAX_ACT * 
+     $                       ( U(K2,J) + ((U(K2+1,J) - U(K2,J))*
+     $                       (D_OUTER - ZOUTER(K2))/
+     $                       (ZOUTER(K2+1)-ZOUTER(K2))))
+                        
+                        GOTO 200
+                     ENDIF
+                  ENDDO
+  200              CONTINUE
+               ENDIF
+
+            ELSE
+               UINNER = 0.0
+               UOUTER = 0.0
+            ENDIF
+
+            WF = 0.5*( 1.0 + 
+     $        TANH(ALPHA*(D_OUTER-BETA)/((1.0-2.0*BETA)*D_OUTER + BETA))
+     $       /TANH(ALPHA))
+
+            WF = MIN(WF,1.0)
+
+            UFR(K,J,2) = UINNER * (1.0 - WF) + UOUTER * WF
+            
+            
+         ENDDO
+      ENDDO
+C---------------------------------------------------------------------72
+C---------------------------------------------------------------------72
+
+
+C---------------------------------------------------------------------72
+      RETURN
+      END

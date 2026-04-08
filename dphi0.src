@@ -1,0 +1,29 @@
+      SUBROUTINE DPHI0   (KK,JJ,II,KMX,JMX,IMX,PHI)
+C*STARLET***************************************************************
+C        D P H I 0        DPHI0 BELEGT DAS GESAMTE BERECHNUNGSGEBIET
+C                         (VON 1 - .MX !) MIT 0.0 VOR.
+C*STARLET***************************************************************
+C
+C PARAM: KK, JJ, II     - ARRAYDIMENSIONEN
+C        KMX, JMX, IMX  - GRENZEN DES BERECHNUNGSGEBIETES (MIT BOUND)
+C        PHI(KK,JJ,II)  + ALLGEMEINE VARIABLE
+C
+C UPROG                 : KEINE
+C
+C DEFINE-DIREKTIVEN     : KEINE
+C
+C        13.08.86 (HW)  : ORIGINAL
+C
+C*STARLET***************************************************************
+C
+      REAL     PHI(KK,JJ,II)
+C
+      DO 100 I = 1,IMX
+         DO 110 J = 1,JMX
+            DO 120 K = 1,KMX
+  120          PHI(K,J,I) = 0.0
+  110    CONTINUE
+  100 CONTINUE
+C
+      RETURN
+      END

@@ -1,0 +1,194 @@
+      SUBROUTINE THOMASJ (KK,JJ,II,KL,KU,JL,JU,IL,IU,
+     $                    LCOL,DIAG,RCOL,RSGS,FAKTOR,FOUTP)
+C*MGLET***************************************************************
+C        T H O M A S     DAS UNTERPROGRAMM THOMAS LOEST EIN TRIDIAGONA-
+C                        LES LINEARES GLEICHUNGSSYSTEM NACH DEM
+C                        THOMAS - ALGORITHMUS
+C*MGLET***************************************************************
+C  PARAM:  LCOL        - ENTHAELT KOEFFIZIENTEN DER "LINKEN SPALTE"
+C                        PARALLEL ZUR HAUPTDIAGONALEN
+C          DIAG        - ENTHAELT KOEFFIZIENTEN DER HAUPTDIAGONALEN
+C          RCOL        - ENTHAELT KOEFFIZIENTEN DER "RECHTEN SPALTE"
+C                        PARALLEL ZUR HAUPTDIAGONALEN
+C          RSGS        - ENTHAELT  WERTE DES KONSTANTEN VEKTORS
+C                        AUF DER RECHTEN SEITE DES GL.SYSTEMS
+C          FOUTP       - ENTHAELT  DIE LOESUNG DES GL.SYSTEMS   
+C
+C  DEFINE DIREKTIVEN   : KEINE
+C
+C  UPROG               : KEINE
+C
+C     15.10.96 (AM)    : ORIGINAL
+C     30.06.03 (FS)    : 3-DIMENSIONAL
+C
+C*MGLET***************************************************************
+#ifdef _MPI_
+#include "colevel.h"
+#include "mgpar.h"
+#include "compi.h"
+C      IMPLICIT NONE
+
+      INTEGER  KK,JJ,II,K,J,I,KL,KU,JL,JU,IL,IU,LP,N
+       REAL     LCOL(JJ), DIAG(JJ), RCOL(JJ), FAKTOR(JJ),            
+     $         FOUTP(KK,JJ,II),RSGS(KK,JJ,II)
+C
+C                                 BILDUNG DER OBEREN DREIECKSMATRIX
+C
+C WE NEED TO SEND/RECEIVE DIAG() AND RCOL() BOUNDARY VALUES
+C TO THE NEIGHBOURING PROCESSORS. 
+      IF(MYID .NE. NUMPROCS-1) THEN
+      SENDBUF(1) = DIAG(JU)
+      SENDBUF(2) = RCOL(JU)
+      CALL MPI_SEND
+     $     (SENDBUF, 2, MPI_REAL,MYID+1,MYID,MPI_COMM_WORLD,IERR)
+      ENDIF
+      
+      IF(MYID .NE. 0) THEN
+      CALL MPI_RECV
+     $        (RECVBUF, 2, MPI_REAL,MYID-1,MYID-1,MPI_COMM_WORLD,IERR) 
+      DIAG(JL) = RECVBUF(1)
+      RCOL(JL) = RECVBUF(2)
+      ENDIF
+
+C PUT BARRIER HERE TO MAKE SURE THE ABOVE TASKS ARE COMPLETED
+C  BY ALL THE PROCESSORS BEFORE STARTING THE TASKS COMING NEXT
+
+      CALL  MPI_BARRIER(MPI_COMM_WORLD)
+      LP = JL+1
+        DO J = LP,JU
+         FAKTOR(J) = LCOL(J) / DIAG(J-1)
+         DIAG(J) = DIAG(J) - (FAKTOR(J) * RCOL(J-1))
+      ENDDO
+
+      IF(MYID .EQ. 0) THEN
+      DO I = IL,IU
+         DO K = KL,KU
+            FOUTP(K,JL,I) = RSGS(K,JL,I)
+         ENDDO
+      ENDDO
+      ENDIF
+
+      DO I = IL,IU
+       IF(MYID .NE. 0) THEN
+        CALL MPI_RECV
+     $         (RECVBUF, KU-KL+1,MPI_REAL,
+     $         MYID-1,MYID-1+I, MPI_COMM_WORLD,IERR)
+        DO K = KL , KU
+        FOUTP(K,JL,I) = RECVBUF(K)
+        END DO
+        ENDIF
+        DO   J = JL+1,JU
+            DO   K = KL,KU
+               FOUTP(K,J,I) = RSGS(K,J,I) - FAKTOR(J) * FOUTP(K,J-1,I)
+            ENDDO
+         ENDDO
+         IF(MYID .NE. NUMPROCS-1) THEN
+         DO K = KL , KU
+         SENDBUF(K) =  FOUTP(K,JU,I) 
+         END DO
+         CALL MPI_SEND
+     $        (SENDBUF, KU-KL+1,MPI_REAL,
+     $        MYID+1,MYID+I,MPI_COMM_WORLD,IERR)
+         END IF
+      ENDDO
+
+
+C     RUECKSUBSTITUTION
+
+      IF(MYID .EQ.NUMPROCS-1) THEN
+      DO I = IL,IU
+         DO K = KL,KU
+            FOUTP(K,JU,I) = FOUTP(K,JU,I)/DIAG(JU)
+         ENDDO
+       ENDDO     
+       END IF
+
+      DO I = IL,IU
+      IF (MYID .NE. NUMPROCS-1) THEN
+      CALL MPI_RECV
+     $        (RECVBUF,KU-KL+1,MPI_REAL,
+     $        MYID+1,MYID+1+I,MPI_COMM_WORLD,IERR)
+      DO K=KL,KU
+        FOUTP(K,JU,I) = RECVBUF(K)
+      END DO
+      END IF
+         DO  N = LP,JU
+            J = JU-N+JL
+            DO K = KL,KU
+               FOUTP(K,J,I) = 
+     $              (FOUTP(K,J,I) - RCOL(J) * FOUTP(K,J+1,I))/DIAG(J)
+            ENDDO
+         ENDDO
+       IF(MYID .NE.0) THEN
+       DO K = KL,KU
+          SENDBUF(K) = FOUTP(K,JL,I)
+       END DO
+       CALL MPI_SEND
+     $      (SENDBUF,KL-KU+1,MPI_INT,
+     $      MYID-1,MYID+I,MPI_COMM_WORLD,IEER)
+       END IF
+       ENDDO
+      
+      DO J = 1,JJ
+       WRITE(99,*) 'FOUTP' ,J, FOUTP(5,J,5)
+      END DO
+      STOP 
+      RETURN
+      END
+
+#else
+      IMPLICIT NONE
+
+      INTEGER  KK,JJ,II,K,J,I,KL,KU,JL,JU,IL,IU,LP,N
+
+      REAL     LCOL(JJ), DIAG(JJ), RCOL(JJ), FAKTOR(JJ),            
+     $         FOUTP(KK,JJ,II),RSGS(KK,JJ,II)
+C
+C                                 BILDUNG DER OBEREN DREIECKSMATRIX
+C
+
+      LP = JL+1
+
+      DO J = LP,JU
+ 	 FAKTOR(J) = LCOL(J) / DIAG(J-1)
+         DIAG(J) = DIAG(J) - (FAKTOR(J) * RCOL(J-1))
+      ENDDO
+
+      DO I = IL,IU
+         DO K = KL,KU
+            FOUTP(K,JL,I) = RSGS(K,JL,I)
+         ENDDO
+      ENDDO
+
+      DO I = IL,IU
+         DO   J = JL+1,JU
+            DO   K = KL,KU
+               FOUTP(K,J,I) = RSGS(K,J,I) - FAKTOR(J) * FOUTP(K,J-1,I)
+            ENDDO
+         ENDDO
+      ENDDO
+
+C                                 RUECKSUBSTITUTION
+
+      DO I = IL,IU
+         DO K = KL,KU
+            FOUTP(K,JU,I) = FOUTP(K,JU,I)/DIAG(JU)
+         ENDDO
+      ENDDO
+
+      DO I = IL,IU
+         DO  N = LP,JU
+            J = JU-N+JL
+            DO K = KL,KU
+               FOUTP(K,J,I) = 
+     $              (FOUTP(K,J,I) - RCOL(J) * FOUTP(K,J+1,I))/DIAG(J)
+            ENDDO
+         ENDDO
+      ENDDO
+        DO J = 1,JJ
+           WRITE(99,*) 'FOUTP' ,J, FOUTP(5,J,5)
+        END DO
+        STOP
+      RETURN
+      END
+#endif

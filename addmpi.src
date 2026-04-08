@@ -1,0 +1,111 @@
+      SUBROUTINE ADDMPI (IGRID,IPROC,ILEVEL,IVP,ITS)
+C*MGLET*****************************************************
+C    A D D M P I           ORDNET DEN ZUR VERFUEGUNG STEHENDEN
+C                          PROZESSOREN DIE ZU BERECHNENDEN GITTER ZU
+C                          HIER: FUEGT GITTER IGRID DEM PROZESSOR
+C                                IPROC ZU
+C
+C    IDPROCOFGRD:           Nummer des Prozessors des jew. Gitters
+C     NVPOFPROC :           ANZAHL DER GITTER, DIE JEDER  Prozessor
+C     NTSOFPROC :           AUF DEM JEWEILIGEN LEVEL ZU
+C                          BEARBEITEN HAT (VP: DRUCKKORREKTUR,
+C                                          TS: ZEITSCHRITT)
+C     IVPOFPROC :           LISTE DER GITTER, DIE JEDER  Prozessor
+C     ITSOFPROC :           AUF DEM JEWEILIGEN LEVEL ZU
+C                          BEARBEITEN HAT
+C           IVP =1:        GITTER RECHNET DRUCKKORREKTUR
+C           ITS =1:        GITTER RECHNET ZEITSCHRITT
+C    
+C
+C    17.07.95  (MM):    AUS SETMPI ABGELEITET
+C
+C****************************************************************
+C
+#ifdef _MPI_
+#include "mgpar.h"
+#include "cogrdpro.h"
+#include "colevel.h"
+#include "compi.h"
+#include "mpif.h"
+
+C                                 ANZAHL DER PROZESSOREN
+C                                 UND DER NUMMER (MYID) DES JEW. PROZESSORS
+
+CTEST      CALL MPI_COMM_RANK (MPI_COMM_WORLD,MYID,IERR)
+C     CALL MPI_COMM_SIZE (MPI_COMM_WORLD,NUMPROCS,IERR)
+
+
+      IF ((NUMPROCS.LT.1) .OR. (NUMPROCS.GT.MAXPROCS)) 
+     $                               CALL ERRR (523,' SETMPI ')
+
+      IF (IGRID .LE.     0   ) CALL ERRR (757,' ADDMPI ')
+      IF (IGRID .GT. MAXGRIDS) CALL ERRR (758,' ADDMPI ')
+
+      IF (IPROC .LT.     0   ) CALL ERRR (767,' ADDMPI ')
+      IF (IPROC .GT. MAXPROCS) CALL ERRR (768,' ADDMPI ')
+
+      IF (ILEVEL .LT. MINLVLMIN) CALL ERRR (778,' ADDMPI ')
+      IF (ILEVEL .GT. MAXLVLMAX) CALL ERRR (779,' ADDMPI ')
+
+C
+C                                 GITTER, DIE ZEITSCHRITT DURCHLAUFEN
+C
+               IF (ITS .EQ. 1) THEN
+                  NT = NTSOFPROC(IPROC,ILEVEL) + 1
+                  ITSOFPROC(NT,IPROC) = IGRID
+                  NTSOFPROC(IPROC,ILEVEL) = NT
+               ENDIF
+C
+C                                 GITTER, DIE DRUCKKORR. DURCHLAUFEN
+C
+               IF (IVP .EQ. 1) THEN
+                  NVP = NVPOFPROC(IPROC,ILEVEL) + 1
+                  IVPOFPROC(NVP,IPROC) = IGRID
+                  NVPOFPROC(IPROC,ILEVEL) = NVP
+               ENDIF
+
+C
+C                                 PROZESSORNUMMER DER EINZELNEN GITTER
+C
+               IDPROCOFGRD(IGRID) = IPROC
+
+       IF (MYID .EQ. 0) THEN
+C
+C                                 AUSGABE
+C
+       WRITE (6,*) 
+     $'***************************  INFORMATION AUS SETMPI'
+       WRITE (6,*) 
+     $'ANZAHL DER PROZESSOREN:  ',NUMPROCS
+       WRITE (6,*) '*'
+       WRITE (6,*) '*'
+         DO ILEVEL=MINLEVEL,MAXLEVEL
+       WRITE (6,*) '*',' LEVEL: ',ILEVEL
+       WRITE (6,*) '*'
+            DO I = 0,NUMPROCS-1
+       WRITE (6,*) '*',' LEVEL: ',ILEVEL,
+     $                 ' PROZESSOR: ',I,
+     $                 '    NVP: ',NVPOFPROC(  I,ILEVEL),
+     $                 '    NTS: ',NTSOFPROC(  I,ILEVEL)
+            DO IGRD = 1,NVPOFPROC(  I,ILEVEL)
+       WRITE (6,*) '*',' LEVEL: ',ILEVEL,
+     $                 ' PROZESSOR: ',I,
+     $                 '    IVP: ',IVPOFPROC(IGRD,I)
+            ENDDO
+            DO IGRD = 1,NTSOFPROC(  I,ILEVEL)
+       WRITE (6,*) '*',' LEVEL: ',ILEVEL,
+     $                 ' PROZESSOR: ',I,
+     $                 '    ITS: ',ITSOFPROC(IGRD,I)
+            ENDDO
+       WRITE (6,*) '*'
+       WRITE (6,*) '*'
+            ENDDO
+         ENDDO
+      ENDIF
+
+ 
+
+#endif
+
+       RETURN
+       END

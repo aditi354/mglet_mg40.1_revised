@@ -1,0 +1,395 @@
+
+
+
+
+
+
+
+
+
+
+
+CCCCC        DEFINITIONEN FUER C-PREPROZESSOR
+C            MASCHINE
+
+C              MESSAGE PASSING INTERFACE
+
+C            RAEUMLICHE DISKRETISIERUNG
+C
+***********************************************************************
+C                       KOMPAKT-UPWIND in X-RICHTUNG (3-TER ORDNUNG) fuer
+C                       die U-Komponente (V und W bleiben Kompakt 4ter ordnung)
+C                       falls im Stroemungsfeld eine Koerper vorhanden ist
+C
+***********************************************************************
+C                       KOMPAKTVERF. in XYZ-RICHTUNG (4-TER ORDNUNG)
+
+
+**********************************************************************
+C                      Preprocessing with ADM for 2nd Order Central
+***********************************************************************
+CCC                     Bei periodischen Randbedingungen in X-Richtung
+CCC                     ist eine hoehere O
+C
+CCC                     Bei periodischen Randbedingungen in Y-Richtung
+CCC                     ist eine hoehere Ordnung moeglich
+C
+CCC                     Bei periodischen Randbedingungen in Y-Richtung:
+CCC                     Zentraldiff. 4-ter Ordnung (Parallelisieung moeglich)
+C
+***********************************************************************
+C
+C
+C            INTERPOLATION AN GITTER-GRENZEN
+
+C            BEHANDLUNG DER TOPAR-RANDBEDINGUNG
+
+C            ZEITLICHE DISKRETISIERUNG
+
+C            FEINSTRUKTURMODELL
+
+C            NICHT-NEWTONSCHE SPANNUNGEN
+
+
+C            TRANSPORT UND ORIENTIERUNG VON PARTIKELN
+
+
+C            SCALAR HEAT/TEMPERATURE TRANSPORT
+C            APROXIMATE DECONVOLUTION FOR SCALAR
+C            TURBULENT PRANDTL NUMBER 
+C            PLOT LOCAL SCALAR CONVECTION DIFFUSION EXTREMES 
+C            ANALYZE AND PLOT NEAR WALL GRID RESLOLUTION 
+C            WRITE SPECIAL 1D LINE FOR TMIX FOR SPECTRA AND PDF
+C            SCALAR TIME ADVANCEMENT/DISCRETISATION METHOD
+
+C            STROEMUNG NACH OBEN?
+
+
+C            BEHANDLUNG DER FLUKTUATIONS-RANDBEDINGUNG
+
+C            BEHANDLUNG VON PPHYS ALS QUELLTERM IN TSTLE2
+
+C            POSITIONIERUNG DER EINSTROEMPROFILE
+
+C           STATISTIK
+
+
+C                 GEMISCHTES
+
+C                GRDFMI WIRD NICHT VERWENDET, DAHER EINSPARUNG DER FELDER
+C                IGRHF UND GRHF
+
+C                VERGROESSERN DER KJI-RICHTUNG BEI FORTSETZUNGSLAUF ERLAUBT!
+
+C                RAUSSCHREIBEN VON ZEITRECORDS
+
+C                FUER KORRELATIONEN UND HAEFIGKEITSVERTEILUNGEN
+         SUBROUTINE FILTER_EXPLIZIT(KK,JJ,II,U,DZ,N,HILF3D1,HILF3D2,
+     $     SCA_LOWER,SCA_UPPER)
+C---------------------------------------------------------------
+C
+C        Expliziter Filter nach Stolz für nicht aequidistantes
+C        Gitter
+C        fuer z-Richtung: N != KK
+C        fuer y-Richtung: N != JJ
+C        fuer x-Richtung: N != II
+C        09.12.2003:   Florian Schwertfirm
+C          
+C
+C---------------------------------------------------------------
+
+      INTEGER I,J,K,KK,JJ,II,N
+      REAL    U(KK,JJ,II),DZ(N),
+     $     HILF3D1(KK,JJ,II),HILF3D2(KK,JJ,II)
+      REAL SCA_LOWER,SCA_UPPER
+
+C----- Koeffizienten fuer Randschemata
+      REAL alpha3(2),alpha2(2),alpha1(2),alpha0(2),alphab(2)
+C----- Koeffiztienten fuer inner Domain
+      REAL alpha_m2(N),alpha_m1(N),alpha(N),alpha_p1(N),alpha_p2(N)
+
+
+      CALL INIT_FILTER(N,DZ,alpha3,alpha2,alpha1,alpha0,alphab,
+     $     alpha_m2,alpha_m1,alpha,alpha_p1,alpha_p2)
+
+      CALL FILTER(N,KK,JJ,II,U,HILF3D1,alpha3,alpha2,alpha1,alpha0,
+     $ alphab,
+     $ alpha_m2,alpha_m1,alpha,alpha_p1,alpha_p2,SCA_LOWER,SCA_UPPER)
+
+      DO I=1,II
+         DO J=1,JJ
+            DO K=1,KK
+               U(K,J,I) = 6.0*HILF3D1(K,J,I)
+            ENDDO
+         ENDDO
+      ENDDO
+
+      CALL FILTER(N,KK,JJ,II,HILF3D1,HILF3D2,alpha3,alpha2,alpha1,
+     $     alpha0,
+     $     alphab,alpha_m2,alpha_m1,alpha,alpha_p1,alpha_p2,SCA_LOWER,
+     $     SCA_UPPER)
+
+      DO I=1,II
+         DO J=1,JJ
+            DO K=1,KK
+               U(K,J,I) = U(K,J,I) - 15.0*HILF3D2(K,J,I)
+            ENDDO
+         ENDDO
+      ENDDO
+
+      CALL FILTER(N,KK,JJ,II,HILF3D2,HILF3D1,alpha3,alpha2,alpha1,
+     $     alpha0,
+     $     alphab,alpha_m2,alpha_m1,alpha,alpha_p1,alpha_p2,SCA_LOWER,
+     $     SCA_UPPER)
+
+      DO I=1,II
+         DO J=1,JJ
+            DO K=1,KK
+               U(K,J,I) = U(K,J,I) + 20.0*HILF3D1(K,J,I)
+            ENDDO
+         ENDDO
+      ENDDO
+
+      CALL FILTER(N,KK,JJ,II,HILF3D1,HILF3D2,alpha3,alpha2,alpha1,
+     $     alpha0,
+     $     alphab,alpha_m2,alpha_m1,alpha,alpha_p1,alpha_p2,SCA_LOWER,
+     $     SCA_UPPER)
+
+      DO I=1,II
+         DO J=1,JJ
+            DO K=1,KK
+               U(K,J,I) = U(K,J,I) - 15.0*HILF3D2(K,J,I)
+            ENDDO
+         ENDDO
+      ENDDO
+
+
+      CALL FILTER(N,KK,JJ,II,HILF3D2,HILF3D1,alpha3,alpha2,alpha1,
+     $     alpha0,
+     $     alphab,alpha_m2,alpha_m1,alpha,alpha_p1,alpha_p2,SCA_LOWER,
+     $     SCA_UPPER)
+
+      DO I=1,II
+         DO J=1,JJ
+            DO K=1,KK
+               U(K,J,I) = U(K,J,I) + 6.0*HILF3D1(K,J,I)
+            ENDDO
+         ENDDO
+      ENDDO
+
+      CALL FILTER(N,KK,JJ,II,HILF3D1,HILF3D2,alpha3,alpha2,alpha1,
+     $     alpha0,
+     $     alphab,alpha_m2,alpha_m1,alpha,alpha_p1,alpha_p2,SCA_LOWER,
+     $     SCA_UPPER)
+
+      DO I=1,II
+         DO J=1,JJ
+            DO K=1,KK
+               U(K,J,I) = U(K,J,I) - HILF3D2(K,J,I)
+            ENDDO
+         ENDDO
+      ENDDO
+
+      RETURN
+      END
+C----------------------------------------------------------------------
+      SUBROUTINE INIT_FILTER(N,DZ,alpha3,alpha2,alpha1,alpha0,alphab,
+     $     alpha_m2,alpha_m1,alpha,alpha_p1,alpha_p2)
+C----------------------------------------------------------------------
+C
+C     Bestimmt die Koeffizienten fuer den expliziten 5pt Stenzil
+C     Randwert bleibt unmodifieziert
+C     Naechster Punkt einseitiger Stenzil, danach inner Points
+C     Keine Abfrage der Randbedingung:
+C     Es wird angenommen dass Wert fuer I+1/2 gesetzt ist
+C
+C----------------------------------------------------------------------
+
+      INTEGER N,k
+      REAL DZ(N),zm2,zm1,zo,zp1,zp2
+      REAL D2,D1,D0,Dm1
+
+
+C----- Koeffizienten fuer Randschemata
+      REAL alpha3(2),alpha2(2),alpha1(2),alpha0(2),alphab(2)
+C----- Koeffiztienten fuer inner Domain
+      REAL alpha_m2(N),alpha_m1(N),alpha(N),alpha_p1(N),alpha_p2(N)
+
+C----- Punkt K=3
+
+      k=3
+      zm1 = DZ(k-1)/2.0
+      zp1 = DZ(k)
+      zp2 = DZ(k)+DZ(k+1)
+      zp3 = DZ(k)+DZ(k+1)+DZ(k+3) 
+   
+      D2  = zp2*(-zp1+zp2+zm1)
+      D1  =-zp1**2+zm1**2+zp2*zp1+zp2*zm1
+      D0  = D2
+      Dm1 = D1
+      alpha3(1) = (zp2**3*zp1*zm1/(2.0*D2) - 
+     $         zp1**3*(zm1**2+zp2*zm1)/(2.0*D1) + 
+     $         zm1**3*(zp1**2-zp2*zp1)/(2.0*Dm1))/                   
+     $         ( zp3**3 - zp2**3*(-zp1*zp3-zp1*zm1+zp3**2+zm1*zp3)/D2 + 
+     $         zp1**3*(-zm1**2-zp2*zp3-zp2*zm1+2.0*zp3**2)/D1    - 
+     $         zm1**3*(-zp2*zp3-zp1**2+zp3**2+zp2*zp1)/Dm1)
+      alphab(1) =-0.5*(zp1**2-zp2*zp1+2.0*alpha3(1)*
+     $         (-zp2*zp3+zp3**2-zp1**2+zp2*zp1))/Dm1
+      alpha0(1) = 0.5*(-zp2*zp1+zp2**2+zp2*zm1+zp1*zm1-
+     $         2.0*alpha3(1)*(zp1*zp3+zp1*zm1-zp3**2-zm1*zp3))/D0
+      alpha1(1) = 0.5*(zm1**2+zp2*zm1+2.0*alpha3(1)*
+     $         (-zm1**2-zp2*zp3-zp2*zm1+zp3**2))/D1
+      alpha2(1) =-0.5*(2.0*alpha3(1)*
+     $        (-zp1*zp3-zp1*zm1+zp3**2+zm1*zp3)+zp1*zm1)/D2  
+
+C------ Punkt KK-2
+
+      k = N-2
+      zm1 = DZ(k)/2.0
+      zp1 = DZ(k-1)
+      zp2 = DZ(k-1) + DZ(k-2)
+      zp3 = DZ(k-1) + DZ(k-2) + DZ(k-3)
+
+      D2  = zp2*(-zp1+zp2+zm1)
+      D1  =-zp1**2+zm1**2+zp2*zp1+zp2*zm1
+      D0  = D2
+      Dm1 = D1
+
+      alpha3(2) = (zp2**3*zp1*zm1/(2.0*D2) - zp1**3*(zm1**2+zp2*zm1)/
+     $     (2.0*D1) + zm1**3*(zp1**2-zp2*zp1)/(2.0*Dm1))/
+     $     ( zp3**3 - zp2**3*(-zp1*zp3-zp1*zm1+zp3**2+zm1*zp3)/D2 + 
+     $     zp1**3*(-zm1**2-zp2*zp3-zp2*zm1+2.0*zp3**2)/D1    - 
+     $     zm1**3*(-zp2*zp3-zp1**2+zp3**2+zp2*zp1)/Dm1)
+
+      alphab(2) =-0.5*(zp1**2-zp2*zp1+2.0*alpha3(2)*
+     $     (-zp2*zp3+zp3**2-zp1**2+zp2*zp1))/Dm1
+      alpha0(2) = 0.5*(-zp2*zp1+zp2**2+zp2*zm1+zp1*zm1-
+     $     2.0*alpha3(2)*(zp1*zp3+zp1*zm1-zp3**2-zm1*zp3))/D0
+      alpha1(2) = 0.5*(zm1**2+zp2*zm1+2.0*alpha3(2)*
+     $     (-zm1**2-zp2*zp3-zp2*zm1+zp3**2))/D1
+      alpha2(2) =-0.5*(2.0*alpha3(2)*
+     $     (-zp1*zp3-zp1*zm1+zp3**2+zm1*zp3)+zp1*zm1)/D2
+C------- randpunktnaechster wie innen aber modifizierter abstand
+
+      k=4
+      zm2 = DZ(k-1) + DZ(k-2)/2.0
+      zm1 = DZ(k-1)
+      zp1 = DZ(k)
+      zp2 = DZ(k) + DZ(k+1)
+      
+      D2  = zp2*(zp1-zp2-zm1)-(zp1*zm2+zm2**2-zm2*zm1)
+      D1  = (zp1-zp2-zm1)*(zp1+zm1)
+      D0  = zp2*(zp1-zp2-zm1)         
+      
+      alpha_p2(k) = 0.5*zp1*zm1/D2
+      alpha_m2(k) = alpha_p2(k)
+      alpha_m1(k) = 0.5*(zp1**2-zp2*zp1+2.0*alpha_m2(k)*
+     $     (zm2**2+zm2*zp2))/D1
+      alpha(k)    = 0.5*(1.0-(zp1*zm1+2.0*alpha_m2(k)*
+     $     (zp1*zm2+zm2**2-zm1*zm2))/D0)-alpha_m2(k)
+      alpha_p1(k) =-0.5*(2.0*alpha_m2(k)*(zm2**2+zm2*zp2)+
+     $     zm1**2+zp2*zm1)/D1
+
+      k=N-3
+      zm2 = DZ(k-1) + DZ(k-2)
+      zm1 = DZ(k-1)
+      zp1 = DZ(k)
+      zp2 = DZ(k) + DZ(k+1)/2.0
+      
+      D2  = zp2*(zp1-zp2-zm1)-(zp1*zm2+zm2**2-zm2*zm1)
+      D1  = (zp1-zp2-zm1)*(zp1+zm1)
+      D0  = zp2*(zp1-zp2-zm1)         
+      
+      alpha_p2(k) = 0.5*zp1*zm1/D2
+      alpha_m2(k) = alpha_p2(k)
+      alpha_m1(k) = 0.5*(zp1**2-zp2*zp1+2.0*alpha_m2(k)*
+     $     (zm2**2+zm2*zp2))/D1
+      alpha(k)    = 0.5*(1.0-(zp1*zm1+2.0*alpha_m2(k)*
+     $     (zp1*zm2+zm2**2-zm1*zm2))/D0)-alpha_m2(k)
+      alpha_p1(k) =-0.5*(2.0*alpha_m2(k)*(zm2**2+zm2*zp2)+
+     $     zm1**2+zp2*zm1)/D1
+C------- Innere Punkte
+
+      do k=5,N-4
+         zm2 = DZ(k-1) + DZ(k-2)
+         zm1 = DZ(k-1)
+         zp1 = DZ(k)
+         zp2 = DZ(k) + DZ(k+1)
+
+         D2  = zp2*(zp1-zp2-zm1)-(zp1*zm2+zm2**2-zm2*zm1)
+         D1  = (zp1-zp2-zm1)*(zp1+zm1)
+         D0  = zp2*(zp1-zp2-zm1)         
+
+         alpha_p2(k) = 0.5*zp1*zm1/D2
+         alpha_m2(k) = alpha_p2(k)
+         alpha_m1(k) = 0.5*(zp1**2-zp2*zp1+2.0*alpha_m2(k)*
+     $        (zm2**2+zm2*zp2))/D1
+         alpha(k)    = 0.5*(1.0-(zp1*zm1+2.0*alpha_m2(k)*
+     $        (zp1*zm2+zm2**2-zm1*zm2))/D0)-alpha_m2(k)
+         alpha_p1(k) =-0.5*(2.0*alpha_m2(k)*(zm2**2+zm2*zp2)+
+     $        zm1**2+zp2*zm1)/D1
+      end do         
+
+      RETURN
+      END
+C---------------------------------------------------------------------
+      SUBROUTINE FILTER(N,KK,JJ,II,IN,OUT,alpha3,alpha2,alpha1,alpha0,
+     $     alphab,alpha_m2,alpha_m1,alpha,alpha_p1,alpha_p2,
+     $     SCA_LOWER,SCA_UPPER)
+C--------------------------------------------------------------------
+C
+C--------------------------------------------------------------------
+      INTEGER N,KK,JJ,II,I,J,K
+C----- Koeffizienten fuer Randschemata
+      REAL alpha3(2),alpha2(2),alpha1(2),alpha0(2),alphab(2)
+C----- Koeffiztienten fuer inner Domain
+      REAL alpha_m2(N),alpha_m1(N),alpha(N),alpha_p1(N),alpha_p2(N)
+      
+      REAL IN(KK,JJ,II),OUT(KK,JJ,II)
+
+      K = 3
+      DO I=1,II
+         DO J=1,JJ
+            OUT(K,J,I) = alphab(1)*SCA_LOWER+alpha0(1)*IN(K,J,I) +
+     $                                       alpha1(1)*IN(K+1,J,I) +
+     $                                       alpha2(1)*IN(K+2,J,I) +
+     $                                       alpha3(1)*IN(K+3,J,I)
+         ENDDO
+      ENDDO
+      K=4
+      DO I = 1,II
+         DO J=1,JJ
+         OUT(K,J,I) = alpha_m2(K)*SCA_LOWER  +alpha_m1(K)*IN(K-1,J,I) +
+     $           alpha(K)*IN(K,J,I) +
+     $           alpha_p1(K)*IN(K+1,J,I)+alpha_p2(K)*IN(K+2,J,I)
+         ENDDO
+      ENDDO
+      DO I = 1,II
+         DO J=1,JJ
+            DO K = 5,KK-4
+          OUT(K,J,I) = alpha_m2(K)*IN(K-2,J,I)+alpha_m1(K)*IN(K-1,J,I) +
+     $              alpha(K)*IN(K,J,I) +
+     $              alpha_p1(K)*IN(K+1,J,I)+alpha_p2(K)*IN(K+2,J,I)
+            ENDDO
+         ENDDO
+      ENDDO
+      K=KK-3
+      DO I = 1,II
+         DO J=1,JJ
+         OUT(K,J,I) = alpha_m2(K)*IN(K-2,J,I)+alpha_m1(K)*IN(K-1,J,I) +
+     $           alpha(K)*IN(K,J,I) +
+     $           alpha_p1(K)*IN(K+1,J,I)+alpha_p2(K)*SCA_UPPER
+         ENDDO
+      ENDDO
+      K = KK-2
+      DO I=1,II
+         DO J=1,JJ
+            OUT(K,J,I) = alphab(2)*SCA_UPPER+alpha0(2)*IN(K,J,I) +
+     $                                       alpha1(2)*IN(K-1,J,I) +
+     $                                       alpha2(2)*IN(K-2,J,I) +
+     $                                       alpha3(2)*IN(K-3,J,I)
+         ENDDO
+      ENDDO
+
+      RETURN
+      END

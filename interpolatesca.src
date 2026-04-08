@@ -1,0 +1,492 @@
+      SUBROUTINE INTERPOLATESCAI(KK,JJ,II,KSTART,JSTART,ISTART,
+     $     KSTOP,JSTOP,ISTOP,COEFTX,RSGS,FAKTOR,F,FIN,
+     $     NFRO,NBAC,LCOL,DIAG,RCOL,IGRID,DX
+#ifdef _FRED_BODY_
+     $     ,BP,GI,GJ,GK
+#endif
+     $    )
+C*MGLET***************************************************************
+C        I N T E R P O L A T E SCA
+C        INTERPOLIERT SCALAR
+C*MGLET***************************************************************
+C
+C PARAM: F(K,J,I)       - ZU INTERPOLIERENDE GROESSE (V,W)
+C      : FIN(K,J,I)     - INTERPOLIERTE GROESSE IN I(X)-RICHTUNG
+C
+C      : COEFFX(I,1)    - ENTHAELT KOEFFIZIENTEN DER "LINKEN SPALTE"
+C                         PARALLEL ZUR HAUPTDIAGONALEN
+C      : COEFFX(I,2)    - ENTHAELT KOEFFIZIENTEN DER HAUPTDIAGONALEN
+C      : COEFFX(I,3)    - ENTHAELT KOEFFIZIENTEN DER "RECHTEN SPALTE"
+C                         PARALLEL ZUR HAUPTDIAGONALEN
+C      : COEFFX(I,4),   - KOEFFIZIENTEN AUF DER RECHTEN SEITE DES 
+C        COEFFX(I,5),     GLEICHUNGSSYSTEMS
+C        COEFFX(I,6)
+C      : RSGS           - RECHTE SEITE DES GLEICHUNGSSYSTEMS      
+C
+C DEFINE DIREKTIVEN     : KEINE 
+C
+C UPROG                 : THOMASI    : THOMAS-ALGORITHMUS IN I-RICHTUNG
+C
+C VERS:  25.11.03 (FS)  : ORIGINAL        (KOMPAKT 4. ORDNUNG)
+C
+C*MGLET***************************************************************
+#include "mgpar.h"
+#include "conles.h"
+#include "konsta.h"
+#include "conpot.h"
+#include "cobound.h"
+#include "cophyspar.h"
+
+#ifdef _TSCAL_
+      INTEGER KK,JJ,II,K,J,I,KSTART,JSTART,ISTART,KSTOP,JSTOP,ISTOP,
+     $        IA,IE,NFRO,NBAC
+
+      REAL    LCOL(II),DIAG(II),RCOL(II),DX(II)
+
+      REAL    F(KK,JJ,II),FIN(KK,JJ,II),RSGS(KK,JJ,II)
+#ifndef _FRED_BODY_
+      REAL    FAKTOR(II),COEFTX(II,12)
+#else 
+      REAL    FAKTOR(KK,JJ,II),COEFTX(II,12*3),A,B,C,D,
+     $        GI(KK,JJ,II),GJ(KK,JJ,II),GK(KK,JJ,II),BP(KK,JJ,II)
+#endif
+C----------------------ERSTER PHYSIKALISCHER PUNKT
+      IF(NFRO .EQ. 16) THEN
+      IA = 3
+C      I = IA
+C#ifndef _FRED_BODY_
+C      LCOL(I) = COEFTX(I,1)
+C      DIAG(I) = COEFTX(I,2)
+C      RCOL(I) = COEFTX(I,3)
+C#endif
+C
+C      DO J = JSTART, JSTOP
+C         DO K = KSTART, KSTOP
+C#ifdef _FRED_BODY_
+C            GI(K,J,I) = COEFTX(I,1)
+C            GJ(K,J,I) = COEFTX(I,2)
+C            GK(K,J,I) = COEFTX(I,3)
+C#endif
+C            RSGS(K,J,I) = COEFTX(I,5)*TSCA(2,1,IGRID)
+C         ENDDO
+C      ENDDO
+C
+      ELSEIF(NFRO .EQ. 15) THEN
+      IA = 3
+C      I = IA
+C#ifndef _FRED_BODY_
+C      LCOL(I) = COEFTX(I,1)
+C      DIAG(I) = COEFTX(I,2)
+C      RCOL(I) = COEFTX(I,3)
+C#endif
+C
+C
+C      DO J = JSTART, JSTOP
+C         DO K = KSTART, KSTOP
+C#ifdef _FRED_BODY_
+C            GI(K,J,I) = COEFTX(I,1)
+C            GJ(K,J,I) = COEFTX(I,2)
+C            GK(K,J,I) = COEFTX(I,3)
+C#endif
+C         RSGS(K,J,I) = COEFTX(I,5)*(F(K,J,I)+QSCA(2,1,IGRID)/LAMDA*
+C     $           DX(IA-1)*0.5)
+C         ENDDO
+C      ENDDO
+C
+      ELSE
+         WRITE(6,*)'NFRO: ',NFRO
+         STOP 'RB NICHT FUER SCALAR 4th ORDER'
+         RETURN
+      ENDIF
+
+C----------------------LETZTER PHYSIKALISCHER PUNKT
+      IF(NBAC .EQ. 16) THEN
+       IE = II-1
+       I = IE 
+#ifndef _FRED_BODY_
+      LCOL(I) = COEFTX(I,1)
+      DIAG(I) = COEFTX(I,2)
+      RCOL(I) = COEFTX(I,3)
+#endif
+       DO  J = JSTART, JSTOP
+          DO  K = KSTART, KSTOP
+#ifdef _FRED_BODY_
+            GI(K,J,I) = COEFTX(I,1)
+            GJ(K,J,I) = COEFTX(I,2)
+            GK(K,J,I) = COEFTX(I,3)
+#endif
+             RSGS(K,J,I) = COEFTX(I,5)*TSCA(2,2,IGRID)
+          ENDDO
+       ENDDO
+      ELSEIF(NBAC .EQ. 15) THEN
+       IE = II-1
+       I = IE 
+#ifndef _FRED_BODY_
+      LCOL(I) = COEFTX(I,1)
+      DIAG(I) = COEFTX(I,2)
+      RCOL(I) = COEFTX(I,3)
+#endif
+       DO  J = JSTART, JSTOP
+          DO  K = KSTART, KSTOP
+#ifdef _FRED_BODY_
+            GI(K,J,I) = COEFTX(I,1)
+            GJ(K,J,I) = COEFTX(I,2)
+            GK(K,J,I) = COEFTX(I,3)
+#endif
+          RSGS(K,J,I) = COEFTX(I,5)*(F(K,J,I)+QSCA(2,2,IGRID)/LAMDA*
+     $            DX(I-1)*0.5)
+          ENDDO
+       ENDDO
+      ELSE
+                  WRITE(6,*)'NBAC: ',NBAC
+         STOP 'RB NICHT FUER SCALAR 4th ORDER'
+         RETURN
+      ENDIF
+C                                     KOMPAKTER ANSATZ IM GEBIET
+
+       DO I = IA, IE-1
+C       DO I = IA+1, IE-1
+#ifndef _FRED_BODY_
+          LCOL(I) = COEFTX(I,1)
+          DIAG(I) = COEFTX(I,2)
+          RCOL(I) = COEFTX(I,3)
+#endif
+          DO J = JSTART, JSTOP
+             DO K = KSTART, KSTOP
+#ifndef _FRED_BODY_
+#if !defined _4TH_KOBAYASHI_ 
+                RSGS(K,J,I) = COEFTX(I,4) * F(K,J,I  )
+     $                      + COEFTX(I,5) * F(K,J,I-1)
+#else
+                RSGS(K,J,I) = COEFTX(I,4) * F(K,J,I-1  )
+     $                      + COEFTX(I,5) * F(K,J,I)
+#endif
+
+     
+#else
+          A =    BP(K,J,I-1) *   BP(K,J,I)
+          B = (1-BP(K,J,I-1))*   BP(K,J,I)
+          C = (1-BP(K,J,I  ))*   BP(K,J,I-1)
+          D = (1-BP(K,J,I  ))*(1-BP(K,J,I-1))
+
+
+             GI(K,J,I) =  COEFTX(I,1)    * A
+     $                  + COEFTX(I,12+1) * B
+     $                  + COEFTX(I,24+1) * C
+             GJ(K,J,I) =  COEFTX(I,2)    * A
+     $                  + COEFTX(I,12+2) * B
+     $                  + COEFTX(I,24+2) * C
+     $                  + 1.0            * D
+             GK(K,J,I) =  COEFTX(I,3)    * A
+     $                  + COEFTX(I,12+3) * B
+     $                  + COEFTX(I,24+3) * C
+
+                RSGS(K,J,I) =
+     $   (COEFTX(I,4)    * F(K,J,I)+
+     $    COEFTX(I,5)    * F(K,J,I-1)) *   A
+     $ + (COEFTX(I,12+4) * F(K,J,I-1)+
+     $    COEFTX(I,12+5) * F(K,J,I)+
+     $    COEFTX(I,12+6) * F(K,J,I+1)) *   B
+     $ + (COEFTX(I,24+4) * F(K,J,I)+
+     $    COEFTX(I,24+5) * F(K,J,I-1)+
+     $    COEFTX(I,24+6) * F(K,J,I-2)) *   C
+#endif
+
+
+             ENDDO
+          ENDDO
+       ENDDO
+
+       CALL THOMASI(KK,JJ,II,KSTART,KSTOP,JSTART,JSTOP,IA,IE,
+     $              LCOL,DIAG,RCOL,RSGS,FAKTOR,FIN
+#ifdef _FRED_BODY_
+     $  ,BP,GI,GJ,GK
+#endif
+     $  )
+
+#endif
+       RETURN
+       END
+C---------------------------------------------------------------------------
+      SUBROUTINE INTERPOLATESCAJ(KK,JJ,II,KSTART,JSTART,ISTART,
+     $     KSTOP,JSTOP,ISTOP,COEFTY,RSGS,FAKTOR,F,FIN,
+     $     NRGT,NLFT,LCOL,DIAG,RCOL,IGRID,DY
+#ifdef _FRED_BODY_
+     $     ,BP,GI,GJ,GK
+#endif
+     $     )
+#include "mgpar.h"
+#include "conles.h"
+#include "konsta.h"
+#include "conpot.h"
+#include "cobound.h"
+#include "cophyspar.h"
+
+#ifdef _TSCAL_
+      INTEGER KK,JJ,II,K,J,I,KSTART,JSTART,ISTART,KSTOP,JSTOP,ISTOP,
+     $        JA,JE,NRGT,NLFT
+
+      REAL    LCOL(JJ),DIAG(JJ),RCOL(JJ),DY(JJ)
+
+      REAL    F(KK,JJ,II),FIN(KK,JJ,II),RSGS(KK,JJ,II)
+
+#ifndef _FRED_BODY_
+      REAL    FAKTOR(JJ),COEFTY(JJ,12)
+#else
+      REAL    FAKTOR(KK,JJ,II),COEFTY(JJ,12*3),A,B,C,D,
+     $        GI(KK,JJ,II),GJ(KK,JJ,II),GK(KK,JJ,II),BP(KK,JJ,II)
+#endif
+
+C----------------------ERSTER PHYSIKALISCHER PUNKT
+      IF(NRGT .EQ. 16) THEN
+      JA = 3
+      J = JA
+#ifndef _FRED_BODY_
+      LCOL(J) = COEFTY(J,1)
+      DIAG(J) = COEFTY(J,2)
+      RCOL(J) = COEFTY(J,3)
+#endif
+      DO I = ISTART, ISTOP
+         DO K = KSTART, KSTOP
+#ifdef _FRED_BODY_
+            GI(K,J,I) = COEFTY(J,1)
+            GJ(K,J,I) = COEFTY(J,2)
+            GK(K,J,I) = COEFTY(J,3)
+#endif
+            RSGS(K,J,I) = COEFTY(J,5)*TSCA(2,3,IGRID)
+         ENDDO
+      ENDDO
+      ELSEIF(NRGT .EQ. 15) THEN
+      JA = 3
+      J = JA
+#ifndef _FRED_BODY_
+      LCOL(J) = COEFTY(J,1)
+      DIAG(J) = COEFTY(J,2)
+      RCOL(J) = COEFTY(J,3)
+#endif
+      DO I = ISTART, ISTOP
+         DO K = KSTART, KSTOP
+#ifdef _FRED_BODY_
+            GI(K,J,I) = COEFTY(J,1)
+            GJ(K,J,I) = COEFTY(J,2)
+            GK(K,J,I) = COEFTY(J,3)
+#endif
+            RSGS(K,J,I) = COEFTY(J,5)*(F(K,J,I)+QSCA(2,3,IGRID)/LAMDA
+     $           *DY(JA-1)*0.5)
+         ENDDO
+      ENDDO
+      ELSE
+         WRITE(6,*)'NRGT: ',NRGT
+         STOP 'RB NICHT FUER SCALAR 4th ORDER'
+         RETURN
+      ENDIF
+C----------------------LETZTER PHYSIKALISCHER PUNKT
+      IF(NLFT .EQ. 16) THEN
+      JE = JJ-1
+      J = JE
+#ifndef _FRED_BODY_
+      LCOL(J) = COEFTY(J,1)
+      DIAG(J) = COEFTY(J,2)
+      RCOL(J) = COEFTY(J,3)
+#endif
+      DO I = ISTART, ISTOP
+         DO K = KSTART, KSTOP
+#ifdef _FRED_BODY_
+            GI(K,J,I) = COEFTY(J,1)
+            GJ(K,J,I) = COEFTY(J,2)
+            GK(K,J,I) = COEFTY(J,3)
+#endif
+            RSGS(K,J,I) = COEFTY(J,5)*TSCA(2,4,IGRID)
+         ENDDO
+      ENDDO
+      ELSEIF(NLFT .EQ. 15) THEN
+      JE = JJ-1
+      J = JE
+#ifndef _FRED_BODY_
+      LCOL(J) = COEFTY(J,1)
+      DIAG(J) = COEFTY(J,2)
+      RCOL(J) = COEFTY(J,3)
+#endif
+      DO I = ISTART, ISTOP
+         DO K = KSTART, KSTOP
+#ifdef _FRED_BODY_
+            GI(K,J,I) = COEFTY(J,1)
+            GJ(K,J,I) = COEFTY(J,2)
+            GK(K,J,I) = COEFTY(J,3)
+#endif
+            RSGS(K,J,I) = COEFTY(J,5)*(F(K,J,I)+QSCA(2,4,IGRID)/LAMDA
+     $           *DY(J-1)*0.5)
+         ENDDO
+      ENDDO
+      ELSE
+         WRITE(6,*)'NLFT: ',NLFT
+         STOP 'RB NICHT FUER SCALAR 4th ORDER'
+         RETURN
+      ENDIF
+
+C                                     KOMPAKTER ANSATZ IM GEBIET
+
+       DO J = JA+1, JE-1
+#ifndef _FRED_BODY_
+          LCOL(J) = COEFTY(J,1)
+          DIAG(J) = COEFTY(J,2)
+          RCOL(J) = COEFTY(J,3)
+#endif
+          DO I = ISTART, ISTOP
+             DO K = KSTART, KSTOP
+#ifndef _FRED_BODY
+#if !defined _4TH_KOBAYASHI_ 
+                RSGS(K,J,I) = COEFTY(J,4) * F(K,J,I  )
+     $                      + COEFTY(J,5) * F(K,J-1,I)
+#else
+                RSGS(K,J,I) = COEFTY(I,4) * F(K,J-1,I  )
+     $                      + COEFTY(I,5) * F(K,J,I)
+#endif
+
+
+#else
+          A =    BP(K,J-1,I) *   BP(K,J,I)
+          B = (1-BP(K,J-1,I))*   BP(K,J,I)
+          C = (1-BP(K,J,I  ))*   BP(K,J-1,I)
+          D = (1-BP(K,J,I  ))*(1-BP(K,J-1,I))
+
+             GI(K,J,I) =  COEFTY(J,1)    * A
+     $                  + COEFTY(J,12+1) * B
+     $                  + COEFTY(J,24+1) * C
+             GJ(K,J,I) =  COEFTY(J,2)    * A
+     $                  + COEFTY(J,12+2) * B
+     $                  + COEFTY(J,24+2) * C
+     $                  + 1.0            * D
+             GK(K,J,I) =  COEFTY(J,3)    * A
+     $                  + COEFTY(J,12+3) * B
+     $                  + COEFTY(J,24+3) * C
+
+                RSGS(K,J,I) =
+     $   (COEFTY(J,4)    * F(K,J,I)+
+     $    COEFTY(J,5)    * F(K,J-1,I)) *   A
+     $ + (COEFTY(J,12+4) * F(K,J-1,I)+
+     $    COEFTY(J,12+5) * F(K,J,I)+
+     $    COEFTY(J,12+6) * F(K,J+1,I)) *   B
+     $ + (COEFTY(J,24+4) * F(K,J,I)+
+     $    COEFTY(J,24+5) * F(K,J-1,I)+
+     $    COEFTY(J,24+6) * F(K,J-2,I)) *   C
+#endif
+
+
+             ENDDO
+          ENDDO
+       ENDDO
+
+       CALL THOMASJ(KK,JJ,II,KSTART,KSTOP,JA,JE,ISTART,ISTOP,
+     $              LCOL,DIAG,RCOL,RSGS,FAKTOR,FIN
+#ifdef _FRED_BODY_
+     $  ,BP,GI,GJ,GK
+#endif
+     $  )
+
+#endif
+       RETURN
+       END
+C----------------------------------------------------------------------
+      SUBROUTINE INTERPOLATESCAK(KK,JJ,II,KSTART,JSTART,ISTART,
+     $     KSTOP,JSTOP,ISTOP,COEFTZ,RSGS,FAKTOR,F,FIN,
+     $     NBOT,NTOP,LCOL,DIAG,RCOL,IGRID,DZ)
+#include "mgpar.h"
+#include "conles.h"
+#include "konsta.h"
+#include "conpot.h"
+#include "cobound.h"
+#include "cophyspar.h"
+
+#ifdef _TSCAL_
+      INTEGER KK,JJ,II,K,J,I,KSTART,JSTART,ISTART,KSTOP,JSTOP,ISTOP,
+     $        KA,KE,NBOT,NTOP
+
+      REAL    LCOL(KK),DIAG(KK),RCOL(KK),FAKTOR(KK),DZ(KK)
+
+      REAL    F(KK,JJ,II),FIN(KK,JJ,II),RSGS(KK,JJ,II),COEFTZ(KK,12)
+
+      IF(NBOT .EQ. 16) THEN
+      KA = 3
+      K = KA
+      LCOL(K) = COEFTZ(K,1)
+      DIAG(K) = COEFTZ(K,2)
+      RCOL(K) = COEFTZ(K,3)
+      DO I = ISTART, ISTOP
+         DO J = JSTART, JSTOP
+            RSGS(K,J,I) = COEFTZ(K,5)*TSCA(2,5,IGRID)
+         ENDDO
+      ENDDO      
+      ELSEIF(NBOT .EQ. 15) THEN
+      KA = 3
+      K = KA
+      LCOL(K) = COEFTZ(K,1)
+      DIAG(K) = COEFTZ(K,2)
+      RCOL(K) = COEFTZ(K,3)
+      DO I = ISTART, ISTOP
+         DO J = JSTART, JSTOP
+            RSGS(K,J,I) = COEFTZ(K,5)*(F(K,J,I)+QSCA(2,5,IGRID)/LAMDA
+     $           *DZ(K-1)*0.5)
+         ENDDO
+      ENDDO
+      ELSE
+                 WRITE(6,*)'NBOT: ',NBOT 
+         STOP 'RB NICHT FUER SCALAR 4th ORDER'
+         RETURN
+      ENDIF
+
+      IF(NTOP .EQ. 16) THEN
+      KE = KK-1
+      K = KE
+      LCOL(K) = COEFTZ(K,1)
+      DIAG(K) = COEFTZ(K,2)
+      RCOL(K) = COEFTZ(K,3)
+      DO I = ISTART, ISTOP
+         DO J = JSTART, JSTOP
+            RSGS(K,J,I) = COEFTZ(K,5)*TSCA(2,6,IGRID)
+         ENDDO
+      ENDDO
+      ELSEIF(NBOT .EQ. 15) THEN
+      KE = KK-1
+      K = KE
+      LCOL(K) = COEFTZ(K,1)
+      DIAG(K) = COEFTZ(K,2)
+      RCOL(K) = COEFTZ(K,3)
+      DO I = ISTART, ISTOP
+         DO J = JSTART, JSTOP
+            RSGS(K,J,I) = COEFTZ(K,5)*(F(K,J,I)+QSCA(2,6,IGRID)/LAMDA
+     $           *DZ(K-1)*0.5)
+         ENDDO
+      ENDDO
+      ELSE
+                  WRITE(6,*)'NTOP: ',NTOP
+         STOP 'RB NICHT FUER SCALAR 4th ORDER'
+         RETURN
+      ENDIF
+
+
+C                                     KOMPAKTER ANSATZ IM GEBIET
+
+       DO I = ISTART,ISTOP
+          DO J = JSTART,JSTOP
+             DO K = KA+1, KE-1
+                LCOL(K) = COEFTZ(K,1)
+                DIAG(K) = COEFTZ(K,2)
+                RCOL(K) = COEFTZ(K,3)
+#if !defined _4TH_KOBAYASHI_ 
+                RSGS(K,J,I) = COEFTZ(K,4) * F(K  ,J,I)
+     $                      + COEFTZ(K,5) * F(K-1,J,I)
+#else
+                RSGS(K,J,I) = COEFTZ(K,4) * F(K-1  ,J,I)
+     $                      + COEFTZ(K,5) * F(K,J,I)
+#endif     
+             ENDDO
+          ENDDO
+       ENDDO
+
+       CALL THOMASK(KK,JJ,II,KA,KE,JSTART,JSTOP,ISTART,ISTOP,
+     $              LCOL,DIAG,RCOL,RSGS,FAKTOR,FIN)
+
+#endif
+       RETURN
+       END

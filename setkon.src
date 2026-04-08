@@ -1,0 +1,181 @@
+      SUBROUTINE SETKON
+C*STAR******************************************************************
+C*STAR*  S E T K O N      FESTLEGUNG ALLGEMEINER KONSTANTEN
+C*STAR******************************************************************
+C
+C UPROG                 : KEINE
+C
+C DEFINE-DIREKTIVEN     : B7800,  CRAY,  CYBER,  C205,  C3820,  IRIS, SP2
+C                         LINUX
+C
+C VERS:  03.01.85 (HW)  : ORIGINAL
+C        14.11.85 (HW)  : DEFINE B7800  EINGEFUEHRT
+C        30.07.86 (HW)  : DEFINE C205 EINGEFUEHRT
+C        21.09.88 (HW)  : SMAONE  EINGEFUEHRT. SMAONE IST GERADE
+C                         SO GROSS, DASS AUF JEDER MASCHINE
+C                         1.0 + SMAONE > 1.0 GERADE NICHT MEHR
+C                         ERKANNT WIRD. (SMAONE IST EIN MASS FUER DEN
+C                         RUNDUNGSFEHLER DER MASCHINE)
+C        30.12.88 (HW)  : UEBERARBEITUNG, KONTROLLAUSDRUCK
+C        27.02.92 (MM)  : EINFUEHRUNG VON PRESET=0.0, AUCH IN KONSTA
+C
+C*STAR******************************************************************
+C
+#if defined _MPI_ | defined _MPI_PARTICLES_
+#include "colevel.h"
+#include "mgpar.h"
+#include "compi.h"
+#endif
+#include "konsta.h"
+C
+#ifdef _CYBER_
+      DATA RINDE  /O"60000000000433404267"/
+C
+      GREAT  = 1.0E90
+      SMALL  = 1.0E-90
+      RINDEF = RINDE
+#endif
+#if (defined _CRAY_)
+      DATA RINDE  /0605050037740100000000B/
+C
+      GREAT  = 1.0E300
+      SMALL  = 3.0E-294
+      RINDEF = RINDE
+#endif
+#if (defined _CRAYT90_)
+      DATA RINDE  /0605050037740100000000B/
+C
+      GREAT  = 1.0E20
+      SMALL  = 3.0E-20
+      RINDEF = RINDE
+#endif
+#ifdef _B7800_
+      DATA RINDE  /1.0E20/
+C
+      GREAT  = 1.0E20
+      SMALL  = 1.0E-20
+      RINDEF = RINDE
+#endif
+#ifdef _C3820_
+      DATA RINDE  /1.0E20/
+C
+      GREAT  = 1.0E20
+      SMALL  = 1.0E-20
+      RINDEF = RINDE
+#endif
+#ifdef _HITACHI_
+      DATA RINDE  /1.0E20/
+C
+      GREAT  = 1.0E20
+#ifdef _DOUBLE_PRECISION_
+      SMALL  = 1.0E-20
+#else
+      SMALL = 1.0E-10
+#endif
+      RINDEF = RINDE
+#endif
+#ifdef _VPP_
+      DATA RINDE  /1.0E20/
+C
+      GREAT  = 1.0E20
+      SMALL  = 1.0E-10
+      RINDEF = RINDE
+#endif
+#ifdef _IRIS_
+      DATA RINDE  /1.0E20/
+C
+      GREAT  = 1.0E20
+      SMALL  = 1.0E-10
+      RINDEF = RINDE
+#endif
+#ifdef _LINUX_
+      DATA RINDE  /1.0E20/
+C
+      GREAT  = 1.0E40
+#ifdef _DOUBLE_PRECISION_
+      SMALL = 1.0E-19
+#else
+      SMALL  = 1.0E-10
+#endif
+      RINDEF = RINDE
+#endif
+#ifdef _HP_
+      DATA RINDE  /1.0E20/
+C
+      GREAT  = 1.0E20
+      SMALL  = 1.0E-10
+      RINDEF = RINDE
+#endif
+#ifdef _T3E_
+      DATA RINDE  /1.0E20/
+C
+      GREAT  = 1.0E20
+      SMALL  = 1.0E-10
+      RINDEF = RINDE
+#endif
+#ifdef _SP2_
+      DATA RINDE  /1.0E20/
+C
+      GREAT  = 1.0E20
+      SMALL  = 1.0E-10
+      RINDEF = RINDE
+#endif
+#ifdef _KSR_
+      DATA RINDE  /1.0E20/
+C
+      GREAT  = 1.0E20
+      SMALL  = 1.0E-10
+      RINDEF = RINDE
+#endif
+#ifdef _C205_
+      DATA RINDE  /1.0E90/
+C
+      GREAT  = 1.0E90
+      SMALL  = 1.0E-90
+      RINDEF = RINDE
+#endif
+C
+      PRESET = 0.0
+C
+C                                 MASCHINEN"UN"ABHAENGIGE BESTIMMUNG
+C                                 VON SMAONE
+C
+#ifdef _IRIS_
+      SMAONE   = 1.0E-37
+#else
+      SMAONE   = 1.0
+ 2000 IF(1.0 + SMAONE .GT. 1.0) THEN
+         SMAONE = 0.5*SMAONE
+         GOTO 2000
+      ENDIF
+#endif
+C
+#if defined _MPI_ | defined _MPI_PARTICLES_
+	  IF (MYID .EQ. 0) THEN
+#endif
+      WRITE (6,*)
+      WRITE (6,*)
+      WRITE (6,*) ' ********** INFORMATION AUS SUBR. SETKON **********'
+      WRITE (6,*)
+      WRITE (6,*) ' GREAT   (3. WURZEL AUS DER GROESSTEN, AUF DER ',
+     $            'MASCHINE DARSTELLBAREN REAL-ZAHL) = ',GREAT
+      WRITE (6,*) ' SMALL   (3. WURZEL AUS DER KLEINSTEN, AUF DER ',
+     $            'MASCHINE DARSTELLBAREN REAL-ZAHL) = ',SMALL
+      WRITE (6,*) ' RINDEF  (REAL-ZAHL MIT DER BEDEUTUNG "UNDEFINI',
+     $            'ERT")                             = ',RINDEF
+      WRITE (6,*) '         RINDEF IST MASCHINENABHAENGIG !!'
+      WRITE (6,*) ' PRESET  (0.0) ZUR VORBELEGUNG ALLER GROESSEN  ',
+     $            '                                  = ',PRESET
+      WRITE (6,*) 'ALS ERSATZ VON RINDEF AB 27.02.92  '
+      WRITE (6,*) ' SMAONE  (DEFINITION: 1.0 + SMAONE = 1.0)      ',
+     $            '                                  = ',SMAONE
+      WRITE (6,*) '         SMAONE IST MASCHINENABHAENGIG, KANN JE',
+     $            'DOCH IM GEGENSATZ ZU "RINDEF"'
+      WRITE (6,*) '         AUTOMATISCH BESTIMMT WERDEN'
+      WRITE (6,*) ' OBIGE KONSTANTEN STEHEN IM COMMON-BLOCK "KONST',
+     $            'A"'
+#if defined _MPI_ | defined _MPI_PARTICLES_
+	  ENDIF
+#endif
+      RETURN
+      END

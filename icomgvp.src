@@ -1,0 +1,36 @@
+       SUBROUTINE ICOMGVP  ()
+
+
+C*STARLET***************************************************************
+C        I C O M G V P       INITIALISIEREN DES COMMON-BLOCKES
+C                            COMGVP
+C*STARLET***************************************************************
+C
+C
+C VERS:   6.10.93 (MM)  : ORIGINAL
+C
+C
+C*STARLET***************************************************************
+C
+#include "mgpar.h"
+#include "comgrid.h"
+#include "comgvp.h"
+C
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+C
+ 
+
+          DO IGRD = 1,MAXGRIDS
+
+             IPCORR(IGRD) = 0
+             NDIVLEPS(IGRD) = 0
+             LDIVLEPS(IGRD) = 0
+             DIVGMX(IGRD) = 0.0
+
+          ENDDO
+
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+C
+
+      RETURN
+      END

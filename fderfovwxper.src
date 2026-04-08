@@ -1,0 +1,92 @@
+      SUBROUTINE FDERFOVWX_PER(KK,JJ,II,KSTART,JSTART,ISTART,KSTOP,
+     $                        JSTOP,
+     $                        ISTOP,COEFDX,RSGS,DX,DDX,F,FINI,FD,
+     $                        LCOL,DIAG,RCOL,UZ,RSP)
+C*MGLET***************************************************************
+C        F D E R F O V W X P E R 
+C                    = = = 
+C        BERECHNUNG DER ERSTEN ABLEITUNG FDVI,FDWI / PERIODISCHE RB
+C*MGLET***************************************************************
+C
+C PARAM: F(K,J,I)         - GESCH.-KOMPONENTE AN DEN KANTEN
+C      : FINI(K,J,I)      - INTERPOLIERTE F IN I(X)-RICHTUNG
+C      : FD  (K,J,I)      - ERSTE ABLEITUNG IN X-RICHTUNG    
+C
+C      : COEFDX(I,7)    - ENTHAELT KOEFFIZIENTEN DER "LINKEN SPALTE"
+C                         PARALLEL ZUR HAUPTDIAGONALEN
+C      : COEFDX(I,8)    - ENTHAELT KOEFFIZIENTEN DER HAUPTDIAGONALEN
+C      : COEFDX(I,9)    - ENTHAELT KOEFFIZIENTEN DER "RECHTEN SPALTE"
+C                         PARALLEL ZUR HAUPTDIAGONALEN
+C      : COEFDX(I,10),  - KOEFFIZIENTEN AUF DER RECHTEN SEITE DES 
+C        COEFDX(I,11),    GLEICHUNGSSYSTEMS
+C        COEFDX(I,12)
+C
+C DEFINE DIREKTIVEN     : KEINE 
+C
+C UPROG                 : TRIZYK
+C
+C VERS:  14.02.97 (AM)  : ORIGINAL        (KOMPAKT 4. ORDNUNG)
+C
+C*MGLET***************************************************************
+C
+
+      REAL       LCOL(II),DIAG(II),RCOL(II),UZ(II),RSP(II),
+     $           DX(II),DDX(II)
+      REAL       F(KK,JJ,II),FINI(KK,JJ,II),COEFDX(ISTART:ISTOP+1,12),
+     $           RSGS(KK,JJ,II),FD(KK,JJ,II)
+C
+
+#if !defined _4TH_KOBAYASHI_ 
+
+       DO 30 J = JSTART, JSTOP
+       DO 40 K = KSTART, KSTOP
+C
+C                                     KOMPAKTER ANSATZ IM GEBIET
+ 	 DO 20 I = ISTART, ISTOP+1
+C
+         RSGS(K,J,I) = (24./22.) *( F(K,J,I)  - F(K,J,I-1))*
+     $                 DX(I-1)
+C
+	 LCOL(I) = 1./22.      
+	 DIAG(I) = 1.          
+	 RCOL(I) = 1./22.       
+C
+   20    CONTINUE                
+
+       UZ (1) = 1./22.
+       RSP(1) = 1./22.
+
+#else
+
+
+       DO 30 J = JSTART, JSTOP
+       DO 40 K = KSTART, KSTOP
+C
+C                                     KOMPAKTER ANSATZ IM GEBIET
+ 	 DO 20 I = ISTART, ISTOP+1
+C
+         RSGS(K,J,I) = (6./5.) *( F(K,J,I)  - F(K,J,I-1))*
+     $                 DX(I-1)
+C
+	 LCOL(I) = 1./10.      
+	 DIAG(I) = 1.          
+	 RCOL(I) = 1./10.       
+C
+   20    CONTINUE                
+
+       UZ (1) = 1./10.
+       RSP(1) = 1./10.
+#endif
+
+C
+       CALL TRIZYK (II,ISTART,ISTOP+1,LCOL,DIAG,RCOL,
+     $              RSGS(K,J,1),FD(K,J,1),UZ,RSP)
+
+   40  CONTINUE                
+   30  CONTINUE                
+C
+C*MGLET***************************************************************
+C
+       RETURN
+       END
+

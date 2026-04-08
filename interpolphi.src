@@ -1,0 +1,56 @@
+      SUBROUTINE INTERPOLPHI (KK,JJ,II,DX,DY,DZ,RDDX,RDDY,RDDZ,
+     $                      IVAR,PHI,INTERP)
+C------------------------------------------------------------
+C
+C     INTERPOLATES VELOCITIES ON THE PRESSURE CELL
+C
+C     14.07.00 (SE) ORIG
+C
+C------------------------------------------------------------
+
+      REAL PHI(KK,JJ,II), INTERP(KK,JJ,II)
+
+      REAL  DX(II),  DY(JJ),  DZ(KK),
+     $     RDDX(II), RDDY(JJ), RDDZ(KK)
+
+      INTEGER I,J,K
+
+      CHARACTER (LEN=1) IVAR
+
+C------------------------------------------------------------
+
+
+      IF ( IVAR .EQ. 'X' ) THEN
+         DO I=2,II-1
+            DO J=2,JJ-1
+               DO K=2,KK-1
+                  INTERP(K,J,I) = .5 * RDDX(I)
+     $                 * ( PHI(K,J,I-1) * DX (I)
+     $                 + PHI(K,J,I) * DX(I-1))
+               ENDDO
+            ENDDO
+         ENDDO
+      ELSEIF ( IVAR .EQ. 'Y' ) THEN
+         DO I=2,II-1
+            DO J=2,JJ-1
+               DO K=2,KK-1
+                  INTERP(K,J,I) = .5 * RDDY(J)
+     $                 * ( PHI(K,J-1,I) * DY (J)
+     $                 + PHI(K,J,I) * DY(J-1))
+               ENDDO
+            ENDDO
+         ENDDO
+      ELSEIF ( IVAR .EQ. 'Z' ) THEN
+         DO I=2,II-1
+            DO J=2,JJ-1
+               DO K=2,KK-1
+                  INTERP(K,J,I) = .5 * RDDZ(K)
+     $                 * ( PHI(K-1,J,I) * DZ (K)
+     $                 + PHI(K,J,I) * DZ(K-1))
+               ENDDO
+            ENDDO
+         ENDDO
+      ENDIF
+
+      RETURN
+      END

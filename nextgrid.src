@@ -1,0 +1,30 @@
+       SUBROUTINE NEXTGRID (IGRID)
+
+C*MGLET*****************************************************************
+C    N E X T G R I D         LIEFERT NUMMER DES NAECHSTEN ZU BELEGENDEN
+C                            GITTERS
+C*MGLET*****************************************************************
+C
+C
+C VERS:  17. 6.93 (MM)  : ORIGINAL
+C
+C
+C*STARLET***************************************************************
+C
+#include "mgpar.h"
+#include "comgrid.h"
+
+      IGRID = NGRDSET + 1
+
+      NGRDSET = NGRDSET + 1
+C
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+C                           UEBERPRUEFUNGEN
+
+      IF (IGRID .GT. MAXGRIDS) CALL ERRR (  555 ,'NEXTGRID')
+
+C
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+
+      RETURN
+      END

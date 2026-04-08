@@ -1,0 +1,133 @@
+      SUBROUTINE ZBRENT (F,EPS,NSIG,A,B,MAXFN,IER)
+C
+C-ZBRENT--------S-------LIBRARY 3---------------------------------------
+C
+C   FUNCTION            - TO FIND A ZERO OF A FUNCTION WHICH CHANGES
+C                           SIGN IN A GIVEN INTERVAL
+C   USAGE               - CALL ZBRENT (F,EPS,NSIG,A,B,MAXFN,IER)
+C   PARAMETERS   F      - AN EXTERNAL FUNCTION SUBPROGRAM F(X)
+C                           PROVIDED BY THE USER WHICH COMPUTES F FOR
+C                           ANY X IN THE INTERVAL (A,B).
+C                EPS    - FIRST CONVERGENCE CRITERION (INPUT).  A ROOT,
+C                           B, IS ACCEPTED IF ABS(F(B)) IS LESS THAN OR
+C                           EQUAL TO EPS.  EPS MAY BE SET TO ZERO.
+C                NSIG   - SECOND CONVERGENCE CRITERION (INPUT).  A ROOT,
+C                           B, IS ACCEPTED IF THE CURRENT APPROXIMATION
+C                           AGREES WITH THE TRUE SOLUTION TO NSIG
+C                           SIGNIFICANT DIGITS.
+C                A,B    - ON INPUT, THE USER MUST SUPPLY TWO POINTS, A
+C                           AND B, SUCH THAT F(A) AND F(B) ARE OPPOSITE
+C                           IN SIGN.
+C                           ON OUTPUT, BOTH A AND B ARE ALTERED.  B
+C                           WILL CONTAIN THE BEST APPROXIMATION TO THE
+C                           ROOT OF F.
+C                MAXFN  - ON INPUT, MAXFN SHOULD CONTAIN AN UPPER BOUND
+C                           ON THE NUMBER OF FUNCTION EVALUATIONS
+C                           REQUIRED FOR CONVERGENCE.  ON OUTPUT, MAXFN
+C                           WILL CONTAIN THE ACTUAL NUMBER OF FUNCTION
+C                           EVALUATIONS USED.
+C                IER    - ERROR PARAMETER
+C                         TERMINAL ERROR
+C                           IER = 129 INDICATES THE ALGORITHM FAILED TO
+C                             CONVERGE IN MAXFN EVALUATIONS.
+C                           IER = 130 INDICATES F(A) AND F(B) HAVE THE
+C                             SAME SIGN.
+C   PRECISION           - SINGLE
+C   LANGUAGE            - FORTRAN
+C-----------------------------------------------------------------------
+C   LATEST REVISION     - JUNE 15, 1976
+C
+      EXTERNAL   F
+
+      REAL               ZERO,HALF,ONE,THREE,TEN
+      REAL               F,EPS,A,B,
+     1                   T,FA,FB,C,FC,D,E,TOL,RM,S,P,Q,R,RONE,TEMP
+      DATA               ZERO/0.0/,HALF/.5/,ONE/1.0/,THREE/3.0/,
+     1                   TEN/10.0/
+      IER = 0
+      T = TEN**(-NSIG)
+      IC = 2
+      S = A
+      FA = F(S)
+      S = B
+      FB = F(S)
+C                                  TEST FOR SAME SIGN
+      IF (FA*FB.GT.ZERO) GO TO 50
+    5 C = A
+      FC = FA
+      D = B-C
+      E = D
+   10 IF (ABS(FC).GE.ABS(FB)) GO TO 15
+      A = B
+      B = C
+      C = A
+      FA = FB
+      FB = FC
+      FC = FA
+   15 CONTINUE
+      TOL = T*AMAX1(ABS(B),0.1)
+      RM = (C-B)*HALF
+C                                  TEST FOR FIRST CONVERGENCE CRITERIA
+      IF (ABS(FB).LE.EPS) GO TO 40
+C                                  TEST FOR SECOND CONVERGENCE CRITERIA
+      IF (ABS(C-B).LE.TOL) GO TO 40
+C                                  CHECK EVALUATION COUNTER
+      IF (IC.GE.MAXFN) GO TO 45
+C                                  IS BISECTION FORCED
+      IF (ABS(E).LT.TOL) GO TO 30
+      IF (ABS(FA).LE.ABS(FB)) GO TO 30
+      S = FB/FA
+      IF (A.NE.C) GO TO 20
+C                                  LINEAR INTERPOLATION
+      P = (C-B)*S
+      Q = ONE-S
+      GO TO 25
+C                                  INVERSE QUADRATIC INTERPOLATION
+   20 Q = FA/FC
+      R = FB/FC
+      RONE = R-ONE
+      P = S*((C-B)*Q*(Q-R)-(B-A)*RONE)
+      Q = (Q-ONE)*RONE*(S-ONE)
+   25 IF (P.GT.ZERO) Q = -Q
+      IF (P.LT.ZERO) P = -P
+      S = E
+      E = D
+C                                  IF ABS(P/Q).GE.75*ABS(C-B) THEN
+C                                     FORCE BISECTION
+      IF (P+P.GE.THREE*RM*Q) GO TO 30
+C                                  IF ABS(P/Q).GE..5*ABS(S) THEN FORCE
+C                                     BISECTION. S = THE VALUE OF P/Q
+C                                     ON THE STEP BEFORE THE LAST ONE
+      IF (P+P.GE.ABS(S*Q)) GO TO 30
+      D = P/Q
+      GO TO 35
+C                                  BISECTION
+   30 E = RM
+      D = E
+C                                  INCREMENT B
+   35 A = B
+      FA = FB
+      TEMP = D
+      IF (ABS(TEMP).LE.HALF*TOL) TEMP = SIGN(HALF*TOL,RM)
+      B = B+TEMP
+      S = B
+      FB = F(S)
+      IC = IC+1
+      IF (FB*FC.LE.ZERO) GO TO 10
+      GO TO 5
+C                                  CONVERGENCE OF B
+   40 A = C
+      MAXFN = IC
+      GO TO 9005
+C                                  MAXFN EVALUATIONS
+   45 IER = 129
+      A = C
+      MAXFN = IC
+      GO TO 9000
+C                                  TERMINAL ERROR - F(A) AND F(B) HAVE
+C                                  THE SAME SIGN
+   50 IER = 130
+      MAXFN = IC
+ 9000 CONTINUE
+ 9005 RETURN
+      END

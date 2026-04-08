@@ -1,0 +1,139 @@
+      SUBROUTINE TAUNN  (KK,JJ,II,X,Y,Z,
+     $                    DX,DY,DZ,DDX,DDY,DDZ,
+     $                    RDX,RDY,RDZ,RDDX,RDDY,RDDZ,
+     $                    U,V,W,G,B,
+     $                    DUDY,DUDZ,DVDX,DVDZ,DWDX,DWDY,
+     $                    TAU11,TAU12,TAU13,
+     $                       UP,TAU22,TAU23,
+     $                       VP,   WP,TAU33)
+C***MGLET***************************************************************
+C        T A U N N        BERECHNUNG DES NICHT-NEWTONSCHEN
+C                         SPANNUNGSTENSORS
+C***MGLET***************************************************************
+C
+C PARAM: KK, JJ, II     - ARRAYDIMENSIONEN
+C        KMX, JMX, IMX  - GRENZEN DES BERECHNUNGSGEBIETES (MIT BOUND)
+C        X, Y, Z        - KOORDINATEN DER ZELLDEFINITIONSPUNKTE
+C        DX,DY,DZ       - ABSTAND DER GITTERPUNKTE
+C        DDX,DDY,DDZ    - KANTENLAENGEN DER KONTROLLVOLUMINA
+C        U(KK,JJ,II)    - GESCHWINDIGKEITSFELD
+C        V(KK,JJ,II)    - GESCHWINDIGKEITSFELD
+C        W(KK,JJ,II)    - GESCHWINDIGKEITSFELD
+C        G(KK,JJ,II)    + EFFEKTIVE DYNAMISCHE VISKOSITAET (= MUE)
+C        GMOL           - MOLEKULARE DYNAMISCHE VISKOSITAET
+C        TAU11..TAU33   - ELEMENTE DES SPANNUNGSTENSORS
+C        RHO            - DICHTE (= CONST)
+C        UGRID          - GESCHWINDIGKEIT DES KOORDINATENSYSTEMS IN
+C                         XeRICHTUNG (GALILEI-TRANSFORMATION)
+C
+C UPROG                 : ERRR,
+C
+C VERS:  13.04.99 (MM)  : ORIGINAL
+C
+C DEFINE-DIREKTIVEN     : _VA_TOONDER_
+C
+C*STARLET***************************************************************
+C
+#include "konsta.h"
+#include "cophyspar.h"
+C
+C
+      REAL        X(II),         Y(JJ),         Z(KK),
+     $           DX(II),        DY(JJ),        DZ(KK),
+     $          DDX(II),       DDY(JJ),       DDZ(KK),
+     $          RDX(II),       RDY(JJ),       RDZ(KK),
+     $         RDDX(II),      RDDY(JJ),      RDDZ(KK),
+     $            U(KK,JJ,II),   V(KK,JJ,II),   W(KK,JJ,II),
+     $            G(KK,JJ,II),   B(KK,JJ,II)
+C
+      REAL 	TAU11(KK,JJ,II), TAU12(KK,JJ,II), TAU13(KK,JJ,II),
+     $                           TAU22(KK,JJ,II), TAU23(KK,JJ,II),
+     $                                            TAU33(KK,JJ,II)
+C
+      REAL UP(KK,JJ,II), VP(KK,JJ,II), WP(KK,JJ,II)
+C
+      REAL        DUDY(KK,JJ),  DUDZ(KK,JJ),
+     $            DVDX(KK,JJ),  DVDZ(KK,JJ),
+     $            DWDX(KK,JJ),  DWDY(KK,JJ)
+
+C
+      integer KK,JJ,II
+C
+      NBND = 2
+
+      KM2    = KMX-NBND
+      JM2    = JMX-NBND
+      IM2    = IMX-NBND
+
+C     
+C
+#ifdef _VA_MODELL_
+
+C-----------------------------------Newton
+      GMOL2 =     0.0 * GMOL
+C-----------------------------------va3
+C      GMOL2 =    -6.0 * GMOL
+C-----------------------------------va4
+C      GMOL2 =   -18.0 * GMOL
+C-----------------------------------va6
+C      GMOL2 =   -36.0 * GMOL
+C-----------------------------------va7
+C      GMOL2 =   -72.0 * GMOL
+C-----------------------------------va8
+C      GMOL2 =    72.0 * GMOL
+      
+      CALL NONSTAGX (KK,JJ,II,U,UP,DX,DDX)
+      CALL NONSTAGY (KK,JJ,II,V,VP,DY,DDY)
+      CALL NONSTAGZ (KK,JJ,II,W,WP,DZ,DDZ)
+	
+      DO I=2,II-1
+         DO J=2,JJ-1
+            DO K=2,KK-1
+               
+               ENERGY2 = (UP(K,J,I)**2 + VP(K,J,I)**2 + WP(K,J,I)**2)**2
+
+               GMOL2RK2 = GMOL2 / (ENERGY2 + SMALL)
+
+               D11 =      (UP(K,J,I+1) - UP(K,J,I-1))/(DX(I)+DX(I-1))
+               D22 =      (VP(K,J+1,I) - VP(K,J-1,I))/(DY(J)+DY(J-1))
+               D33 =      (WP(K+1,J,I) - WP(K-1,J,I))/(DZ(K)+DZ(K-1))
+
+               D12 = 0.5*((UP(K,J+1,I) - UP(K,J-1,I))/(DY(J)+DY(J-1))
+     $                   +(VP(K,J,I+1) - VP(K,J,I-1))/(DX(I)+DX(I-1)))
+
+               D13 = 0.5*((UP(K+1,J,I) - UP(K-1,J,I))/(DZ(K)+DZ(K-1))
+     $                   +(WP(K,J,I+1) - WP(K,J,I-1))/(DX(I)+DX(I-1)))
+
+               D23 = 0.5*((VP(K+1,J,I) - VP(K-1,J,I))/(DZ(K)+DZ(K-1))
+     $                   +(WP(K,J+1,I) - WP(K,J-1,I))/(DY(J)+DY(J-1)))
+
+               DIJUIUJ =  D11 * UP(K,J,I)*UP(K,J,I)
+     $                  + D12 * UP(K,J,I)*VP(K,J,I)
+     $                  + D13 * UP(K,J,I)*WP(K,J,I)
+
+     $                  + D12 * VP(K,J,I)*UP(K,J,I)
+     $                  + D22 * VP(K,J,I)*VP(K,J,I)
+     $                  + D23 * VP(K,J,I)*WP(K,J,I)
+
+     $                  + D13 * WP(K,J,I)*UP(K,J,I)
+     $                  + D23 * WP(K,J,I)*VP(K,J,I)
+     $                  + D33 * WP(K,J,I)*WP(K,J,I)
+
+               TAU11(K,J,I)= GMOL2RK2 * DIJUIUJ * UP(K,J,I) * UP(K,J,I)
+               TAU12(K,J,I)= GMOL2RK2 * DIJUIUJ * UP(K,J,I) * VP(K,J,I)
+               TAU13(K,J,I)= GMOL2RK2 * DIJUIUJ * UP(K,J,I) * WP(K,J,I)
+
+               TAU22(K,J,I)= GMOL2RK2 * DIJUIUJ * VP(K,J,I) * VP(K,J,I)
+               TAU23(K,J,I)= GMOL2RK2 * DIJUIUJ * VP(K,J,I) * WP(K,J,I)
+
+               TAU33(K,J,I)= GMOL2RK2 * DIJUIUJ * WP(K,J,I) * WP(K,J,I)
+
+            ENDDO
+         ENDDO
+      ENDDO
+
+#endif
+C
+      RETURN
+      END
+

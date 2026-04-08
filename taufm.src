@@ -1,0 +1,293 @@
+      SUBROUTINE TAUFM   (KK,JJ,II,KMX,JMX,IMX,IC1,IC2,JC1,JC2,KC1,KC2,
+     $                    B,G,GMOL,RHO,UGRID,TAUIJ,
+     $                    UI,XI,DXI,DDXI,NNI,UJ,XJ,DXJ,DDXJ,NNJ,IVAR,
+     $                    NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB
+#ifdef _TSCAL_
+     $                    ,PRMOL,T,XK,DXK,DDXK,NNK
+#endif
+     $                    )     
+C*STARLET***************************************************************
+C        T A U F M        IN TAUFM WIRD DER MOLEKULARE ANTEIL DER
+C                         SCHUBSPANNUNGEN
+C                           TAUIJ = MUE(MOL) * (DUI/DXJ + DUJ/DXI)
+C                         BERECHNET.
+C                         DA DIE WANDSCHUBSPANNUNG MITTELS DES LOG.
+C                         WANDGESETZES BESTIMMT WIRD, IST EINE SONDER-
+C                         BEHANDLUNG ALLER NOSLIP-SEITENFLAECHEN ER-
+C                         FORDERLICH.
+C                                                                       
+C                                                                       
+C                 --------------------------------                      
+C                |               |                |                     
+C                |    K+K1       |  K+K1+K2       |                     
+C                |    J+J1       |  J+J1+J2       |                     
+C                |    I+I1       |  I+I1+I2       |   |XJ               
+C                |               |                |   |                 
+C                |               |                |   |                 
+C                 --------------------------------    |                 
+C                |               |                |   |                 
+C                |      K        |    K+K2        |   |                 
+C                |      J        |    J+J2        |    ----------->     
+C                |      I        |    I+I2        |            XI       
+C                |               |                |                     
+C                |               |                |                     
+C                 --------------------------------                      
+C                           
+C                      FOR SCALAR WALL HEAT FLUX
+C                      TAUIJ = MUE(MOL)/PRMOL * (DT/DXI)
+C                                                                       
+C*STARLET***************************************************************
+C
+C PARAM: KK, JJ, II     - ARRAYDIMENSIONEN
+C        KMX, JMX, IMX  - GRENZEN DES BERECHNUNGSGEBIETES (MIT BOUND)
+C        IB1, IB2       - GRENZE DES KUBUSSES IN X-RI.
+C        JB1, JB2       -   ""     "     "     IN Y-RI.
+C        KB             -   ""     "     "     IN Z-RI. (TOP-FLAECHE)
+C        G(KK,JJ,II)    - EFFEKTIVE DYNAMISCHE VISKOSITAET (= MUE)
+C        GMOL           - MOLEKULARE DYNAMISCHE VISKOSITAET
+C        RHO            - DICHTE DES FLUIDS (= CONST)
+C        UGRID          - GESCHWINDIGKEIT DES KOORDINATENSYSTEMS IN
+C                         X-RICHTUNG (GALILEI-TRANSFORMATION)
+C        TAUIJ(KK,JJ,II)+ SCHUBSPANNUNG
+C        UI   (KK,JJ,II)- GESCHWINDIGKEITSKOMPONENTE UI
+C        XI   (NNI)     - KOORDINATEN DER ZELLMITTELPUNKTE IN 'I'-RI.
+C        DXI  (NNI)     - ABSTAND DER BASISZELMITTELPUNKTE IN 'I'-RI.
+C        DDXI (NNI)     - ABMESSUNGEN DER BASISZELLEN      IN 'I'-RI.
+C        NNI            - ARRAYDIMENSION                   IN 'I'-RI.
+C        UJ   (KK,JJ,II)- GESCHWINDIGKEITSKOMPONENTE UJ
+C        XJ   (NNJ)     - KOORDINATEN DER ZELLMITTELPUNKTE IN 'J'-RI.
+C        DXJ  (NNJ)     - ABSTAND DER BASISZELMITTELPUNKTE IN 'J'-RI.
+C        DDXJ (NNJ)     - ABMESSUNGEN DER BASISZELLEN      IN 'J'-RI.
+C        NNJ            - ARRAYDIMENSION                   IN 'J'-RI.
+C        IVAR           - CHARACTER-VARIABLE DER FORM 'UW', 'VW'
+C                         ODER 'UV'. BEISPIELSWEISE BEDEUTET 'UW', DASS
+C                         TAUXZ = MUE(MOL) * (DU/DZ + DW/DX)
+C                         AUSGEWERTET WIRD.
+C
+C UPROG                 : ERRR, TAUWP, QWL
+C
+C DEFINE-DIREKTIVEN     : KEINE
+C
+C        25.08.86 (HW)  : ORIGINAL
+C        30.12.88 (HW)  : GEPS  WIRD MASCHINEN"UN"ABHAENGIG BELEGT,
+C                         UEBERPRUEFUNGEN WURDEN VERBESSERT
+C         6.11.92 (MM)  : EINFUEHRUNG VON LENOS UND RINOS
+C                         VORSICHT!!!!   NICHT ABGECHECKT!!!!
+C         1.11.93 (MM)  : RANDBEDINGUNGEN UEBER KOPF
+C        12.02.03 (TB)  : MODIFIED FOR USE OF SCALAR HEAT FLUX 
+C                         CALCULATION
+C
+C*STARLET***************************************************************
+C
+#include "konsta.h"
+C
+      CHARACTER (LEN=2)  IVAR
+C
+C
+      REAL     UI(KK,JJ,II),  UJ(KK,JJ,II),  G(KK,JJ,II),  B(KK,JJ,II),
+     $         TAUIJ(KK,JJ,II)
+     
+      REAL     XI(NNI),  DXI(NNI),  DDXI(NNI),
+     $         XJ(NNJ),  DXJ(NNJ),  DDXJ(NNJ)
+
+#ifdef _TSCAL_
+      REAL     T(KK,JJ,II),  XK(NNK),  DXK(NNK),  DDXK(NNK)
+#endif 
+C
+      IM2    = IMX - 2
+      JM2    = JMX - 2
+      KM2    = KMX - 2
+      IFRFIX = 0
+      JRIFIX = 0
+      GEPS   = AMAX1 ((GMOL/10000.0) , (10.0 * SMAONE))
+      IF(((    GMOL   - GEPS) .LE. 0.0)  .OR.
+     $   ((ABS(SMALL) - GEPS) .GE. 0.0)       ) THEN
+         CALL ERRR (501,' TAUFM    ')
+      END IF
+C
+C                                 GESCHWINDIGKEIT DES KOORDINATENSYSTEMS IN
+C                                 I- UND J-RICHTUNG
+        UIGRID = 0.0
+        UJGRID = 0.0
+C
+C                                 BESTIMMUNG DER VERSCHIEBUNGSKOEFFI-
+C                                 ZIENTEN (DIE SCHUBSPANNUNGEN SIND
+C                                 ZWEIFACH 'GESTAGGERT' !)
+C
+      IF(IVAR .EQ. 'UW') THEN
+C                                 BERUECKSICHTIGUNG VON 'W'
+         K1     = 1
+         J1     = 0
+         I1     = 0
+C                                 BERUECKSICHTIGUNG VON 'U'
+         K2     = 0
+         J2     = 0
+         I2     = 1
+
+         UIGRID = UGRID
+
+         GOTO 2100
+      ENDIF
+C
+      IF(IVAR .EQ. 'VW') THEN
+C                                 BERUECKSICHTIGUNG VON 'W'
+         K1     = 1
+         J1     = 0
+         I1     = 0
+C                                 BERUECKSICHTIGUNG VON 'V'
+         K2     = 0
+         J2     = 1
+         I2     = 0
+         GOTO 2100
+      ENDIF
+C
+      IF(IVAR .EQ. 'UV') THEN
+C                                 BERUECKSICHTIGUNG VON 'V'
+         K1     = 0
+         J1     = 1
+         I1     = 0
+C                                 BERUECKSICHTIGUNG VON 'U'
+         K2     = 0
+         J2     = 0
+         I2     = 1
+
+         UIGRID = UGRID
+
+         GOTO 2100
+      ENDIF
+C
+#ifdef _TSCAL_
+      IF(IVAR .EQ. 'UT') THEN
+C                                 BERUECKSICHTIGUNG VON 'U'         
+         K2     = 0
+         J2     = 0
+         I2     = 1          
+         GOTO 2100
+      ENDIF
+C
+      IF(IVAR .EQ. 'VT') THEN
+C                                 BERUECKSICHTIGUNG VON 'V'         
+         K2     = 0
+         J2     = 1
+         I2     = 0                
+         GOTO 2100
+      ENDIF
+C
+      IF(IVAR .EQ. 'WT') THEN
+C                                 BERUECKSICHTIGUNG VON 'W'         
+         K2     = 1
+         J2     = 0
+         I2     = 0                
+         GOTO 2100
+      ENDIF
+#endif      
+C
+      CALL ERRR (510,' TAUFM    ')
+C
+ 2100 CONTINUE
+C
+C
+C
+C                                 ***********************************
+C                                 BERECHNUNG DES MOLEKULAREN ANTEILS
+C                                 DER SCHUBSPANNUNG AN FREIEN GRENZFL.
+C                                 DIE SCHUBSPANNUNGEN AN DEN NOSLIP-
+C                                 RAENDERN WERDEN DURCH FAKTOREN
+C                                 BERUECKSICHTIGT
+C                                 ***********************************
+C
+      ISTART = 3 - I1 - I2 - IFRFIX
+      DO 900 I = ISTART,IM2
+         JSTART = 3 - J1 - J2 - JRIFIX
+         DO 910 J = JSTART,JM2
+            KSTART = 3-K1-K2
+            DO 920 K = KSTART,KM2
+C
+#ifdef _TSCAL_
+               UP = 0.0
+               UM = 0.0
+               VP = 0.0
+               VM = 0.0
+               WP = 0.0
+               WM = 0.0   
+      IF(IVAR .EQ. 'UT' .OR. IVAR .EQ. 'VT' .OR. IVAR .EQ. 'WT') 
+     $THEN
+               IF(IVAR .EQ. 'UT') THEN
+                  VP     = UI(K,J,I)
+                  VM     = UI(K,J-1,I)  
+                  WP     = UJ(K,J,I)
+                  WM     = UJ(K-1,J,I)  
+                  UQ = (ABS(VP+(VP-VM) /DDXI(J)*DXI(J-1)*0.5)**2.0 +       
+     $                    ABS(WP+(WP-WM) /
+     $                    DDXJ(K)*DXJ(K-1)*0.5)**2.0)**0.5          	
+               ELSEIF(IVAR .EQ. 'VT') THEN
+                  UP     = UI(K,J,I) + UGRID*SIGN(1.0,G(K,J,I)-GEPS)
+                  UM     = UI(K,J,I-1)+ UGRID*SIGN(1.0,G(K,J,I)-GEPS)  
+                  WP     = UJ(K,J,I)
+                  WM     = UJ(K-1,J,I) 
+                  UQ = (ABS(UP+(UP-UM) /DDXI(I)*DXI(I-1)*0.5)**2.0 +       
+     $                    ABS(WP+(WP-WM) /
+     $                    DDXJ(K)*DXJ(K-1)*0.5)**2.0)**0.5                      	
+               ELSE
+                  UP     = UI(K,J,I) + UGRID*SIGN(1.0,G(K,J,I)-GEPS)
+                  UM     = UI(K,J,I-1) + UGRID*SIGN(1.0,G(K,J,I)-GEPS) 
+                  VP     = UJ(K,J,I)
+                  VM     = UJ(K,J-1,I) 
+                  UQ = (ABS(UP+(UP-UM) /DDXI(I)*DXI(I-1)*0.5)**2.0 +       
+     $                    ABS(VP+(VP-VM) /
+     $                    DDXJ(J)*DXJ(J-1)*0.5)**2.0)**0.5                       	
+               ENDIF
+               FUK  = SIGN(0.5,(G(K      ,J      ,I      )-GEPS)
+     $              *           (G(K   +K2,J   +J2,I   +I2)-GEPS))+0.5    	
+C 
+                                           
+               DT = T(K+K2,J+J2,I+I2) - T(K,J,I)
+               TAUIJ(K,J,I) = 
+C                                        ANTEILE AN FREIEN GRENZFLAECHEN
+
+C                                                             I-RICHTUNG
+     $       + GMOL/PRMOL*DT/DXK(K*K2+J*J2+I*I2) * FUK 
+C                                                ANTEILE AN WANDFLAECHEN
+C                                                             I-RICHTUNG
+     $       + QWL(DT,UQ,DDXK(K*K2+J*J2+I*I2),
+     $                    DXK(K*K2+J*J2+I*I2))*(1-FUK)                  
+      ELSE
+#endif
+               FUI  = SIGN(0.25,(G(K      ,J      ,I      )-GEPS)
+     $              *           (G(K+K1   ,J+J1   ,I+I1   )-GEPS))+0.25
+C
+               FUIP = SIGN(0.25,(G(K   +K2,J   +J2,I   +I2)-GEPS)
+     $              *           (G(K+K1+K2,J+J1+J2,I+I1+I2)-GEPS))+0.25
+C
+               FUJ  = SIGN(0.25,(G(K      ,J      ,I      )-GEPS)
+     $              *           (G(K   +K2,J   +J2,I   +I2)-GEPS))+0.25
+C
+               FUJP = SIGN(0.25,(G(K+K1   ,J+J1   ,I+I1   )-GEPS)
+     $              *           (G(K+K1+K2,J+J1+J2,I+I1+I2)-GEPS))+0.25
+C     
+               DUI = UI(K+K1,J+J1,I+I1) - UI(K,J,I)
+               DUJ = UJ(K+K2,J+J2,I+I2) - UJ(K,J,I)
+               DUIGRID = DUI + UIGRID*SIGN(1.0,G(K,J,I)-GEPS)
+               DUJGRID = DUJ + UJGRID*SIGN(1.0,G(K,J,I)-GEPS)
+C
+               TAUIJ(K,J,I) = 
+C                                        ANTEILE AN FREIEN GRENZFLAECHEN
+C                                                             J-RICHTUNG
+     $         GMOL*DUI/DXJ(K*K1+J*J1+I*I1) * (FUI+FUIP)
+C                                                             I-RICHTUNG
+     $       + GMOL*DUJ/DXI(K*K2+J*J2+I*I2) * (FUJ+FUJP)
+C
+C                                                ANTEILE AN WANDFLAECHEN
+C                                                             J-RICHTUNG
+     $       + TAUWP(DUIGRID,DXJ(K*K1+J*J1+I*I1))*(1-FUI-FUIP)
+C                                                             I-RICHTUNG
+     $       + TAUWP(DUJGRID,DXI(K*K2+J*J2+I*I2))*(1-FUJ-FUJP)
+#ifdef _TSCAL_
+      ENDIF
+#endif
+  920       CONTINUE
+  910    CONTINUE
+  900 CONTINUE
+C
+      RETURN
+      END

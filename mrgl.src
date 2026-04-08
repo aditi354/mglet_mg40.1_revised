@@ -1,0 +1,42 @@
+#define _MPI_PARTICLES_
+
+
+#if defined _MPI_ | defined _MPI_PARTICLES_
+          IF (MYID .EQ. 0)  THEN
+#endif
+             IF(IGRID .EQ. NGRID) THEN
+             CALL ITINF (ITTOT,TIMEPH,IPCGES(IGRID),DIVGMX(IGRID),IGRID,
+     $            CPSEC,MTURB,EPSU(IGRID),EPSV(IGRID),EPSW(IGRID),
+     $            ESUMG(IGRID),ESUMS(IGRID),
+     $            IPRINT_WSS,WSSX(IGRID),WSSY(IGRID),WSSZ(IGRID),
+     $            IPRINT_WNS,WNSX(IGRID),WNSY(IGRID),WNSZ(IGRID)
+     $            ,UBULK(IGRID),GRADPX(IGRID),
+     $            WALLSSX(1,IGRID),WALLSSY(1,IGRID),WALLSSZ(1,IGRID)
+     $            ,IDIVMAX(IGRID),JDIVMAX(IGRID),KDIVMAX(IGRID)
+     $            ,XDIVMAX(IGRID),YDIVMAX(IGRID),ZDIVMAX(IGRID)
+     $            ,GRDIVMAX(IGRID)      
+#ifdef _TSCAL_
+     $             ,DTMAX(IGRID),ITMAX(IGRID),JTMAX(IGRID),KTMAX(IGRID),
+     $             XTMAX(IGRID),YTMAX(IGRID),ZTMAX(IGRID), TMAX(IGRID),    
+     $              GRDTMAX(IGRID),ITSTEP
+     $       ,PRTMAX(IGRID),XPRTMAX(IGRID),YPRTMAX(IGRID),ZPRTMAX(IGRID)
+     $       ,PRTMIN(IGRID),XPRTMIN(IGRID),YPRTMIN(IGRID),ZPRTMIN(IGRID)
+#ifdef _SCALGRIDDIAGNOSE_
+     $       ,DDSMAX(IGRID),SMMAX(IGRID),SPMAX(IGRID),ISPMAX(IGRID),
+     $        JSPMAX(IGRID),KSPMAX(IGRID),XSPMAX(IGRID),YSPMAX(IGRID),
+     $        ZSPMAX(IGRID),GRDSMAX(IGRID)
+#endif      
+#ifdef _SCALTRANSDIAGNOSE_  
+     $       ,QCE(IGRID),QCW(IGRID),QCN(IGRID),QCS(IGRID),QCT(IGRID)
+     $       ,QCB(IGRID),QDE(IGRID),QDW(IGRID),QDN(IGRID),QDS(IGRID)
+     $       ,QDT(IGRID),QDB(IGRID),QDC(IGRID)              
+#endif           
+#endif
+     $                 )
+             ENDIF
+          
+#if defined _MPI_ | defined _MPI_PARTICLES_
+          ENDIF
+#endif
+      ENDDO
+

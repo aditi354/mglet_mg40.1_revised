@@ -1,0 +1,65 @@
+      SUBROUTINE INTERUWY_PER(KK,JJ,KSTART,JSTART,KSTOP,JSTOP,
+     $                        COEFFY,RSGS,F,FIN,LCOL,DIAG,RCOL,UZ,RSP)
+C*MGLET***************************************************************
+C        I N T E R U W Y P E R
+C                  = = =
+C        INTERPOLIERT U, W IN Y-RICHTUNG (VINJ, WINJ) PERIODISCHE RB
+C*MGLET***************************************************************
+C
+C PARAM: F(K,J)         - ZU INTERPOLIERENDE GROESSE(U,W)
+C      : FIN (K,J)      - INTERPOLIERTE U,W IN J(Y)-RICHTUNG
+C
+C      : COEFFY(I,7)    - ENTHAELT KOEFFIZIENTEN DER "LINKEN SPALTE"
+C                         PARALLEL ZUR HAUPTDIAGONALEN
+C      : COEFFY(I,8)    - ENTHAELT KOEFFIZIENTEN DER HAUPTDIAGONALEN
+C      : COEFFY(I,9)    - ENTHAELT KOEFFIZIENTEN DER "RECHTEN SPALTE"
+C                         PARALLEL ZUR HAUPTDIAGONALEN
+C      : COEFFY(I,10),   - KOEFFIZIENTEN AUF DER RECHTEN SEITE DES 
+C        COEFFY(I,11),     GLEICHUNGSSYSTEMS
+C        COEFFY(I,12) = 0.0
+C
+C DEFINE DIREKTIVEN     : KEINE 
+C
+C UPROG                 : TRIZYK
+C
+C VERS:  07.10.97 (AM)  : ORIGINAL        (KOMPAKT 4. ORDNUNG)
+C
+C*MGLET***************************************************************
+C
+
+      REAL       LCOL(JJ),DIAG(JJ),RCOL(JJ),UZ(JJ),RSP(JJ),
+     $           F(KK,JJ),FIN(KK,JJ),COEFFY(JSTART:JSTOP+1,12),
+     $           RSGS(KK,JJ)
+C
+       JJSTOP  = JSTOP + 1
+C
+       DO 20 J = JSTART, JJSTOP
+C
+C                                     BILDUNG DER MATRIX  A              
+	 LCOL(J) = 1./6.       
+	 DIAG(J) = 1.           
+	 RCOL(J) = 1./6.        
+C
+       DO 30 K = KSTART, KSTOP
+C                                     RECHTE SEITE DES GLEICHUNGSSYSTEMS
+C
+         RSGS(K,J) = (2./3.) * (F(K,J) + F(K,J-1))
+C
+   30  CONTINUE                
+   20  CONTINUE                
+
+       UZ (1) = 1./6.
+       RSP(1) = 1./6.
+
+C                                     LOESUNG DES GLEICHUNGSSYSTEMS      
+       DO 50 K = KSTART, KSTOP
+       CALL TRIZYK (K,KK,JJ,JSTART,JJSTOP,
+     $              LCOL,DIAG,RCOL,UZ,RSP,RSGS,FIN)
+   50  CONTINUE
+
+C
+C*MGLET***************************************************************
+C
+       RETURN
+       END
+

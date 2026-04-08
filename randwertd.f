@@ -1,0 +1,213 @@
+
+
+
+
+
+
+
+
+
+
+
+CCCCC        DEFINITIONEN FUER C-PREPROZESSOR
+C            MASCHINE
+
+C              MESSAGE PASSING INTERFACE
+
+C            RAEUMLICHE DISKRETISIERUNG
+C
+***********************************************************************
+C                       KOMPAKT-UPWIND in X-RICHTUNG (3-TER ORDNUNG) fuer
+C                       die U-Komponente (V und W bleiben Kompakt 4ter ordnung)
+C                       falls im Stroemungsfeld eine Koerper vorhanden ist
+C
+***********************************************************************
+C                       KOMPAKTVERF. in XYZ-RICHTUNG (4-TER ORDNUNG)
+
+
+**********************************************************************
+C                      Preprocessing with ADM for 2nd Order Central
+***********************************************************************
+CCC                     Bei periodischen Randbedingungen in X-Richtung
+CCC                     ist eine hoehere O
+C
+CCC                     Bei periodischen Randbedingungen in Y-Richtung
+CCC                     ist eine hoehere Ordnung moeglich
+C
+CCC                     Bei periodischen Randbedingungen in Y-Richtung:
+CCC                     Zentraldiff. 4-ter Ordnung (Parallelisieung moeglich)
+C
+***********************************************************************
+C
+C
+C            INTERPOLATION AN GITTER-GRENZEN
+
+C            BEHANDLUNG DER TOPAR-RANDBEDINGUNG
+
+C            ZEITLICHE DISKRETISIERUNG
+
+C            FEINSTRUKTURMODELL
+
+C            NICHT-NEWTONSCHE SPANNUNGEN
+
+
+C            TRANSPORT UND ORIENTIERUNG VON PARTIKELN
+
+
+C            SCALAR HEAT/TEMPERATURE TRANSPORT
+C            APROXIMATE DECONVOLUTION FOR SCALAR
+C            TURBULENT PRANDTL NUMBER 
+C            PLOT LOCAL SCALAR CONVECTION DIFFUSION EXTREMES 
+C            ANALYZE AND PLOT NEAR WALL GRID RESLOLUTION 
+C            WRITE SPECIAL 1D LINE FOR TMIX FOR SPECTRA AND PDF
+C            SCALAR TIME ADVANCEMENT/DISCRETISATION METHOD
+
+C            STROEMUNG NACH OBEN?
+
+
+C            BEHANDLUNG DER FLUKTUATIONS-RANDBEDINGUNG
+
+C            BEHANDLUNG VON PPHYS ALS QUELLTERM IN TSTLE2
+
+C            POSITIONIERUNG DER EINSTROEMPROFILE
+
+C           STATISTIK
+
+
+C                 GEMISCHTES
+
+C                GRDFMI WIRD NICHT VERWENDET, DAHER EINSPARUNG DER FELDER
+C                IGRHF UND GRHF
+
+C                VERGROESSERN DER KJI-RICHTUNG BEI FORTSETZUNGSLAUF ERLAUBT!
+
+C                RAUSSCHREIBEN VON ZEITRECORDS
+
+C                FUER KORRELATIONEN UND HAEFIGKEITSVERTEILUNGEN
+      SUBROUTINE RANDWERTD (KK,K,DX,STAG,LCOL,DIAG,RCOL,RSIDE1,
+     $                      RSIDE2,RSIDE3)
+C*MGLET***************************************************************
+C     R A N D W E R T D
+C     UNTERPROGRAMM ZU BERECHNUNG DER KOEFFIZIENTEN AM RAND
+C     HIER DIE WERTE FUER DEN     A U S S T R O E M R A N D !
+C     BERECHNUNG DER E R S T E N  A B L E I T U N G ! ! ! ! !
+C
+C*MGLET***************************************************************
+C
+C
+C DEFINE DIREKTIVEN     : KEINE
+C
+C UPROG                 : KEINE                                      
+C                                                            
+C 21.10.1996            : ADNAN MERI (ORIGINAL)
+C
+C*MGLET***************************************************************
+C
+      IMPLICIT NONE
+      LOGICAL STAG
+      REAL LCOL,RCOL,DIAG,RSIDE1, RSIDE2,RSIDE3,
+     $     alpha,beta,gamma,phi
+      INTEGER KK,K
+      REAL h1,h2,h3,h4
+      REAL a1,a2,a3,a4,b1,b2,b3,b4,c1,c2,c3,c4,DX(KK)
+      REAL d1,d2,d3,d4,a,b,c,d,e
+
+      IF(STAG) THEN
+         h1 = DX(K-1)/2.0
+         h2 = DX(K-1)
+         h3 = DX(K-1) + DX(K-2)/2.0
+         h4 = DX(K-1) + DX(K-2) + DX(K-3)/2.0
+      ELSE
+         h1 = DX(K-1)/2.0
+         h2 = DX(K-1)/2.0 + DX(K-2)/2.0
+         h3 = DX(K-1)/2.0 + DX(K-2)
+         h4 = DX(k-1)/2.0 + DX(K-2) + DX(K-3)
+      ENDIF
+
+        a1 = 1.0 
+	a2 = 0.0 
+	a3 = 1.0 
+	a4 = 1.0
+        b1 = -h1 
+	b2 = 1.0 
+	b3 = -h3 
+	b4 = -h4
+        c1 = 0.5*h1**2 
+	c2 = -h2 
+	c3 = 0.5*h3**2 
+	c4 = 0.5*h4**2
+        d1 = -1.0/6.0*h1**3 
+	d2 = 0.5*h2**2 
+	d3 = -1.0/6.0*h3**3
+        d4 = -1.0/6.0*h4**3
+
+      a = a1*b2*c3*d4-a1*b2*c4*d3-a1*b3*c2*d4+a1*b3*d2*c4+a1*c2*b4*d3 -
+     $    a1*b4*c3*d2+b1*a3*c2*d4-b1*a3*d2*c4-b1*a4*c2*d3+b1*a4*c3*d2 -
+     $    a3*b2*c1*d4+a3*b2*d1*c4+a3*c1*b4*d2-a3*c2*d1*b4+b2*c1*a4*d3 -
+     $    b2*a4*d1*c3-c1*a4*b3*d2+a4*b3*c2*d1
+
+      b = a3*d2*c4 - a3*c2*d4 + a4*c2*d3 - a4*c3*d2
+      c = a1*c4*d3 - a1*c3*d4 + a3*c1*d4 - a3*d1*c4 - c1*a4*d3 + a4*d1*c3
+      d = a1*c2*d4 - a1*d2*c4 + c1*a4*d2 - a4*c2*d1
+      e = a1*c3*d2 - a1*c2*d3 - a3*c1*d2 + a3*c2*d1
+
+      alpha = -b/a
+      beta = c/a
+      gamma = -d/a
+      phi = -e/a
+
+      LCOL = beta
+      DIAG = 1.0
+      RCOL = 0.0             
+      RSIDE1 = alpha 
+      RSIDE2 = gamma
+      RSIDE3 = phi  
+C
+C      l = DX(K) / DX(K-1)
+C
+C      IF (l.ge.0.9999 .and. l.le.1.0001) THEN
+C
+C      PHI  = 1.0
+C      GAMA = 0.0
+C      BETA = - 1.0
+C      ALFA = - 3.0
+C
+C      ELSE
+C
+C      a = 0.5 * DX(K-1)   
+C      b = (DX(K-1) + 0.5 * DX(K-2))
+C      c = (DX(K-1) + DX(K-2) + (0.5 * DX(K-3)))
+C 
+C      d = - 2.0 * DX(K-1) * a + (a**2.)
+C      e = - 2.0 * DX(K-1) * b + (b**2.)
+C      f = - 2.0 * DX(K-1) * c + (c**2.)
+C
+C      g = -3.0 * (DX(K-1)**2.) * a + (a**3.)
+C      h = -3.0 * (DX(K-1)**2.) * b + (b**3.)
+C      q = -3.0 * (DX(K-1)**2.) * c + (c**3.)
+
+
+
+C      PHI = DDX(K)*(2.0 * DX(K-1)*(h-g) - 3.0 * (DX(K-1)**2) 
+C     $      *(e-d)) / ((f-d)*(h-g) - (q-g)*(e-d))
+C      GAMA= (2.0 * DX(K-1) * DDX(K) - (f-d) * PHI)/(e - d)
+C      BETA= - GAMA - PHI
+C      ALFA= (- DDX(K) -c*PHI -b*GAMA -a*BETA)/DDX(K)
+C
+C      ENDIF
+
+C
+c
+c*******************************************************************
+c
+C      LCOL = ALFA
+C      DIAG = 1.0
+C      RCOL = 0.0             
+C      RSIDE1 = BETA 
+C      RSIDE2 = GAMA
+C      RSIDE3 = PHI  
+c
+c*******************************************************************
+c
+      RETURN
+      END

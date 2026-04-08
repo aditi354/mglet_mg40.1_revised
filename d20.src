@@ -1,0 +1,30 @@
+      SUBROUTINE D20
+C*STAR******************************************************************
+C  D 2 0          ANFUEGEN VON 20 CYBER STEUERKARTEN
+C
+C  VERS: 19.09.85 (HW) : REVISION VON D20
+C        02.12.86 (HW) : D20 SO UMGEBAUT, DASS ES AUCH AUF DER C205
+C                        ANGEWANDT WERDEN KANN
+C*STAR******************************************************************
+C
+      CHARACTER (LEN=8) BLANK, BUFFER(10)
+C
+C                              ANFUEGEN VON CYBER STEUEKARTEN
+C
+      DATA BLANK/'        '/
+C
+      DO 110 K = 1,20
+         DO 100 L = 1,10
+  100       BUFFER(L) = BLANK
+C
+      READ(5,6010,END=10000) (BUFFER(L),L=1,10)
+10000 WRITE(4,6010) (BUFFER(L),L=1,10)
+      IF (K .LE. 3) GOTO 110
+      WRITE(6,6015) (BUFFER(L),L=1,10)
+  110 CONTINUE
+ 6010 FORMAT(BZ,10A8)
+ 6015 FORMAT(1H ,10A8)
+C
+      RETURN
+C
+      END

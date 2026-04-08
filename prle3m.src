@@ -1,0 +1,205 @@
+      SUBROUTINE PRLE3M(IC1,ICS,IC2,EBE,KK,JJ,II,U,LU,V,LV,W,LW,
+#ifdef _TSCAL_
+     $                  T,LT,P,LP,
+#else
+     $                  P,LP,
+#endif
+     $                  G,LG,B ,LB ,DIV,LDIV,
+     $                  M1,MS,M2,N1,NS,N2,DX,DY,DZ,X,Y,Z,
+     $                  KANAL,ITSTEP)
+C*STARLET***************************************************************
+C        P R L E 3 M      KOMPAKTAUSGABE DER FELDER:
+C                         U, V, W, T, P, G, B 
+C*STARLET***************************************************************
+C
+C               NPR    - ANZAHL DER AUSZUDRUCKENDEN BLOECKE MIT 4*4*4
+C                        PUNKTEN
+C             ISTPR    - I-INDEX DER STARTPUNKTE (BIS ZU 8 INDIZES)
+C             JSTPR    - J-INDEX DER STARTPUNKTE (BIS ZU 8 INDIZES)
+C             KSTPR    - K-INDEX DER STARTPUNKTE (BIS ZU 8 INDIZES)
+C
+C
+C VERS:  04.10.84 (FB)  : ORIGINAL PR2VTT
+C        12.07.85 (HW)  : PRLES1 AUS PR3BTT ABGELEITET
+C        02.09.86 (HW)  : PRLE3M AUS PRLES1 ABGELEITET
+C        25.02.92 (MM)  : EINBAU VON KANAL UND ITSTEP 
+C  VERS: 10.03.92 (MM)  : LIEST AUF KANAL 53 OUTPUT-STYLE
+C        21.02.93 (MM)  : UM AUSGABEFORMAT 'RECORD' ERWEITERT
+C        18. 3.93 (MM)  : COMMON-BLOCK  /COPRINT/ EINGEFUEHRT
+C        12.02.03 (TB)  : SCALAR T FIELD OUTPUT ADDED 
+C
+C*STARLET***************************************************************
+C
+#include "coprint.h"
+C
+      CHARACTER (LEN=1) EBE,EB1
+#ifdef _TSCAL_
+      REAL U(KK,JJ,II), V(KK,JJ,II),  W(KK,JJ,II), T(KK,JJ,II),
+#else
+      REAL U(KK,JJ,II), V(KK,JJ,II),  W(KK,JJ,II),
+#endif
+     $     P(KK,JJ,II), G(KK,JJ,II), B (KK,JJ,II), DIV (KK,JJ,II),
+     $     DX(II), DY(JJ), DZ(KK), X(II), Y(JJ), Z(KK)
+      INTEGER ILPRLE
+      SAVE ILPRLE
+      SAVE ICOUNT
+      DATA ICOUNT / 0 /
+
+      NPR = NPRINTPOS
+
+      IF (PRINTFORMAT.EQ.'RECORD') THEN
+
+          IF (ICOUNT.EQ.0) THEN
+             REWIND (KANAL+1)
+             WRITE(KANAL+1,'(A)') 'LES      '
+          ENDIF
+
+          ICOUNT = ICOUNT + 1
+
+          IF (ISELPREC.EQ.1) THEN
+             CALL WRIREC(KK,JJ,II,KK,JJ,II, U, V, W, P
+     &                  , FLOAT(ITSTEP), KANAL+1)
+          ELSEIF (ISELPREC.EQ.2) THEN
+             CALL WRIREC(KK,JJ,II,KK,JJ,II, U, V, W, G
+     &                  , FLOAT(ITSTEP), KANAL+1)
+          ELSEIF (ISELPREC.EQ.3) THEN
+             CALL WRIREC(KK,JJ,II,KK,JJ,II, U, V, W, B
+     &                  , FLOAT(ITSTEP), KANAL+1)
+          ELSEIF (ISELPREC.EQ.4) THEN
+             CALL WRIREC(KK,JJ,II,KK,JJ,II, U, V, W, DIV
+     &                  , FLOAT(ITSTEP), KANAL+1)
+          ELSEIF (ISELPREC.EQ.5) THEN
+             CALL WRIREC(KK,JJ,II,KK,JJ,II, P, G, B, DIV
+     &                  , FLOAT(ITSTEP), KANAL+1)
+#ifdef _TSCAL_
+          ELSEIF (ISELPREC.EQ.10) THEN
+             CALL WRIREC(KK,JJ,II,KK,JJ,II, U, V, W, T
+     &                  , FLOAT(ITSTEP), KANAL+1)
+#endif
+          ENDIF
+
+          CALL WRIGEO(KK,JJ,II,KK,JJ,II,X,Y,Z,KANAL,ICOUNT)
+
+
+      ELSE
+      WRITE(KANAL,*)'            INFORMATION AUS PRLE3M '
+      WRITE(KANAL,*)
+      WRITE(KANAL,*)'       ITSTEP:   ',ITSTEP
+      WRITE(KANAL,*)
+
+      IF (PRINTFORMAT(1:4).EQ.'PR3V') THEN
+          EB1 = PRINTEBE
+
+         IF(LLU .EQ. 1) THEN
+         CALL PR3V  (KK ,JJ ,II ,U      ,' U              ', 0 , 0 , 1 ,
+     $               EB1,
+     $               IP1,IPS,IP2,
+     $               JP1,JPS,JP2,
+     $               KP1,KPS,KP2,
+     $               DX,DY,DZ,X,Y,Z,KANAL)
+         ENDIF
+         IF(LLV .EQ. 1) THEN
+         CALL PR3V  (KK ,JJ ,II ,V      ,' V              ', 0 , 1 , 0 ,
+     $               EB1,
+     $               IP1,IPS,IP2,
+     $               JP1,JPS,JP2,
+     $               KP1,KPS,KP2,
+     $               DX,DY,DZ,X,Y,Z,KANAL)
+         ENDIF
+         IF(LLW .EQ. 1) THEN
+         CALL PR3V  (KK ,JJ ,II ,W      ,' W              ', 1 , 0 , 0 ,
+     $               EB1,
+     $               IP1,IPS,IP2,
+     $               JP1,JPS,JP2,
+     $               KP1,KPS,KP2,
+     $               DX,DY,DZ,X,Y,Z,KANAL)
+        ENDIF
+#ifdef _TSCAL_
+         IF(LLT .EQ. 1) THEN
+         CALL PR3V  (KK ,JJ ,II ,T      ,' T              ', 0 , 0 , 0 ,
+     $               EB1,
+     $               IP1,IPS,IP2,
+     $               JP1,JPS,JP2,
+     $               KP1,KPS,KP2,
+     $               DX,DY,DZ,X,Y,Z,KANAL)
+         ENDIF
+#endif        
+         IF(LLP .EQ. 1) THEN
+         CALL PR3V  (KK ,JJ ,II ,P      ,' P              ', 0 , 0 , 0 ,
+     $               EB1,
+     $               IP1,IPS,IP2,
+     $               JP1,JPS,JP2,
+     $               KP1,KPS,KP2,
+     $               DX,DY,DZ,X,Y,Z,KANAL)
+         ENDIF
+         IF(LLG .EQ. 1) THEN
+         CALL PR3V  (KK ,JJ ,II ,G      ,' G              ', 0 , 0 , 0 ,
+     $               EB1,
+     $               IP1,IPS,IP2,
+     $               JP1,JPS,JP2,
+     $               KP1,KPS,KP2,
+     $               DX,DY,DZ,X,Y,Z,KANAL)
+         ENDIF
+         IF(LLB .EQ. 1) THEN
+         CALL PR3V  (KK ,JJ ,II ,B      ,' B              ', 0 , 0 , 0 ,
+     $               EB1,
+     $               IP1,IPS,IP2,
+     $               JP1,JPS,JP2,
+     $               KP1,KPS,KP2,
+     $               DX,DY,DZ,X,Y,Z,KANAL)
+         ENDIF
+      ELSE
+
+         ILPRLE = 4
+
+         IF(LLU .EQ. 1) THEN
+         CALL PR3B  (KK ,JJ ,II ,U      ,' U              ', 0 , 0 , 1 ,
+     $               EBE,IC1,ICS,IC2,M1,MS,M2,N1,NS,N2,DX,DY,DZ,X,Y,Z,
+     $               KANAL,ILPRLE,NPR,ISTPR,JSTPR,KSTPR,PRINTFORMAT)
+         ENDIF
+         IF(LLV .EQ. 1) THEN
+         CALL PR3B  (KK ,JJ ,II ,V      ,' V              ', 0 , 1 , 0 ,
+     $               EBE,IC1,ICS,IC2,M1,MS,M2,N1,NS,N2,DX,DY,DZ,X,Y,Z,
+     $               KANAL,ILPRLE,NPR,ISTPR,JSTPR,KSTPR,PRINTFORMAT)
+         ENDIF
+         IF(LLW .EQ. 1) THEN
+         CALL PR3B  (KK ,JJ ,II ,W      ,' W              ', 1 , 0 , 0 ,
+     $               EBE,IC1,ICS,IC2,M1,MS,M2,N1,NS,N2,DX,DY,DZ,X,Y,Z,
+     $               KANAL,ILPRLE,NPR,ISTPR,JSTPR,KSTPR,PRINTFORMAT)
+         ENDIF
+#ifdef _TSCAL_
+         IF(LLT .EQ. 1) THEN
+         CALL PR3B  (KK ,JJ ,II ,T      ,' T              ', 0 , 0 , 0 ,
+     $               EBE,IC1,ICS,IC2,M1,MS,M2,N1,NS,N2,DX,DY,DZ,X,Y,Z,
+     $               KANAL,ILPRLE,NPR,ISTPR,JSTPR,KSTPR,PRINTFORMAT)
+         ENDIF
+#endif        
+         IF(LLP .EQ. 1) THEN
+         CALL PR3B  (KK ,JJ ,II ,P      ,' P              ', 0 , 0 , 0 ,
+     $               EBE,IC1,ICS,IC2,M1,MS,M2,N1,NS,N2,DX,DY,DZ,X,Y,Z,
+     $               KANAL,ILPRLE,NPR,ISTPR,JSTPR,KSTPR,PRINTFORMAT)
+         ENDIF
+         IF(LLG .EQ. 1) THEN
+         CALL PR3B  (KK ,JJ ,II ,G      ,' G              ', 0 , 0 , 0 ,
+     $               EBE,IC1,ICS,IC2,M1,MS,M2,N1,NS,N2,DX,DY,DZ,X,Y,Z,
+     $               KANAL,ILPRLE,NPR,ISTPR,JSTPR,KSTPR,PRINTFORMAT)
+         ENDIF
+         IF(LLB .EQ. 1) THEN
+         CALL PR3B  (KK ,JJ ,II ,B      ,' B              ', 0 , 0 , 0 ,
+     $               EBE,IC1,ICS,IC2,M1,MS,M2,N1,NS,N2,DX,DY,DZ,X,Y,Z,
+     $               KANAL,ILPRLE,NPR,ISTPR,JSTPR,KSTPR,PRINTFORMAT)
+         ENDIF
+
+          IF (PRINTFORMAT(1:5).EQ.'SHORT') LPAGE=56
+          IF (PRINTFORMAT(1:4).EQ.'LONG') LPAGE=48
+               IF (ILPRLE.GE.LPAGE) THEN
+               DO 11 I=1,66-ILPRLE
+               WRITE(KANAL,*)
+   11          CONTINUE
+               ILPRLE = 0
+            ENDIF
+
+      ENDIF
+      ENDIF
+      RETURN
+      END

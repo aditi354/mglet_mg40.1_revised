@@ -1,0 +1,132 @@
+
+      SUBROUTINE ADDREGION (KK1,JJ1,II1,FELD1,IPROC1,
+     $                       KA,KE,JA,JE,IA,IE,
+     $                       KK2,JJ2,II2,FELD2,IPROC2,
+     $                       KSHIFT,JSHIFT,ISHIFT,HILF,MYID,FAVERAGE)
+C-MGLET---------------------------------------------------------------72
+C
+C                  COPYING OF A SUB-AREA FROM FIELD 1 INTO FIELD 2
+C
+C
+C        25.10.95 (MM)  : ORIGINAL
+C
+C-MGLET---------------------------------------------------------------72
+
+      REAL FELD1(KK1,JJ1,II1)
+      REAL FELD2(KK2,JJ2,II2)
+      REAL HILF (KK1*JJ1*II1)
+
+#ifdef _MPI_
+#include "mpif.h"
+       INTEGER ISTATUS(MPI_STATUS_SIZE)
+#endif
+
+C
+C      	write (6,*)'addregion,1:',myid,iproc1,iproc2,ia,ie,ja,je,ka,ke,
+C     $             ishift,jshift,kshift
+C
+
+C-MGLET--------------- FIELD ON SAME PROCESSORS ----------------------72
+
+#ifdef _MPI_
+      IF (IPROC1 .EQ. IPROC2) THEN
+         IF (MYID .EQ. IPROC1) THEN
+#endif
+            
+            DO I1=IA,IE
+                     I2=I1+ISHIFT
+               DO J1=JA,JE
+                     J2=J1+JSHIFT
+                  DO K1=KA,KE
+
+                     K2=K1+KSHIFT
+
+                     FELD2(K2,J2,I2) = FELD2(K2,J2,I2) + 
+     $                                 FELD1(K1,J1,I1)*FAVERAGE
+                     
+                  ENDDO
+               ENDDO
+            ENDDO
+            
+#ifdef _MPI_
+         ENDIF
+
+C-MGLET-------------------- FIELDS ON DIFFERENT PROOCESSORS ----------72
+
+      ELSE
+         IF (MYID .EQ. IPROC1) THEN
+
+            ICOUNT = 0
+
+            DO I1=IA,IE
+                     I2=I1+ISHIFT
+               DO J1=JA,JE
+                     J2=J1+JSHIFT
+                  DO K1=KA,KE
+                     K2=K1+KSHIFT
+                     
+                     ICOUNT = ICOUNT + 1
+                     
+                  HILF(ICOUNT) = FELD1(K1,J1,I1)*FAVERAGE
+C                  FELD2(1,1,1) = FELD2(K1,J1,I1)*FAVERAGE
+C                     FELD2(K2,J2,I2) = FELD1(K1,J1,I1)
+                     
+                  ENDDO
+               ENDDO
+            ENDDO
+            
+            CALL MPI_SEND ( HILF , ICOUNT , 
+     $ MPI_DOUBLE_PRECISION ,
+     $           IPROC2 , 195 ,
+     $           MPI_COMM_WORLD , IERR)
+            
+
+         ELSE
+            
+            ILENGTH = (IE-IA+1)*(JE-JA+1)*(KE-KA+1)
+            CALL MPI_RECV ( hilf , ILENGTH , 
+     $ MPI_DOUBLE_PRECISION ,
+     $           IPROC1 , 195 ,
+     $           MPI_COMM_WORLD , ISTATUS , IERR)
+C      call mpi_get_count(istatus,mpi_real,icount)
+C      write (6,*) 'mpi_recv bytes in mgftoc',myid,istatus(1),ierr
+
+            izl = 0
+
+            do i1=ia,ie
+               i2=i1+ISHIFT
+               do j1=ja,je
+                  j2=j1+JSHIFT
+                  do k1=ka,ke
+                  k2=k1+KSHIFT
+
+                  izl = izl+1
+#ifdef _SP2_
+C----------------------------------- Dummyzeil fuer IBM-SP2 notwendig:
+                  ihi = k2+(j2-1)*kk2+(i2-1)*kk2*jj2   
+#endif
+#ifdef _T3E_
+C----------------------------------- Dummyzeil fuer T3E notwendig:
+                  ihi = k2+(j2-1)*kk2+(i2-1)*kk2*jj2   
+#endif
+#ifdef _IRIS_
+C----------------------------------- Dummyzeil fuer T3E notwendig:
+                  ihi = k2+(j2-1)*kk2+(i2-1)*kk2*jj2   
+#endif
+                  feld2(k2,j2,i2) = FELD2(K2,J2,I2) + 
+     $                                hilf(izl)
+                     
+                  ENDDO
+               ENDDO
+            ENDDO
+
+            
+         ENDIF
+      ENDIF
+
+#endif         
+
+C-MGLET---------------------------------------------------------------72
+      RETURN
+      END
+

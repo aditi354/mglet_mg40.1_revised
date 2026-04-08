@@ -1,0 +1,24 @@
+      SUBROUTINE PHIADD  (KK,JJ,II,
+     $                    PHI1,PHI2,PHI3,A,B,C)
+C*MGLET***************************************************************
+C        P H I A D D      PHIADD BERECHNET: PHI3 = A + B*PHI1 + C*PHI2
+C*MGLET***************************************************************
+C
+C PARAM: KK, JJ, II     - ARRAYDIMENSIONEN
+C
+C         7.12.95 (MM)  : ORIGINAL
+C*MGLET***************************************************************
+C
+      CHARACTER (LEN=4)  IVAR
+C
+C
+      REAL     PHI1(KK*JJ*II), PHI2(KK*JJ*II), PHI3(KK*JJ*II)
+
+      DO I=1,KK*JJ*II
+
+             PHI3(I) = A + B*PHI1(I) + C*PHI2(I)
+
+      ENDDO
+
+      RETURN
+      END

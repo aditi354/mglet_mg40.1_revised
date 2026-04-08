@@ -1,0 +1,727 @@
+      SUBROUTINE DIBCA1  (KANAL,MODUS,HILFL,KKML,ILIMX ,
+#include "cstac1.h"
+C*STARLET***************************************************************
+C        D I B C A 1      EINLESEN VON FELDERN, DIE IM WESENTLICHEN
+C                         ENSEMBLE-MITTELWERTE VON KORRELATIONSFUNKTIO-
+C                         NEN, -KOEFFIZIENTEN, LEISTUNGSDICHTESPEKTREN
+C                         UND HAEUFIGKEITSVERTEILUNGEN ENTHALTEN AUF
+C                         KANAL 'KANAL'.
+C        A C H T U N G    DIESES UNTERPROGRAMM MUSS ERWEITERT WERDEN,
+C                         WENN DIE STATIST. AUSWERTUNG UMFANGREICHER
+C                         WIRD !
+C                         DIE NEU HINZUKOMMENDEN FELDER SIND GEMAESS
+C                         DER ORDNUNG IM ISELEP-FELD EINZUREIHEN.
+C*STARLET***************************************************************
+C
+C PARAM: KANAL                    - DIE DATEN WERDEN UEBER DIESEN KANAL
+C                                   EINGELESEN
+C        MODUS                    - CHARACTER-VARIABLE:
+C                                   'BINAER  ' : DATEN WERDEN UNFORMA-
+C                                                TIERT GESCHRIEBEN
+C                                   'CODIERT ' : DATEN WERDEN FORMA-
+C                                                TIERT GESCHRIEBEN
+C        HILFL (KKML,JJ2L,ILIMXP) + HILFSFELD UM BEIM EINLESEN NICHT
+C                                   BENOETIGTE FELDER ZU UEBERSPRINGEN
+C        KKML                     - ARRAYDIMENSION (MAXIMALE ANZ. IN
+C                                   K-RICHTUNG EINES "LINIEN-FELDES")
+C        ILIMX                    - ANZAHL DER AUFPUNKTE + 1 DES MOMEN-
+C                                   TANEN LAUFES
+#include "cstap1.h"
+C
+C UPROG                 : DIBC
+C
+C DEFINE-DIREKTIVEN     : KEINE
+C
+C        09.12.88 (HW)  : ORIGINAL AUS DIBCA ABGELEITET
+C
+C*STARLET***************************************************************
+C
+      CHARACTER (LEN=8)   MODUS
+      CHARACTER (LEN=80)  CT,  CH1680
+C
+      REAL           HILFL (KKML,JJ2L,ILIMXP)
+#include "cstad1.h"
+C
+C                                 EINLESEN DER FELDER, DIE ENSEMBLE-
+C                                 MITTELWERTE ENTHALTEN.
+C
+C                                 STATIST. GROESSEN DER U-KOMPONENTE
+C                                 ----------------------------------
+C
+      IF(ISELEA(1, 14) .EQ. 1  .OR.  ISELEA(1, 14) .EQ. 2) THEN
+         CT = CH1680 (' R_U"U"(X)      ')
+C
+C                                 DAS FELD WURDE IM VORANGEGANGENEN LAUF
+C                                 AUSGEWERTET UND MUSS DAHER GELESEN
+C                                 WERDEN
+C
+         IF(ISELEP(1, 14) .EQ. 1  .OR.  ISELEP(1, 14) .EQ. 2) THEN
+C
+C                                 DAS FELD WIRD AUCH WAEHREND DES MOMEN-
+C                                 TANEN LAUFES BENOETIGT UND WIRD DAHER
+C                                 IN DAS VORGESEHENE A-FELD EINGELESEN
+C
+            CALL DIBC   (KKXL,JJ2L,ILIMXP,KSTAG,JSTAG,ISTAG,KANAL,MODUS,
+     $                   ZSLM,ZELM,YSLM,YELM,XSLM,XELM,TSEM,TEEM,DTEM,
+     $                   ARXUU  ,CT)
+         ELSE
+C
+C                                 DAS FELD WIRD WAEHREND DES MOMEN-
+C                                 TANEN LAUFES NICHT BENOETIGT UND
+C                                 WIRD DAHER IN DAS HILF -FELD GE-
+C                                 LESEN (TAPE1 WIRD KORREKT POSITI-
+C                                 ONIERT !)
+C
+            CALL DIBC   (KKXL,JJ2L,ILIMXP,KSTAG,JSTAG,ISTAG,KANAL,MODUS,
+     $                   ZSLM,ZELM,YSLM,YELM,XSLM,XELM,TSEM,TEEM,DTEM,
+     $                   HILFL  ,CT)
+         ENDIF
+      ENDIF
+      IF(ISELEA(1, 16) .EQ. 1  .OR.  ISELEA(1, 16) .EQ. 2) THEN
+         CT = CH1680 (' R_U"U"(Y)      ')
+         IF(ISELEP(1, 16) .EQ. 1  .OR.  ISELEP(1, 16) .EQ. 2) THEN
+            CALL DIBC   (KKYL,JJ2L,ILIMXP,KSTAG,JSTAG,ISTAG,KANAL,MODUS,
+     $                   ZSLM,ZELM,YSLM,YELM,XSLM,XELM,TSEM,TEEM,DTEM,
+     $                   ARYUU  ,CT)
+         ELSE
+            CALL DIBC   (KKYL,JJ2L,ILIMXP,KSTAG,JSTAG,ISTAG,KANAL,MODUS,
+     $                   ZSLM,ZELM,YSLM,YELM,XSLM,XELM,TSEM,TEEM,DTEM,
+     $                   HILFL  ,CT)
+         ENDIF
+      ENDIF
+      IF(ISELEA(1, 18) .EQ. 1  .OR.  ISELEA(1, 18) .EQ. 2) THEN
+         CT = CH1680 (' R_U"U"(Z)      ')
+         IF(ISELEP(1, 18) .EQ. 1  .OR.  ISELEP(1, 18) .EQ. 2) THEN
+            CALL DIBC   (KKZL,JJ2L,ILIMXP,KSTAG,JSTAG,ISTAG,KANAL,MODUS,
+     $                   ZSLM,ZELM,YSLM,YELM,XSLM,XELM,TSEM,TEEM,DTEM,
+     $                   ARZUU  ,CT)
+         ELSE
+            CALL DIBC   (KKZL,JJ2L,ILIMXP,KSTAG,JSTAG,ISTAG,KANAL,MODUS,
+     $                   ZSLM,ZELM,YSLM,YELM,XSLM,XELM,TSEM,TEEM,DTEM,
+     $                   HILFL  ,CT)
+         ENDIF
+      ENDIF
+      IF(ISELEA(1, 20) .EQ. 1  .OR.  ISELEA(1, 20) .EQ. 2) THEN
+         CT = CH1680 (' S_U"U"(K_X)    ')
+         IF(ISELEP(1, 20) .EQ. 1  .OR.  ISELEP(1, 20) .EQ. 2) THEN
+            CALL DIBC   (KSXL,JJ1L,ILIMXP,KSTAG,JSTAG,ISTAG,KANAL,MODUS,
+     $                   ZSLM,ZELM,YSLM,YELM,XSLM,XELM,TSEM,TEEM,DTEM,
+     $                   ASXUU  ,CT)
+         ELSE
+            CALL DIBC   (KSXL,JJ1L,ILIMXP,KSTAG,JSTAG,ISTAG,KANAL,MODUS,
+     $                   ZSLM,ZELM,YSLM,YELM,XSLM,XELM,TSEM,TEEM,DTEM,
+     $                   HILFL  ,CT)
+         ENDIF
+      ENDIF
+      IF(ISELEA(1, 22) .EQ. 1  .OR.  ISELEA(1, 22) .EQ. 2) THEN
+         CT = CH1680 (' S_U"U"(K_Y)    ')
+         IF(ISELEP(1, 22) .EQ. 1  .OR.  ISELEP(1, 22) .EQ. 2) THEN
+            CALL DIBC   (KSYL,JJ1L,ILIMXP,KSTAG,JSTAG,ISTAG,KANAL,MODUS,
+     $                   ZSLM,ZELM,YSLM,YELM,XSLM,XELM,TSEM,TEEM,DTEM,
+     $                   ASYUU  ,CT)
+         ELSE
+            CALL DIBC   (KSYL,JJ1L,ILIMXP,KSTAG,JSTAG,ISTAG,KANAL,MODUS,
+     $                   ZSLM,ZELM,YSLM,YELM,XSLM,XELM,TSEM,TEEM,DTEM,
+     $                   HILFL  ,CT)
+         ENDIF
+      ENDIF
+      IF(ISELEA(1, 24) .EQ. 1  .OR.  ISELEA(1, 24) .EQ. 2) THEN
+         CT = CH1680 (' S_U"U"(K_Z)    ')
+         IF(ISELEP(1, 24) .EQ. 1  .OR.  ISELEP(1, 24) .EQ. 2) THEN
+            CALL DIBC   (KSZL,JJ1L,ILIMXP,KSTAG,JSTAG,ISTAG,KANAL,MODUS,
+     $                   ZSLM,ZELM,YSLM,YELM,XSLM,XELM,TSEM,TEEM,DTEM,
+     $                   ASZUU  ,CT)
+         ELSE
+            CALL DIBC   (KSZL,JJ1L,ILIMXP,KSTAG,JSTAG,ISTAG,KANAL,MODUS,
+     $                   ZSLM,ZELM,YSLM,YELM,XSLM,XELM,TSEM,TEEM,DTEM,
+     $                   HILFL  ,CT)
+         ENDIF
+      ENDIF
+C
+C                                 STATIST. GROESSEN DER V-KOMPONENTE
+C                                 ----------------------------------
+C
+      IF(ISELEA(1, 39) .EQ. 1  .OR.  ISELEA(1, 39) .EQ. 2) THEN
+         CT = CH1680 (' R_V"V"(X)      ')
+         IF(ISELEP(1, 39) .EQ. 1  .OR.  ISELEP(1, 39) .EQ. 2) THEN
+            CALL DIBC   (KKXL,JJ2L,ILIMXP,KSTAG,JSTAG,ISTAG,KANAL,MODUS,
+     $                   ZSLM,ZELM,YSLM,YELM,XSLM,XELM,TSEM,TEEM,DTEM,
+     $                   ARXVV  ,CT)
+         ELSE
+            CALL DIBC   (KKXL,JJ2L,ILIMXP,KSTAG,JSTAG,ISTAG,KANAL,MODUS,
+     $                   ZSLM,ZELM,YSLM,YELM,XSLM,XELM,TSEM,TEEM,DTEM,
+     $                   HILFL  ,CT)
+         ENDIF
+      ENDIF
+      IF(ISELEA(1, 41) .EQ. 1  .OR.  ISELEA(1, 41) .EQ. 2) THEN
+         CT = CH1680 (' R_V"V"(Y)      ')
+         IF(ISELEP(1, 41) .EQ. 1  .OR.  ISELEP(1, 41) .EQ. 2) THEN
+            CALL DIBC   (KKYL,JJ2L,ILIMXP,KSTAG,JSTAG,ISTAG,KANAL,MODUS,
+     $                   ZSLM,ZELM,YSLM,YELM,XSLM,XELM,TSEM,TEEM,DTEM,
+     $                   ARYVV  ,CT)
+         ELSE
+            CALL DIBC   (KKYL,JJ2L,ILIMXP,KSTAG,JSTAG,ISTAG,KANAL,MODUS,
+     $                   ZSLM,ZELM,YSLM,YELM,XSLM,XELM,TSEM,TEEM,DTEM,
+     $                   HILFL  ,CT)
+         ENDIF
+      ENDIF
+      IF(ISELEA(1, 43) .EQ. 1  .OR.  ISELEA(1, 43) .EQ. 2) THEN
+         CT = CH1680 (' R_V"V"(Z)      ')
+         IF(ISELEP(1, 43) .EQ. 1  .OR.  ISELEP(1, 43) .EQ. 2) THEN
+            CALL DIBC   (KKZL,JJ2L,ILIMXP,KSTAG,JSTAG,ISTAG,KANAL,MODUS,
+     $                   ZSLM,ZELM,YSLM,YELM,XSLM,XELM,TSEM,TEEM,DTEM,
+     $                   ARZVV  ,CT)
+         ELSE
+            CALL DIBC   (KKZL,JJ2L,ILIMXP,KSTAG,JSTAG,ISTAG,KANAL,MODUS,
+     $                   ZSLM,ZELM,YSLM,YELM,XSLM,XELM,TSEM,TEEM,DTEM,
+     $                   HILFL  ,CT)
+         ENDIF
+      ENDIF
+      IF(ISELEA(1, 45) .EQ. 1  .OR.  ISELEA(1, 45) .EQ. 2) THEN
+         CT = CH1680 (' S_V"V"(K_X)    ')
+         IF(ISELEP(1, 45) .EQ. 1  .OR.  ISELEP(1, 45) .EQ. 2) THEN
+            CALL DIBC   (KSXL,JJ1L,ILIMXP,KSTAG,JSTAG,ISTAG,KANAL,MODUS,
+     $                   ZSLM,ZELM,YSLM,YELM,XSLM,XELM,TSEM,TEEM,DTEM,
+     $                   ASXVV  ,CT)
+         ELSE
+            CALL DIBC   (KSXL,JJ1L,ILIMXP,KSTAG,JSTAG,ISTAG,KANAL,MODUS,
+     $                   ZSLM,ZELM,YSLM,YELM,XSLM,XELM,TSEM,TEEM,DTEM,
+     $                   HILFL  ,CT)
+         ENDIF
+      ENDIF
+      IF(ISELEA(1, 47) .EQ. 1  .OR.  ISELEA(1, 47) .EQ. 2) THEN
+         CT = CH1680 (' S_V"V"(K_Y)    ')
+         IF(ISELEP(1, 47) .EQ. 1  .OR.  ISELEP(1, 47) .EQ. 2) THEN
+            CALL DIBC   (KSYL,JJ1L,ILIMXP,KSTAG,JSTAG,ISTAG,KANAL,MODUS,
+     $                   ZSLM,ZELM,YSLM,YELM,XSLM,XELM,TSEM,TEEM,DTEM,
+     $                   ASYVV  ,CT)
+         ELSE
+            CALL DIBC   (KSYL,JJ1L,ILIMXP,KSTAG,JSTAG,ISTAG,KANAL,MODUS,
+     $                   ZSLM,ZELM,YSLM,YELM,XSLM,XELM,TSEM,TEEM,DTEM,
+     $                   HILFL  ,CT)
+         ENDIF
+      ENDIF
+      IF(ISELEA(1, 49) .EQ. 1  .OR.  ISELEA(1, 49) .EQ. 2) THEN
+         CT = CH1680 (' S_V"V"(K_Z)    ')
+         IF(ISELEP(1, 49) .EQ. 1  .OR.  ISELEP(1, 49) .EQ. 2) THEN
+            CALL DIBC   (KSZL,JJ1L,ILIMXP,KSTAG,JSTAG,ISTAG,KANAL,MODUS,
+     $                   ZSLM,ZELM,YSLM,YELM,XSLM,XELM,TSEM,TEEM,DTEM,
+     $                   ASZVV  ,CT)
+         ELSE
+            CALL DIBC   (KSZL,JJ1L,ILIMXP,KSTAG,JSTAG,ISTAG,KANAL,MODUS,
+     $                   ZSLM,ZELM,YSLM,YELM,XSLM,XELM,TSEM,TEEM,DTEM,
+     $                   HILFL  ,CT)
+         ENDIF
+      ENDIF
+C
+C                                 STATIST. GROESSEN DER W-KOMPONENTE
+C                                 ----------------------------------
+C
+      IF(ISELEA(1, 64) .EQ. 1  .OR.  ISELEA(1, 64) .EQ. 2) THEN
+         CT = CH1680 (' R_W"W"(X)      ')
+         IF(ISELEP(1, 64) .EQ. 1  .OR.  ISELEP(1, 64) .EQ. 2) THEN
+            CALL DIBC   (KKXL,JJ2L,ILIMXP,KSTAG,JSTAG,ISTAG,KANAL,MODUS,
+     $                   ZSLM,ZELM,YSLM,YELM,XSLM,XELM,TSEM,TEEM,DTEM,
+     $                   ARXWW  ,CT)
+         ELSE
+            CALL DIBC   (KKXL,JJ2L,ILIMXP,KSTAG,JSTAG,ISTAG,KANAL,MODUS,
+     $                   ZSLM,ZELM,YSLM,YELM,XSLM,XELM,TSEM,TEEM,DTEM,
+     $                   HILFL  ,CT)
+         ENDIF
+      ENDIF
+      IF(ISELEA(1, 66) .EQ. 1  .OR.  ISELEA(1, 66) .EQ. 2) THEN
+         CT = CH1680 (' R_W"W"(Y)      ')
+         IF(ISELEP(1, 66) .EQ. 1  .OR.  ISELEP(1, 66) .EQ. 2) THEN
+            CALL DIBC   (KKYL,JJ2L,ILIMXP,KSTAG,JSTAG,ISTAG,KANAL,MODUS,
+     $                   ZSLM,ZELM,YSLM,YELM,XSLM,XELM,TSEM,TEEM,DTEM,
+     $                   ARYWW  ,CT)
+         ELSE
+            CALL DIBC   (KKYL,JJ2L,ILIMXP,KSTAG,JSTAG,ISTAG,KANAL,MODUS,
+     $                   ZSLM,ZELM,YSLM,YELM,XSLM,XELM,TSEM,TEEM,DTEM,
+     $                   HILFL  ,CT)
+         ENDIF
+      ENDIF
+      IF(ISELEA(1, 68) .EQ. 1  .OR.  ISELEA(1, 68) .EQ. 2) THEN
+         CT = CH1680 (' R_W"W"(Z)      ')
+         IF(ISELEP(1, 68) .EQ. 1  .OR.  ISELEP(1, 68) .EQ. 2) THEN
+            CALL DIBC   (KKZL,JJ2L,ILIMXP,KSTAG,JSTAG,ISTAG,KANAL,MODUS,
+     $                   ZSLM,ZELM,YSLM,YELM,XSLM,XELM,TSEM,TEEM,DTEM,
+     $                   ARZWW  ,CT)
+         ELSE
+            CALL DIBC   (KKZL,JJ2L,ILIMXP,KSTAG,JSTAG,ISTAG,KANAL,MODUS,
+     $                   ZSLM,ZELM,YSLM,YELM,XSLM,XELM,TSEM,TEEM,DTEM,
+     $                   HILFL  ,CT)
+         ENDIF
+      ENDIF
+      IF(ISELEA(1, 70) .EQ. 1  .OR.  ISELEA(1, 70) .EQ. 2) THEN
+         CT = CH1680 (' S_W"W"(K_X)    ')
+         IF(ISELEP(1, 70) .EQ. 1  .OR.  ISELEP(1, 70) .EQ. 2) THEN
+            CALL DIBC   (KSXL,JJ1L,ILIMXP,KSTAG,JSTAG,ISTAG,KANAL,MODUS,
+     $                   ZSLM,ZELM,YSLM,YELM,XSLM,XELM,TSEM,TEEM,DTEM,
+     $                   ASXWW  ,CT)
+         ELSE
+            CALL DIBC   (KSXL,JJ1L,ILIMXP,KSTAG,JSTAG,ISTAG,KANAL,MODUS,
+     $                   ZSLM,ZELM,YSLM,YELM,XSLM,XELM,TSEM,TEEM,DTEM,
+     $                   HILFL  ,CT)
+         ENDIF
+      ENDIF
+      IF(ISELEA(1, 72) .EQ. 1  .OR.  ISELEA(1, 72) .EQ. 2) THEN
+         CT = CH1680 (' S_W"W"(K_Y)    ')
+         IF(ISELEP(1, 72) .EQ. 1  .OR.  ISELEP(1, 72) .EQ. 2) THEN
+            CALL DIBC   (KSYL,JJ1L,ILIMXP,KSTAG,JSTAG,ISTAG,KANAL,MODUS,
+     $                   ZSLM,ZELM,YSLM,YELM,XSLM,XELM,TSEM,TEEM,DTEM,
+     $                   ASYWW  ,CT)
+         ELSE
+            CALL DIBC   (KSYL,JJ1L,ILIMXP,KSTAG,JSTAG,ISTAG,KANAL,MODUS,
+     $                   ZSLM,ZELM,YSLM,YELM,XSLM,XELM,TSEM,TEEM,DTEM,
+     $                   HILFL  ,CT)
+         ENDIF
+      ENDIF
+      IF(ISELEA(1, 74) .EQ. 1  .OR.  ISELEA(1, 74) .EQ. 2) THEN
+         CT = CH1680 (' S_W"W"(K_Z)    ')
+         IF(ISELEP(1, 74) .EQ. 1  .OR.  ISELEP(1, 74) .EQ. 2) THEN
+            CALL DIBC   (KSZL,JJ1L,ILIMXP,KSTAG,JSTAG,ISTAG,KANAL,MODUS,
+     $                   ZSLM,ZELM,YSLM,YELM,XSLM,XELM,TSEM,TEEM,DTEM,
+     $                   ASZWW  ,CT)
+         ELSE
+            CALL DIBC   (KSZL,JJ1L,ILIMXP,KSTAG,JSTAG,ISTAG,KANAL,MODUS,
+     $                   ZSLM,ZELM,YSLM,YELM,XSLM,XELM,TSEM,TEEM,DTEM,
+     $                   HILFL  ,CT)
+         ENDIF
+      ENDIF
+C
+C                                  HIER: KREUZKORRELATIONSFUNKTIONEN
+C                                  ---------------------------------
+C
+      IF(ISELEA(1,210) .EQ. 1  .OR.  ISELEA(1,210) .EQ. 2) THEN
+         CT = CH1680 (' R_U"V"(X)      ')
+         IF(ISELEP(1,210) .EQ. 1  .OR.  ISELEP(1,210) .EQ. 2) THEN
+            CALL DIBC   (KKXL,JJ2L,ILIMXP,KSTAG,JSTAG,ISTAG,KANAL,MODUS,
+     $                   ZSLM,ZELM,YSLM,YELM,XSLM,XELM,TSEM,TEEM,DTEM,
+     $                   ARXUV  ,CT)
+         ELSE
+            CALL DIBC   (KKXL,JJ2L,ILIMXP,KSTAG,JSTAG,ISTAG,KANAL,MODUS,
+     $                   ZSLM,ZELM,YSLM,YELM,XSLM,XELM,TSEM,TEEM,DTEM,
+     $                   HILFL  ,CT)
+         ENDIF
+      ENDIF
+      IF(ISELEA(1,212) .EQ. 1  .OR.  ISELEA(1,212) .EQ. 2) THEN
+         CT = CH1680 (' R_U"V"(Y)      ')
+         IF(ISELEP(1,212) .EQ. 1  .OR.  ISELEP(1,212) .EQ. 2) THEN
+            CALL DIBC   (KKYL,JJ2L,ILIMXP,KSTAG,JSTAG,ISTAG,KANAL,MODUS,
+     $                   ZSLM,ZELM,YSLM,YELM,XSLM,XELM,TSEM,TEEM,DTEM,
+     $                   ARYUV  ,CT)
+         ELSE
+            CALL DIBC   (KKYL,JJ2L,ILIMXP,KSTAG,JSTAG,ISTAG,KANAL,MODUS,
+     $                   ZSLM,ZELM,YSLM,YELM,XSLM,XELM,TSEM,TEEM,DTEM,
+     $                   HILFL  ,CT)
+         ENDIF
+      ENDIF
+      IF(ISELEA(1,216) .EQ. 1  .OR.  ISELEA(1,216) .EQ. 2) THEN
+         CT = CH1680 (' R_U"W"(X)      ')
+         IF(ISELEP(1,216) .EQ. 1  .OR.  ISELEP(1,216) .EQ. 2) THEN
+            CALL DIBC   (KKXL,JJ2L,ILIMXP,KSTAG,JSTAG,ISTAG,KANAL,MODUS,
+     $                   ZSLM,ZELM,YSLM,YELM,XSLM,XELM,TSEM,TEEM,DTEM,
+     $                   ARXUW  ,CT)
+         ELSE
+            CALL DIBC   (KKXL,JJ2L,ILIMXP,KSTAG,JSTAG,ISTAG,KANAL,MODUS,
+     $                   ZSLM,ZELM,YSLM,YELM,XSLM,XELM,TSEM,TEEM,DTEM,
+     $                   HILFL  ,CT)
+         ENDIF
+      ENDIF
+      IF(ISELEA(1,218) .EQ. 1  .OR.  ISELEA(1,218) .EQ. 2) THEN
+         CT = CH1680 (' R_U"W"(Y)      ')
+         IF(ISELEP(1,218) .EQ. 1  .OR.  ISELEP(1,218) .EQ. 2) THEN
+            CALL DIBC   (KKYL,JJ2L,ILIMXP,KSTAG,JSTAG,ISTAG,KANAL,MODUS,
+     $                   ZSLM,ZELM,YSLM,YELM,XSLM,XELM,TSEM,TEEM,DTEM,
+     $                   ARYUW  ,CT)
+         ELSE
+            CALL DIBC   (KKYL,JJ2L,ILIMXP,KSTAG,JSTAG,ISTAG,KANAL,MODUS,
+     $                   ZSLM,ZELM,YSLM,YELM,XSLM,XELM,TSEM,TEEM,DTEM,
+     $                   HILFL  ,CT)
+         ENDIF
+      ENDIF
+      IF(ISELEA(1,224) .EQ. 1  .OR.  ISELEA(1,224) .EQ. 2) THEN
+         CT = CH1680 (' R_V"W"(Y)      ')
+         IF(ISELEP(1,224) .EQ. 1  .OR.  ISELEP(1,224) .EQ. 2) THEN
+            CALL DIBC   (KKYL,JJ2L,ILIMXP,KSTAG,JSTAG,ISTAG,KANAL,MODUS,
+     $                   ZSLM,ZELM,YSLM,YELM,XSLM,XELM,TSEM,TEEM,DTEM,
+     $                   ARYVW  ,CT)
+         ELSE
+            CALL DIBC   (KKYL,JJ2L,ILIMXP,KSTAG,JSTAG,ISTAG,KANAL,MODUS,
+     $                   ZSLM,ZELM,YSLM,YELM,XSLM,XELM,TSEM,TEEM,DTEM,
+     $                   HILFL  ,CT)
+         ENDIF
+      ENDIF
+C
+C                                  HIER: KORRELATIONSKOEFFIZIENTEN
+C                                  -------------------------------
+C
+      IF(ISELEA(1,234) .EQ. 1  .OR.  ISELEA(1,234) .EQ. 2) THEN
+         CT = CH1680 (' RC_U"W"(X)     ')
+         IF(ISELEP(1,234) .EQ. 1  .OR.  ISELEP(1,234) .EQ. 2) THEN
+            CALL DIBC   (KKXL,JJ2L,ILIMXP,KSTAG,JSTAG,ISTAG,KANAL,MODUS,
+     $                   ZSLM,ZELM,YSLM,YELM,XSLM,XELM,TSEM,TEEM,DTEM,
+     $                   ACXUW  ,CT)
+         ELSE
+            CALL DIBC   (KKXL,JJ2L,ILIMXP,KSTAG,JSTAG,ISTAG,KANAL,MODUS,
+     $                   ZSLM,ZELM,YSLM,YELM,XSLM,XELM,TSEM,TEEM,DTEM,
+     $                   HILFL  ,CT)
+         ENDIF
+      ENDIF
+      IF(ISELEA(1,238) .EQ. 1  .OR.  ISELEA(1,238) .EQ. 2) THEN
+         CT = CH1680 (' RC_U"W"(Z)     ')
+         IF(ISELEP(1,238) .EQ. 1  .OR.  ISELEP(1,238) .EQ. 2) THEN
+            CALL DIBC   (KKZL,JJ2L,ILIMXP,KSTAG,JSTAG,ISTAG,KANAL,MODUS,
+     $                   ZSLM,ZELM,YSLM,YELM,XSLM,XELM,TSEM,TEEM,DTEM,
+     $                   ACZUW  ,CT)
+         ELSE
+            CALL DIBC   (KKZL,JJ2L,ILIMXP,KSTAG,JSTAG,ISTAG,KANAL,MODUS,
+     $                   ZSLM,ZELM,YSLM,YELM,XSLM,XELM,TSEM,TEEM,DTEM,
+     $                   HILFL  ,CT)
+         ENDIF
+      ENDIF
+C
+C                                  OBERE DREIECKSMATRIX DES TENSORS
+C                                  DER KORRELATIONSFUNKTIONEN DER
+C                                  FLUKTUATIONEN DER VORTICITY
+C                                  --------------------------------
+C
+      IF(ISELEA(1,246) .EQ. 1  .OR.  ISELEA(1,246) .EQ. 2) THEN
+         CT = CH1680 (' R_OX"OX"(X)    ')
+         IF(ISELEP(1,246) .EQ. 1  .OR.  ISELEP(1,246) .EQ. 2) THEN
+            CALL DIBC   (KKXL,JJ2L,ILIMXP,KSTAG,JSTAG,ISTAG,KANAL,MODUS,
+     $                   ZSLM,ZELM,YSLM,YELM,XSLM,XELM,TSEM,TEEM,DTEM,
+     $                   ARXOXX ,CT)
+         ELSE
+            CALL DIBC   (KKXL,JJ2L,ILIMXP,KSTAG,JSTAG,ISTAG,KANAL,MODUS,
+     $                   ZSLM,ZELM,YSLM,YELM,XSLM,XELM,TSEM,TEEM,DTEM,
+     $                   HILFL  ,CT)
+         ENDIF
+      ENDIF
+      IF(ISELEA(1,248) .EQ. 1  .OR.  ISELEA(1,248) .EQ. 2) THEN
+         CT = CH1680 (' R_OX"OY"(X)    ')
+         IF(ISELEP(1,248) .EQ. 1  .OR.  ISELEP(1,248) .EQ. 2) THEN
+            CALL DIBC   (KKXL,JJ2L,ILIMXP,KSTAG,JSTAG,ISTAG,KANAL,MODUS,
+     $                   ZSLM,ZELM,YSLM,YELM,XSLM,XELM,TSEM,TEEM,DTEM,
+     $                   ARXOXY ,CT)
+         ELSE
+            CALL DIBC   (KKXL,JJ2L,ILIMXP,KSTAG,JSTAG,ISTAG,KANAL,MODUS,
+     $                   ZSLM,ZELM,YSLM,YELM,XSLM,XELM,TSEM,TEEM,DTEM,
+     $                   HILFL  ,CT)
+         ENDIF
+      ENDIF
+      IF(ISELEA(1,250) .EQ. 1  .OR.  ISELEA(1,250) .EQ. 2) THEN
+         CT = CH1680 (' R_OX"OZ"(X)    ')
+         IF(ISELEP(1,250) .EQ. 1  .OR.  ISELEP(1,250) .EQ. 2) THEN
+            CALL DIBC   (KKXL,JJ2L,ILIMXP,KSTAG,JSTAG,ISTAG,KANAL,MODUS,
+     $                   ZSLM,ZELM,YSLM,YELM,XSLM,XELM,TSEM,TEEM,DTEM,
+     $                   ARXOXZ ,CT)
+         ELSE
+            CALL DIBC   (KKXL,JJ2L,ILIMXP,KSTAG,JSTAG,ISTAG,KANAL,MODUS,
+     $                   ZSLM,ZELM,YSLM,YELM,XSLM,XELM,TSEM,TEEM,DTEM,
+     $                   HILFL  ,CT)
+         ENDIF
+      ENDIF
+      IF(ISELEA(1,252) .EQ. 1  .OR.  ISELEA(1,252) .EQ. 2) THEN
+         CT = CH1680 (' R_OY"OY"(X)    ')
+         IF(ISELEP(1,252) .EQ. 1  .OR.  ISELEP(1,252) .EQ. 2) THEN
+            CALL DIBC   (KKXL,JJ2L,ILIMXP,KSTAG,JSTAG,ISTAG,KANAL,MODUS,
+     $                   ZSLM,ZELM,YSLM,YELM,XSLM,XELM,TSEM,TEEM,DTEM,
+     $                   ARXOYY ,CT)
+         ELSE
+            CALL DIBC   (KKXL,JJ2L,ILIMXP,KSTAG,JSTAG,ISTAG,KANAL,MODUS,
+     $                   ZSLM,ZELM,YSLM,YELM,XSLM,XELM,TSEM,TEEM,DTEM,
+     $                   HILFL  ,CT)
+         ENDIF
+      ENDIF
+      IF(ISELEA(1,254) .EQ. 1  .OR.  ISELEA(1,254) .EQ. 2) THEN
+         CT = CH1680 (' R_OY"OZ"(X)    ')
+         IF(ISELEP(1,254) .EQ. 1  .OR.  ISELEP(1,254) .EQ. 2) THEN
+            CALL DIBC   (KKXL,JJ2L,ILIMXP,KSTAG,JSTAG,ISTAG,KANAL,MODUS,
+     $                   ZSLM,ZELM,YSLM,YELM,XSLM,XELM,TSEM,TEEM,DTEM,
+     $                   ARXOYZ ,CT)
+         ELSE
+            CALL DIBC   (KKXL,JJ2L,ILIMXP,KSTAG,JSTAG,ISTAG,KANAL,MODUS,
+     $                   ZSLM,ZELM,YSLM,YELM,XSLM,XELM,TSEM,TEEM,DTEM,
+     $                   HILFL  ,CT)
+         ENDIF
+      ENDIF
+      IF(ISELEA(1,256) .EQ. 1  .OR.  ISELEA(1,256) .EQ. 2) THEN
+         CT = CH1680 (' R_OZ"OZ"(X)    ')
+         IF(ISELEP(1,256) .EQ. 1  .OR.  ISELEP(1,256) .EQ. 2) THEN
+            CALL DIBC   (KKXL,JJ2L,ILIMXP,KSTAG,JSTAG,ISTAG,KANAL,MODUS,
+     $                   ZSLM,ZELM,YSLM,YELM,XSLM,XELM,TSEM,TEEM,DTEM,
+     $                   ARXOZZ ,CT)
+         ELSE
+            CALL DIBC   (KKXL,JJ2L,ILIMXP,KSTAG,JSTAG,ISTAG,KANAL,MODUS,
+     $                   ZSLM,ZELM,YSLM,YELM,XSLM,XELM,TSEM,TEEM,DTEM,
+     $                   HILFL  ,CT)
+         ENDIF
+      ENDIF
+      IF(ISELEA(1,258) .EQ. 1  .OR.  ISELEA(1,258) .EQ. 2) THEN
+         CT = CH1680 (' R_OX"OX"(Y)    ')
+         IF(ISELEP(1,258) .EQ. 1  .OR.  ISELEP(1,258) .EQ. 2) THEN
+            CALL DIBC   (KKYL,JJ2L,ILIMXP,KSTAG,JSTAG,ISTAG,KANAL,MODUS,
+     $                   ZSLM,ZELM,YSLM,YELM,XSLM,XELM,TSEM,TEEM,DTEM,
+     $                   ARYOXX ,CT)
+         ELSE
+            CALL DIBC   (KKYL,JJ2L,ILIMXP,KSTAG,JSTAG,ISTAG,KANAL,MODUS,
+     $                   ZSLM,ZELM,YSLM,YELM,XSLM,XELM,TSEM,TEEM,DTEM,
+     $                   HILFL  ,CT)
+         ENDIF
+      ENDIF
+      IF(ISELEA(1,260) .EQ. 1  .OR.  ISELEA(1,260) .EQ. 2) THEN
+         CT = CH1680 (' R_OX"OY"(Y)    ')
+         IF(ISELEP(1,260) .EQ. 1  .OR.  ISELEP(1,260) .EQ. 2) THEN
+            CALL DIBC   (KKYL,JJ2L,ILIMXP,KSTAG,JSTAG,ISTAG,KANAL,MODUS,
+     $                   ZSLM,ZELM,YSLM,YELM,XSLM,XELM,TSEM,TEEM,DTEM,
+     $                   ARYOXY ,CT)
+         ELSE
+            CALL DIBC   (KKYL,JJ2L,ILIMXP,KSTAG,JSTAG,ISTAG,KANAL,MODUS,
+     $                   ZSLM,ZELM,YSLM,YELM,XSLM,XELM,TSEM,TEEM,DTEM,
+     $                   HILFL  ,CT)
+         ENDIF
+      ENDIF
+      IF(ISELEA(1,262) .EQ. 1  .OR.  ISELEA(1,262) .EQ. 2) THEN
+         CT = CH1680 (' R_OX"OZ"(Y)    ')
+         IF(ISELEP(1,262) .EQ. 1  .OR.  ISELEP(1,262) .EQ. 2) THEN
+            CALL DIBC   (KKYL,JJ2L,ILIMXP,KSTAG,JSTAG,ISTAG,KANAL,MODUS,
+     $                   ZSLM,ZELM,YSLM,YELM,XSLM,XELM,TSEM,TEEM,DTEM,
+     $                   ARYOXZ ,CT)
+         ELSE
+            CALL DIBC   (KKYL,JJ2L,ILIMXP,KSTAG,JSTAG,ISTAG,KANAL,MODUS,
+     $                   ZSLM,ZELM,YSLM,YELM,XSLM,XELM,TSEM,TEEM,DTEM,
+     $                   HILFL  ,CT)
+         ENDIF
+      ENDIF
+      IF(ISELEA(1,264) .EQ. 1  .OR.  ISELEA(1,264) .EQ. 2) THEN
+         CT = CH1680 (' R_OY"OY"(Y)    ')
+         IF(ISELEP(1,264) .EQ. 1  .OR.  ISELEP(1,264) .EQ. 2) THEN
+            CALL DIBC   (KKYL,JJ2L,ILIMXP,KSTAG,JSTAG,ISTAG,KANAL,MODUS,
+     $                   ZSLM,ZELM,YSLM,YELM,XSLM,XELM,TSEM,TEEM,DTEM,
+     $                   ARYOYY ,CT)
+         ELSE
+            CALL DIBC   (KKYL,JJ2L,ILIMXP,KSTAG,JSTAG,ISTAG,KANAL,MODUS,
+     $                   ZSLM,ZELM,YSLM,YELM,XSLM,XELM,TSEM,TEEM,DTEM,
+     $                   HILFL  ,CT)
+         ENDIF
+      ENDIF
+      IF(ISELEA(1,266) .EQ. 1  .OR.  ISELEA(1,266) .EQ. 2) THEN
+         CT = CH1680 (' R_OY"OZ"(Y)    ')
+         IF(ISELEP(1,266) .EQ. 1  .OR.  ISELEP(1,266) .EQ. 2) THEN
+            CALL DIBC   (KKYL,JJ2L,ILIMXP,KSTAG,JSTAG,ISTAG,KANAL,MODUS,
+     $                   ZSLM,ZELM,YSLM,YELM,XSLM,XELM,TSEM,TEEM,DTEM,
+     $                   ARYOYZ ,CT)
+         ELSE
+            CALL DIBC   (KKYL,JJ2L,ILIMXP,KSTAG,JSTAG,ISTAG,KANAL,MODUS,
+     $                   ZSLM,ZELM,YSLM,YELM,XSLM,XELM,TSEM,TEEM,DTEM,
+     $                   HILFL  ,CT)
+         ENDIF
+      ENDIF
+      IF(ISELEA(1,268) .EQ. 1  .OR.  ISELEA(1,268) .EQ. 2) THEN
+         CT = CH1680 (' R_OZ"OZ"(Y)    ')
+         IF(ISELEP(1,268) .EQ. 1  .OR.  ISELEP(1,268) .EQ. 2) THEN
+            CALL DIBC   (KKYL,JJ2L,ILIMXP,KSTAG,JSTAG,ISTAG,KANAL,MODUS,
+     $                   ZSLM,ZELM,YSLM,YELM,XSLM,XELM,TSEM,TEEM,DTEM,
+     $                   ARYOZZ ,CT)
+         ELSE
+            CALL DIBC   (KKYL,JJ2L,ILIMXP,KSTAG,JSTAG,ISTAG,KANAL,MODUS,
+     $                   ZSLM,ZELM,YSLM,YELM,XSLM,XELM,TSEM,TEEM,DTEM,
+     $                   HILFL  ,CT)
+         ENDIF
+      ENDIF
+      IF(ISELEA(1,270) .EQ. 1  .OR.  ISELEA(1,270) .EQ. 2) THEN
+         CT = CH1680 (' R_OX"OX"(Z)    ')
+         IF(ISELEP(1,270) .EQ. 1  .OR.  ISELEP(1,270) .EQ. 2) THEN
+            CALL DIBC   (KKZL,JJ2L,ILIMXP,KSTAG,JSTAG,ISTAG,KANAL,MODUS,
+     $                   ZSLM,ZELM,YSLM,YELM,XSLM,XELM,TSEM,TEEM,DTEM,
+     $                   ARZOXX ,CT)
+         ELSE
+            CALL DIBC   (KKZL,JJ2L,ILIMXP,KSTAG,JSTAG,ISTAG,KANAL,MODUS,
+     $                   ZSLM,ZELM,YSLM,YELM,XSLM,XELM,TSEM,TEEM,DTEM,
+     $                   HILFL  ,CT)
+         ENDIF
+      ENDIF
+      IF(ISELEA(1,272) .EQ. 1  .OR.  ISELEA(1,272) .EQ. 2) THEN
+         CT = CH1680 (' R_OX"OY"(Z)    ')
+         IF(ISELEP(1,272) .EQ. 1  .OR.  ISELEP(1,272) .EQ. 2) THEN
+            CALL DIBC   (KKZL,JJ2L,ILIMXP,KSTAG,JSTAG,ISTAG,KANAL,MODUS,
+     $                   ZSLM,ZELM,YSLM,YELM,XSLM,XELM,TSEM,TEEM,DTEM,
+     $                   ARZOXY ,CT)
+         ELSE
+            CALL DIBC   (KKZL,JJ2L,ILIMXP,KSTAG,JSTAG,ISTAG,KANAL,MODUS,
+     $                   ZSLM,ZELM,YSLM,YELM,XSLM,XELM,TSEM,TEEM,DTEM,
+     $                   HILFL  ,CT)
+         ENDIF
+      ENDIF
+      IF(ISELEA(1,274) .EQ. 1  .OR.  ISELEA(1,274) .EQ. 2) THEN
+         CT = CH1680 (' R_OX"OZ"(Z)    ')
+         IF(ISELEP(1,274) .EQ. 1  .OR.  ISELEP(1,274) .EQ. 2) THEN
+            CALL DIBC   (KKZL,JJ2L,ILIMXP,KSTAG,JSTAG,ISTAG,KANAL,MODUS,
+     $                   ZSLM,ZELM,YSLM,YELM,XSLM,XELM,TSEM,TEEM,DTEM,
+     $                   ARZOXZ ,CT)
+         ELSE
+            CALL DIBC   (KKZL,JJ2L,ILIMXP,KSTAG,JSTAG,ISTAG,KANAL,MODUS,
+     $                   ZSLM,ZELM,YSLM,YELM,XSLM,XELM,TSEM,TEEM,DTEM,
+     $                   HILFL  ,CT)
+         ENDIF
+      ENDIF
+      IF(ISELEA(1,276) .EQ. 1  .OR.  ISELEA(1,276) .EQ. 2) THEN
+         CT = CH1680 (' R_OY"OY"(Z)    ')
+         IF(ISELEP(1,276) .EQ. 1  .OR.  ISELEP(1,276) .EQ. 2) THEN
+            CALL DIBC   (KKZL,JJ2L,ILIMXP,KSTAG,JSTAG,ISTAG,KANAL,MODUS,
+     $                   ZSLM,ZELM,YSLM,YELM,XSLM,XELM,TSEM,TEEM,DTEM,
+     $                   ARZOYY ,CT)
+         ELSE
+            CALL DIBC   (KKZL,JJ2L,ILIMXP,KSTAG,JSTAG,ISTAG,KANAL,MODUS,
+     $                   ZSLM,ZELM,YSLM,YELM,XSLM,XELM,TSEM,TEEM,DTEM,
+     $                   HILFL  ,CT)
+         ENDIF
+      ENDIF
+      IF(ISELEA(1,278) .EQ. 1  .OR.  ISELEA(1,278) .EQ. 2) THEN
+         CT = CH1680 (' R_OY"OZ"(Z)    ')
+         IF(ISELEP(1,278) .EQ. 1  .OR.  ISELEP(1,278) .EQ. 2) THEN
+            CALL DIBC   (KKZL,JJ2L,ILIMXP,KSTAG,JSTAG,ISTAG,KANAL,MODUS,
+     $                   ZSLM,ZELM,YSLM,YELM,XSLM,XELM,TSEM,TEEM,DTEM,
+     $                   ARZOYZ ,CT)
+         ELSE
+            CALL DIBC   (KKZL,JJ2L,ILIMXP,KSTAG,JSTAG,ISTAG,KANAL,MODUS,
+     $                   ZSLM,ZELM,YSLM,YELM,XSLM,XELM,TSEM,TEEM,DTEM,
+     $                   HILFL  ,CT)
+         ENDIF
+      ENDIF
+      IF(ISELEA(1,280) .EQ. 1  .OR.  ISELEA(1,280) .EQ. 2) THEN
+         CT = CH1680 (' R_OZ"OZ"(Z)    ')
+         IF(ISELEP(1,280) .EQ. 1  .OR.  ISELEP(1,280) .EQ. 2) THEN
+            CALL DIBC   (KKZL,JJ2L,ILIMXP,KSTAG,JSTAG,ISTAG,KANAL,MODUS,
+     $                   ZSLM,ZELM,YSLM,YELM,XSLM,XELM,TSEM,TEEM,DTEM,
+     $                   ARZOZZ ,CT)
+         ELSE
+            CALL DIBC   (KKZL,JJ2L,ILIMXP,KSTAG,JSTAG,ISTAG,KANAL,MODUS,
+     $                   ZSLM,ZELM,YSLM,YELM,XSLM,XELM,TSEM,TEEM,DTEM,
+     $                   HILFL  ,CT)
+         ENDIF
+      ENDIF
+C
+C                                  LEISTUNGSDICHTESPEKTREN DER
+C                                  FLUKTUATIONEN DER VORTICITY
+C                                  ----------------------------
+C
+      IF(ISELEA(1,282) .EQ. 1  .OR.  ISELEA(1,282) .EQ. 2) THEN
+         CT = CH1680 (' S_OX"OX"(K_X)  ')
+         IF(ISELEP(1,282) .EQ. 1  .OR.  ISELEP(1,282) .EQ. 2) THEN
+            CALL DIBC   (KSXL,JJ1L,ILIMXP,KSTAG,JSTAG,ISTAG,KANAL,MODUS,
+     $                   ZSLM,ZELM,YSLM,YELM,XSLM,XELM,TSEM,TEEM,DTEM,
+     $                   ASXOXX ,CT)
+         ELSE
+            CALL DIBC   (KSXL,JJ1L,ILIMXP,KSTAG,JSTAG,ISTAG,KANAL,MODUS,
+     $                   ZSLM,ZELM,YSLM,YELM,XSLM,XELM,TSEM,TEEM,DTEM,
+     $                   HILFL  ,CT)
+         ENDIF
+      ENDIF
+      IF(ISELEA(1,284) .EQ. 1  .OR.  ISELEA(1,284) .EQ. 2) THEN
+         CT = CH1680 (' S_OY"OY"(K_X)  ')
+         IF(ISELEP(1,284) .EQ. 1  .OR.  ISELEP(1,284) .EQ. 2) THEN
+            CALL DIBC   (KSXL,JJ1L,ILIMXP,KSTAG,JSTAG,ISTAG,KANAL,MODUS,
+     $                   ZSLM,ZELM,YSLM,YELM,XSLM,XELM,TSEM,TEEM,DTEM,
+     $                   ASXOYY ,CT)
+         ELSE
+            CALL DIBC   (KSXL,JJ1L,ILIMXP,KSTAG,JSTAG,ISTAG,KANAL,MODUS,
+     $                   ZSLM,ZELM,YSLM,YELM,XSLM,XELM,TSEM,TEEM,DTEM,
+     $                   HILFL  ,CT)
+         ENDIF
+      ENDIF
+      IF(ISELEA(1,286) .EQ. 1  .OR.  ISELEA(1,286) .EQ. 2) THEN
+         CT = CH1680 (' S_OZ"OZ"(K_X)  ')
+         IF(ISELEP(1,286) .EQ. 1  .OR.  ISELEP(1,286) .EQ. 2) THEN
+            CALL DIBC   (KSXL,JJ1L,ILIMXP,KSTAG,JSTAG,ISTAG,KANAL,MODUS,
+     $                   ZSLM,ZELM,YSLM,YELM,XSLM,XELM,TSEM,TEEM,DTEM,
+     $                   ASXOZZ ,CT)
+         ELSE
+            CALL DIBC   (KSXL,JJ1L,ILIMXP,KSTAG,JSTAG,ISTAG,KANAL,MODUS,
+     $                   ZSLM,ZELM,YSLM,YELM,XSLM,XELM,TSEM,TEEM,DTEM,
+     $                   HILFL  ,CT)
+         ENDIF
+      ENDIF
+      IF(ISELEA(1,288) .EQ. 1  .OR.  ISELEA(1,288) .EQ. 2) THEN
+         CT = CH1680 (' S_OX"OX"(K_Y)  ')
+         IF(ISELEP(1,288) .EQ. 1  .OR.  ISELEP(1,288) .EQ. 2) THEN
+            CALL DIBC   (KSYL,JJ1L,ILIMXP,KSTAG,JSTAG,ISTAG,KANAL,MODUS,
+     $                   ZSLM,ZELM,YSLM,YELM,XSLM,XELM,TSEM,TEEM,DTEM,
+     $                   ASYOXX ,CT)
+         ELSE
+            CALL DIBC   (KSYL,JJ1L,ILIMXP,KSTAG,JSTAG,ISTAG,KANAL,MODUS,
+     $                   ZSLM,ZELM,YSLM,YELM,XSLM,XELM,TSEM,TEEM,DTEM,
+     $                   HILFL  ,CT)
+         ENDIF
+      ENDIF
+      IF(ISELEA(1,290) .EQ. 1  .OR.  ISELEA(1,290) .EQ. 2) THEN
+         CT = CH1680 (' S_OY"OY"(K_Y)  ')
+         IF(ISELEP(1,290) .EQ. 1  .OR.  ISELEP(1,290) .EQ. 2) THEN
+            CALL DIBC   (KSYL,JJ1L,ILIMXP,KSTAG,JSTAG,ISTAG,KANAL,MODUS,
+     $                   ZSLM,ZELM,YSLM,YELM,XSLM,XELM,TSEM,TEEM,DTEM,
+     $                   ASYOYY ,CT)
+         ELSE
+            CALL DIBC   (KSYL,JJ1L,ILIMXP,KSTAG,JSTAG,ISTAG,KANAL,MODUS,
+     $                   ZSLM,ZELM,YSLM,YELM,XSLM,XELM,TSEM,TEEM,DTEM,
+     $                   HILFL  ,CT)
+         ENDIF
+      ENDIF
+      IF(ISELEA(1,292) .EQ. 1  .OR.  ISELEA(1,292) .EQ. 2) THEN
+         CT = CH1680 (' S_OZ"OZ"(K_Y)  ')
+         IF(ISELEP(1,292) .EQ. 1  .OR.  ISELEP(1,292) .EQ. 2) THEN
+            CALL DIBC   (KSYL,JJ1L,ILIMXP,KSTAG,JSTAG,ISTAG,KANAL,MODUS,
+     $                   ZSLM,ZELM,YSLM,YELM,XSLM,XELM,TSEM,TEEM,DTEM,
+     $                   ASYOZZ ,CT)
+         ELSE
+            CALL DIBC   (KSYL,JJ1L,ILIMXP,KSTAG,JSTAG,ISTAG,KANAL,MODUS,
+     $                   ZSLM,ZELM,YSLM,YELM,XSLM,XELM,TSEM,TEEM,DTEM,
+     $                   HILFL  ,CT)
+         ENDIF
+      ENDIF
+C
+C                                  HAEUFIGKEITSVERTEILUNG DER
+C                                  INKLINATIONSWINKEL DER VORTICITY-
+C                                  VEKTOREN
+C                                  ---------------------------------
+C
+      IF(ISELEA(1,306) .EQ. 1  .OR.  ISELEA(1,306) .EQ. 2) THEN
+         CT = CH1680 (' H (ATAN(OZ/OY))')
+         IF(ISELEP(1,306) .EQ. 1  .OR.  ISELEP(1,306) .EQ. 2) THEN
+            CALL DIBC   (KH0L,JJ2L,ILIMXP,KSTAG,JSTAG,ISTAG,KANAL,MODUS,
+     $                   ZSLM,ZELM,YSLM,YELM,XSLM,XELM,TSEM,TEEM,DTEM,
+     $                   AHOZOY ,CT)
+         ELSE
+            CALL DIBC   (KH0L,JJ2L,ILIMXP,KSTAG,JSTAG,ISTAG,KANAL,MODUS,
+     $                   ZSLM,ZELM,YSLM,YELM,XSLM,XELM,TSEM,TEEM,DTEM,
+     $                   HILFL  ,CT)
+         ENDIF
+      ENDIF
+      IF(ISELEA(1,308) .EQ. 1  .OR.  ISELEA(1,308) .EQ. 2) THEN
+         CT = CH1680 (' H (ATAN(OZ/OX))')
+         IF(ISELEP(1,308) .EQ. 1  .OR.  ISELEP(1,308) .EQ. 2) THEN
+            CALL DIBC   (KH0L,JJ2L,ILIMXP,KSTAG,JSTAG,ISTAG,KANAL,MODUS,
+     $                   ZSLM,ZELM,YSLM,YELM,XSLM,XELM,TSEM,TEEM,DTEM,
+     $                   AHOZOX ,CT)
+         ELSE
+            CALL DIBC   (KH0L,JJ2L,ILIMXP,KSTAG,JSTAG,ISTAG,KANAL,MODUS,
+     $                   ZSLM,ZELM,YSLM,YELM,XSLM,XELM,TSEM,TEEM,DTEM,
+     $                   HILFL  ,CT)
+         ENDIF
+      ENDIF
+      IF(ISELEA(1,310) .EQ. 1  .OR.  ISELEA(1,310) .EQ. 2) THEN
+         CT = CH1680 (' H (ATAN(OY/OX))')
+         IF(ISELEP(1,310) .EQ. 1  .OR.  ISELEP(1,310) .EQ. 2) THEN
+            CALL DIBC   (KH0L,JJ2L,ILIMXP,KSTAG,JSTAG,ISTAG,KANAL,MODUS,
+     $                   ZSLM,ZELM,YSLM,YELM,XSLM,XELM,TSEM,TEEM,DTEM,
+     $                   AHOYOX ,CT)
+         ELSE
+            CALL DIBC   (KH0L,JJ2L,ILIMXP,KSTAG,JSTAG,ISTAG,KANAL,MODUS,
+     $                   ZSLM,ZELM,YSLM,YELM,XSLM,XELM,TSEM,TEEM,DTEM,
+     $                   HILFL  ,CT)
+         ENDIF
+      ENDIF
+C
+      RETURN
+      END

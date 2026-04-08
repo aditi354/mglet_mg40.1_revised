@@ -1,0 +1,897 @@
+C#ifdef _TSCAL_
+      SUBROUTINE TSTSCA4(KK,JJ,II,KMX,JMX,IMX,
+     $                  X,Y,Z,DX,DY,DZ,DDX,DDY,DDZ,
+     $                  RDX,RDY,RDZ,RDDX,RDDY,RDDZ,
+     $                  U,V,W,T,TO,P,G,B,DT,WCT,
+#ifdef _FRED_BODY_
+     $                  BP,BU,BV,BW,
+#endif
+     $                  LTXSTART,TXSTART,NBUF,ITSTEP,
+     $                  WKONSCA,WDIFSCA,WSORSCA,
+     $                  IC1,IC2,JC1,JC2,KC1,KC2,
+     $                  NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB,
+     $                  NFROS,NBACS,NRGTS,NLFTS,NBOTS,NTOPS,NCUBS,
+     $                  RSGS3,FAKTOR,
+     $                  FTI,FTJ,FTK,
+     $                  COEFTX,COEFTY,COEFTZ,
+     $                  LCOL,DIAG,RCOL,UZ,RSP,IGRID,
+     $                  PRTMAX,XPRTMAX,YPRTMAX,ZPRTMAX,
+     $                  PRTMIN,XPRTMIN,YPRTMIN,ZPRTMIN
+#ifdef _SCALGRIDDIAGNOSE_
+     $ ,DDSPLUS,SMPLUS,SPLUS                  
+#endif 
+#ifdef _SCALTRANSDIAGNOSE_
+     $ ,OCTE,OCTW,OCTN,OCTS,OCTT,OCTB,ODTE,ODTW,ODTN,ODTS,ODTT,ODTB,ODTC                  
+#endif
+     $                  ,GI,GJ,GK)
+C*STARLET***************************************************************
+C        T S T S C A 4  RK TIMESTEP - SCALAR TRANSPORT - TURBULENT - LES
+C*STARLET***************************************************************
+C
+C PARAM: KK, JJ, II     - ARRAY DIMENSIONS
+C        KMX, JMX, IMX  - TOTAL GRID SIZE IN Z,Y,X DIRECTION
+C        DX,DY,DZ       - GRID SPACING (CENTER) 
+C        DDX,DDY,DDZ    - CONTROL VOLUME SIZE IN X,Y,Z DIRECTION
+C        U(KK,JJ,II)    - NEW VELOCITY FIELD
+C        V(KK,JJ,II)    - NEW VELOCITY FIELD
+C        W(KK,JJ,II)    - NEW VELOCITY FIELD
+C        T(KK,JJ,II)    - NEW TEMPERATURE FIELD
+C        TO(KK,JJ,II)   + OLD TEMPERATURE FIELD
+C        G(KK,JJ,II)    - EFFECTIF DYNAMIC VISCOSITY (= MUE)
+C        GMOL           - MOLEKULARE DYNAMISCHE VISKOSITAET
+C        PRMOL          - MOLECULAR PRANDTL NUMBER
+C        PRTURB         - TURBULENT PRANDTL NUMBER
+C                         (IF 0 => KAYS FORMULATION!)
+C        LAMDA          - SPECIFIC HEAT TRANSFER COEFFICIENT
+C        DT             - TIME STEP SIZE
+C        RHO            - DENSITY (= CONST)
+C        WCT            - WALL CORRECTION FOR T (Diffusive transport by
+C                                               wall heat flux)
+C        MTURB          - 0 = LAMINAR,  1 = TURBULENT
+C        NBUF           - NUMBER OF BUFFER LAYERS (F. QUICK: NBUF=3)
+C        ITSTEP         - TIME STEP COUNTER
+C        WCONSCA        - WEIGHT FACTOR FOR CONVECTIVE TRANSPORT
+C        WDIFSCA        -                  DIFFUSIVE TRANSPORT
+C        WSORSCA        -                  HEAT SOURCES
+C
+C        IC1,JC1,KC1    - LEFT BORDER INDICES OF BOUNDING BOX 
+C        IC2,JC2,KC2    - RIGHT BORDER INDICES OF BOUNDING BOX          
+C                         (=1 LAYER AROUND BODY)
+C
+C     UINI,VINI,WINI    - INTERPOLIERTE GESCHW. IN I-RICHTUNG
+C     UINJ,VINJ,WINJ    - INTERPOLIERTE GESCHW. IN J-RICHTUNG
+C     UINK,VINK,WINK    - INTERPOLIERTE GESCHW. IN K-RICHTUNG
+C
+C     FDUI,FDVI,FDWI    - ERSTE ABLEITUNGEN     IN I-RICHTUNG           
+C     FDUJ,FDVJ,FDWJ    - ERSTE ABLEITUNGEN     IN J-RICHTUNG           
+C     FDUK,FDVK,FDWK    - ERSTE ABLEITUNGEN     IN K-RICHTUNG           
+C
+C                  X    - X-KOORDINATE DES ZELLMITTELPUNKTES            
+C
+C DEFINE DIREKTIVEN     : ZEN, QUD, UPW,EULERSCA, LEAPFSCA, ADBASCA, 
+C                         BAPAR_FIXED, TOPAR_FIXED
+C UPROG                 : SWCLESCA
+C
+C        26.05.03 (TB)  : TSTSCA : BASED ON TSTLE4
+C                         RUNGE KUTTA TIMESTEP FOR SCALAR TRANSPORT
+C                         
+C*STARLET***************************************************************
+C
+#include "mgpar.h"
+#include "konsta.h"
+#include "cophyspar.h"
+#include "cobound.h"
+
+C
+      REAL        X(II),         Y(JJ),         Z(KK),
+     &           DX(II),        DY(JJ),        DZ(KK),
+     &          DDX(II),       DDY(JJ),       DDZ(KK),
+     $        RDX(II),RDY(JJ),RDZ(KK),RDDX(II),RDDY(JJ),RDDZ(KK)
+C
+      REAL   U(KK,JJ,II),   V(KK,JJ,II),   W(KK,JJ,II),T(KK,JJ,II),
+     $       TO(KK,JJ,II), WCT(KK,JJ,II)
+C
+      REAL        P(KK,JJ,II),   G(KK,JJ,II)
+      REAL        B(KK,JJ,II)
+      REAL        GI(KK,JJ,II),GJ(KK,JJ,II),GK(KK,JJ,II)
+#ifdef _SCALGRIDDIAGNOSE_ 
+      REAL DDSPLUS(KK,JJ,II), SMPLUS(KK,JJ,II), SPLUS(KK,JJ,II)  
+#endif 
+#ifdef _SCALTRANSDIAGNOSE_
+      REAL OCTE(KK,JJ,II),OCTW(KK,JJ,II),OCTN(KK,JJ,II),
+     $     OCTS(KK,JJ,II),OCTT(KK,JJ,II),OCTB(KK,JJ,II),      
+     $     ODTE(KK,JJ,II),ODTW(KK,JJ,II),ODTN(KK,JJ,II),
+     $     ODTS(KK,JJ,II),ODTT(KK,JJ,II),ODTB(KK,JJ,II),ODTC(KK,JJ,II)     
+#endif
+#ifdef _FRED_BODY_
+      REAL  BU(KK,JJ,II),BV(KK,JJ,II),BW(KK,JJ,II),BP(KK,JJ,II)
+#endif
+
+      LOGICAL LTXSTART
+      REAL TXSTART 
+ 
+      REAL      RSGS3(KK,JJ,II)
+
+C----------------DIMENSIONIERUNG NICHT ALLGEMEIN GUELTIG---------
+C      REAL      COEFFX(II,12),COEFFY(JJ,12),COEFFZ(KK,12),
+C     $          COEFDX(II,12),COEFDY(JJ,12),COEFDZ(KK,12)
+C
+C      REAL      LCOL(II),DIAG(II),RCOL(II),UZ(II),RSP(II),
+C     $          FAKTOR(II)
+C-----------------------------------------------------------------
+
+#if defined _KOMXK_ | defined _KOMXK6O_ | defined _KOMXK8O_ | defined _KOU3K_ | defined _PREPROC_
+C      REAL        BOUNDFRO,BOUNDBACK
+      REAL        FTI(KK,JJ,II)     
+#else
+      REAL        FTI(1)      
+#endif
+#if defined _KOMYK_ | defined _KOMYK6O_  | defined _KOMYK8O_ | defined _ZENK4O_ | defined _PREPROC_
+C      REAL        BOUNDLEFT,BOUNDRIGHT
+      REAL        FTJ(KK,JJ,II)
+#else
+      REAL        FTJ(1)
+#endif
+#if defined _KOMZK_ | defined _PREPROC_
+C      REAL        BOUNDTOP,BOUNDBOT
+      REAL        FTK(KK,JJ,II)
+#else
+      REAL        FTK(1)
+#endif
+C
+C
+#ifdef _ZEN_
+C                                  *************************************
+C                                  ZEN ZEN ZEN ZEN ZEN ZEN ZEN ZEN ZEN
+C                                  *************************************
+C
+              WF(FFF)  = 0.5*ABS(FFF)+AMIN1(FFF,0.0)
+#endif
+#ifdef _UPW_
+C                                  *************************************
+C                                  UPW UPW UPW UPW UPW UPW UPW UPW UPW
+C                                  *************************************
+            WF(FFF)  = AMIN1(FFF,0.0)
+#endif
+#ifdef _QUD_
+C                                  *************************************
+C                                  QUD QUD QUD QUD QUD QUD QUD QUD QUD
+C                                  *************************************
+C
+      QIN(V1,V2,V3,S2S1,S3S2,SS2) = (V1*(SS2*(SS2-S3S2)*S3S2)
+     $                          -V2*((SS2+S2S1)*(SS2-S3S2)*(S2S1+S3S2))
+     $                          +V3*((SS2+S2S1)*SS2*S2S1)) * 0.5
+     $                          /(S2S1*S3S2*(S2S1+S3S2))
+#endif
+C
+C
+C
+
+              KSTART = 3
+              JSTART = 2
+              ISTART = 2
+              KSTOP = KMX - 2
+              JSTOP = JMX - 2
+              ISTOP = IMX - 2
+
+      HP    =  0.5
+      HN    = -0.5
+
+
+C
+C                                 BEI PERIODISCHEN RANDBEDINGUNGEN
+C                                 UND BEI GITTERKOPPLUNG
+C                                 SOWIE BEI AUSFLUSSBEDINGUNG
+C                                 WIRD DIE NORMALKOMPONENTE DER LETZTEN
+C                                 ZELLE BERECHNET, ANSONSTEN WIRD SIE IN
+C                                 BOUNDMG GESETZT
+
+C      NBU = 0
+C      IF ((NBAC.EQ.1).OR.(NBAC.EQ.7))  NBU = 1
+C      IF ((NBAC.EQ.3).OR.(NBAC.EQ.4))  NBU = 1
+C#ifndef _BAPAR_FIXED_
+C      IF (NBAC.EQ.8)  NBU = 1
+C#endif
+C      NLV = 0
+C      IF ((NLFT.EQ.1).OR.(NLFT.EQ.7).OR.(NLFT.EQ.8))  NLV = 1
+C      IF ((NLFT.EQ.3).OR.(NLFT.EQ.4))  NLV = 1
+C      NTW = 0
+C      IF ((NTOP.EQ.1).OR.(NTOP.EQ.7).OR.(NTOP.EQ.3))  NTW = 1
+C#ifndef _TOPAR_FIXED_
+C      IF (NTOP.EQ.8)  NTW = 1
+C#endif
+C
+C                                 BEI LOKAL VERFEINERTEM GITTER
+C                                 WIRD DIE NORMALKOMPONENTE DER ERSTEN
+C                                 ZELLE BERECHNET, ANSONSTEN WIRD SIE IN
+C                                 BOUNDMG GESETZT
+
+C      NFU = 0
+C      IF ( NFRO .EQ. 8 .OR. NFRO .EQ. 3 ) NFU = 1
+C      NRV = 0
+C      IF ( NRGT .EQ. 8 .OR. NRGT .EQ. 3 ) NRV = 1
+C      NBW = 0
+C      IF ( NBOT .EQ. 8 .OR. NBOT .EQ. 3 ) NBW = 1
+C***********************************************************************
+C*     DECONVOLUTION OF FIELD FOR IMPROVED RESOLUTION KONVEKTIVE TERM  *
+C***********************************************************************
+#if defined _PREPROC_
+      CALL PREPROC_FIELD_SCALAR(KK,JJ,II,T,GI,GJ,FTI,FTJ,FTK,DZ,.TRUE.)
+#endif
+C
+C***********************************************************************
+C           HIER KOMPAKTVERFAHREN VIERTER ORDNUNG IN X-RICHTUNG        *
+C***********************************************************************
+CC                                PERIODISCHE RANDBEDINGUNGEN 
+CC                                NUR AEQUIDISTANTE GITTER !! 
+      IF (NFRO .EQ.1) THEN
+C
+#if defined _KOMXK_ | defined _KOMXK6O_ | defined _KOMXK8O_
+
+C         IF(ABS(WKONSCA) .GT. SMALL) THEN
+        CALL INTERUX_PER (KK,JJ,II,KSTART,JSTART,ISTART,KSTOP,JSTOP,
+     $                    ISTOP,RSGS3,T,FTI,LCOL,DIAG,RCOL,UZ,RSP)
+C         ENDIF
+#endif
+
+CC                                NICHT-PERIODISCHE RANDBED.
+      ELSE
+
+#if defined _KOMXK_
+
+C        IF(ABS(WKONSCA) .GT. SMALL) THEN
+
+      CALL INTERPOLATESCAI (KK,JJ,II,KSTART,JSTART,ISTART,KSTOP,JSTOP,
+     $                    ISTOP,COEFTX,RSGS3,FAKTOR,T,FTI,
+     $                    NFROS,NBACS,LCOL,DIAG,RCOL,IGRID,DX
+#ifdef _FRED_BODY_
+     $        ,BU,GI,GJ,GK
+#endif
+     $        )
+
+
+C      ENDIF
+
+#endif
+
+      ENDIF
+
+#if defined _KOMYK_ | defined _KOMYK6O_  | defined _KOMYK8O_ | defined _ZEN4O_
+CC      
+      IF (NRGT .EQ.1) THEN
+CC                                PERIODISCHE RANDBEDINGUNGEN 
+CC                                NUR AEQUIDISTANTE GITTER !!
+      CALL INTERVY_PER  (KK,JJ,II,KSTART,JSTART,ISTART,
+     $     KSTOP,JSTOP,ISTOP,RSGS3,T,FTJ,LCOL,DIAG,RCOL,UZ,RSP)
+
+      ELSE
+
+         CALL INTERPOLATESCAJ (KK,JJ,II,KSTART,JSTART,ISTART,
+     $        KSTOP,JSTOP,ISTOP,COEFTY,RSGS3,FAKTOR,T,FTJ,
+     $        NRGTS,NLFTS,LCOL,DIAG,RCOL,IGRID,DY
+#ifdef _FRED_BODY_
+     $        ,BV,GI,GJ,GK
+#endif
+     $        )
+
+
+      ENDIF
+#endif
+
+#if defined _KOMZK_
+      CALL INTERPOLATESCAK(KK,JJ,II,KSTART,JSTART,ISTART,
+     $     KSTOP,JSTOP,ISTOP,COEFTZ,RSGS3,FAKTOR,T,FTK,
+     $     NBOTS,NTOPS,LCOL,DIAG,RCOL,IGRID,DZ
+#ifdef _FRED_BODY_
+     $        ,BW,GI,GJ,GK
+#endif
+     $        )
+
+#endif
+C     INITIALIZE PRTMAX,PRTMIN AND XYZPRTMINMAX
+      PRTMAX = 0.0
+      PRTMIN = GREAT
+      XPRTMAX= 0.0
+      YPRTMAX= 0.0
+      ZPRTMAX= 0.0  
+      XPRTMIN= 0.0
+      YPRTMIN= 0.0
+      ZPRTMIN= 0.0
+#ifdef _SCALGRIDDIAGNOSE_        
+      DO I = 1,IMX
+      DO J = 1,JMX
+      DO K = 1,KMX
+        DDSPLUS(K,J,I)= 0.0
+        SMPLUS(K,J,I) = 0.0  
+        SPLUS(K,J,I)  = 0.0                            
+      ENDDO
+      ENDDO
+      ENDDO              
+#endif      
+#ifdef _SCALTRANSDIAGNOSE_        
+      DO I = 1,IMX
+      DO J = 1,JMX
+      DO K = 1,KMX
+        OCTE(K,J,I) = 0.0
+        OCTW(K,J,I) = 0.0  
+        OCTN(K,J,I) = 0.0
+        OCTS(K,J,I) = 0.0 
+        OCTT(K,J,I) = 0.0
+        OCTB(K,J,I) = 0.0  
+        ODTE(K,J,I) = 0.0
+        ODTW(K,J,I) = 0.0  
+        ODTN(K,J,I) = 0.0
+        ODTS(K,J,I) = 0.0 
+        ODTT(K,J,I) = 0.0
+        ODTB(K,J,I) = 0.0 
+        ODTC(K,J,I) = 0.0                              
+      ENDDO
+      ENDDO
+      ENDDO              
+#endif
+      IF(ABS(WKONSCA) .LE. SMALL) GOTO 2200
+C
+C***********************************************************************
+C                                 10 10 10 10 10 10 10 10 10 10 10 10 10
+      DO  10  I = ISTART, ISTOP
+C
+C***********************************************************************
+C           HIER KOMPAKTVERFAHREN VIERTER ORDNUNG IN Y-RICHTUNG        *
+C***********************************************************************
+C
+C
+C                                  GEOMETRISCHE KONSTANTEN (I)
+                DXI   =  DX(I)
+                DXIM  =  DX(I-1)
+#ifdef _QUD_
+                DXIMM =  DX(I-2)
+               DDXIPP = DDX(I+2)
+#endif
+                DXIP  =  DX(I+1)
+               DDXI   = DDX(I)
+               DDXIM  = DDX(I-1)
+               DDXIP  = DDX(I+1)
+
+               RDXI   =  RDX(I)
+               RDXIM  =  RDX(I-1)
+               RDXIP  =  RDX(I+1)
+              RDDXI   = RDDX(I)
+              RDDXIM  = RDDX(I-1)
+              RDDXIP  = RDDX(I+1)
+C
+C                                 20 20 20 20 20 20 20 20 20 20 20 20 20
+      DO  20  J = JSTART, JSTOP
+C                                  GEOMETRISCHE KONTANTEN (J)
+                DYJ   =  DY(J)
+                DYJM  =  DY(J-1)
+#ifdef _QUD_
+                DYJMM =  DY(J-2)
+               DDYJPP = DDY(J+2)
+#endif
+                DYJP  =  DY(J+1)
+               DDYJ   = DDY(J)
+               DDYJM  = DDY(J-1)
+               DDYJP  = DDY(J+1)
+C
+               RDYJ   =  RDY(J)
+               RDYJM  =  RDY(J-1)
+               RDYJP  =  RDY(J+1)
+              RDDYJ   = RDDY(J)
+              RDDYJM  = RDDY(J-1)
+              RDDYJP  = RDDY(J+1)
+
+              ATZ   =  DDXI*DDYJ
+                
+
+C                                 **************************************
+C                                 KONVEKTIVE TERME   KONVEKTIVE TERME
+C                                 **************************************
+C
+C                             KOEFFIZIENTEN BEIM KONVEKTIVEN ZEITSCHRITT
+C
+
+
+		FKDTT = -1.0*RDDY(J)* RDDX(I)* WKONSCA
+
+C
+C                                 **************************************
+C                                 TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT
+C
+C                                 NUR BEI PERIODISCHEN RANDBEDINGUNGEN
+C                                 UND BEI GITTERKOPPLUNG
+C                                 WIRD DIE NORMALKOMPONENTE DER LETZTEN
+C                                 ZELLE BERECHNET, ANSONSTEN WIRD SIE IN
+C                                 BOUNDMG GESETZT
+
+C      IF (I .EQ. ISTOP)  GOTO 2110
+      IF (I .EQ. ISTART) GOTO 2110
+      IF (J .EQ. JSTART) GOTO 2110
+
+C
+C
+      DO 100  K = KSTART, KSTOP
+C                                  GEOMETRISCHE KONSTANTEN (K)
+                DZK   =  DZ(K)
+                DZKM  =  DZ(K-1)
+                DZKMM =  DZ(K-2)
+                DZKP  =  DZ(K+1)
+               DDZK   =  DDZ(K)
+              RDDZK   = RDDZ(K)
+C
+                ATX   = DDYJ*DDZK
+                ATY   = DDXI*DDZK
+C                                 KONVEKTIVE TERME
+C---------------------- Fred Body
+C#ifdef _FRED_BODY_
+C      FACBE = MAX(BP(K,J,I),BP(K,J,I+1))
+C      FACBW = MAX(BP(K,J,I),BP(K,J,I-1))
+C      FACBN = MAX(BP(K,J,I),BP(K,J+1,I))
+C      FACBS = MAX(BP(K,J,I),BP(K,J-1,I))
+C      FACBT = MAX(BP(K,J,I),BP(K+1,J,I))
+C      FACBB = MAX(BP(K,J,I),BP(K-1,J,I))
+C#else
+      FACBE = 1.0 
+      FACBW = 1.0
+      FACBN = 1.0
+      FACBS = 1.0
+      FACBT = 1.0
+      FACBB = 1.0
+C#endif
+
+C                         CENTRAL DIFFERENCING / KOMPAKTE INTERPOLATION 
+C                                 T IN I,J UND K DIRECTION
+      FTE  =     ATX*U(K,J,I)
+      FTW  =     ATX*U(K,J,I-1)
+      FTN  =     ATY*V(K,J,I)  
+      FTS  =     ATY*V(K,J-1,I)
+      FTT  =     ATZ*W(K,J,I)  
+      FTB  =     ATZ*W(K-1,J,I)
+
+#if defined _PREPROC_
+
+      QCTE = 0.5*FTE*(FTI(K,J,I)   + FTI(K,J,I+1))*FACBE
+      QCTW = 0.5*FTW*(FTI(K,J,I-1) + FTI(K,J,I)  )*FACBW
+      QCTN = 0.5*FTN*(FTJ(K,J,I)   + FTJ(K,J+1,I))*FACBN
+      QCTS = 0.5*FTS*(FTJ(K,J-1,I) + FTJ(K,J,I)  )*FACBS
+C.... z direction not yet implemented
+      QCTT = 0.5*FTT*(FTK(K,J,I)   + FTK(K+1,J,I))*FACBT
+      QCTB = 0.5*FTB*(FTK(K-1,J,I) + FTK(K,J,I)  )*FACBB
+C      QCTT = 0.5*FTT*(T(K,J,I)   + T(K+1,J,I))*FACBT
+C      QCTB = 0.5*FTB*(T(K-1,J,I) + T(K,J,I)  )*FACBB
+
+#else
+
+#if defined _KOMXK_ | defined _KOMXK6O_ | defined _KOMXK8O_
+
+      QCTE = FTE*FTI(K,J,I+1)
+      QCTW = FTW*FTI(K,J,I)
+#else
+
+      QCTE = 0.5*FTE*(T(K,J,I)   + T(K,J,I+1))*FACBE
+      QCTW = 0.5*FTW*(T(K,J,I-1) + T(K,J,I)  )*FACBW
+
+#endif
+#if defined _KOMYK_ | defined _KOMYK6O_  | defined _KOMYK8O_ | defined _ZENK4O_
+
+      QCTN = FTN*FTJ(K,J+1,I)
+      QCTS = FTS*FTJ(K,J,I)
+#else
+
+      QCTN = 0.5*FTN*(T(K,J,I)   + T(K,J+1,I))*FACBN
+      QCTS = 0.5*FTS*(T(K,J-1,I) + T(K,J,I)  )*FACBS
+#endif
+
+#ifdef _KOMZK_
+
+      QCTT = FTT*FTK(K+1,J,I)
+      QCTB = FTB*FTK(K,J,I)
+#else
+      QCTT = 0.5*FTT*(T(K,J,I)   + T(K+1,J,I)) *FACBT
+      QCTB = 0.5*FTB*(T(K-1,J,I) + T(K,J,I)  )*FACBB
+#endif
+#endif
+C
+#ifdef _UPW_
+C     NOT YET IMPLEMENTED
+C                                 JETZT STANDARDINTERPOLATION
+C
+C      QKUE = FUE*U(K,J,I)   + (U(K,J,I+1)-U(K,J,I)  )*WF(FUE)
+C      QKUW = FUW*U(K,J,I-1) + (U(K,J,I)  -U(K,J,I-1))*WF(FUW)
+C      QKUN = FUN*U(K,J,I)   + (U(K,J+1,I)-U(K,J,I)  )*WF(FUN)
+C      QKUS = FUS*U(K,J-1,I) + (U(K,J,I)  -U(K,J-1,I))*WF(FUS)
+C      QKUT = FUT*U(K,J,I)   + (U(K+1,J,I)-U(K,J,I)  )*WF(FUT)
+C      QKUB = FUB*U(K-1,J,I) + (U(K,J,I)  -U(K-1,J,I))*WF(FUB)
+C
+#endif
+#ifdef _QUD_
+C     NOT YET IMPLEMENTED
+C                                  JETZT QUADRATISCH INTERPOLIEREN
+C
+C      UWP  = QIN(U(K,J,I-2),U(K,J,I-1),U(K,J,I)  ,DDXIM ,DDXI  ,DXIM*HP)
+C      UWN  = QIN(U(K,J,I-1),U(K,J,I)  ,U(K,J,I+1),DDXI  ,DDXIP ,DXI *HN)
+C      UEP  = QIN(U(K,J,I-1),U(K,J,I)  ,U(K,J,I+1),DDXI  ,DDXIP ,DXI *HP)
+C      UEN  = QIN(U(K,J,I)  ,U(K,J,I+1),U(K,J,I+2),DDXIP ,DDXIPP,DXIP*HN)
+C      USP  = QIN(U(K,J-2,I),U(K,J-1,I),U(K,J,I)  , DYJMM, DYJM ,DYJM*HP)
+C      USN  = QIN(U(K,J-1,I),U(K,J,I)  ,U(K,J+1,I), DYJM , DYJ  ,DYJM*HN)
+C      UNP  = QIN(U(K,J-1,I),U(K,J,I)  ,U(K,J+1,I), DYJM , DYJ  ,DYJ *HP)
+C      UNN  = QIN(U(K,J,I)  ,U(K,J+1,I),U(K,J+2,I), DYJ  , DYJP ,DYJ *HN)
+C      UBP  = QIN(U(K-2,J,I),U(K-1,J,I),U(K,J,I)  , DZKMM, DZKM ,DZKM*HP)
+C      UBN  = QIN(U(K-1,J,I),U(K,J,I)  ,U(K+1,J,I), DZKM , DZK  ,DZKM*HN)
+C      UTP  = QIN(U(K-1,J,I),U(K,J,I)  ,U(K+1,J,I), DZKM , DZK  ,DZK *HP)
+C      UTN  = QIN(U(K,J,I)  ,U(K+1,J,I),U(K+2,J,I), DZK  , DZKP ,DZK *HN)
+CC
+C      QKUE = FUE*(UEP+UEN)+ABS(FUE)*(UEP-UEN)
+C      QKUW = FUW*(UWP+UWN)+ABS(FUW)*(UWP-UWN)
+C      QKUN = FUN*(UNP+UNN)+ABS(FUN)*(UNP-UNN)
+C      QKUS = FUS*(USP+USN)+ABS(FUS)*(USP-USN)
+C      QKUT = FUT*(UTP+UTN)+ABS(FUT)*(UTP-UTN)
+C      QKUB = FUB*(UBP+UBN)+ABS(FUB)*(UBP-UBN)
+#endif
+C
+C                                 ZEITSCHRITT
+C
+      TO(K,J,I)    = FKDTT * RDDZK * (QCTE-QCTW+QCTN-QCTS+QCTT-QCTB)
+
+#ifdef _SCALTRANSDIAGNOSE_
+      OCTE(K,J,I)=QCTE*FKDTT*RDDZK
+      OCTW(K,J,I)=-QCTW*FKDTT*RDDZK
+      OCTN(K,J,I)=QCTN*FKDTT*RDDZK
+      OCTS(K,J,I)=-QCTS*FKDTT*RDDZK
+      OCTT(K,J,I)=QCTT*FKDTT*RDDZK
+      OCTB(K,J,I)=-QCTB*FKDTT*RDDZK
+#endif    
+C
+  100 CONTINUE
+C-----------------------------------------------------------------------
+ 2110 CONTINUE
+   20 CONTINUE
+   10 CONTINUE
+ 2200 CONTINUE
+
+#ifdef _PREPROC_
+      CALL PREPROC_FIELD_SCALAR(KK,JJ,II,T,GI,GJ,FTI,FTJ,FTK,DZ,.FALSE.)
+#endif
+
+#if defined _KOMXK_ | defined _KOMXD6O_ | defined _KOMXD8O_
+
+         IF (NFRO .EQ. 1 ) THEN
+            CALL FDERFOUX_PER (KK,JJ,II,KSTART,JSTART,ISTART,
+     $           KSTOP,JSTOP,ISTOP,RSGS3,RDX,RDDX,T,FTI,
+     $           LCOL,DIAG,RCOL,UZ,RSP)                      
+        ELSE
+           CALL FDERFOSCAI(KK,JJ,II,KSTART,JSTART,ISTART,
+     $          KSTOP,JSTOP,ISTOP,RDX,RDDX,COEFTX,RSGS3,FAKTOR,
+     $          T,FTI,FTI,NFROS,NBACS,LCOL,DIAG,RCOL,IGRID
+#ifdef _FRED_BODY_
+     $         ,BU,GI,GJ,GK
+#endif
+     $          )
+
+        ENDIF
+
+#endif
+#if defined _KOMYK_ | defined _KOMYD6O_ | defined _KOMYD8O_ | defined _ZEN4O_
+
+          IF (NLFT .EQ. 1 ) THEN
+            CALL FDERFOVY_PER  (KK,JJ,II,KSTART,JSTART,ISTART,
+     $           KSTOP,JSTOP,ISTOP,RSGS3,RDY,RDDY,T,FTJ,
+     $           LCOL,DIAG,RCOL,UZ,RSP)
+         ELSE
+            CALL FDERFOSCAJ (KK,JJ,II,KSTART,JSTART,ISTART,
+     $           KSTOP,JSTOP,ISTOP,RDY,RDDY,COEFTY,RSGS3,FAKTOR,
+     $           T,FTJ,FTJ,NRGTS,NLFTS,LCOL,DIAG,RCOL,IGRID)
+         ENDIF
+         
+#endif
+#if defined _KOMZK_
+
+         CALL FDERFOSCAK (KK,JJ,II,KSTART,JSTART,ISTART,
+     $        KSTOP,JSTOP,ISTOP,RDZ,RDDZ,COEFTZ,RSGS3,FAKTOR,
+     $        T,FTK,FTK,NBOTS,NTOPS,LCOL,DIAG,RCOL,IGRID)
+
+#endif
+
+      CALL SWCLESCA  (KK,JJ,II,KMX,JMX,IMX,DX,DY,DZ,DDX,DDY,DDZ,
+     $                 U,V,W,T,G,B,
+     $                 WCT,
+     $                 IC1,IC2,JC1,JC2,KC1,KC2,
+     $                 NFROS,NBACS,NRGTS,NLFTS,NBOTS,NTOPS,NCUBS,
+     $                 RDDX,RDDY,RDDZ,IGRID,DDS,SM,SP,FTI,FTJ,FTK)
+
+      DO  11  I = ISTART, ISTOP
+
+C                                  GEOMETRISCHE KONSTANTEN (I)
+                DXI   =  DX(I)
+                DXIM  =  DX(I-1)
+#ifdef _QUD_
+                DXIMM =  DX(I-2)
+               DDXIPP = DDX(I+2)
+#endif
+                DXIP  =  DX(I+1)
+               DDXI   = DDX(I)
+               DDXIM  = DDX(I-1)
+               DDXIP  = DDX(I+1)
+
+               RDXI   =  RDX(I)
+               RDXIM  =  RDX(I-1)
+               RDXIP  =  RDX(I+1)
+              RDDXI   = RDDX(I)
+              RDDXIM  = RDDX(I-1)
+              RDDXIP  = RDDX(I+1)
+C
+      DO  22  J = JSTART, JSTOP
+C                                  GEOMETRISCHE KONTANTEN (J)
+                DYJ   =  DY(J)
+                DYJM  =  DY(J-1)
+#ifdef _QUD_
+                DYJMM =  DY(J-2)
+               DDYJPP = DDY(J+2)
+#endif
+                DYJP  =  DY(J+1)
+               DDYJ   = DDY(J)
+               DDYJM  = DDY(J-1)
+               DDYJP  = DDY(J+1)
+C
+               RDYJ   =  RDY(J)
+               RDYJM  =  RDY(J-1)
+               RDYJP  =  RDY(J+1)
+              RDDYJ   = RDDY(J)
+              RDDYJM  = RDDY(J-1)
+              RDDYJP  = RDDY(J+1)
+
+              ATZ   =  DDXI*DDYJ
+C                                 **************************************
+C                                 DIFFUSIVE TERME   DIFFUSIVE TERME   DI
+C                                 **************************************
+C
+C                             KOEFFIZIENTEN BEIM DIFFUSIVEN ZEITSCHRITT
+C
+		FDDTT = -1.0 *RDDY(J)* RDDX(I)*WDIFSCA
+C
+C                                 TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT
+C                                 --------------------------------------
+C
+C
+C                                 NUR BEI PERIODISCHEN RANDBEDINGUNGEN
+C                                 WIRD DIE NORMALKOMPONENTE DER LETZTEN
+C                                 ZELLE BERECHNET, ANSONSTEN WIRD SIE IN
+C                                 BOUNDMG GESETZT
+C
+C      IF (I .EQ. ISTOP)  GOTO 2210
+      IF (I .EQ. ISTART) GOTO 2210
+      IF (J .EQ. JSTART) GOTO 2210
+
+
+C
+      DO 200  K = KSTART, KSTOP
+C                                  GEOMETRISCHE KONSTANTEN (K)
+               RDZK   =  RDZ(K)
+               RDZKM  =  RDZ(K-1)
+               DDZK   =  DDZ(K)
+              RDDZK   = RDDZ(K)
+C
+                ATX   = DDYJ*DDZK
+                ATY   = DDXI*DDZK
+                ATZ   = DDXI*DDYJ
+C
+C                                 **************************************
+C                                 DIFFUSIVE D-TERME MIT
+C                                 TRANSPORTKOEFFIZIENTEN
+      GSCAMOL = GMOL / RHO / PRMOL  
+      
+      GSCAE  = GSCAMOL
+      GSCAW  = GSCAMOL
+      GSCAN  = GSCAMOL
+      GSCAS  = GSCAMOL
+      GSCAT  = GSCAMOL
+      GSCAB  = GSCAMOL
+
+#ifndef _DNS_
+      IF(MTURB .EQ. 1) THEN
+      	 GTGMOLP = (G(K,J,I)-GMOL)   / GMOL      	  
+      	 GTGMOLE = (G(K,J,I+1)-GMOL) / GMOL
+      	 GTGMOLW = (G(K,J,I-1)-GMOL) / GMOL 
+      	 GTGMOLN = (G(K,J+1,I)-GMOL) / GMOL
+      	 GTGMOLS = (G(K,J-1,I)-GMOL) / GMOL      	 
+      	 GTGMOLT = (G(K+1,J,I)-GMOL) / GMOL
+      	 GTGMOLB = (G(K-1,J,I)-GMOL) / GMOL
+         PRTP    = PRT(GTGMOLP)    	 
+CTBC  CALCULATE PRTMAX, PRTMIN
+         IF (PRTP .GT. PRTMAX) THEN
+         	PRTMAX = PRTP        	
+         	XPRTMAX= X(I)
+         	YPRTMAX= Y(J)
+         	ZPRTMAX= Z(K)
+         ENDIF     
+         IF (PRTP .LT. PRTMIN) THEN
+         	PRTMIN = PRTP         	
+         	XPRTMIN= X(I)
+         	YPRTMIN= Y(J)
+         	ZPRTMIN= Z(K)          	
+         ENDIF              
+C     1/RE * 1/PR + 1/REt * 1/PRt:               	       	      
+         GSCAE  = GSCAMOL + (G(K,J,I+1) + G(K,J,I) - 2.0*GMOL) / RHO
+     $			  / (PRT(GTGMOLE) + PRTP)
+         GSCAW  = GSCAMOL + (G(K,J,I) + G(K,J,I-1) - 2.0*GMOL) / RHO
+     $			  / (PRT(GTGMOLP) + PRTP)   
+         GSCAN  = GSCAMOL + (G(K,J+1,I) + G(K,J,I) - 2.0*GMOL) / RHO
+     $			  / (PRT(GTGMOLN) + PRTP)  
+         GSCAS  = GSCAMOL + (G(K,J,I) + G(K,J-1,I) - 2.0*GMOL) / RHO
+     $			  / (PRTP + PRT(GTGMOLS))  
+         GSCAT  = GSCAMOL + (G(K+1,J,I) + G(K,J,I) - 2.0*GMOL) / RHO
+     $			  / (PRT(GTGMOLT) + PRTP)
+         GSCAB  = GSCAMOL + (G(K,J,I) + G(K-1,J,I) - 2.0*GMOL) / RHO
+     $			  / (PRTP + PRT(GTGMOLB))  
+CTBCTMP  LIMIT GSCA HERE MAX(...,0): NO NEGATIVE DIFFUSION! 
+         GSCAE = MAX(0.0,GSCAE)
+         GSCAW = MAX(0.0,GSCAW)
+         GSCAN = MAX(0.0,GSCAN)      
+         GSCAS = MAX(0.0,GSCAS)              
+         GSCAT = MAX(0.0,GSCAT)
+         GSCAB = MAX(0.0,GSCAB) 
+
+C      IC1L = IC1
+C      IC2L = IC2
+C      JC1L = JC1
+C      JC2L = JC2
+C      KC1L = KC1
+C      KC2L = KC2           
+C      IF (I .LE. IC1L .OR. I .GE. IC2L) THEN 
+C      IF (J .LE. JC1L .OR. J .GE. JC2L) THEN   
+C      IF (K .LE. KC1L .OR. K .GE. KC2L) THEN          
+C              
+C        IF ( GSCAE .LT. 0.0 ) 
+C     $      WRITE(6,*) 'GSCAE,IGRID,I,J,K: ',GSCAE, IGRID,X(I),Y(J),Z(K)
+C        IF ( GSCAW .LT. 0.0 ) 
+C     $      WRITE(6,*) 'GSCAW,IGRID,I,J,K: ',GSCAW, IGRID,X(I),Y(J),Z(K)   
+C        IF ( GSCAN .LT. 0.0 )                           
+C     $      WRITE(6,*) 'GSCAN,IGRID,I,J,K: ',GSCAN, IGRID,X(I),Y(J),Z(K) 
+C        IF ( GSCAS .LT. 0.0 )                           
+C     $      WRITE(6,*) 'GSCAE,IGRID,I,J,K: ',GSCAS, IGRID,X(I),Y(J),Z(K)
+C        IF ( GSCAT .LT. 0.0 )                            
+C     $      WRITE(6,*) 'GSCAE,IGRID,I,J,K: ',GSCAT, IGRID,X(I),Y(J),Z(K) 
+C        IF ( GSCAB .LT. 0.0 )                          
+C     $      WRITE(6,*) 'GSCAE,IGRID,I,J,K: ',GSCAB, IGRID,X(I),Y(J),Z(K)                    
+C      ENDIF 
+C      ENDIF
+C      ENDIF
+
+      ENDIF
+#endif
+C
+C     ONLY "FREE" CELL FLUXES ARE CONSIDERED AS FOLLOWS. WALL CELL 
+C     CONTRIBUTION IS TAKEN CARE OF IN THE WALL CORRECTION TERM 
+C
+C     FACS = 1 WHEN CELL FACE IS FREE (NO BOUNDING WALL), OTHERWISE = 0
+#ifdef _FRED_BODY_
+c      FACBE = MAX(BP(K,J,I),BP(K,J,I+1))
+c     FACBW = MAX(BP(K,J,I),BP(K,J,I-1))
+c     FACBN = MAX(BP(K,J,I),BP(K,J+1,I))
+c     FACBS = MAX(BP(K,J,I),BP(K,J-1,I))
+c     FACBT = MAX(BP(K,J,I),BP(K+1,J,I))
+c     FACBB = MAX(BP(K,J,I),BP(K-1,J,I))
+
+C      FACBE = BP(K,J,I)*BP(K,J,I+1)
+C      FACBW = BP(K,J,I)*BP(K,J,I-1)
+CC      FACBN = BP(K,J,I)*BP(K,J+1,I)
+C      FACBS = BP(K,J,I)*BP(K,J-1,I)
+C      FACBT = BP(K,J,I)*BP(K+1,J,I)
+C      FACBB = BP(K,J,I)*BP(K-1,J,I)
+#else
+
+
+      FACBE = MAX(0.0,SIGN(1.0,B(K,J,I)))* MAX(0.0,SIGN(1.0,B(K,J,I+1)))
+      FACBW = MAX(0.0,SIGN(1.0,B(K,J,I)))* MAX(0.0,SIGN(1.0,B(K,J,I-1))) 
+      FACBN = MAX(0.0,SIGN(1.0,B(K,J,I)))* MAX(0.0,SIGN(1.0,B(K,J+1,I)))           
+      FACBS = MAX(0.0,SIGN(1.0,B(K,J,I)))* MAX(0.0,SIGN(1.0,B(K,J-1,I))) 
+      FACBT = MAX(0.0,SIGN(1.0,B(K,J,I)))* MAX(0.0,SIGN(1.0,B(K+1,J,I)))    
+      FACBB = MAX(0.0,SIGN(1.0,B(K,J,I)))* MAX(0.0,SIGN(1.0,B(K-1,J,I)))
+#endif
+C
+C                                     HIER KOMPAKTE BERECHNUNG
+C                                     DER ERSTEN ABLEITUNG U
+#ifdef _PREPROC_
+      QDTE = -GSCAE * ATX*RDXI   * (FTI(K,J,I+1) - FTI(K,J,I))  * FACBE
+      QDTW = -GSCAW * ATX*RDXIM  * (FTI(K,J,I)   - FTI(K,J,I-1))* FACBW
+      QDTN = -GSCAN * ATY*RDYJ   * (FTJ(K,J+1,I) - FTJ(K,J,I))  * FACBN
+      QDTS = -GSCAS * ATY*RDYJM  * (FTJ(K,J,I)   - FTJ(K,J-1,I))* FACBS
+      QDTT = -GSCAT * ATZ*RDZK   * (FTK(K+1,J,I) - FTK(K,J,I))* FACBT
+      QDTB = -GSCAB * ATZ*RDZKM  * (FTK(K,J,I)  -FTK(K-1,J,I))* FACBB
+C      QDTT = -GSCAT * ATZ*RDZK   * (T(K+1,J,I) - T(K,J,I))* FACBT
+C      QDTB = -GSCAB * ATZ*RDZKM  * (T(K,J,I)  -T(K-1,J,I))* FACBB
+#else
+#if defined _KOMXK_ | defined _KOMXD6O_ | defined _KOMXD8O_
+      QDTE = -GSCAE * ATX*FTI(K,J,I+1)
+      QDTW = -GSCAW * ATX*FTI(K,J,I)
+#else
+      QDTE = -GSCAE * ATX*RDXI   * (T(K,J,I+1) - T(K,J,I))   * FACBE
+      QDTW = -GSCAW * ATX*RDXIM  * (T(K,J,I)   - T(K,J,I-1)) * FACBW 
+#endif
+#if defined _KOMYK_ | defined _KOMYD6O_ | defined _KOMYD8O_ | defined _ZEND4O_
+      QDTN = -GSCAN * ATY*FTJ(K,J+1,I)
+      QDTS = -GSCAS * ATY*FTJ(K,J,I)
+#else
+      QDTN = -GSCAN * ATY*RDYJ   * (T(K,J+1,I) - T(K,J,I))   * FACBN
+      QDTS = -GSCAS * ATY*RDYJM  * (T(K,J,I)   - T(K,J-1,I)) * FACBS
+
+#endif
+#ifdef _KOMZK_
+      QDTT = -GSCAT * ATZ*FTK(K+1,J,I)
+      QDTB = -GSCAB * ATZ*FTK(K,J,I)
+       
+#else
+      QDTT = -GSCAT * ATZ*RDZK   * (T(K+1,J,I) - T(K,J,I))   * FACBT   
+      QDTB = -GSCAB * ATZ*RDZKM  * (T(K,J,I)   - T(K-1,J,I)) * FACBB
+#endif
+#endif
+#ifdef _SCALGRIDDIAGNOSE_ 
+      DDSPLUS(K,J,I)= DDS
+      SMPLUS(K,J,I) = SM
+      SPLUS(K,J,I)  = SP  
+#endif   
+C
+C                                 ZEITSCHRITT
+C
+#ifdef _KOMZK_
+       QSUMD = FDDTT*RDDZK*(QDTE-QDTW+QDTN-QDTS+QDTT-QDTB)      
+#else
+       QSUMD = FDDTT*RDDZK*(QDTE-QDTW+QDTN-QDTS+QDTT-QDTB-WCT(K,J,I))      
+#endif
+      TO(K,J,I) = TO(K,J,I) + QSUMD
+#ifdef _SCALTRANSDIAGNOSE_
+      ODTE(K,J,I)=QDTE*FDDTT*RDDZK
+      ODTW(K,J,I)=-QDTW*FDDTT*RDDZK
+      ODTN(K,J,I)=QDTN*FDDTT*RDDZK
+      ODTS(K,J,I)=-QDTS*FDDTT*RDDZK
+      ODTT(K,J,I)=QDTT*FDDTT*RDDZK
+      ODTB(K,J,I)=-QDTB*FDDTT*RDDZK
+      ODTC(K,J,I)=-QDTC*FDDTT*RDDZK     
+#endif
+C
+  200 CONTINUE
+C
+ 2210 CONTINUE
+C
+C 2300 IF(ABS(WSORSCA) .LE. SMALL) GOTO 2400
+ 2300 CONTINUE
+C
+C      CALL ERRR (502,' TSTSCA ')
+C***********************************************************************
+C                                 QUELL-TERME   QUELL-TERME   QUELL-TERM
+C                                 **************************************
+C
+C                                 NUR BEI PERIODISCHEN RANDBEDINGUNGEN
+C                                 WIRD DIE NORMALKOMPONENTE DER LETZTEN
+C                                 ZELLE BERECHNET, ANSONSTEN WIRD SIE IN
+C                                 BOUNDMG GESETZT
+C
+CC      IF (I .EQ. ISTOP)  GOTO 2310
+C      IF (I .EQ. ISTART) GOTO 2310
+C      IF (J .EQ. JSTART) GOTO 2310
+C-----------------------------------------------------------------------
+C      DO 300  K = KSTART, KSTOP
+C
+C
+C                                 **************************************
+C                                 ZEITSCHRITT
+C
+C      TO(K,J,I) = TO(K,J,I) - 1.0/(RHO*LAMDA) * Q(K,J,I) * WSORSCA
+C
+C  300 CONTINUE
+C-----------------------------------------------------------------------
+C 2310 CONTINUE
+C
+ 2400 CONTINUE
+ 
+
+   22 CONTINUE   
+C              
+C=======================================================================
+
+   11 CONTINUE   
+C              
+C=======================================================================
+C
+      RETURN
+      END
+C#endif

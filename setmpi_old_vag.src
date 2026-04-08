@@ -1,0 +1,170 @@
+      SUBROUTINE SETMPI ()
+C*MGLET*****************************************************
+C    S E T M P I           ORDNET DEN ZUR VERFUEGUNG STEHENDEN
+C                          PROZESSOREN DIE ZU BERECHNENDEN GITTER ZU
+C
+C    IDPROCOFGRD:           Nummer des Prozessors des jew. Gitters
+C     NVPOFPROC :           ANZAHL DER GITTER, DIE JEDER  Prozessor
+C     NTSOFPROC :           AUF DEM JEWEILIGEN LEVEL ZU
+C     NSIOFPROC :           BEARBEITEN HAT (VP: DRUCKKORREKTUR,
+C                                          TS: ZEITSCHRITT, SI: SKALARER ZEITSCHRITT)
+C     IVPOFPROC :           LISTE DER GITTER, DIE JEDER  Prozessor
+C     ITSOFPROC :           AUF DEM JEWEILIGEN LEVEL ZU
+C     ISIOFPROC :           BEARBEITEN HAT
+C    
+C
+C    10.05.95  (MM,AO):    AUS SETTHREADS ABGELEITET
+C
+C****************************************************************
+C
+#ifdef _MPI_
+#include "mgpar.h"
+#include "comgrid.h"
+#include "cogrdpro.h"
+#include "colevel.h"
+#include "compi.h"
+#include "mpif.h"
+
+C                                 MAXIMALE ANZAHL DER GITTER PRO LEVEL
+      NGRDSOFVPMAX = 0
+      NGRDSOFTSMAX = 0
+      NGRDSOFSIMAX = 0
+      NGRDSOFLVLMAX = 0
+
+      DO ILEVEL=MINLEVEL,MAXLEVEL
+         NGRDSOFVPMAX = MAX(NOFVPIT(ILEVEL),NGRDSOFVPMAX)
+         NGRDSOFTSMAX = MAX(NOFTST(ILEVEL),NGRDSOFTSMAX)
+         NGRDSOFSIMAX = MAX(NOFSCAI(ILEVEL),NGRDSOFSIMAX)
+      ENDDO
+
+      IF (NGRDSOFVPMAX .EQ. 0) CALL ERRR (521,' SETMPI ')
+      IF (NGRDSOFTSMAX .EQ. 0) CALL ERRR (522,' SETMPI ')
+
+      NGRDSOFLVLMAX = MAX(NGRDSOFVPMAX,NGRDSOFTSMAX)
+      NGRDSOFLVLMAX = MAX(NGRDSOFSIMAX,NGRDSOFLVLMAX)
+
+C                                 ANZAHL DER PROZESSOREN
+C                                 UND DER NUMMER (MYID) DES JEW. PROZESSORS
+
+C     CALL MPI_COMM_RANK (MPI_COMM_WORLD,MYID,IERR)
+C     CALL MPI_COMM_SIZE (MPI_COMM_WORLD,NUMPROCS,IERR)
+
+      IF ((NUMPROCS.LT.1) .OR. (NUMPROCS.GT.MAXPROCS)) 
+     $                               CALL ERRR (523,' SETMPI ')
+
+C----- -------------------------------------------------- Ausgabe
+
+      IF (MYID .EQ. 0) THEN
+C     
+C     AUSGABE
+C     
+         WRITE (6,*) 
+     $        '***************************  INFORMATION AUS SETMPI'
+         WRITE (6,*) 
+     $        'ANZAHL DER PROZESSOREN:  ',NUMPROCS
+         WRITE (6,*) '*'
+         WRITE (6,*) '*'
+      ENDIF
+C----- -------------------------------------------------- Ausgabe
+
+C                                 JEDEM GITTER WIRD EIN PROZESSOR
+C                                 ZUGEORDNET
+
+      DO ILEVEL=MINLEVEL,MAXLEVEL
+
+         DO IPROC = 1,NUMPROCS
+            NVPOFPROC(IPROC,ILEVEL) = 0
+            NTSOFPROC(IPROC,ILEVEL) = 0
+            NSIOFPROC(IPROC,ILEVEL) = 0
+         ENDDO
+         
+         
+         DO I = 1,NOFLEVEL(ILEVEL)
+            IGRID = IGRDOFLEVEL( I , ILEVEL )
+            
+C     
+C     NUR GITTER, DIE ZEITSCHRITT ODER
+C     DRUCKKORREKTUR DURCHLAUFEN, WERDEN
+C     DEN PROZESSOREN ZUGEORDNET
+C     
+            IF ( .NOT. LSLICE(IGRID)) THEN
+               
+               IPROC = IPROC+1
+C     TEST                    ZU TESTZWECKEN WIRD DER PROZ. 0 NICHT VERWENDET
+               IF (IPROC .GT. NUMPROCS-1) IPROC = 0
+C     TEST          IF (IPROC .GT. NUMPROCS-1) IPROC = 1
+               
+C     
+C     GITTER, DIE ZEITSCHRITT DURCHLAUFEN
+C     
+               IF (LTST(IGRID)) THEN
+                  NT = NTSOFPROC(IPROC,ILEVEL) + 1
+                  ITSOFPROC(NT,IPROC) = IGRID
+                  NTSOFPROC(IPROC,ILEVEL) = NT
+               ENDIF
+C     
+C     GITTER, DIE DRUCKKORR. DURCHLAUFEN
+C     
+               IF (LVP(IGRID)) THEN
+                  NVP = NVPOFPROC(IPROC,ILEVEL) + 1
+                  IVPOFPROC(NVP,IPROC) = IGRID
+                  NVPOFPROC(IPROC,ILEVEL) = NVP
+               ENDIF
+C
+C    GITTER, DIE (NUR) SKALARE ZEITINTEGRATION DURCHLAUFEN
+C
+               IF (LSCAI(IGRID)) THEN
+                  NSI = NSIOFPROC(IPROC,LEVEL) + 1
+                  ISIOFPROC(NSI,IPROC) = IGRID
+                  NSIOFPROC(IPROC,ILEVEL) = NSI
+               ENDIF
+               
+            ENDIF
+            
+         ENDDO
+C     
+C     PROZESSORNUMMER DER EINZELNEN GITTER
+C     
+         DO IPROC = 0,NUMPROCS-1
+            DO   IVP = 1,NVPOFPROC(IPROC,ILEVEL)
+               
+               IGRID = IVPOFPROC(IVP,IPROC)
+               IDPROCOFGRD(IGRID) = IPROC
+               
+            ENDDO
+         ENDDO
+         
+C----- -------------------------------------------------- Ausgabe
+         IF (MYID .EQ. 0) THEN
+
+            WRITE (6,*) '*',' LEVEL: ',ILEVEL
+            WRITE (6,*) '*'
+            DO IPROC = 0,NUMPROCS-1
+               WRITE (6,*) '*',' LEVEL: ',ILEVEL,
+     $              ' PROZESSOR: ',IPROC,
+     $              '    NVP: ',NVPOFPROC(  IPROC,ILEVEL),
+     $              '    NTS: ',NTSOFPROC(  IPROC,ILEVEL)
+               DO IGRD = 1,NVPOFPROC(  IPROC,ILEVEL)
+                  WRITE (6,*) '*',' LEVEL: ',ILEVEL,
+     $                 ' PROZESSOR: ',IPROC,
+     $                 '    IVP: ',IVPOFPROC(IGRD,IPROC)
+               ENDDO
+               DO IGRD = 1,NTSOFPROC(  IPROC,ILEVEL)
+                  WRITE (6,*) '*',' LEVEL: ',ILEVEL,
+     $                 ' PROZESSOR: ',IPROC,
+     $                 '    ITS: ',ITSOFPROC(IGRD,IPROC)
+               ENDDO
+               DO IGRD = 1,NSIOFPROC(  IPROC,ILEVEL)
+                  WRITE (6,*) '*',' LEVEL: ',ILEVEL,
+     $                 ' PROZESSOR: ',IPROC,
+     $                 '    ISI: ',ISIOFPROC(IGRD,IPROC)
+               WRITE (6,*) '*'
+               WRITE (6,*) '*'
+            ENDDO
+         ENDIF
+
+      ENDDO
+      
+#endif
+       RETURN
+       END

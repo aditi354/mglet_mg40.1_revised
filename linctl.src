@@ -1,0 +1,147 @@
+      SUBROUTINE LINCTL  (PHI, NSEL, CDIRS, HILFL, KKNL, JJNL, ILIMXP,
+     $                    ISLINP, ISLINA, ISLIDI, RKOMXP, RKOMXA, CT,
+     $                    ISELEP, ISELEA)
+C*STARLET***************************************************************
+C        L I N C T L      IN LINCTL WERDEN NACH DEM EINLESEN DER FELDER
+C                         DES VORANGEGANGENEN LAUFES
+C                         EINIGE KONTROLLEN (LIN-CTL = LINE-CONTROL)
+C                         BEZUEGLICH DES INHALTES DER I-LINIEN (BEI-
+C                         SPIELSWEISE F. KORRELATIONEN) DURCHGEFUEHRT.
+C
+C                         DIE "ALTEN" AUFPUNKTE WERDEN ENTSPRECHEND
+C                         DEM ISLINP-FELD NEU SORTIERT; NEU HINZU-
+C                         GEKOMMENE AUFPUNKTE ERHALTEN EINE NULL-
+C                         BELEGUNG; NICHT MEHR BENOETIGTE AUFPUNKTE
+C                         WERDEN GESTRICHEN.
+C                         AENDERTE SICH DER KORRELATIONSRADIUS, SO
+C                         WIRD BEI KORRELATIONSFUNKTIONEN GENERELL
+C                         EINE NULLBELEGUNG DURCHGEFUEHRT.
+C*STARLET***************************************************************
+C
+C PARAM: PHI(KKNL,JJNL, + ALLGEMEINES "LINIEN"-FELD
+C            ILIMXP)
+C        NSEL           - NUMMER DER VARIABLEN IM ISELEP-FELD
+C        CDIRS          - CHARACTER (LEN=1) VARIABLE FUER DIE RICHTUNGS-
+C                         INFORMATION: '0', 'X', 'Y' ODER 'Z'
+C        HILFL(KKNL,    + HILFSFELD ZUM ZWISCHENPUFFERN BEIM UMSORTIEREN
+C        JJNL,ILIMXP)
+C        KKNL,JJNL,ILIMXP - ARRAYDIMENSIONEN
+C        ILIMXP         - MAXIMAL MOEGLICHE ANZAHL VON I-LINIEN WAEHREND
+C                         DES MOMENTANEN LAUFES
+C        ISLINP         - INHALTSVERZEICHNIS DER KODIERTEN AUFPUNKTE
+C                         DES MOMENTANEN LAUFES (P FUER PRESENT)
+C        ISLINA         - INHALTSVERZEICHNIS DER KODIERTEN AUFPUNKTE
+C                         DES VORANGEGANGENEN LAUFES (A FUER ANCESTOR)
+C        ISLIDI         - DIMENSION DER ISLIN.-FELDER
+C        RKOMXP         - MAXIMAL ZULAESSIGE KORRELATIONSLAENGE WAEHREND
+C                         DES MOMENTANEN LAUFES
+C        RKOMXA         - MAXIMAL ZULAESSIGE KORRELATIONSLAENGE WAEHREND
+C                         DES VORANGEGANGENEN LAUFES
+C        CT             - CHARACTER (LEN=80) VARIABLE ZUR IDENTIFIKATION
+C        ISELEP(2,752)  - STEUERFELD F. DIE STAT. AUSWERTUNG
+C                         (ENTHAELT DIE STEUERDATEN DES MOMEN-
+C                         TANEN LAUFES)
+C        ISELEA(2,752)  + STEUERFELD F. DIE STAT. AUSWERTUNG
+C                         (ENTHAELT DIE STEUERDATEN DES VORAN-
+C                         GEGANGENEN LAUFES)
+C
+C UPROG                 : KJIDCO
+C
+C DEFINE-DIREKTIVEN     : KEINE
+C
+C        20.09.88 (HW)  : ORIGINAL
+C        13.12.88 (HW)  : KOMPLETTE UEBERARBEITUNG VON LINCTL
+C
+C*STARLET***************************************************************
+C
+#include "konsta.h"
+C
+      CHARACTER (LEN=1)  CDIRS, CDIRA, CDIRP
+      CHARACTER (LEN=80)  CT
+      INTEGER        ISLINP (ISLIDI),  ISLINA (ISLIDI),
+     $               ISELEP (2,752),   ISELEA (2,752)
+      REAL           PHI (KKNL,JJNL,ILIMXP),  HILFL (KKNL,JJNL,ILIMXP)
+C
+      DO 100 I = 1,ILIMXP
+         DO 100 J = 1,JJNL
+            DO 100 K = 1,KKNL
+  100          HILFL (K,J,I) = 0.0
+C
+      IF((CT(1:3) .EQ. ' R_') .AND. (ABS(RKOMXP-RKOMXA) .GT.
+     $   10.0*SMAONE))                                     THEN
+C
+C                                 BEI KORRELATIONSFUNKTIONEN (NICHT
+C                                 JEDOCH BEI KORRELATIONSKOEFFIZIENTEN)
+C                                 MUSS BEI EINER AENDERUNG DES KORRE-
+C                                 LATIONSRADIUS DIE STATISTIK NEU
+C                                 GESTARTET WERDEN --> NULLBELEGUNG
+C
+         WRITE (6,*) ' SUBR. LINCTL  A C H T U N G :',
+     $               ' KORRELATIONSRADIUS GEAENDERT.'
+         WRITE (6,*) ' RAD-ALT (RKOMXA) = ',RKOMXA,
+     $               '   RAD-NEU (RKOMXP) = ',RKOMXP
+         WRITE (6,*) ' VARIABLE : ',CT(1:16)
+C
+C                                  DIE ANZAHL DER ALTEN STICHPROBEN MUSS
+C                                  NATUERLICH AUF NULL GESETZT WERDEN
+C
+         ISELEA (2,NSEL) = 0
+         GOTO 2200
+      END IF
+C                                 VERGLEICH DER INHALTSVERZEICHNISSE
+C
+      ILINP  = 1
+      DO 200 INP = 2,ISLIDI
+         IF(ISLINP(INP) .EQ. 0) GOTO 2200
+            CALL KJIDCO (ISLINP(INP), CDIRP, IDIRP, KAUFP, JAUFP, IAUFP)
+            IF(CDIRP .EQ. CDIRS) THEN
+C
+C                                  DIE RICHTUNGSINFORMATION DES GERADE
+C                                  BETRACHTETEN AUFPUNKTES STIMMT MIT
+C                                  DER "SOLLRICHTUNG (CDIRS)" UEBEREIN
+C
+               ILINA  = 1
+               DO 300 INA = 2,ISLIDI
+                  CALL KJIDCO (ISLINA(INA), CDIRA, IDIRA,
+     $                         KAUFA, JAUFA, IAUFA)
+                  IF(ISLINA(INA) .EQ. 0) THEN
+                     ILINP  = ILINP + 1
+C
+C                                  HIER FINDET DIE NULLBELEGUNG FUER
+C                                  NEU HINZUGEKOMMENE AUFPUNKTE STATT
+C
+                     GOTO 195
+                  ELSE
+                     IF(CDIRA .EQ. CDIRS) THEN
+                        ILINA  = ILINA + 1
+                        IF(ISLINA(INA) .EQ. ISLINP(INP)) THEN
+C
+C                                  DER AUFPUNKT EXISTIERTE BEREITS IM
+C                                  VORANGEGANGENEN LAUF
+C
+                           ILINP  = ILINP + 1
+                           DO 400 J = 1,JJNL
+                              DO 400 K = 1,KKNL
+  400                            HILFL (K,J,ILINP) = PHI (K,J,ILINA)
+                           GOTO 195
+                        ELSE
+                           GOTO 295
+                        END IF
+                     END IF
+                  END IF
+  295          CONTINUE
+  300          CONTINUE
+  195       CONTINUE
+            END IF
+  200 CONTINUE
+C
+C                                  NEUBELEGUNG DES PHI-FELDES
+C
+ 2200 CONTINUE
+      DO 500 I = 1,ILIMXP
+         DO 500 J = 1,JJNL
+            DO 500 K = 1,KKNL
+  500          PHI (K,J,I) = HILFL (K,J,I)
+C
+      RETURN
+      END

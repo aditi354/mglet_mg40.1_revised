@@ -1,0 +1,169 @@
+      SUBROUTINE PARBOTMG
+     $             (IDIM3D,IDIM2D,IDIM1D,
+     $              X,Y,Z,DX,DY,DZ,DDX,DDY,DDZ,
+     $              U,V,W,P,G,B,UFR,VRI,WBO,H2D,
+     $              ITYP,ILEVEL,IRB,JRB,KRB,NGRIDS,LOFGRIDS
+#ifdef _TSCAL_
+     $             ,T
+#endif
+     $             )     
+C*MGLET***************************************************************
+C    P A R B O T M G      KOMMUNIKATION ZWISCHEN DEN GITTERN
+C                         HIER: BOTTOM-FLAECHE FUER LOKALE GITTER
+C*MGLET***************************************************************
+C
+C PARAM: KK, JJ, II     - ARRAYDIMENSIONEN
+C        KMX, JMX, IMX  - GRENZEN DES BERECHNUNGSGEBIETES (MIT BOUND)
+C        X, Y, Z        - KOORDINATEN DER ZELLDEFINITIONSPUNKTE
+C        DX,DY,DZ       - ABSTAND DER GITTERPUNKTE
+C        DDX,DDY,DDZ    - KANTENLAENGEN DER KONTROLLVOLUMINA
+C        U(KK,JJ,II)    + GESCHWINDIGKEITSFELD
+C        V(KK,JJ,II)    + GESCHWINDIGKEITSFELD
+C        W(KK,JJ,II)    + GESCHWINDIGKEITSFELD
+C        T(KK,JJ,II)    + SCALAR T FIELD
+C        P(KK,JJ,II)    - DRUCKFELD
+C        G(KK,JJ,II)    - EFFEKTIVE DYNAMISCHE VISKOSITAET (= MUE)
+C        TK(KK,JJ,II)   - TURBULENZENERGIE
+C        UFR(KK,JJ, 2)  - ENTHAELT DIE I=1 U. I=2 EBENEN DES U-PROFILS
+C        VRI(KK, 2,II)  -    "      "  J=1 U. J=2    "    "  V-PROFILS
+C        WBO( 2,JJ,II)  -    "      "  K=1 U. K=2    "    "  W-PROFILS
+C        GMOL           - MOLEKULARE DYNAMISCHE VISKOSITAET
+C        RHO            - DICHTE (= CONST)
+C        UGRID          - GESCHWINDIGKEIT DES KOORDINATENSYSTEMS IN
+C                         X-RICHTUNG (GALILEI-TRANSFORMATION)
+C        XTOT           - LAENGE DES BERECHNUNGSGEBIETES IN X-RICHTUNG
+C        YTOT           -    ""    "           "          IN Y-RICHTUNG
+C        ZTOT           -    ""    "           "          IN Z-RICHTUNG
+C        ITYP           - HOLLERITH-KONSTANTE:
+C                         'P'  VOR DER DRUCKKORREKTUR
+C                         'T'  VOR DEM ZEITSCHRITT
+C
+C VERS:  15.09.99 (MM)  : ORIGINAL, AUS CONBOTMG ABGELEITET
+C        28.02.03 (TB)  : SCALAR BOUNDARY TREATMENT IMPLEMENTED
+C
+C*MGLET***************************************************************
+C
+#include "mgpar.h"
+#include "comgrid.h"
+#include "cobound.h"
+#include "colevel.h"
+#ifdef _MPI_
+#include "compi.h"
+#include "mpif.h"
+#endif
+C
+      CHARACTER (LEN=1)  ITYP
+C
+      REAL        X(IDIM1D),         Y(IDIM1D),         Z(IDIM1D),
+     $           DX(IDIM1D),        DY(IDIM1D),        DZ(IDIM1D),
+     $          DDX(IDIM1D),       DDY(IDIM1D),       DDZ(IDIM1D),
+     $          U( IDIM3D ),       V( IDIM3D ),       W( IDIM3D ),
+     $          P( IDIM3D ),       G( IDIM3D ),       B( IDIM3D ),
+     $        UFR(IDIM2D*2),     VRI(IDIM2D*2),     WBO(IDIM2D*2),
+     $       H2D( IDIM2D )
+C
+#ifdef _TSCAL_
+      REAL     T( IDIM3D )
+#endif
+C
+      INTEGER NGRIDS,LOFGRIDS(NGRIDS)
+C
+#ifdef _MPI_
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
+C
+C                 MPI-ROUTINEN ZUR UEBERGABE VON PARAMETERN
+C
+C      CALL MPI_COMM_RANK (MPI_COMM_WORLD,MYID,IERR)
+C      CALL MPI_COMM_SIZE (MPI_COMM_WORLD,NUMPROCS,IERR)
+
+C
+#endif
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+C
+CTEST
+        DO IST=1,2
+        DO I=IST,NGRIDS,2
+CTEST      DO I = 1,NG
+
+           IGRID = LOFGRIDS(I)
+
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+
+         CALL MGDIMS  (KK,JJ,II,IGRID)
+         CALL MGPOINT (IP3,IP2,IP1,IBB,IB3,IBU,IGRID)
+         
+         DO IBOCOND = 1,NBOCONDS( 5 , IGRID )
+
+           ISTART = LARBOCONDS( 1 , IBOCOND , 5 , IGRID )
+           ISTOP  = LARBOCONDS( 2 , IBOCOND , 5 , IGRID )
+           JSTART = LARBOCONDS( 3 , IBOCOND , 5 , IGRID )
+           JSTOP  = LARBOCONDS( 4 , IBOCOND , 5 , IGRID )
+
+             IF (IRB.EQ.1) THEN
+                ISTOP = MIN(ISTOP,II/2)
+             ELSEIF (IRB.EQ.2) THEN
+                ISTART = MAX(ISTART,II/2+1)
+             ENDIF
+
+             IF (JRB.EQ.1) THEN
+                JSTOP = MIN(JSTOP,JJ/2)
+             ELSEIF (JRB.EQ.2) THEN
+                JSTART = MAX(JSTART,JJ/2+1)
+             ENDIF
+
+           ITYPBC = ITYPBOCONDS( IBOCOND , 5 , IGRID )
+
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72 
+
+
+           IF ( ITYPBC .EQ. 8 ) THEN
+
+              INBR = LBOGRIDS      (IBOCOND,  5 ,IGRID)
+              IPOS = LPOSBOGRIDS( 1,IBOCOND,  5 ,IGRID)
+              JPOS = LPOSBOGRIDS( 2,IBOCOND,  5 ,IGRID)
+              KPOS = LPOSBOGRIDS( 3,IBOCOND,  5 ,IGRID)
+#ifdef _MPI_
+C
+C                               NUR BETEILIGTE PROZESSOREN RUFEN BBACON AUF
+C
+              IPROCNBR = IDPROCOFGRD(INBR)
+              IPROC   = IDPROCOFGRD(IGRID)
+              IF ((MYID .EQ. IPROC) .OR. (MYID .EQ. IPROCNBR)) THEN
+#endif
+
+              CALL MGDPB (KKN,JJN,IIN,IP3N,IP2N,IP1N,IBBN,IBUN,
+     $              NFRON,NBACN,NRGTN,NLFTN,NBOTN,NTOPN,NCUBN,INBR)
+              CALL BBOPAR (KK,JJ,II,
+     $                     U(IP3),V(IP3),W(IP3),P(IP3),G(IP3),UFR(IBB),
+     $                     KKN,JJN,IIN,
+     $                     U(IP3N),V(IP3N),W(IP3N),P(IP3N),G(IP3N),
+     $                     JSTART,JSTOP,KSTART,KSTOP,
+     $                     IPOS,JPOS,KPOS,ITYP,IRB,JRB,KRB,
+     $                     IPROC,IPROCNBR
+#ifdef _TSCAL_
+     $                    ,T(IP3),T(IP3N)
+#endif     
+     $                    )     
+ 
+#ifdef _MPI_
+              ENDIF
+#endif
+           ENDIF
+
+
+        ENDDO
+
+      ENDDO
+      ENDDO
+
+
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+#ifdef _MPI_WRITE_TIMES
+      WRITE (6,*)'WTIME FOR CONBOTMG : ',ITYP,MPI_WTIME()-TIME1
+#endif
+
+C     IERR = VT_TRC_STOP()
+
+      RETURN
+      END
+

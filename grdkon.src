@@ -1,0 +1,235 @@
+      SUBROUTINE GRDKON (IGRID,IFAIL,IIDENT)
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+C                    PRUEFT, OB DIE IN COGRDDEF LIEGENDEN
+C                    GITTERDEFINITIONEN MIT DEN IN COGRDPRO
+C                    LIEGENDEN DES VORANGEGANGENEN LAUFES 
+C                    IDENTISCH SIND
+C                    HIER WIRD DAS MIT IGRID SPEZIFIZIERTE GITTER 
+C                    GEPRUEFT
+C
+C     21. 5.93 (MM) : ORIGINAL
+C     07.07.03 (TB) : EXTENSION IN I,J IMPLEMENTED
+C
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+C
+
+#include "mgpar.h"
+#include "comgrid.h"
+#include "cogrdold.h"
+#include "cogrdpro.h"
+#include "cogrdcon.h"
+#include "cobound.h"
+#include "costrles.h"
+
+      INTEGER IIDENT(100)
+C
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+C
+      IFAIL = 0
+
+C
+C                           UM BUCHSTABEN ZU SPAREN !
+      I = IGRID 
+
+#ifdef _ALLOW_K_EXTEND_
+      IF (KMX(I).LT.KMXOLD(I)) THEN
+#else
+      IF (KMX(I).NE.KMXOLD(I)) THEN
+#endif
+         IFAIL = IFAIL + 1
+         WRITE (6,6002) 'GRD',IGRID,'    KMX   FAILS:'
+      ENDIF
+#ifdef _ALLOW_J_EXTEND_
+      IF (LSLICE(I)) THEN
+      IF (JMX(I).GT.JMXOLD(I) .AND. NYSLICE(I) .NE. 1) THEN
+         IFAIL = IFAIL + 1
+         WRITE (6,6002) 'GRD',IGRID,'    NYSLICE FAILS IN J-EXTENSION:'
+      ENDIF      	
+      ENDIF
+      IF (JMX(I).LT.JMXOLD(I)) THEN
+#else      	
+      IF (JMX(I).NE.JMXOLD(I)) THEN
+#endif
+         IFAIL = IFAIL + 1
+         WRITE (6,6002) 'GRD',IGRID,'    JMX   FAILS:'
+      ENDIF
+#ifdef _ALLOW_I_EXTEND_
+      IF (LSLICE(I)) THEN
+      IF (IMX(I).GT.IMXOLD(I) .AND. NXSLICE(I) .NE. 1) THEN
+         IFAIL = IFAIL + 1
+         WRITE (6,6002) 'GRD',IGRID,'    NXSLICE FAILS IN I-EXTENSION:'
+      ENDIF 
+      ENDIF
+      IF (IMX(I).LT.IMXOLD(I)) THEN
+#else      
+      IF (IMX(I).NE.IMXOLD(I)) THEN
+#endif      	
+         IFAIL = IFAIL + 1
+         WRITE (6,6002) 'GRD',IGRID,'    IMX   FAILS:'
+      ENDIF
+
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC FALLS ERGEBNIS VON MLET 
+C                                         EINGELESEN WIRD, KOENNEN
+C                                         FOLGENDE UEBERPRUEFUNGEN
+C                                         NICHT GEMACHT WERDEN
+
+      IF (IIDENT(5).GT.8) THEN
+
+        IF (LEVEL(I).NE.LEVELOLD(I)) THEN
+           IFAIL = IFAIL + 1
+           WRITE (6,6002) 'GRD',IGRID,'    LEVEL   FAILS:'
+        ENDIF
+        IF (LCHILD(I) .AND.(.NOT.LCHILDOLD(I))) THEN
+           IFAIL = IFAIL + 1
+           WRITE (6,6002) 'GRD',IGRID,'    LCHILD   FAILS:'
+        ENDIF
+        IF (LCHILD(I)) THEN
+          IF (IPARENT(I).NE.IPARENTOLD(I)) THEN
+             IFAIL = IFAIL + 1
+             WRITE (6,6002) 'GRD',IGRID,'    IPARENT   FAILS:'
+          ENDIF
+          IF (IPOSITION(I).NE.IPOSOLD(I)) THEN
+             IFAIL = IFAIL + 1
+             WRITE (6,6002) 'GRD',IGRID,'    IPOSITION   FAILS:'
+          ENDIF
+          IF (JPOSITION(I).NE.JPOSOLD(I)) THEN
+             IFAIL = IFAIL + 1
+             WRITE (6,6002) 'GRD',IGRID,'    JPOSITION   FAILS:'
+          ENDIF
+          IF (KPOSITION(I).NE.KPOSOLD(I)) THEN
+             IFAIL = IFAIL + 1
+             WRITE (6,6002) 'GRD',IGRID,'    KPOSITION   FAILS:'
+          ENDIF
+        ENDIF
+C        IF (XTOT(I).NE.XTOTOLD(I)) THEN
+C           IFAIL = IFAIL + 1
+C           WRITE (6,6002) 'GRD',IGRID,'    XTOT   FAILS:'
+C        ENDIF
+C        IF (YTOT(I).NE.YTOTOLD(I)) THEN
+C           IFAIL = IFAIL + 1
+C           WRITE (6,6002) 'GRD',IGRID,'    YTOT   FAILS:'
+C        ENDIF
+C        IF (ZTOT(I).NE.ZTOTOLD(I)) THEN
+C           IFAIL = IFAIL + 1
+C           WRITE (6,6002) 'GRD',IGRID,'    ZTOT   FAILS:'
+C        ENDIF
+
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC FALLS ERGEBNIS VON MLET
+C                                             KEIN FORTSETZUNGSLAUF
+      ELSE
+        DCONT = .FALSE.
+      ENDIF
+C
+C                                         RANDBEDINGUNGEN KOENNEN BEI
+C                                         DCONT=.FALSE. GEAENDERT
+C                                         WERDEN
+C
+      IF (DCONT) THEN
+
+C                                         AB VERSION 34 STEHEN MEHR
+C                                         ALS EINE RANDBED. ZUR VERFUEGUNG
+
+         IF (IIDENT(5).GE.34) THEN
+
+          DO IDIR = 1,7
+               WRITE (6,*) 'GRD',IGRID,'NBOCONDS:'
+     &         ,NBOCOLD(IDIR,I),'FRAGE',NBOCD(IDIR,I)
+            IF (NBOCOLD(IDIR,I) .NE. NBOCD(IDIR,I)) THEN
+               IFAIL = IFAIL + 1
+                  WRITE (6,6002) 'GRD',IGRID,'    NBOCONDS  FAIL:'
+     &            ,NBOCOLD(IDIR,I),NBOCD(IDIR,I)
+            ENDIF
+          ENDDO
+
+         ELSE
+
+          DO IDIR = 1,7
+             NBOCOLD(IDIR,I) = 1
+          ENDDO
+
+         ENDIF
+
+         DO IB = 1,NBOCD( 1 , I )
+            IF (FRONT(IB,I).NE.FRONTOLD(IB,I)) THEN
+               IFAIL = IFAIL + 1
+               WRITE (6,6002) 'GRD',IGRID,'    FRONT   FAILS:'
+            ENDIF
+         ENDDO
+
+         DO IB = 1,NBOCD( 2 , I )
+            IF (BACK(IB,I).NE.BACKOLD(IB,I)) THEN
+               IFAIL = IFAIL + 1
+               WRITE (6,6002) 'GRD',IGRID,'    BACK   FAILS:'
+            ENDIF
+         ENDDO
+
+         DO IB = 1,NBOCD( 3 , I )
+            IF (RIGHT(IB,I).NE.RIGHTOLD(IB,I)) THEN
+               IFAIL = IFAIL + 1
+               WRITE (6,6002) 'GRD',IGRID,'    RIGHT   FAILS:'
+            ENDIF
+         ENDDO
+
+         DO IB = 1,NBOCD( 4 , I )
+            IF (LEFT(IB,I).NE.LEFTOLD(IB,I)) THEN
+               IFAIL = IFAIL + 1
+               WRITE (6,6002) 'GRD',IGRID,'    LEFT   FAILS:'
+            ENDIF
+         ENDDO
+
+         DO IB = 1,NBOCD( 5 , I )
+            IF (BOTTOM(IB,I).NE.BOTTOMOLD(IB,I)) THEN
+               IFAIL = IFAIL + 1
+               WRITE (6,6002) 'GRD',IGRID,'    BOTTOM   FAILS:'
+            ENDIF
+         ENDDO
+
+         DO IB = 1,NBOCD( 6 , I )
+            IF (TOP(IB,I).NE.TOPOLD(IB,I)) THEN
+               IFAIL = IFAIL + 1
+               WRITE (6,6002) 'GRD',IGRID,'    TOP   FAILS:'
+            ENDIF
+         ENDDO
+
+         DO IB = 1,NBOCD( 7 , I )
+            IF (CUBE(IB,I).NE.CUBEOLD(IB,I)) THEN
+               IFAIL = IFAIL + 1
+               WRITE (6,6002) 'GRD',IGRID,'    CUBE   FAILS:'
+            ENDIF
+         ENDDO
+
+      ENDIF
+C
+C                                            FOLGENDE EINSTELLUNGEN MUESSEN
+C                                            IMMER GLEICH BLEIBEN
+C                                            AUSSER BEI ERG. AUS MLET
+      IF (IIDENT(5) .GT. 8) THEN
+C
+        IF (XHOMOG(I).AND.(.NOT.XHOMOGOLD(I))) THEN
+           IFAIL = IFAIL + 1
+           WRITE (6,6002) 'GRD',IGRID,'    XHOMOG   FAILS:'
+        ENDIF
+        IF (YHOMOG(I).AND.(.NOT.YHOMOGOLD(I))) THEN
+           IFAIL = IFAIL + 1
+           WRITE (6,6002) 'GRD',IGRID,'    YHOMOG   FAILS:'
+        ENDIF
+        IF (ZHOMOG(I).AND.(.NOT.ZHOMOGOLD(I))) THEN
+           IFAIL = IFAIL + 1
+           WRITE (6,6002) 'GRD',IGRID,'    ZHOMOG   FAILS:'
+        ENDIF
+C       IF (LPLEVEL(I).AND.(.NOT.LPLEVELOLD(I))) THEN
+C          IFAIL = IFAIL + 1
+C          WRITE (6,6002) 'GRD',IGRID,'    LPLEVEL   FAILS:'
+C       ENDIF
+
+      ENDIF
+C
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+C
+ 6000 FORMAT(1X,A3,I3,A10,I3,A10,I3,A10,I3)
+ 6001 FORMAT(1X,A3,I3,A10,F8.3,A10,F8.3,A10,F8.3)
+ 6002 FORMAT(1X,A3,I3,A30,I8)
+ 6003 FORMAT(1X,A3,I3,A10,A10,A10,A10)
+
+      RETURN
+      END

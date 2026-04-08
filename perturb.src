@@ -1,0 +1,50 @@
+      SUBROUTINE PERTURB (KK,JJ,II,KMX,JMX,IMX,
+     $                    DX,DY,DZ,
+     $                    U,V,W,UOLD,VOLD,WOLD,X,Y,Z,VCON,WCON,
+     $                    YBANF,YBEND,ZBANF,ZBEND,HI,GRADPX)
+C
+C
+#include "mgpar.h"
+#include "cophyspar.h"
+#include "konsta.h"
+#include "conles.h"
+C
+      PARAMETER    (m=1024)
+      REAL         U(KK,JJ,II),   V(KK,JJ,II),   W(KK,JJ,II),
+     $             UOLD(KK,JJ,II),VOLD(KK,JJ,II),WOLD(KK,JJ,II),
+     $             Z(KK),
+     $             DX(II),DY(JJ),DZ(KK),
+     $             X(II),   Y(JJ)
+      REAL         HI(KK*JJ*II)
+C
+C
+      IM2 = IMX-2
+      IM1 = IMX-1
+      JM1 = JMX-1
+      JM2 = JMX-2
+      JM3 = JMX-3
+      KM1 = KMX-1
+      KM2 = KMX-2
+      KM3 = KMX-3
+
+      DO I=1,II
+       DO J=1,JJ
+        DO K=1,KK
+         UOLD(K,J,I) = U(K,J,I)
+         VOLD(K,J,I) = 0.0
+         WOLD(K,J,I) = 0.0
+        ENDDO
+       ENDDO
+      ENDDO
+C.... Hinzugeben der Störung
+      IF(CIDUFR(1:9).EQ.'ORRSOMMER') THEN
+      CALL ORRSOMMER(KK,JJ,II,U,W,Z,X,DZ,HI(1),HI(1*m+1),HI(2*m+1),
+     $               HI(3*m+1),HI(4*m+1),HI(5*m+1),HI(6*m+1),
+     $               HI(7*m+1),HI(8*m+1),HI(9*m+1),HI(10*m+1),
+     $               HI(11*m+1),HI(12*m+1),HI(13*m+1),HI(14*m+1),
+     $               HI(15*m+1),1.0)
+
+      ENDIF
+
+      RETURN
+      END

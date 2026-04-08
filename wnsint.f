@@ -1,0 +1,200 @@
+
+
+
+
+
+
+
+
+
+
+
+CCCCC        DEFINITIONEN FUER C-PREPROZESSOR
+C            MASCHINE
+
+C              MESSAGE PASSING INTERFACE
+
+C            RAEUMLICHE DISKRETISIERUNG
+C
+***********************************************************************
+C                       KOMPAKT-UPWIND in X-RICHTUNG (3-TER ORDNUNG) fuer
+C                       die U-Komponente (V und W bleiben Kompakt 4ter ordnung)
+C                       falls im Stroemungsfeld eine Koerper vorhanden ist
+C
+***********************************************************************
+C                       KOMPAKTVERF. in XYZ-RICHTUNG (4-TER ORDNUNG)
+
+
+**********************************************************************
+C                      Preprocessing with ADM for 2nd Order Central
+***********************************************************************
+CCC                     Bei periodischen Randbedingungen in X-Richtung
+CCC                     ist eine hoehere O
+C
+CCC                     Bei periodischen Randbedingungen in Y-Richtung
+CCC                     ist eine hoehere Ordnung moeglich
+C
+CCC                     Bei periodischen Randbedingungen in Y-Richtung:
+CCC                     Zentraldiff. 4-ter Ordnung (Parallelisieung moeglich)
+C
+***********************************************************************
+C
+C
+C            INTERPOLATION AN GITTER-GRENZEN
+
+C            BEHANDLUNG DER TOPAR-RANDBEDINGUNG
+
+C            ZEITLICHE DISKRETISIERUNG
+
+C            FEINSTRUKTURMODELL
+
+C            NICHT-NEWTONSCHE SPANNUNGEN
+
+
+C            TRANSPORT UND ORIENTIERUNG VON PARTIKELN
+
+
+C            SCALAR HEAT/TEMPERATURE TRANSPORT
+C            APROXIMATE DECONVOLUTION FOR SCALAR
+C            TURBULENT PRANDTL NUMBER 
+C            PLOT LOCAL SCALAR CONVECTION DIFFUSION EXTREMES 
+C            ANALYZE AND PLOT NEAR WALL GRID RESLOLUTION 
+C            WRITE SPECIAL 1D LINE FOR TMIX FOR SPECTRA AND PDF
+C            SCALAR TIME ADVANCEMENT/DISCRETISATION METHOD
+
+C            STROEMUNG NACH OBEN?
+
+
+C            BEHANDLUNG DER FLUKTUATIONS-RANDBEDINGUNG
+
+C            BEHANDLUNG VON PPHYS ALS QUELLTERM IN TSTLE2
+
+C            POSITIONIERUNG DER EINSTROEMPROFILE
+
+C           STATISTIK
+
+
+C                 GEMISCHTES
+
+C                GRDFMI WIRD NICHT VERWENDET, DAHER EINSPARUNG DER FELDER
+C                IGRHF UND GRHF
+
+C                VERGROESSERN DER KJI-RICHTUNG BEI FORTSETZUNGSLAUF ERLAUBT!
+
+C                RAUSSCHREIBEN VON ZEITRECORDS
+
+C                FUER KORRELATIONEN UND HAEFIGKEITSVERTEILUNGEN
+      SUBROUTINE   WNSINT(KK,JJ,II,NBND,DX,DY,DZ,DDX,DDY,DDZ,
+     $                    P,G,
+     $                    WNSX,WNSY,WNSZ,GMOL,RHO,UGRID,
+     $                    IC1,IC2,JC1,JC2,KC1,KC2,
+     $                    NFRO,NBAC,NRGT,NLFT,NBOT,NTOP)
+C*MGLET***************************************************************
+C        W N S I N T      INTEGRATION OF WALL-NORMAL-STRESS
+C*MGLET***************************************************************
+C
+C PARAM: GMOL           - MOLEKULARE DYNAM. VISKOSITAET ( = MUE)
+C        IC1,JC1,KC1    - LINKE  RAENDER DER BOUNDING BOX
+C        IC2,JC2,KC2    - RECHTE RAENDER DER BOUNDING BOX
+C        WNSX           + WALL-NORMAL-STRESS IN X-DIRECTION
+C        WNSY           + WALL-NORMAL-STRESS IN Y-DIRECTION
+C        WNSZ           + WALL-NORMAL-STRESS IN Z-DIRECTION
+C
+C      RECOGNITION OF THE WALL OF THE BODY IS DONE BY FOLLOWING 
+C      FACTORS WHICH ARE EG. 1.0 IF INPOSITIVE Y-DIRECTION
+C      THERE IS A CHANGE IN SIGN OF G (NEGATIVE IN AND POSITIVE OUT
+C      OF THE BODY):
+C         FYPO  = (SIGN(0.5,G(K,J,I+1)*G(K,J+1,I+1))-0.5)
+C
+C     IT IS IMPORTANT, NOT TO COUNT THE CONTRIBUTIONS ON THE BOUNDARIES
+C     OF THE CALCULATIONAL DOMAIN (EG. THE CHANNEL WALLS) WHERE ALSO
+C     A CHANGE IN SIGN OF THE G-FIELD IS FOUND. THIS IS DONE BY FACTORS
+C     LIKE THE FOLLOWING:
+C                   FLOAT( MIN(1,JLFTM-J))
+C     WHICH BECOME ZERO, IF J=JLFTM
+C
+C VERS:  20.10.95 (MM)  : ORIGINAL, DERIVED FROM SWCLE1
+C
+C*MGLET***************************************************************
+C
+
+      COMMON /CONLES/  CONV2S,CMUE,CAPPA,ECONST
+      SAVE   /CONLES/
+
+      COMMON /KONSTA/  GREAT,SMALL,RINDEF,SMAONE,PRESET
+      SAVE   /KONSTA/
+C
+      REAL    P(KK,JJ,II), G(KK,JJ,II),
+     $        DX(II),      DY(JJ),      DZ(KK),
+     $        DDX(II),     DDY(JJ),     DDZ(KK)
+C
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC  INITIALIZATION
+C
+        WNSX = 0.0
+        WNSY = 0.0
+        WNSZ = 0.0
+C
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC  START AND STOP-INIDICES
+
+         ISTART = MAX( IC1 , NBND+1   )
+         ISTOP  = MIN( IC2 , II-NBND )
+         JSTART = MAX( JC1 , NBND+1   )
+         JSTOP  = MIN( JC2 , JJ-NBND )
+         KSTART = MAX( KC1 , NBND+1   )
+         KSTOP  = MIN( KC2 , KK-NBND )
+
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC  FACTORS FOR RECOGNITION OF A WALL
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC  ON BOUNDARIES OF CALC. DOMAIN
+
+         IFROM = 1
+         IBACM = II
+         JRGTM = 1
+         JLFTM = JJ
+         KBOTM = 1
+         KTOPM = KK
+
+         IF ( NFRO .EQ.  5 .OR. NFRO .EQ. 6 )   IFROM =   1 + NBND
+         IF ( NBAC .EQ.  5 .OR. NBAC .EQ. 6 )   IBACM = II - NBND
+         IF ( NRGT .EQ.  5 .OR. NRGT .EQ. 6 )   JRGTM =   1 + NBND
+         IF ( NLFT .EQ.  5 .OR. NLFT .EQ. 6 )   JLFTM = JJ - NBND
+         IF ( NBOT .EQ.  5 .OR. NBOT .EQ. 6 )   KBOTM =   1 + NBND
+         IF ( NTOP .EQ.  5 .OR. NTOP .EQ. 6 )   KTOPM = KK - NBND
+
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC  KOERPER NOSLIP
+C
+C
+          DO 120 I=ISTART,ISTOP
+          DO 120 J=JSTART,JSTOP
+          DO 120 K=KSTART,KSTOP
+C
+C
+          AX     = DDY(J)*DDZ(K)
+          AY     = DDX(I)*DDZ(K)
+          AZ     = DDX(I)*DDY(J)
+C
+C                                 SCHALTFAKTOREN BERECHNUNG
+C
+          FXPO  = FLOAT( MIN(1,IBACM-I)) *
+     $           (SIGN(0.5,G(K,J,I)*G(K,J,I+1))-0.5) 
+          FXNE  = FLOAT( MIN(1,I-IFROM)) *
+     $           (SIGN(0.5,G(K,J,I)*G(K,J,I-1))-0.5)
+          FYPO  = FLOAT( MIN(1,JLFTM-J)) *
+     $           (SIGN(0.5,G(K,J,I)*G(K,J+1,I))-0.5)
+          FYNE  = FLOAT( MIN(1,J-JRGTM)) *
+     $           (SIGN(0.5,G(K,J,I)*G(K,J-1,I))-0.5)
+          FZPO  = FLOAT( MIN(1,KTOPM-K)) *
+     $           (SIGN(0.5,G(K,J,I)*G(K+1,J,I))-0.5)
+          FZNE  = FLOAT( MIN(1,K-KBOTM)) *
+     $           (SIGN(0.5,G(K,J,I)*G(K-1,J,I))-0.5)
+C
+          WNSX = WNSX - (FXPO-FXNE)*AX*P(K,J,I)
+          WNSY = WNSY - (FYPO-FYNE)*AY*P(K,J,I)
+          WNSZ = WNSZ - (FZPO-FZNE)*AZ*P(K,J,I)
+C
+  120     CONTINUE
+C
+C
+C
+
+      RETURN
+      END

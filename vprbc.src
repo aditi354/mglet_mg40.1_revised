@@ -1,0 +1,806 @@
+      SUBROUTINE VPRBC(KK,JJ,II,KMX,JMX,IMX,
+     $                  DX,DY,DZ,DDX,DDY,DDZ,
+     $                  RDX,RDY,RDZ,RDDX,RDDY,RDDZ,
+     $                  IPCORR,OMBETA,DT,U,V,W,P,B,
+     $                  BP,BU,BV,BW,SDIV,HILF,
+     $                  RHO,DIVGMX,DIVG,WSOR,NBND,
+     $                  NFRPER,NBAPER,NRIPER,NLEPER,IRB,JRB,KRB,
+     $                  GEOVP,IALGO)
+C*MGLET*****************************************************************
+C  V P R B C      DRUCK UND GESCHWINDIGKEITSKORREKTUR (EINE ITERATION)
+C                 (PERIODISCHE RANDBEDINGUNGEN IN X- UND Y-RICHTUNG
+C                 SIND MOEGLICH)
+C                 RED-BLACK ARBEITSWEISE IN DREI RICHTUNGEN
+C                 IN X- UND Y-RICHTUNG WIRD RED-BLACK BLOCKWEISE
+C                 ABGEARBEITET (GITTER-RED-BLACK)
+C                 DA RED-BLACK BIS ZU FAKTOR 2.5 LANGSAMER LAEUFT
+C                 (AUF SGI)
+C*MGLET*****************************************************************
+C
+C  PARAMETER KK, JJ, II           - ARRAYGRENZEN
+C            KMX,JMX,IMX          - GRENZE D. BER.-GEB.(MIT BOUND)
+C            DX(I),DY(J),DZ(K)    - ABSTAND DER GITTERPUNKTE
+C            DDX(I),DDY(J),DDZ(K) - KANTENLAENGE DER KONTROLLVOLUMINA
+C            OMBETA               - FAKTOR FUER DRUCKKORREKTUR
+C            DT                   - ZEITINKREMENT
+C            U(KK,JJ,II)          + GESCHWINDIGKEITSFELD
+C            V(KK,JJ,II)          + GESCHWINDIGKEITSFELD
+C            W(KK,JJ,II)          + GESCHWINDIGKEITSFELD
+C            P(KK,JJ,II)          + DRUCKFELD
+C            DIVGMX               + MAXIMALWERT DER DIVERGENZ DIVG IM
+C                                   FELD
+C            DIVG(KK,JJ)          + DIVERGENZFELD
+C            WSOR                 - WICHTUNGSFAKTOR FUER DEN QUELLTERM
+C            NBND                 - ANZAHL DER RANDSCHICHTEN
+C            NFRPER               - INTEGER-KENNZAHL "FRONT-PERIODISCH"
+C            NBAPER               - INTEGER-KENNZAHL "BACK-PERIODISCH"
+C            NRIPER               - INTEGER-KENNZAHL "RIGHT-PERIODISCH"
+C            NLEPER               - INTEGER-KENNZAHL "LEFT-PERIODISCH"
+C            IRB                  - INTEGER-KENNZAHL I-RICHTUNG RED-BLACK
+C            JRB                  - INTEGER-KENNZAHL J-RICHTUNG RED-BLACK
+C            KRB                  - INTEGER-KENNZAHL K-RICHTUNG RED-BLACK
+C
+C  VERS:  18.03.86 (HW)  : ORIGINAL
+C         02.09.86 (HW)  : ERSATZ FUER ISAMAX VON (FB) AUS ABOX86
+C                          UEBERNOMMEN
+C         24.04.89 (HW)  : SAVE-STATEMENT FUER NBAPER, NLEPER
+C         30.10.90 (HW)  : UEBERGABE ERWEITERT
+C         01.04.92 (MM)  : AENDERUNG DER SCHLEIFENSTEUERUNG, JETZT
+C                          WIRD DURCH KOERPER DURCHITERIERT
+C         25. 3.93 (MM)  : PERIODISCHE RANDBEDINGUNGEN WERDEN
+C                          DURCH NFRPER,NBAPER,NLEPER UND NRIPER
+C                          ERKANNT, UND IM KOPF UEBERGEBEN
+C          4. 1.94 (MM)  : WAHLWEISE RED-BLACK IN ALLEN DREI RICHTUNGEN
+C
+C UPROG                  : ERRR
+C
+C  DEFINE-DIREKTIVEN     : KEINE
+C
+C*STAR******************************************************************
+C
+      PARAMETER (KSTRIDE = 2,  JSTRIDE = 1, ISTRIDE = 1)
+C
+      INTEGER KK, JJ, II
+C
+      REAL    OMBETA,
+     $        DX(II),DY(JJ),DZ(KK),DDX(II),DDY(JJ),DDZ(KK),
+     $        RDX(II),RDY(JJ),RDZ(KK),RDDX(II),RDDY(JJ),RDDZ(KK),
+     $        U(KK,JJ,II), V(KK,JJ,II), W(KK,JJ,II), P(KK,JJ,II),
+     $        B(KK,JJ,II),HILF(KK,JJ,II),
+     $        DT,DIVGMX,DIVG(KK,JJ),BP(KK,JJ,II),BU(KK,JJ,II),
+     $        BV(KK,JJ,II),BW(KK,JJ,II),SDIV(KK,JJ,II)
+
+#ifdef _FASTBUTBIGMEM_
+      REAL    GEOVP(KK,JJ,II)
+#endif
+C
+C
+      IM2  = IMX-NBND
+      JM2  = JMX-NBND
+      KM2  = KMX-NBND
+C
+      BETA = OMBETA/WSOR
+      RFAK = DT/RHO*WSOR
+C
+CRED-BLACK-RED-BLACK-RED-BLACK-RED-BLACK-RED-BLACK-RED-BLACK-RED-BLACK-
+C
+      IF (IRB .EQ. 1) THEN
+         ISTART  = NBND + 1
+         ISTOP   = IMX/2
+      ELSEIF (IRB .EQ. 2) THEN
+         ISTART  = IMX/2 + 1
+         ISTOP   = IMX - NBND
+      ELSE
+         CALL ERRR (504,'IRB VPRBC')
+      ENDIF   
+C
+C
+      IF (JRB .EQ. 1) THEN
+         JSTART  = NBND + 1
+         JSTOP   = JMX/2
+      ELSEIF (JRB .EQ. 2) THEN
+         JSTART  = JMX/2 + 1
+         JSTOP   = JMX - NBND
+      ELSE
+         CALL ERRR (504,'JRB VPRBC')
+      ENDIF   
+C
+C
+C                                  GERADE IN Z ?????
+C        IF (2*(KMX/2) .NE. KMX ) CALL ERRR (503,'KRB VPRBC')
+
+      IF (KRB .EQ. 1) THEN
+         KSTART  = NBND + 1
+         KSTOP   = KMX  - NBND
+      ELSEIF (KRB .EQ. 2) THEN
+         KSTART  = NBND + 2
+         KSTOP   = KMX  - NBND
+      ELSE
+         CALL ERRR (504,'KRB VPLESC')
+      ENDIF   
+C
+CRED-BLACK-RED-BLACK-RED-BLACK-RED-BLACK-RED-BLACK-RED-BLACK-RED-BLACK-
+C
+C
+C                                  VORBELEGUNG VON DIVG
+C        
+#ifdef _VECTOR_
+      DO 5 J=1,JJ
+      DO 5 K=1,KK
+    5      DIVG(K,J) = 0.0
+#endif
+C
+C
+C                                 ERMITTLUNG DER DIVERGENZ DIVG UND DES
+C                                 KORREKTURDRCKES DP. KORREKTUR DES DR
+C                                 UND GESCHWINDIGKEITSFELDES.ERMITTLUNG
+C                                 DER MAXIMALDIVERGENZ IM FELD
+C                                 MAXIMALDIVERGENZ WIRD MIT DER VORHERIGEN
+C                                 MAXIMALDIVERGENZ GEBILDET
+C
+C
+#ifdef _FRED_BODY_
+       IF (IALGO.NE.1) THEN
+#endif
+#ifdef _HITACHI_
+*poption parallel
+*poption indep(u,v,w)
+       DO 10 I=ISTART,ISTOP, 2
+#else
+       DO 10 I=ISTART,ISTOP
+#endif
+
+         DO 20 J=JSTART,JSTOP
+
+#ifdef _T3E_
+#ifdef _FASTBUTBIGMEM_
+!DIR$ CACHE_BYPASS b,geovp
+#else
+!DIR$ CACHE_BYPASS b
+#endif
+#endif
+#ifdef _HITACHI_
+*soption unroll(4)
+*voption indep(u,v,w)
+#endif
+            DO 30 K=KSTART,KSTOP,2
+C
+#ifdef _FRED_BODY_
+               FACTOR = BP(K,J,I)
+#endif
+#ifdef _VECTOR_
+                DIVG(K,J) = ((U(K,J,I) - U(K,J,I-1))*RDDX(I)
+#else
+                DIV       = ((U(K,J,I) - U(K,J,I-1))*RDDX(I)
+#endif
+     $               + (V(K,J,I) - V(K,J-1,I))*RDDY(J)
+     $               + (W(K,J,I) - W(K-1,J,I))*RDDZ(K))
+#ifdef _FRED_BODY_
+     $               *FACTOR
+#endif
+C
+#ifdef _NOBODY_
+                FACTOR = 1.0
+#else
+#ifdef _FRED_BODY_
+#ifndef _VECTOR_
+                DIVGMX    = AMAX1(DIVGMX,ABS(DIV))
+
+                DP = BETA * DIV       
+#else
+                DP = BETA * DIVG(K,J) 
+#endif
+                
+#else
+                FACTOR = SIGN(0.5,B(K,J,I))+0.5
+#ifndef _VECTOR_
+                DIVGMX    = AMAX1(DIVGMX,ABS(DIV))
+ 
+                DP = BETA * DIV 
+#ifndef _FRED_BODY_      
+     $    * FACTOR
+#endif
+#else
+                DP = BETA * DIVG(K,J) 
+#ifndef _FRED_BODY_
+     $    * FACTOR
+#endif
+#endif
+#endif
+#endif
+#ifdef _FASTBUTBIGMEM_
+                DP = DP * GEOVP(K,J,I)
+#else
+                DP = DP / ((RDX(I)*RDX(I-1))+(RDY(J)*RDY(J-1))+
+     $                     (RDZ(K)*RDZ(K-1)))
+#endif
+C
+               P(K,J,I) = P(K,J,I) + DP
+ 
+               DP = DP * RFAK
+#ifdef _FRED_BODY_
+
+               U(K,J,I)    =
+     $         (U(K,J,I  )  + DP*RDX(I  )) 
+
+               U(K,J,I-1)  =
+     $         (U(K,J,I-1)  - DP*RDX(I-1)) 
+
+               V(K,J  ,I)  =
+     $         (V(K,J  ,I)  + DP*RDY(J  )) 
+
+               V(K,J-1,I)  =
+     $         (V(K,J-1,I)  - DP*RDY(J-1)) 
+
+               W(K  ,J,I)  =
+     $         (W(K  ,J,I)  + DP*RDZ(K  )) 
+
+               W(K-1,J,I)  =
+     $         (W(K-1,J,I)  - DP*RDZ(K-1))
+#else
+#ifdef _AVOIDLOADIMBALANCE_
+
+               U(K,J,I)    = 
+     $         (U(K,J,I  )  + DP*RDX(I  )) * FACTOR
+
+               U(K,J,I-1)  = 
+     $         (U(K,J,I-1)  - DP*RDX(I-1)) * FACTOR
+
+               V(K,J  ,I)  = 
+     $         (V(K,J  ,I)  + DP*RDY(J  )) * FACTOR
+
+               V(K,J-1,I)  = 
+     $         (V(K,J-1,I)  - DP*RDY(J-1)) * FACTOR
+
+               W(K  ,J,I)  = 
+     $         (W(K  ,J,I)  + DP*RDZ(K  )) * FACTOR
+
+               W(K-1,J,I)  = 
+     $         (W(K-1,J,I)  - DP*RDZ(K-1)) * FACTOR
+#else
+ 
+               U(K,J,I)    = 
+     $         U(K,J,I  )  + DP*RDX(I  )
+ 
+               U(K,J,I-1)  = 
+     $         U(K,J,I-1)  - DP*RDX(I-1)
+ 
+               V(K,J  ,I)  = 
+     $         V(K,J  ,I)  + DP*RDY(J  )
+ 
+               V(K,J-1,I)  = 
+     $         V(K,J-1,I)  - DP*RDY(J-1)
+ 
+               W(K  ,J,I)  = 
+     $         W(K  ,J,I)  + DP*RDZ(K  )
+ 
+               W(K-1,J,I)  = 
+     $         W(K-1,J,I)  - DP*RDZ(K-1)
+#endif
+#endif
+ 
+   30       CONTINUE
+C
+
+C
+C
+#ifdef _VECTOR_
+         DO 50 K = KSTART,KM2,KSTRIDE
+   50       DIVG(K,1) = AMAX1(DIVG(K,1),ABS(DIVG(K,J)))
+#endif
+C
+   20    CONTINUE
+C
+C
+   10 CONTINUE
+
+#ifdef _HITACHI_
+*poption parallel
+*poption indep(u,v,w)
+       DO 810 I=ISTART+1,ISTOP,2
+
+         DO 820 J=JSTART,JSTOP
+
+#ifdef _T3E_
+#ifdef _FASTBUTBIGMEM_
+!DIR$ CACHE_BYPASS b,geovp
+#else
+!DIR$ CACHE_BYPASS b
+#endif
+#endif
+#ifdef _HITACHI_
+*soption unroll(4)
+*voption indep(u,v,w)
+#endif
+            DO 830 K=KSTART,KSTOP,2
+C
+#ifdef _FRED_BODY_
+               FACTOR = BP(K,J,I)
+#endif
+#ifdef _VECTOR_
+                DIVG(K,J) = ((U(K,J,I) - U(K,J,I-1))*RDDX(I)
+#else
+                DIV       = ((U(K,J,I) - U(K,J,I-1))*RDDX(I)
+#endif
+     $               + (V(K,J,I) - V(K,J-1,I))*RDDY(J)
+     $               + (W(K,J,I) - W(K-1,J,I))*RDDZ(K))
+#ifdef _FRED_BODY_
+     $               *FACTOR
+#endif
+C
+#ifdef _NOBODY_
+                FACTOR = 1.0
+#else
+
+#ifdef _FRED_BODY_
+#ifndef _VECTOR_
+                DIVGMX    = AMAX1(DIVGMX,ABS(DIV))
+
+                DP = BETA * DIV
+#else
+                DP = BETA * DIVG(K,J)
+#endif
+      
+#else
+                FACTOR = SIGN(0.5,B(K,J,I))+0.5
+#ifndef _VECTOR_
+                DIVGMX    = AMAX1(DIVGMX,ABS(DIV))
+
+                DP = BETA * DIV
+     $    * FACTOR
+#else
+                DP = BETA * DIVG(K,J)
+     $    * FACTOR
+#endif
+#endif
+#endif
+#ifdef _FASTBUTBIGMEM_
+                DP = DP * GEOVP(K,J,I)
+#else
+                DP = DP / ((RDX(I)*RDX(I-1))+(RDY(J)*RDY(J-1))+
+     $                     (RDZ(K)*RDZ(K-1)))
+#endif
+C
+               P(K,J,I) = P(K,J,I) + DP
+
+               DP = DP * RFAK
+#ifdef _FRED_BODY_
+
+               U(K,J,I)    =
+     $         (U(K,J,I  )  + DP*RDX(I  ))
+
+               U(K,J,I-1)  =
+     $         (U(K,J,I-1)  - DP*RDX(I-1))
+
+               V(K,J  ,I)  =
+     $         (V(K,J  ,I)  + DP*RDY(J  ))
+
+               V(K,J-1,I)  =
+     $         (V(K,J-1,I)  - DP*RDY(J-1))
+
+               W(K  ,J,I)  =
+     $         (W(K  ,J,I)  + DP*RDZ(K  ))
+
+               W(K-1,J,I)  =
+     $         (W(K-1,J,I)  - DP*RDZ(K-1))
+#else
+#ifdef _AVOIDLOADIMBALANCE_
+
+               U(K,J,I)    =
+     $         (U(K,J,I  )  + DP*RDX(I  )) * FACTOR
+
+               U(K,J,I-1)  =
+     $         (U(K,J,I-1)  - DP*RDX(I-1)) * FACTOR
+
+               V(K,J  ,I)  =
+     $         (V(K,J  ,I)  + DP*RDY(J  )) * FACTOR
+
+               V(K,J-1,I)  =
+     $         (V(K,J-1,I)  - DP*RDY(J-1)) * FACTOR
+
+               W(K  ,J,I)  =
+     $         (W(K  ,J,I)  + DP*RDZ(K  )) * FACTOR
+
+               W(K-1,J,I)  =
+     $         (W(K-1,J,I)  - DP*RDZ(K-1)) * FACTOR
+#else
+
+               U(K,J,I)    =
+     $         U(K,J,I  )  + DP*RDX(I  )
+
+               U(K,J,I-1)  =
+     $         U(K,J,I-1)  - DP*RDX(I-1)
+
+               V(K,J  ,I)  =
+     $         V(K,J  ,I)  + DP*RDY(J  )
+
+               V(K,J-1,I)  =
+     $         V(K,J-1,I)  - DP*RDY(J-1)
+
+               W(K  ,J,I)  =
+     $         W(K  ,J,I)  + DP*RDZ(K  )
+
+               W(K-1,J,I)  =
+     $         W(K-1,J,I)  - DP*RDZ(K-1)
+#endif
+#endif
+
+  830       CONTINUE
+C
+
+C
+C
+#ifdef _VECTOR_
+         DO 850 K = KSTART,KM2,KSTRIDE
+  850       DIVG(K,1) = AMAX1(DIVG(K,1),ABS(DIVG(K,J)))
+#endif
+C
+  820    CONTINUE
+C
+C
+  810 CONTINUE
+#endif
+
+C
+#ifdef _VECTOR_
+      DO 60 K = KSTART,KM2,KSTRIDE
+   60    DIVGMX = AMAX1(DIVGMX,DIVG(K,1))
+#endif
+C
+#ifdef _FRED_BODY_
+       ELSE
+#ifdef _HITACHI_
+*poption parallel
+*poption indep(u,v,w)
+       DO 15 I=ISTART,ISTOP, 2
+#else
+       DO 15 I=ISTART,ISTOP
+#endif
+       DO 25 J=JSTART,JSTOP
+
+#ifdef _T3E_
+#ifdef _FASTBUTBIGMEM_
+!DIR$ CACHE_BYPASS b,geovp
+#else
+!DIR$ CACHE_BYPASS b
+#endif
+#endif
+#ifdef _HITACHI_
+*soption unroll(4)
+*voption indep(u,v,w)
+#endif
+            DO 35 K=KSTART,KSTOP,2
+C
+#ifdef _FRED_BODY_
+               FACTOR = BP(K,J,I)
+#endif
+#ifdef _VECTOR_
+                DIVG(K,J) = ((U(K,J,I)*BU(K,J,I)
+     $                    - U(K,J,I-1)*BU(K,J,I-1))*RDDX(I)
+#else
+                DIV       = ((U(K,J,I)*BU(K,J,I)
+     $                    - U(K,J,I-1)*BU(K,J,I-1))*RDDX(I)
+#endif
+     $               + (V(K,J,I)*BV(K,J,I) 
+     $              - V(K,J-1,I)*BV(K,J-1,I))*RDDY(J)
+     $               + (W(K,J,I)*BW(K,J,I)
+     $              - W(K-1,J,I)*BW(K-1,J,I))*RDDZ(K)
+     $               + SDIV(K,J,I))
+#ifdef _FRED_BODY_
+     $               *FACTOR
+#endif
+C
+#ifdef _NOBODY_
+                FACTOR = 1.0
+#else
+#ifdef _FRED_BODY_
+#ifndef _VECTOR_
+                DIVGMX    = AMAX1(DIVGMX,ABS(DIV))
+
+                DP = BETA * DIV
+#else
+                DP = BETA * DIVG(K,J)
+#endif
+      
+#else
+                FACTOR = SIGN(0.5,B(K,J,I))+0.5
+#ifndef _VECTOR_
+                DIVGMX    = AMAX1(DIVGMX,ABS(DIV))
+
+                DP = BETA * DIV
+     $    * FACTOR
+#else
+                DP = BETA * DIVG(K,J)
+     $    * FACTOR
+#endif
+#endif
+#endif
+#ifdef _FASTBUTBIGMEM_
+                DP = DP * GEOVP(K,J,I)
+#else
+                DP = DP / ((RDX(I)*RDX(I-1))+(RDY(J)*RDY(J-1))+
+     $                     (RDZ(K)*RDZ(K-1)))
+#endif
+C
+               P(K,J,I) = P(K,J,I) + DP
+
+               DP = DP * RFAK
+#ifdef _FRED_BODY_
+
+               U(K,J,I)    =
+     $         (U(K,J,I  )  + DP*RDX(I  ))
+
+               U(K,J,I-1)  =
+     $         (U(K,J,I-1)  - DP*RDX(I-1))
+
+               V(K,J  ,I)  =
+     $         (V(K,J  ,I)  + DP*RDY(J  ))
+
+               V(K,J-1,I)  =
+     $         (V(K,J-1,I)  - DP*RDY(J-1))
+
+               W(K  ,J,I)  =
+     $         (W(K  ,J,I)  + DP*RDZ(K  ))
+
+               W(K-1,J,I)  =
+     $         (W(K-1,J,I)  - DP*RDZ(K-1))
+#else
+#ifdef _AVOIDLOADIMBALANCE_
+
+               U(K,J,I)    =
+     $         (U(K,J,I  )  + DP*RDX(I  )) * FACTOR
+
+               U(K,J,I-1)  =
+     $         (U(K,J,I-1)  - DP*RDX(I-1)) * FACTOR
+
+               V(K,J  ,I)  =
+     $         (V(K,J  ,I)  + DP*RDY(J  )) * FACTOR
+
+               V(K,J-1,I)  =
+     $         (V(K,J-1,I)  - DP*RDY(J-1)) * FACTOR
+
+               W(K  ,J,I)  =
+     $         (W(K  ,J,I)  + DP*RDZ(K  )) * FACTOR
+
+               W(K-1,J,I)  =
+     $         (W(K-1,J,I)  - DP*RDZ(K-1)) * FACTOR
+#else
+
+               U(K,J,I)    =
+     $         U(K,J,I  )  + DP*RDX(I  )
+
+               U(K,J,I-1)  =
+     $         U(K,J,I-1)  - DP*RDX(I-1)
+
+               V(K,J  ,I)  =
+     $         V(K,J  ,I)  + DP*RDY(J  )
+
+               V(K,J-1,I)  =
+     $         V(K,J-1,I)  - DP*RDY(J-1)
+
+               W(K  ,J,I)  =
+     $         W(K  ,J,I)  + DP*RDZ(K  )
+
+               W(K-1,J,I)  =
+     $         W(K-1,J,I)  - DP*RDZ(K-1)
+#endif
+#endif
+
+   35       CONTINUE
+C
+
+C
+C
+#ifdef _VECTOR_
+         DO 55 K = KSTART,KM2,KSTRIDE
+   55       DIVG(K,1) = AMAX1(DIVG(K,1),ABS(DIVG(K,J)))
+#endif
+C
+   25    CONTINUE
+C
+   15 CONTINUE
+#ifdef _HITACHI_
+*poption parallel
+*poption indep(u,v,w)
+       DO 815 I=ISTART+1,ISTOP,2
+
+       DO 825 J=JSTART,JSTOP
+
+#ifdef _T3E_
+#ifdef _FASTBUTBIGMEM_
+!DIR$ CACHE_BYPASS b,geovp
+#else
+!DIR$ CACHE_BYPASS b
+#endif
+#endif
+#ifdef _HITACHI_
+*soption unroll(4)
+*voption indep(u,v,w)
+#endif
+            DO 835 K=KSTART,KSTOP,2
+C
+#ifdef _FRED_BODY_
+               FACTOR = BP(K,J,I)
+#endif
+#ifdef _VECTOR_
+                DIVG(K,J) = ((U(K,J,I)*BU(K,J,I)
+     $                    - U(K,J,I-1)*BU(K,J,I-1))*RDDX(I)
+#else
+                DIV       = ((U(K,J,I)*BU(K,J,I)
+     $                    - U(K,J,I-1)*BU(K,J,I-1))*RDDX(I)
+#endif
+     $               + (V(K,J,I)*BV(K,J,I)
+     $              - V(K,J-1,I)*BV(K,J-1,I))*RDDY(J)
+     $               + (W(K,J,I)*BW(K,J,I)
+     $              - W(K-1,J,I)*BW(K-1,J,I))*RDDZ(K)
+     $               + SDIV(K,J,I))
+#ifdef _FRED_BODY_
+     $               *FACTOR
+#endif
+C
+#ifdef _NOBODY_
+                FACTOR = 1.0
+#else
+#ifdef _FRED_BODY_
+#ifndef _VECTOR_
+                DIVGMX    = AMAX1(DIVGMX,ABS(DIV))
+
+                DP = BETA * DIV
+#else
+                DP = BETA * DIVG(K,J)
+#endif
+
+#else
+                FACTOR = SIGN(0.5,B(K,J,I))+0.5
+#ifndef _VECTOR_
+                DIVGMX    = AMAX1(DIVGMX,ABS(DIV))
+
+                DP = BETA * DIV
+     $    * FACTOR
+#else
+                DP = BETA * DIVG(K,J)
+     $    * FACTOR
+#endif
+#endif
+#endif
+#ifdef _FASTBUTBIGMEM_
+                DP = DP * GEOVP(K,J,I)
+#else
+                DP = DP / ((RDX(I)*RDX(I-1))+(RDY(J)*RDY(J-1))+
+     $                     (RDZ(K)*RDZ(K-1)))
+#endif
+C
+               P(K,J,I) = P(K,J,I) + DP
+
+               DP = DP * RFAK
+#ifdef _FRED_BODY_
+
+               U(K,J,I)    =
+     $         (U(K,J,I  )  + DP*RDX(I  ))
+
+               U(K,J,I-1)  =
+     $         (U(K,J,I-1)  - DP*RDX(I-1))
+
+               V(K,J  ,I)  =
+     $         (V(K,J  ,I)  + DP*RDY(J  ))
+
+               V(K,J-1,I)  =
+     $         (V(K,J-1,I)  - DP*RDY(J-1))
+
+               W(K  ,J,I)  =
+     $         (W(K  ,J,I)  + DP*RDZ(K  ))
+
+               W(K-1,J,I)  =
+     $         (W(K-1,J,I)  - DP*RDZ(K-1))
+#else
+#ifdef _AVOIDLOADIMBALANCE_
+
+               U(K,J,I)    =
+     $         (U(K,J,I  )  + DP*RDX(I  )) * FACTOR
+
+               U(K,J,I-1)  =
+     $         (U(K,J,I-1)  - DP*RDX(I-1)) * FACTOR
+
+               V(K,J  ,I)  =
+     $         (V(K,J  ,I)  + DP*RDY(J  )) * FACTOR
+
+               V(K,J-1,I)  =
+     $         (V(K,J-1,I)  - DP*RDY(J-1)) * FACTOR
+
+               W(K  ,J,I)  =
+     $         (W(K  ,J,I)  + DP*RDZ(K  )) * FACTOR
+
+               W(K-1,J,I)  =
+     $         (W(K-1,J,I)  - DP*RDZ(K-1)) * FACTOR
+#else
+
+               U(K,J,I)    =
+     $         U(K,J,I  )  + DP*RDX(I  )
+
+               U(K,J,I-1)  =
+     $         U(K,J,I-1)  - DP*RDX(I-1)
+
+               V(K,J  ,I)  =
+     $         V(K,J  ,I)  + DP*RDY(J  )
+
+               V(K,J-1,I)  =
+     $         V(K,J-1,I)  - DP*RDY(J-1)
+
+               W(K  ,J,I)  =
+     $         W(K  ,J,I)  + DP*RDZ(K  )
+
+               W(K-1,J,I)  =
+     $         W(K-1,J,I)  - DP*RDZ(K-1)
+#endif
+#endif
+
+  835       CONTINUE
+C
+
+C
+C
+#ifdef _VECTOR_
+         DO 855 K = KSTART,KM2,KSTRIDE
+  855       DIVG(K,1) = AMAX1(DIVG(K,1),ABS(DIVG(K,J)))
+#endif
+C
+  825    CONTINUE
+C
+C
+  815 CONTINUE
+#endif
+C
+#ifdef _VECTOR_
+      DO 65 K = KSTART,KM2,KSTRIDE
+   65    DIVGMX = AMAX1(DIVGMX,DIVG(K,1))
+#endif
+C
+      END IF
+#endif
+
+      if(1+nbnd.ge.jstart.and.1+nbnd.le.jstop.and.nriper.eq.1) then
+        if(nleper.ne.1) CALL ERRR(501,' VPLESC   ')
+        j=1+nbnd
+*voption indep(v)
+        do 910 i=istart,istop
+C
+*voption indep(v)
+            DO 100 K=KSTART,KSTOP,2
+#ifdef _FRED_BODY_
+                FACTOR = 1.00
+#else
+                FACTOR = SIGN(0.5,B(K,JM2,I))+0.5
+#endif
+  100             V(K,JM2,I) = V(K,2,I) * FACTOR
+C
+  910   continue
+      endif
+C
+C
+C
+      if(1+nbnd.ge.istart.and.1+nbnd.le.istop.and.nfrper.eq.1) then
+        if(nbaper.ne.1) CALL ERRR(501,' VPLESC   ')
+        i=1+nbnd
+*voption indep(v)
+C
+C
+
+*poption indep(u)
+           DO 200 J=JSTART,JM2,JSTRIDE
+
+            DO 205 K=KSTART,KSTOP,2
+#ifdef _FRED_BODY_
+                FACTOR = 1.0
+#else
+                FACTOR = SIGN(0.5,B(K,J,IM2))+0.5
+#endif
+  205          U(K,J,IM2) = U(K,J,2) * FACTOR
+
+  200    CONTINUE
+
+C
+C
+      endif
+
+      RETURN
+      END

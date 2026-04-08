@@ -1,0 +1,662 @@
+
+
+
+
+
+
+
+
+
+
+
+CCCCC        DEFINITIONEN FUER C-PREPROZESSOR
+C            MASCHINE
+
+C              MESSAGE PASSING INTERFACE
+
+C            RAEUMLICHE DISKRETISIERUNG
+C
+***********************************************************************
+C                       KOMPAKT-UPWIND in X-RICHTUNG (3-TER ORDNUNG) fuer
+C                       die U-Komponente (V und W bleiben Kompakt 4ter ordnung)
+C                       falls im Stroemungsfeld eine Koerper vorhanden ist
+C
+***********************************************************************
+C                       KOMPAKTVERF. in XYZ-RICHTUNG (4-TER ORDNUNG)
+
+
+**********************************************************************
+C                      Preprocessing with ADM for 2nd Order Central
+***********************************************************************
+CCC                     Bei periodischen Randbedingungen in X-Richtung
+CCC                     ist eine hoehere O
+C
+CCC                     Bei periodischen Randbedingungen in Y-Richtung
+CCC                     ist eine hoehere Ordnung moeglich
+C
+CCC                     Bei periodischen Randbedingungen in Y-Richtung:
+CCC                     Zentraldiff. 4-ter Ordnung (Parallelisieung moeglich)
+C
+***********************************************************************
+C
+C
+C            INTERPOLATION AN GITTER-GRENZEN
+
+C            BEHANDLUNG DER TOPAR-RANDBEDINGUNG
+
+C            ZEITLICHE DISKRETISIERUNG
+
+C            FEINSTRUKTURMODELL
+
+C            NICHT-NEWTONSCHE SPANNUNGEN
+
+
+C            TRANSPORT UND ORIENTIERUNG VON PARTIKELN
+
+
+C            SCALAR HEAT/TEMPERATURE TRANSPORT
+C            APROXIMATE DECONVOLUTION FOR SCALAR
+C            TURBULENT PRANDTL NUMBER 
+C            PLOT LOCAL SCALAR CONVECTION DIFFUSION EXTREMES 
+C            ANALYZE AND PLOT NEAR WALL GRID RESLOLUTION 
+C            WRITE SPECIAL 1D LINE FOR TMIX FOR SPECTRA AND PDF
+C            SCALAR TIME ADVANCEMENT/DISCRETISATION METHOD
+
+C            STROEMUNG NACH OBEN?
+
+
+C            BEHANDLUNG DER FLUKTUATIONS-RANDBEDINGUNG
+
+C            BEHANDLUNG VON PPHYS ALS QUELLTERM IN TSTLE2
+
+C            POSITIONIERUNG DER EINSTROEMPROFILE
+
+C           STATISTIK
+
+
+C                 GEMISCHTES
+
+C                GRDFMI WIRD NICHT VERWENDET, DAHER EINSPARUNG DER FELDER
+C                IGRHF UND GRHF
+
+C                VERGROESSERN DER KJI-RICHTUNG BEI FORTSETZUNGSLAUF ERLAUBT!
+
+C                RAUSSCHREIBEN VON ZEITRECORDS
+
+C                FUER KORRELATIONEN UND HAEFIGKEITSVERTEILUNGEN
+         SUBROUTINE SETSLICE (IGRID,
+     $        IDIM3D,IDIM2D,IDIM1D,NBUF,NBND,IDIMA,IDIM1L,IDIM2L,IDIMF,
+     $        X,Y,Z,ISAMPA)
+C--MGLET----------------------------------------------------------------
+C
+C                   SETZT DIE GITTERDEFINITIONEN FUER DIE
+C                   UNTERGITTER DER GEBIETSZERLEGUNG
+C                  
+C
+C
+C        18. 1.94 (MM)  : ORIGINAL
+C        01.04.03 (TB)  : SCALAR BC ADDED IN COPYBOCOND
+C
+C--MGLET----------------------------------------------------------------
+
+
+
+      INTEGER MAXGRIDS,MAXBOCONDS
+      PARAMETER ( MAXGRIDS         =128 )
+      PARAMETER ( MAXBOCONDS       = 10 )
+
+
+      COMMON /COMGRID/
+     &               NGRID,    NGRDOLD,   NGRDSET, NGRDDFD,
+     &               NAUFP,    NAUFOLD,
+     &                 KMX,  JMX,  IMX,
+     &                 KMXA, JMXA, IMXA,
+     &                IP3D, IP2D, IP1D, IPBB,IPB3, IPBU,
+     &                NOF3D,NOF2D,NOF1D,NOFBB,NOFB3,NOFBU,
+     &                IPA,   IP1L,  IP2L,
+     &                NOFA,  NOF1L, NOF2L,  
+     &                 IC1,  IC2,  JC1,  JC2,  KC1,  KC2
+
+      INTEGER
+     &         KMX(MAXGRIDS),     JMX(MAXGRIDS),       IMX(MAXGRIDS),
+     &        KMXA(MAXGRIDS),    JMXA(MAXGRIDS),      IMXA(MAXGRIDS),
+     &        IP3D(MAXGRIDS),    IP2D(MAXGRIDS),      IP1D(MAXGRIDS),
+     &        IPBB(MAXGRIDS),    IPB3(MAXGRIDS),      IPBU(MAXGRIDS),
+     &        NOF3D,   NOF2D,   NOF1D,    NOFBB,   NOFBU,
+     &         IPA(MAXGRIDS),    IP1L(MAXGRIDS),      IP2L(MAXGRIDS),
+     &         NOFA,   NOF1L,   NOF2L,    NAUFP,
+     &         IC1(MAXGRIDS),     IC2(MAXGRIDS),
+     &         JC1(MAXGRIDS),     JC2(MAXGRIDS),
+     &         KC1(MAXGRIDS),     KC2(MAXGRIDS)
+ 
+
+
+      PARAMETER (NPPHYS_MAX=1)
+      COMMON /COPHYSPAR/
+     $                  MTURB,  TU_LEVEL,   RHO,    GMOL,   UGRID,
+     $                  VREF,   EXPON,  UTAUX,
+     $                  CIDUFR, UFRCON, UFRFREQ, DELTA,  XREF,
+     $                  IPP,    JPP,    KPP,
+     $                  XPER,   YPER,   ZPER, 
+     $                  NXPER,  NYPER,  NZPER,
+     $                  NPPHYS, PPHYS, XPPHYS
+
+      INTEGER           IPP,  JPP,  KPP,   NPPHYS
+     
+      REAL              TU_LEVEL,  RHO,   GMOL,   UGRID,  VREF,  
+     $                  EXPON, UFRCON, 
+     $                  PPHYS(NPPHYS_MAX), XPPHYS(NPPHYS_MAX)
+
+      CHARACTER (LEN=16)      CIDUFR
+
+C
+C     VERS:   28.09.95 (AO) JET VARIABLES INTRODUCED
+C             12.12.02 (TB) SCALAR PARAMETERS (FIX VALUE, GRADIENT) ADDED
+C
+C     XMPOS1,XMPOS2,YMPOS1,YMPOS2,ZMPOS1,ZMPOS2: BEREICH DER EFFEKTMESSUNG 
+C                                                AUFGRUND DER MANIPULATION
+
+      COMMON /COBOUND/
+     &                 NBOCD,
+     &                NBOCONDS,     LARBOCONDS,     ITYPBOCONDS,
+     &                LBOGRIDS,    LPOSBOGRIDS,
+     &                 FRONT,    BACK,     RIGHT,     LEFT,
+     &                 BOTTOM,   TOP,      CUBE,
+     &                 IBPOS,   JBPOS,    KBPOS,
+     &                 IBANF,   JBANF,    KBANF,
+     &                 IBEND,   JBEND,    KBEND,
+     &                 XBANF,   YBANF,    ZBANF,
+     &                 XBEND,   YBEND,    ZBEND,
+     &                 ANIVEAU,
+     &                 AUB, AVB, AWB,
+     &                 FREQB,  FLOWTYP, WAVENUMBER,
+     &                 LOPT,NTOPT1,NTOPT2,
+     &                 XMPOS1,YMPOS1,ZMPOS1,
+     &                 XMPOS2,YMPOS2,ZMPOS2,
+     &                 TIMEALT,XRTALT1,XRTALT2,FREQOPT,PERIODE,ITALT,
+     &                 FREQALT1,FREQALT2,XRMIN,FXRMIN,NXRMIN,
+     &                 RANNUM,PHASE
+
+
+      INTEGER
+     &       NBOCD   (                9, MAXGRIDS),
+     &       NBOCONDS(                9, MAXGRIDS),
+     &     LARBOCONDS( 6, MAXBOCONDS, 9, MAXGRIDS),
+     &    ITYPBOCONDS(    MAXBOCONDS, 9, MAXGRIDS),
+     &       LBOGRIDS(    MAXBOCONDS, 9, MAXGRIDS),
+     &    LPOSBOGRIDS( 3, MAXBOCONDS, 9, MAXGRIDS),
+     &   IBPOS(MAXBOCONDS,9,MAXGRIDS),  JBPOS(MAXBOCONDS,9,MAXGRIDS),
+     &   KBPOS(MAXBOCONDS,9,MAXGRIDS),
+     &   IBANF(MAXBOCONDS,9,MAXGRIDS),  IBEND(MAXBOCONDS,9,MAXGRIDS),
+     &   JBANF(MAXBOCONDS,9,MAXGRIDS),  JBEND(MAXBOCONDS,9,MAXGRIDS),
+     &   KBANF(MAXBOCONDS,9,MAXGRIDS),  KBEND(MAXBOCONDS,9,MAXGRIDS),
+     &   LOPT(MAXBOCONDS,MAXGRIDS),
+     &   NTOPT1(MAXBOCONDS,MAXGRIDS),NTOPT2(MAXBOCONDS,MAXGRIDS)
+
+
+
+      CHARACTER (LEN=16)
+     &      FRONT(MAXBOCONDS,MAXGRIDS),   BACK(MAXBOCONDS,MAXGRIDS),
+     &      RIGHT(MAXBOCONDS,MAXGRIDS),   LEFT(MAXBOCONDS,MAXGRIDS),
+     &     BOTTOM(MAXBOCONDS,MAXGRIDS),    TOP(MAXBOCONDS,MAXGRIDS),
+     &       CUBE(MAXBOCONDS,MAXGRIDS),
+     &      FLOWTYP(MAXBOCONDS,9,MAXGRIDS)
+
+      REAL  ANIVEAU(MAXBOCONDS,9,MAXGRIDS), AUB(MAXBOCONDS,9,MAXGRIDS),
+     &      AVB(MAXBOCONDS,9,MAXGRIDS), AWB(MAXBOCONDS,9,MAXGRIDS),
+     &      FREQB(MAXBOCONDS,9,MAXGRIDS),
+     &      XBANF(MAXBOCONDS,9,MAXGRIDS),XBEND(MAXBOCONDS,9,MAXGRIDS),
+     &      YBANF(MAXBOCONDS,9,MAXGRIDS),YBEND(MAXBOCONDS,9,MAXGRIDS),
+     &      ZBANF(MAXBOCONDS,9,MAXGRIDS),ZBEND(MAXBOCONDS,9,MAXGRIDS),
+     &      XM1(MAXBOCONDS,9,MAXGRIDS),XM2(MAXBOCONDS,9,MAXGRIDS),
+     &      XM3(MAXBOCONDS,9,MAXGRIDS),
+     &      YM1(MAXBOCONDS,9,MAXGRIDS),YM2(MAXBOCONDS,9,MAXGRIDS),
+     &      YM3(MAXBOCONDS,9,MAXGRIDS),
+     &      ZM1(MAXBOCONDS,9,MAXGRIDS),ZM2(MAXBOCONDS,9,MAXGRIDS),
+     &      ZM3(MAXBOCONDS,9,MAXGRIDS),
+     &      WAVENUMBER(MAXBOCONDS,9,MAXGRIDS),
+     &      XMPOS1(MAXBOCONDS,MAXGRIDS),
+     &      XMPOS2(MAXBOCONDS,MAXGRIDS),
+     &      YMPOS1(MAXBOCONDS,MAXGRIDS),
+     &      YMPOS2(MAXBOCONDS,MAXGRIDS),
+     &      ZMPOS1(MAXBOCONDS,MAXGRIDS),
+     &      ZMPOS2(MAXBOCONDS,MAXGRIDS),
+     &      RANNUM,
+     &      PHASE(MAXBOCONDS,9,MAXGRIDS)
+      
+      COMMON /COGRDPRO/ LEVEL,LCHILD,XMIN,YMIN,ZMIN,XTOT,YTOT,ZTOT
+      COMMON /COGRDPRO/ XHOMOG,YHOMOG,ZHOMOG,NXGRAE,NYGRAE,NZGRAE
+      COMMON /COGRDPRO/ GRADPX,UBULKX,LTST,LVP,LSCAI,LPLEVEL,LPOISSONDIR
+      COMMON /COGRDPRO/ LSLICE,NXSLICE,NYSLICE,NZSLICE,NVPGRIDS
+      COMMON /COGRDPRO/ CONV1SANF,CONV1SEND,TRANSLES1,TRANSLES2
+      COMMON /COGRDPRO/ GRADPXOLD
+
+      INTEGER LEVEL(MAXGRIDS),NVPGRIDS(MAXGRIDS)
+      INTEGER NXGRAE(MAXGRIDS),NYGRAE(MAXGRIDS),NZGRAE(MAXGRIDS)
+      INTEGER NXSLICE(MAXGRIDS),NYSLICE(MAXGRIDS),NZSLICE(MAXGRIDS)
+
+      REAL XTOT(MAXGRIDS),YTOT(MAXGRIDS),ZTOT(MAXGRIDS)
+      REAL XMIN(MAXGRIDS),YMIN(MAXGRIDS),ZMIN(MAXGRIDS)
+      REAL GRADPX(MAXGRIDS),UBULKX(MAXGRIDS)
+      REAL CONV1SANF(MAXGRIDS),CONV1SEND(MAXGRIDS)
+      REAL TRANSLES1(MAXGRIDS),TRANSLES2(MAXGRIDS),GRADPXOLD(MAXGRIDS)
+
+      LOGICAL LCHILD(MAXGRIDS),LSLICE(MAXGRIDS),LPOISSONDIR(MAXGRIDS)
+      LOGICAL XHOMOG(MAXGRIDS),YHOMOG(MAXGRIDS),ZHOMOG(MAXGRIDS)
+      LOGICAL LTST(MAXGRIDS),LVP(MAXGRIDS),LSCAI(MAXGRIDS)
+      LOGICAL LPLEVEL(MAXGRIDS)
+      
+      COMMON /COGRDCON/
+     &                 IVPCHILD,
+     &                 IPARENT,ISLPAR,
+     &                 IPOSITION, JPOSITION, KPOSITION,
+     &                 NOFSLCHILDS,IGRDOFSLCHILD,
+     &                 ISLPOS, JSLPOS, KSLPOS,
+     &                 IFRNBR, IBANBR, IRINBR, ILENBR,
+     &                 IBONBR, ITONBR
+
+
+      INTEGER
+     &       IVPCHILD(MAXGRIDS),
+     &       IPARENT(MAXGRIDS),ISLPAR(MAXGRIDS),
+     & IPOSITION(MAXGRIDS), JPOSITION(MAXGRIDS), KPOSITION(MAXGRIDS),
+     & NOFSLCHILDS(MAXGRIDS),IGRDOFSLCHILD(MAXGRIDS,MAXGRIDS),
+     &    ISLPOS(MAXGRIDS), JSLPOS(MAXGRIDS), KSLPOS(MAXGRIDS),
+     &       IFRNBR(MAXBOCONDS,MAXGRIDS), IBANBR(MAXBOCONDS,MAXGRIDS),
+     &       IRINBR(MAXBOCONDS,MAXGRIDS), ILENBR(MAXBOCONDS,MAXGRIDS),
+     &       IBONBR(MAXBOCONDS,MAXGRIDS), ITONBR(MAXBOCONDS,MAXGRIDS)
+
+      REAL X(IDIM1D), Y(IDIM1D), Z(IDIM1D)
+      INTEGER ISAMPA (752,MAXGRIDS)
+
+C
+C
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+C                            PRUEFUNG DER DEFINITIONEN AUF ZULAESSIGKEIT
+C                            BERECHNUNG DER ANZAHL DER PUNKTE IN DEN
+C                            UNTERGITTERN
+
+      CALL CHKNSLICE (IMX(IGRID),NXSLICE(IGRID),NBND,NXSUB,IGRID,'X')
+      CALL CHKNSLICE (JMX(IGRID),NYSLICE(IGRID),NBND,NYSUB,IGRID,'Y')
+      CALL CHKNSLICE (KMX(IGRID),NZSLICE(IGRID),NBND,NZSUB,IGRID,'Z')
+
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+C                                              ANZAHL DER UNTERGITTER
+
+      
+      NSLICEGD = NXSLICE(IGRID)*NYSLICE(IGRID)*NZSLICE(IGRID)
+
+      II            = NXSUB + 2*NBND
+      JJ            = NYSUB + 2*NBND
+      KK            = NZSUB + 2*NBND
+
+      NGSUB = 0
+
+      DO IBLOCK = 1,NXSLICE(IGRID)
+      DO JBLOCK = 1,NYSLICE(IGRID)
+      DO KBLOCK = 1,NZSLICE(IGRID)
+
+
+         NGSUB = NGSUB + 1
+         NOFSLCHILDS(IGRID) = NGSUB
+         CALL NEXTGRID(ISUB)
+         IGRDOFSLCHILD(NGSUB,IGRID) = ISUB
+
+         LEVEL(ISUB) = LEVEL(IGRID)
+         ISLPAR(ISUB)= IGRID
+
+         LTST (ISUB) = LTST (IGRID)
+         LVP  (ISUB) = LVP  (IGRID)
+         LSCAI (ISUB) = LSCAI  (IGRID)
+         NVPGRIDS(ISUB) = NVPGRIDS(IGRID)
+         LPOISSONDIR(ISUB) = LPOISSONDIR(IGRID)
+         LCHILD(ISUB) = LCHILD(IGRID)
+
+         GRADPX(ISUB) = GRADPX(IGRID)
+         UBULKX(ISUB) = UBULKX(IGRID)
+
+         IMX(ISUB) = II
+         JMX(ISUB) = JJ
+         KMX(ISUB) = KK
+
+         ISLPOS(ISUB) = NBND + 1 + (IBLOCK-1)*NXSUB 
+         JSLPOS(ISUB) = NBND + 1 + (JBLOCK-1)*NYSUB 
+         KSLPOS(ISUB) = NBND + 1 + (KBLOCK-1)*NZSUB 
+
+         XTOT(ISUB) = XTOT(IGRID)/FLOAT(NXSLICE(IGRID))
+         YTOT(ISUB) = YTOT(IGRID)/FLOAT(NYSLICE(IGRID))
+         ZTOT(ISUB) = ZTOT(IGRID)/FLOAT(NZSLICE(IGRID))
+C           PARAMETER ZUR BESTIMMUNG VON CONV1S (SUBGRIDSCALEKONSTANTE)
+         CONV1SANF(ISUB) = CONV1SANF(IGRID)
+         CONV1SEND(ISUB) = CONV1SEND(IGRID)
+         TRANSLES1(ISUB) = TRANSLES1(IGRID)
+         TRANSLES2(ISUB) = TRANSLES2(IGRID)
+
+
+C           STATISTIK WIRD AUF SUBGITTERN GEMACHT. DESWEGEN MUESSEN
+C           SUBGITTER INFORMATIONEN UEBER SCHON VORHANDENE STATISTIK
+C           ERHALTEN (AO)
+
+         DO I=1,752
+            ISAMPA(I,ISUB) = ISAMPA(I,IGRID)
+         ENDDO
+
+         DO IDIR = 1,7
+            NBOCD(IDIR,ISUB) = NBOCD(IDIR,IGRID)
+         ENDDO
+
+C
+C                                UMSETZUNG DER KENNSTRINGS
+C                                FUER RANDBED.
+C                                NACHBARN WERDEN ERST SPAETER GESETZT
+C                                DA JETZT DIE ZERLEGUNG ALLER
+C                                GITTER NOCH NICHT FESTLIEGT
+      DO I=1,NBOCD( 1 , IGRID )
+         CALL SLICEBOCOND 
+     $       (FRONT(I,IGRID),IBLOCK,NXSLICE(IGRID),0,'FR',FRONT(I,ISUB))
+      ENDDO
+
+      DO I=1,NBOCD( 2 , IGRID )
+         CALL SLICEBOCOND 
+     $        (BACK(I,IGRID),IBLOCK,NXSLICE(IGRID),1,'BA',BACK(I,ISUB))
+      ENDDO
+
+      DO I=1,NBOCD( 3 , IGRID )
+         CALL SLICEBOCOND 
+     $       (RIGHT(I,IGRID),JBLOCK,NYSLICE(IGRID),0,'RI',RIGHT(I,ISUB))
+      ENDDO
+
+      DO I=1,NBOCD( 4 , IGRID )
+         CALL SLICEBOCOND 
+     $        (LEFT(I,IGRID),JBLOCK,NYSLICE(IGRID),1,'LE',LEFT(I,ISUB))
+      ENDDO
+
+      DO I=1,NBOCD( 5 , IGRID )
+         CALL SLICEBOCOND 
+     $     (BOTTOM(I,IGRID),KBLOCK,NZSLICE(IGRID),0,'BO',BOTTOM(I,ISUB))
+      ENDDO
+
+      DO I=1,NBOCD( 6 , IGRID )
+         CALL SLICEBOCOND 
+     $        (TOP(I,IGRID),KBLOCK,NZSLICE(IGRID),1,'TO',TOP(I,ISUB))
+      ENDDO
+
+      DO I=1,NBOCD( 7 , IGRID )
+         CALL SLICEBOCOND 
+     $        (CUBE(I,IGRID),1,1,0,'CU',CUBE(I,ISUB))
+      ENDDO
+
+C---------------------------------   CHILDS ERBEN AUCH ALLE ANDEREN 
+C                                    RANDBEDINGUNGEN
+
+      CALL COPYBOCOND(IGRID,ISUB)
+
+         XHOMOG(ISUB) = XHOMOG(IGRID)
+         YHOMOG(ISUB) = YHOMOG(IGRID)
+         ZHOMOG(ISUB) = ZHOMOG(IGRID)
+
+         LPLEVEL(ISUB) = LPLEVEL(IGRID)
+
+C050696         CALL SETCOMGRID (IDIM3D,IDIM2D,IDIM1D,NBUF,NBND,
+C050696     $                    IDIMA,IDIM1L,IDIM2L,IDIMF,
+C050696     $                    ISUB,0,1,IGRID,NGSUB)
+
+      ENDDO
+      ENDDO
+      ENDDO
+
+C050696      DO I = 1,NOFSLCHILDS(IGRID)
+C050696         ISUB = IGRDOFSLCHILD(I,IGRID)
+C050696
+C050696         CALL SETCOBOUND  (ISUB,ISUB,X,Y,Z,IDIM1D)
+C050696
+C050696         ITST = 0
+C050696         IF (LTST(ISUB)) ITST = 1
+C050696         IVP = 0
+C050696         IF (LVP(ISUB)) IVP = 1
+C050696         CALL SETCOLEVEL (ISUB,LEVEL(ISUB),IVP,ITST,0,1,0)
+C050696
+C050696      ENDDO
+
+      
+            
+C
+C
+C
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+C
+
+      RETURN
+      END
+
+
+      SUBROUTINE CHKNSLICE (NMX,NSL,NBND,NPSUB,IGRID,CID)
+
+      INTEGER NMX,NSL,NBND,IGRID
+      CHARACTER (LEN=1) CID
+
+      IF (NSL .LE. 0) GOTO 1000
+
+
+      NPOINTS = NMX - 2*NBND
+      NPSUB   = NPOINTS/NSL
+
+      IF (NPSUB*NSL .NE. NPOINTS) GOTO 1000
+      IF (NPSUB .LT. 2 .AND. (NMX - 2*NBND) .NE. 1) GOTO 1000
+
+      
+C
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+C
+
+      RETURN
+C
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+C                           IM FEHLERFALL
+ 1000 CONTINUE
+
+         WRITE (6,*) ' '
+         WRITE (6,*) 'FEHLER BEI GEBIETSAUFTEILUNG IN GITTER: ',IGRID
+         WRITE (6,*) ' '
+         WRITE (6,*) ' '
+         WRITE (6,*)
+     $   ' ANZAHL DER GITTERPUNKTE IN ',CID,' RICHTUNG:',NPOINTS
+         WRITE (6,*) ' '
+         WRITE (6,*) ' ANZAHL DER GEW. BLOECKE: ',NSL
+         WRITE (6,*) ' '
+         CALL ERRR (501,' CHKNSLICE')
+
+      END
+
+
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+      SUBROUTINE SLICEBOCOND (CBOCIN,IBLOCK,NSLICE,ISIDE,CDIR,CBOCOUT)
+C*MGLET***************************************************************72
+C
+C                               UEBERGIBT DIR RANDBEDINGUNG FUER
+C                               DIR GITTER DER GEBIETSZERLEGUNG
+C
+C      ISIDE:        GIBT AN AUF WELCHER SEITE RANDBED. LIEGT
+C                    0:   VORN,RECHTS,UNTEN
+C                    1:   HINTEN,LINKS,OBEN
+C      CBOCIN:       CHARACTER FUER BOUND. COND. 'IN'
+C      CBOCOUT:      CHARACTER FUER BOUND. COND. 'OUT'
+C
+C   20.01.94 (MM)
+C
+C*MGLET***************************************************************72
+
+      CHARACTER (LEN=16) CBOCIN,CBOCOUT
+      CHARACTER (LEN=2)  CDIR
+
+C
+C                                RICHTUNG DER RANDBEDINGUNG
+C
+      CBOCOUT(1:2) = CBOCIN(1:2)
+
+C
+C                                 TYP DER RANDBEDINGUNG
+C
+C
+C                                 VORDERSEITE
+C
+      IF (ISIDE .EQ. 0) THEN
+         IF (IBLOCK .EQ. 1) THEN
+
+C                                 PERIODISCHE RANDBEDINGUNGEN
+C                                 MUESSEN IN 'CONNECT' UMGEWANDELT 
+C                                 WERDEN, FALLS RICHTUNG 
+C                                 ZERLEGT WIRD
+
+            IF ((CBOCIN(3:5) .NE. 'PER') .OR. (NSLICE .EQ. 1)) THEN
+              CBOCOUT(3:5) = CBOCIN(3:5)
+            ELSE
+              CBOCOUT(3:5) = 'CON'
+            ENDIF
+
+         ELSE
+
+              CBOCOUT(3:5) = 'CON'
+
+         ENDIF
+      ENDIF
+
+C
+C                                 RUECKSEITE
+C
+      
+      IF (ISIDE .EQ. 1) THEN
+         IF (IBLOCK .EQ. NSLICE) THEN
+
+            IF ((CBOCIN(3:5) .NE. 'PER') .OR. (NSLICE .EQ. 1)) THEN
+              CBOCOUT(3:5) = CBOCIN(3:5)
+            ELSE
+              CBOCOUT(3:5) = 'CON'
+            ENDIF
+
+         ELSE
+
+              CBOCOUT(3:5) = 'CON'
+
+         ENDIF
+      ENDIF
+      
+
+      RETURN
+      END
+      SUBROUTINE COPYBOCOND(IG1,IG2)
+C--------------------------------------- COPIES BOUNDARY CONDITIONS
+C                                        FROM ONE GRID TO THE OTHER
+
+
+      INTEGER MAXGRIDS,MAXBOCONDS
+      PARAMETER ( MAXGRIDS         =128 )
+      PARAMETER ( MAXBOCONDS       = 10 )
+
+C
+C     VERS:   28.09.95 (AO) JET VARIABLES INTRODUCED
+C             12.12.02 (TB) SCALAR PARAMETERS (FIX VALUE, GRADIENT) ADDED
+C
+C     XMPOS1,XMPOS2,YMPOS1,YMPOS2,ZMPOS1,ZMPOS2: BEREICH DER EFFEKTMESSUNG 
+C                                                AUFGRUND DER MANIPULATION
+
+      COMMON /COBOUND/
+     &                 NBOCD,
+     &                NBOCONDS,     LARBOCONDS,     ITYPBOCONDS,
+     &                LBOGRIDS,    LPOSBOGRIDS,
+     &                 FRONT,    BACK,     RIGHT,     LEFT,
+     &                 BOTTOM,   TOP,      CUBE,
+     &                 IBPOS,   JBPOS,    KBPOS,
+     &                 IBANF,   JBANF,    KBANF,
+     &                 IBEND,   JBEND,    KBEND,
+     &                 XBANF,   YBANF,    ZBANF,
+     &                 XBEND,   YBEND,    ZBEND,
+     &                 ANIVEAU,
+     &                 AUB, AVB, AWB,
+     &                 FREQB,  FLOWTYP, WAVENUMBER,
+     &                 LOPT,NTOPT1,NTOPT2,
+     &                 XMPOS1,YMPOS1,ZMPOS1,
+     &                 XMPOS2,YMPOS2,ZMPOS2,
+     &                 TIMEALT,XRTALT1,XRTALT2,FREQOPT,PERIODE,ITALT,
+     &                 FREQALT1,FREQALT2,XRMIN,FXRMIN,NXRMIN,
+     &                 RANNUM,PHASE
+
+
+      INTEGER
+     &       NBOCD   (                9, MAXGRIDS),
+     &       NBOCONDS(                9, MAXGRIDS),
+     &     LARBOCONDS( 6, MAXBOCONDS, 9, MAXGRIDS),
+     &    ITYPBOCONDS(    MAXBOCONDS, 9, MAXGRIDS),
+     &       LBOGRIDS(    MAXBOCONDS, 9, MAXGRIDS),
+     &    LPOSBOGRIDS( 3, MAXBOCONDS, 9, MAXGRIDS),
+     &   IBPOS(MAXBOCONDS,9,MAXGRIDS),  JBPOS(MAXBOCONDS,9,MAXGRIDS),
+     &   KBPOS(MAXBOCONDS,9,MAXGRIDS),
+     &   IBANF(MAXBOCONDS,9,MAXGRIDS),  IBEND(MAXBOCONDS,9,MAXGRIDS),
+     &   JBANF(MAXBOCONDS,9,MAXGRIDS),  JBEND(MAXBOCONDS,9,MAXGRIDS),
+     &   KBANF(MAXBOCONDS,9,MAXGRIDS),  KBEND(MAXBOCONDS,9,MAXGRIDS),
+     &   LOPT(MAXBOCONDS,MAXGRIDS),
+     &   NTOPT1(MAXBOCONDS,MAXGRIDS),NTOPT2(MAXBOCONDS,MAXGRIDS)
+
+
+
+      CHARACTER (LEN=16)
+     &      FRONT(MAXBOCONDS,MAXGRIDS),   BACK(MAXBOCONDS,MAXGRIDS),
+     &      RIGHT(MAXBOCONDS,MAXGRIDS),   LEFT(MAXBOCONDS,MAXGRIDS),
+     &     BOTTOM(MAXBOCONDS,MAXGRIDS),    TOP(MAXBOCONDS,MAXGRIDS),
+     &       CUBE(MAXBOCONDS,MAXGRIDS),
+     &      FLOWTYP(MAXBOCONDS,9,MAXGRIDS)
+
+      REAL  ANIVEAU(MAXBOCONDS,9,MAXGRIDS), AUB(MAXBOCONDS,9,MAXGRIDS),
+     &      AVB(MAXBOCONDS,9,MAXGRIDS), AWB(MAXBOCONDS,9,MAXGRIDS),
+     &      FREQB(MAXBOCONDS,9,MAXGRIDS),
+     &      XBANF(MAXBOCONDS,9,MAXGRIDS),XBEND(MAXBOCONDS,9,MAXGRIDS),
+     &      YBANF(MAXBOCONDS,9,MAXGRIDS),YBEND(MAXBOCONDS,9,MAXGRIDS),
+     &      ZBANF(MAXBOCONDS,9,MAXGRIDS),ZBEND(MAXBOCONDS,9,MAXGRIDS),
+     &      XM1(MAXBOCONDS,9,MAXGRIDS),XM2(MAXBOCONDS,9,MAXGRIDS),
+     &      XM3(MAXBOCONDS,9,MAXGRIDS),
+     &      YM1(MAXBOCONDS,9,MAXGRIDS),YM2(MAXBOCONDS,9,MAXGRIDS),
+     &      YM3(MAXBOCONDS,9,MAXGRIDS),
+     &      ZM1(MAXBOCONDS,9,MAXGRIDS),ZM2(MAXBOCONDS,9,MAXGRIDS),
+     &      ZM3(MAXBOCONDS,9,MAXGRIDS),
+     &      WAVENUMBER(MAXBOCONDS,9,MAXGRIDS),
+     &      XMPOS1(MAXBOCONDS,MAXGRIDS),
+     &      XMPOS2(MAXBOCONDS,MAXGRIDS),
+     &      YMPOS1(MAXBOCONDS,MAXGRIDS),
+     &      YMPOS2(MAXBOCONDS,MAXGRIDS),
+     &      ZMPOS1(MAXBOCONDS,MAXGRIDS),
+     &      ZMPOS2(MAXBOCONDS,MAXGRIDS),
+     &      RANNUM,
+     &      PHASE(MAXBOCONDS,9,MAXGRIDS)
+C
+C     WAVENUMBER was added as information to subgrids (02.06.97 A.O.)
+
+      DO IDIR=1,7
+         DO I=1,NBOCD(IDIR,IG1)
+            ANIVEAU(I,IDIR,IG2)=ANIVEAU(I,IDIR,IG1)
+            AUB(I,IDIR,IG2)=AUB(I,IDIR,IG1)
+            AVB(I,IDIR,IG2)=AVB(I,IDIR,IG1)
+            AWB(I,IDIR,IG2)=AWB(I,IDIR,IG1)
+            FREQB(I,IDIR,IG2)=FREQB(I,IDIR,IG1)
+            XBANF(I,IDIR,IG2)=XBANF(I,IDIR,IG1)
+            XBEND(I,IDIR,IG2)=XBEND(I,IDIR,IG1)
+            YBANF(I,IDIR,IG2)=YBANF(I,IDIR,IG1)
+            YBEND(I,IDIR,IG2)=YBEND(I,IDIR,IG1)
+            ZBANF(I,IDIR,IG2)=ZBANF(I,IDIR,IG1)
+            ZBEND(I,IDIR,IG2)=ZBEND(I,IDIR,IG1)
+            WAVENUMBER(I,IDIR,IG2)=WAVENUMBER(I,IDIR,IG1)
+            FLOWTYP(I,IDIR,IG2)=FLOWTYP(I,IDIR,IG1)
+            LOPT(I,IG2)=LOPT(I,IG1)
+            NTOPT1(I,IG2)=NTOPT1(I,IG1)
+            NTOPT2(I,IG2)=NTOPT2(I,IG1)
+            XMPOS1(I,IG2)=XMPOS1(I,IG1)
+            XMPOS2(I,IG2)=XMPOS2(I,IG1)
+            YMPOS1(I,IG2)=YMPOS1(I,IG1)
+            YMPOS2(I,IG2)=YMPOS2(I,IG1)
+            ZMPOS1(I,IG2)=ZMPOS1(I,IG1)
+            ZMPOS2(I,IG2)=ZMPOS2(I,IG1)
+
+         ENDDO
+      ENDDO
+
+      RETURN
+      END

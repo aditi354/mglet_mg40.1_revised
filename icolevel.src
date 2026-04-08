@@ -1,0 +1,52 @@
+       SUBROUTINE ICOLEVEL  ()
+
+
+C*STARLET***************************************************************
+C        I C O L E V E L     INITIALISIEREN DES COMMON-BLOCKES
+C                            COLEVEL
+C*STARLET***************************************************************
+C
+C
+C VERS:   6.10.93 (MM)  : ORIGINAL
+C        18. 1.94 (MM)  : ERWEITERUNG
+C
+C
+C*STARLET***************************************************************
+C
+#include "colevel.h"
+C
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+C
+ 
+      MAXLEVEL = -10000
+      MINLEVEL = +10000
+
+
+      DO ILVL = MINLVLMIN,MAXLVLMAX
+
+          NOFLEVEL ( ILVL ) = 0
+          NOFVPIT  ( ILVL ) = 0
+          NOFTST   ( ILVL ) = 0
+          NOFSCAI  ( ILVL ) = 0
+          NOFSLCED ( ILVL ) = 0
+          NOFSLICE ( ILVL ) = 0
+          NOFPSDIR ( ILVL ) = 0
+
+          DO IGRD = 1,MAXGRDSOFLVL
+
+             IGRDOFLEVEL ( IGRD , ILVL ) = 0
+             IGRDOFVPIT  ( IGRD , ILVL ) = 0
+             IGRDOFTST   ( IGRD , ILVL ) = 0
+             IGRDOFSCAI  ( IGRD , ILVL ) = 0
+             IGRDOFSLCED ( IGRD , ILVL ) = 0
+             IGRDOFSLICE ( IGRD , ILVL ) = 0
+             IGRDOFPSDIR ( IGRD , ILVL ) = 0
+
+          ENDDO
+
+       ENDDO
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+C
+
+      RETURN
+      END

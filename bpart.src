@@ -1,0 +1,201 @@
+      SUBROUTINE BPART (KK,JJ,II,X,Y,Z,DX,DY,DZ,
+     $                   NPART,XP,YP,ZP,
+     $                   NFRO,NBAC,NRGT,NLFT,NBOT,NTOP
+#ifdef _PASSIVE_PARTICLE_
+     $                  ,RUNI,STARTX,STARTY,STARTZ
+#endif
+     $  )
+C------------------------------------------------------------
+C
+C     TREATS BOUNDARY CONDITIONS FOR PARTICLES
+C
+C     020999 (MM)  ORIGINAL
+C
+C------------------------------------------------------------
+
+      REAL    X(II),    Y(II),    Z(II),
+     $       DX(II),   DY(JJ),   DZ(KK)
+
+      REAL XP(NPART), YP(NPART), ZP(NPART)
+#ifdef _PASSIVE_PARTICLE_
+      REAL STARTX(NPART),STARTY(NPART),STARTZ(NPART)
+      INTEGER RUNI(NPART)
+#endif
+C--------------------------------------- BOUNDARIES OF GRID
+
+      X1 = X(2) + 0.5*DX(2)
+      X2 = X(II-2) + 0.5*DX(II-2)
+
+      Y1 = Y(2) + 0.5*DY(2)
+      Y2 = Y(JJ-2) + 0.5*DY(JJ-2)
+
+      Z1 = Z(2) + 0.5*DZ(2)
+      Z2 = Z(KK-2) + 0.5*DZ(KK-2)
+
+C---------------------------------------- TOP BOUNDARY
+
+      IF (NTOP .EQ. 5) THEN
+C                                   NOSLIP: MIRRORING
+         DO IPART = 1,NPART
+         
+            IF (ZP(IPART) .GT. Z2) THEN
+               ZP(IPART) = 2.0*Z2 - ZP(IPART)
+            ENDIF
+            
+         ENDDO
+#ifdef _PASSIVE_PARTICLE_
+C                      OP1: LEAVING DOMAIN NEW INITAILISED
+      ELSEIF(NTOP .EQ. 3) THEN
+         DO IPART = 1,NPART
+            IF(ZP(IPART) .GT. Z2) THEN
+               XP(IPART)=STARTX(IPART)
+               YP(IPART)=STARTY(IPART)
+               ZP(IPART)=STARTZ(IPART)
+               RUNI(IPART) = RUNI(IPART) + 1             
+            ENDIF
+         ENDDO
+#endif 
+      ELSE
+         
+         CALL ERRR (501,' BPART')
+
+      ENDIF
+
+C---------------------------------------- BOTTOM BOUNDARY
+
+      IF (NBOT .EQ. 5) THEN
+C                                   NOSLIP: MIRRORING
+         DO IPART = 1,NPART
+         
+            IF (ZP(IPART) .LT. Z1) THEN
+               ZP(IPART) = 2.0*Z1 - ZP(IPART)
+            ENDIF
+            
+         ENDDO
+         
+      ELSE
+         
+         CALL ERRR (502,' BPART')
+
+      ENDIF
+
+C---------------------------------------- RIGHT BOUNDARY
+
+      IF (NRGT .EQ. 1) THEN
+C                                   PERIODIC
+         DO IPART = 1,NPART
+         
+            IF (YP(IPART) .LT. Y1) THEN
+               YP(IPART) = Y2 - (Y1 - YP(IPART))
+            ENDIF
+            
+         ENDDO
+         
+      ELSEIF (NRGT .EQ. 5) THEN
+C                                   NOSLIP: MIRRORING
+         DO IPART = 1,NPART
+         
+            IF (YP(IPART) .LT. Y1) THEN
+               YP(IPART) = 2.0*Y1 - YP(IPART)
+            ENDIF
+            
+         ENDDO
+
+      ELSE
+         
+         CALL ERRR (503,' BPART')
+
+      ENDIF
+
+C---------------------------------------- LEFT BOUNDARY
+
+      IF (NLFT .EQ. 1) THEN
+C                                   PERIODIC
+         DO IPART = 1,NPART
+         
+            IF (YP(IPART) .GT. Y2) THEN
+               YP(IPART) = Y1 + (YP(IPART) - Y2)
+            ENDIF
+            
+         ENDDO
+C                                   MIRRORING: NOSLIP
+      ELSEIF(NLFT .EQ. 5) THEN
+          
+         DO IPART = 1,NPART
+         
+            IF (YP(IPART) .GT. Y2) THEN
+               YP(IPART) = 2.0*Y2 - YP(IPART)
+            ENDIF
+            
+         ENDDO
+         
+      ELSE
+         
+         CALL ERRR (504,' BPART')
+
+      ENDIF
+C---------------------------------------- FRONT BOUNDARY
+
+      IF (NFRO .EQ. 1) THEN
+C                                   PERIODIC
+         DO IPART = 1,NPART
+         
+            IF (XP(IPART) .LT. X1) THEN
+               XP(IPART) = X2 - (X1 - XP(IPART))
+            ENDIF
+            
+         ENDDO
+
+      ELSEIF (NFRO .EQ. 5) THEN
+C                                   NOSLIP: MIRRORING
+         DO IPART = 1,NPART
+         
+            IF (XP(IPART) .LT. X1) THEN
+               XP(IPART) = 2.0*X1 - XP(IPART)
+            ENDIF
+            
+         ENDDO
+         
+      ELSE
+         
+         CALL ERRR (505,' BPART')
+
+      ENDIF
+C---------------------------------------- BACK BOUNDARY
+
+      IF (NBAC .EQ. 1) THEN
+C                                   PERIODIC
+         DO IPART = 1,NPART
+         
+            IF (XP(IPART) .GT. X2) THEN
+               XP(IPART) = X1 + (XP(IPART) - X2)
+            ENDIF
+            
+         ENDDO
+C                      OP1: LEAVING DOMAIN NEW INITALISED 
+#ifdef _PASSIVE_PARTICLE_
+      ELSEIF(NBAC .EQ. 3) THEN
+
+         DO IPART = 1,NPART
+            IF (XP(IPART) .GT. X2) THEN
+            XP(IPART)=STARTX(IPART)
+            YP(IPART)=STARTY(IPART)
+            ZP(IPART)=STARTZ(IPART)
+            RUNI(IPART) = RUNI(IPART) + 1
+            ENDIF
+         ENDDO
+#endif
+C                          NOSLIP: MIRRORING         
+      ELSEIF(NBAC .EQ. 5) THEN 
+         DO IPART = 1,NPART
+            IF (XP(IPART) .GT. X2) THEN
+               XP(IPART) = 2*X2 - XP(IPART)
+            ENDIF
+         ENDDO
+      ELSE
+         
+         CALL ERRR (506,' BPART')
+
+      ENDIF
+      RETURN
+      END

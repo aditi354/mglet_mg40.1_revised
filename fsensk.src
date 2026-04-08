@@ -1,0 +1,21 @@
+      REAL FUNCTION FSENSK(KK,JJ,II,KMX,K,J,I,NBND,KDIR,JUMP,B)
+
+      INTEGER KK,JJ,II,K,J,I,KDIR,JUMP,NBND
+      REAL B(KK,JJ,II)
+
+      FSENSK = 1.0
+      KDO = K + KDIR*JUMP
+      IF (B(K,J,I) .LT. 0.0) GOTO 99
+
+      DO ISENSK = K,KDO,KDIR
+        IF ((ISENSK .LE. NBND) .OR. (ISENSK .GT. KMX-NBND)) GOTO 99
+        IF (B(ISENSK,J,I) .LT. 0.0) THEN
+          FSENSK = 0.0
+       	ENDIF
+      ENDDO
+
+   99    CONTINUE
+
+      RETURN
+      END
+

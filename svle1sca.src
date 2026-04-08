@@ -1,0 +1,450 @@
+      SUBROUTINE SVLE1SCA(KK,JJ,II,KMX,JMX,IMX,T,X,Y,Z,
+     $                    DX,DY,DZ,DDX,DDY,DDZ,IGRID)
+C
+C*STARLET***************************************************************
+C        S V L E 1 S C A  INITIALISATION OF SCALAR FIELD T.
+C                         BASED ON SVLE1 FOR U,V,W
+C*STARLET***************************************************************
+C
+C PARAM: KK,  JJ,  II   - ARRAYDIMENSIONEN
+C        KMX, JMX, IMX  - GRENZEN DES BERECHNUNGSGEBIETES (MIT BOUND)
+C        T (KK,JJ,II)   + NEW SCALAR FIELD
+C        MTURB          - SCHALTER (1 : TURBULENT,  0 : LAMINAR)
+C        TREF           - BULK SCALAR T OF INFLOW PROFILE
+C        TFRCON         - SCALAR AMPLITUDE OF INFLOW PROFILE 
+C        TU_LEVEL       - TURBULENCE LEVEL
+C        EXPONT         - EXPONENT OF T Profile
+C        PRMOL          - MOLEULAR PRANDTL NUMBER
+C        PRTURB         - TURBULENT PRANDTL NUMBER
+C        Z (KK)         - Z-KOORDINATEN DER ZELLMITTELPUNKTE
+C        DZ(KK)         - ABSTAND DER GITTERPUNKTE IN Z-RICHTUNG
+C
+C VERS:  10.02.03 (TB)  : NEW VERSION DERIVED FROM SVLE1
+C
+C UPROG: FUNCTION VORZ
+C        FUNCTION RANEQU
+C
+C*STARLET***************************************************************
+C
+#include "mgpar.h"
+#include "cophyspar.h"  
+#include "cobound.h"
+C
+#include "konsta.h"
+C
+#include "conles.h"
+C
+      REAL         T(KK,JJ,II),f1,f2,xv
+     $             DZ(KK), DDX(II),   Z(KK),
+     $             X(II),   Y(JJ),h,D,c
+C
+#ifdef _TSCAL_    	        
+CTBC  100203: NOT YET CHANGED, TAKEN FROM VELOCITY SETTINGS
+      TEIN  (ZWAND)  = (1.0+EXPONT)/(2.0-RTURB)*TREF*((1.0-RTURB)
+     $               + SIGN(1.0,(RTURB-0.5))*(ABS(HK2*(1.0-RTURB)
+     $               - ABS(ZWAND))/HK2)**EXPONT) * SIGN(1.0,ZWAND)
+      TKEIN (ZMITTE) = CK1 + CK2 * ABS(ZMITTE)**CK3
+C
+      DATA           REV         /20.0/
+      DATA           TU          / 0.10/
+      DATA           PI          /3.1415927/
+      DATA           zo          /1.007/  
+C
+      ZANF = ZBANF(1,1,IGRID)
+      ZEND = ZBEND(1,1,IGRID)
+C      
+C     SET INITIAL/INFLOW Tinfinity to TSCA(BASICBC,FRONT,IGRID) 
+      TSCAIN = TSCA(1,1,IGRID)
+C      
+C     GET TYPE OF SCALAR BOUNDARY CONDITIONS
+      CALL MGBASBSCA (NFROSCA,NBACSCA,NRGTSCA,NLFTSCA,NBOTSCA,
+     $                NTOPSCA,NCUBSCA,IGRID)
+C     
+      IF (UFRFREQ .LT. SMALL) THEN
+
+          AMPLITUDE = 1.0
+
+      ELSE
+
+          AMPLITUDE = SIN( 0.0 )
+
+      ENDIF
+C
+      IM2 = IMX-2
+      IM1 = IMX-1
+      JM1 = JMX-1
+      JM2 = JMX-2
+      JM3 = JMX-3
+      KM1 = KMX-1
+      KM2 = KMX-2
+      KM3 = KMX-3
+C
+C                                 EINIGE KONSTANTEN
+C
+      CM25   = CMUE**0.25
+      SQCMUE = CM25**2
+      CM25RE = CM25* REV
+      RTURB  = FLOAT(MTURB)
+C
+C                                 INITIALISATION OF SCALAR T
+C                                 (MIT PRESET !!)
+C
+      DO 10 I=1,IMX
+         DO 20 J=1,JMX
+            DO 30 K=1,KMX
+   30          T(K,J,I) = PRESET
+   20    CONTINUE
+   10 CONTINUE
+      WRITE(6,*)'INDIZES IN SVLE1SCA:',KK,JJ,II
+      WRITE(6,*)'CIDFTR: ',CIDTFR(1:7)
+C
+C
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
+      IF(CIDTFR(1:7).EQ.'UNIFORM') THEN
+C
+C    					UNIFORM SCALAR T DISTRIBUTION
+C
+      WRITE(6,*)'INITALISIERUNG DES SKALARFELDES'
+      WRITE(6,*)'PRESET: ',PRESET,' T-INI: ',TFRCON
+      DO I=1,IMX
+      DO J=1,JMX
+      DO K=1,KMX
+            T(K,J,I) = TFRCON           
+      ENDDO
+      ENDDO
+      ENDDO
+CTBC  NO RANDOM
+      RETURN
+      
+      IF (MTURB .GT. 1) THEN
+        DO I=3,IM2
+        DO J=3,JM2
+        DO K=3,KM2
+           T(K,J,I) = T(K,J,I) + TSCAIN*TU_LEVEL*(RANF() - 0.5)
+        ENDDO
+        ENDDO
+        ENDDO
+      ENDIF
+
+C
+      RETURN
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
+      ELSEIF(CIDTFR(1:7).EQ.'CHANNEL') THEN
+         WRITE(6,*)'INITIALISIERUNG VON T'
+      DO I = 3,IM2
+       DO J = 3,JM2
+        DO K = 3,KM2
+         T(K,J,I) = -LOG10((zo + (Z(K)-1.0))/(1.007 - (Z(K)-1.0)))/
+     $              LOG10((zo + 1.0)/(zo - 1.0)) 
+        ENDDO
+       ENDDO
+      ENDDO
+      DO K=1,KK
+         WRITE(6,*) T(K,20,20),K
+      ENDDO
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
+
+      ELSEIF(CIDTFR(1:5).EQ.'PDE1D') THEN
+         WRITE(6,*)'INITIALISIERUNG VON T'
+      DO I = 3,IM2
+       DO J = 3,JM2
+        DO K = 3,KM2
+C  ---------sine(PI*x) Profile-------------------------------------
+C          T(K,J,I) = 
+C     $	  (2/(PI*DDX(I)))*sin(PI*DDX(I))*sin(PI*X(I))*cos(PI*X(I))+1
+
+C     
+C-----------Error function profile --------------------------------
+C.           xv=X(I)+DDX(I)/2
+C.	   
+C.           f2 = 0.01 * ( 50.0*xv - 12.5 )*erf(50.0*xv-12.5)+
+C.     $          0.01*1/PI**(0.5)*exp(-(50.0*xv-12.5)**2.0)-
+C.     $          0.01*(50.0*xv-37.5)*erf(50.0*xv-37.5)-
+C.     $          0.01*1/PI**(0.5)*exp(-(50.0*xv-37.5)**2.0)
+C.           xv=X(I)-DDX(I)/2;
+C.         
+C.           f1 = 0.01 * ( 50.0*xv - 12.5 )*erf(50.0*xv-12.5)+
+C.     $          0.01*1/PI**(0.5)*exp(-(50.0*xv-12.5)**2.0)-
+C.     $          0.01*(50.0*xv-37.5)*erf(50.0*xv-37.5)-
+C.     $          0.01*1/PI**(0.5)*exp(-(50.0*xv-37.5)**2.0)
+	 
+C.	 T(K,J,I) =( f2-f1 )/DDX(I)
+
+C----------YU&Heinrich PRofile J. Numer. Meth. Eng. 1986,23 P883-901
+	  c  = 1.0
+	  D = 0.0016
+  	  xv  = X(I)
+	  h  = DDX(I)
+
+
+          T(K,J,I) = (PI**(0.5)) * (D**(0.5)) *
+     $ 	     (erf( 0.25 * ( 2.0*xv+h-2.0*c) / ((D)**(0.5)))
+     $       +erf( 0.25 * (-2.0*xv+h+2.0*c) / ((D)**(0.5))))/h
+
+     
+C-----------------Cos(Pix)----------------------
+C	  T(K,J,I) = 
+C     $	  ( 2/PI*cos(PI*X(I))*sin(1/2*PI*DDX(I)) )/DDX(I)
+
+        ENDDO
+       ENDDO
+      ENDDO
+
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
+      ELSEIF(CIDTFR(1:8).EQ.'BOUNDARY') THEN
+C      	      	
+C		HERE LAMINAR BOUNDARY LAYER (PARABOLIC PROFILE)
+C
+      IF(MTURB .EQ. 0) EXPONT = 2.0
+C
+C     GET QW OR TW ACCORDING TO BC TYPE
+      IF (NBOTSCA .EQ. 16) THEN
+        TW = TSCA( 2 , 5 , IGRID)
+        QFAC = (TW-TSCAIN)
+      ELSEIF (NBOTSCA .EQ. 15) THEN
+        QBOT    = QSCA( 2 , 5 , IGRID)
+C        QFAC = QBOT*DELTAT /LAMDA /EXPONT
+        QFAC = QBOT/LAMDA
+      ELSE
+       STOP ' STOP IN SVLE1SCA: BOTTOM SCALAR BOUNDARY TYPE INVALID'
+      ENDIF
+C      WRITE(6,*) 'QBOT=, QFAC= ',QBOT,QFAC
+C
+      ZBOT   = 0.5*(Z(3) + Z(2))
+C
+C
+      DO 200 I=2,IM2
+      DO 210 J=3,JM2
+         DO 220 K=3,KM2
+C
+C          ZDELTA=(Z(K)-ZBOT)/DELTAT
+C          Verd=1.0-MIN(1.0,ZDELTA)**EXPONT
+          ZDELTA=((1.0-FLOAT(MTURB))+
+     $            SIGN(1.0,-1.0+FLOAT(MTURB))*(Z(K)-ZBOT)/DELTAT)
+          Verd  =FLOAT(MTURB)- SIGN(1.0,-1.0+FLOAT(MTURB))*
+     $           (MIN(1.0,ZDELTA)*MAX(0.0,ZDELTA)/ABS(ZDELTA))**EXPONT     
+          T(K,J,I)= TSCAIN+QFAC*Verd
+C
+  220    CONTINUE
+  210 CONTINUE
+  200 CONTINUE
+C
+C
+C               HERE TURBULENT BOUNDARY LAYER FLUCTUATION ADDING
+C     NOT USED! Tstart SET TO <T>!!!
+      IF(MTURB .GT. 1) THEN
+C                                  *************************************
+C                                  ERMITTLUNG DER SCHWANKUNGSGESCHWIN-
+C                                  DIGKEITEN MITTELS ZUFALLSZAHLENGENE-
+C                                  RATOR. DIE SCHWANKUNGEN WERDEN SO BE-
+C                                  STIMMT, DASS EINE VORGEGEBENE TURBU-
+C                                  LENZENERGIEVERTEILUNG EINGEHALTEN
+C                                  WIRD.
+C                                  *************************************
+C
+C                                  KONSTANTEN DER K-VERTEILUNG (AN-
+C                                  NAEHERUNG EINER MIT DEM K-EPS-MODELL
+C                                  BERECHNETEN K-VERTEILUNG)
+C
+      CK1    = 0.0015
+      CK2    = 0.017
+      CK3    = 1.443
+C
+C                                  NAEHERUNGSWEISE BEST. DER DICKE DER
+C                                  VISKOSEN UNTERSCHICHT
+C
+      HK2 = DELTA
+      DYV    = (HK2**EXPON * CM25RE*GMOL*LOG(ECONST*CM25RE)
+     $       /  (CAPPA*RHO*(1.0+EXPON)))**(1.0/(1.0+EXPON))
+      TKV    = TKEIN(HK2-DYV)
+      GRADKV = TKV/DYV
+C
+      DO 270 I=2,IM2
+      DO 280 J=3,JM2
+         DO 290 N=3,KM2
+	    IF (Z(N).GT.DELTAT) GOTO 285
+            ZMMIN        = DELTAT - Z(N)
+            TKMIN        = TKEIN(ZMMIN)
+            IF((HK2-ZMMIN) .LE. DYV) TKMIN = GRADKV*(HK2-ZMMIN)
+C
+C                                 ERSTE SCHAETZUNG FUER DIE QUADRATE DER
+C                                 SCHWANKUNGSGESCHWINDIGKEITEN
+C
+            TS2M  = RANEQU(0.123)
+C                                 ERMITTLUNG EINES FAKTORS, DER DIE
+C                                 SCHAETZWERTE D. SCHWANKUNGSGESCHW. AN
+C                                 DIE GEFORDERTE TURBULENZENERGIE AN-
+C                                 PASST
+C
+            FAKM  = 2.0*TKMIN/TS2M
+C
+            T(N,J,I) = T(N,J,I)+SQRT(FAKM*TS2M)*VORZ(N)
+  290    CONTINUE
+  285 CONTINUE
+  280 CONTINUE
+  270 CONTINUE
+C
+      ENDIF
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
+      ELSEIF(CIDTFR(1:4).EQ.'DUCT') THEN
+C
+      STOP ' STOP IN SVLE1SCA: SCALAR DUCT FLOW NOT YET IMPLEMENTED'
+      CALL ERRR (501,'svle1sca')
+      
+      ZBOT   = ZANF
+      ZTOP   = ZEND
+      YBOT   = YANF
+      YTOP   = YEND
+C
+C                                 HALBE KANALHOEHE
+C
+      HKZ    = 0.5*(ZTOP-ZBOT)
+      HKY    = 0.5*(YTOP-YBOT)
+      HK2    = 0.5*(HKY + HKZ)
+      RHK    = 1./(HKZ**2 * HKY**2)
+C
+C
+C		HERE LAMINAR BOUNDARY LAYER (PARABOLIC PROFILE)
+C
+      IF(MTURB .EQ. 0) THEN
+
+          DO I=2,IM2
+           DO J=3,JM2
+            DO K=3,KM2
+
+               T(K,J,I) = TFRCON*
+     $                   MAX(0.0,Z(K)-ZBOT)*
+     $                   MAX(0.0,Y(J)-YBOT)*
+     $                   MAX(0.0,ZTOP-Z(K))*
+     $                   MAX(0.0,YTOP-Y(J))*
+     $                    AMPLITUDE * RHK
+
+            ENDDO
+           ENDDO
+          ENDDO
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC  ADDING DISTURBANCE
+
+          lz = float(kmx-4)
+          ly = float(jmx-4)
+          lx = float(imx-4)
+
+          nkx=5
+          nky=5
+          nkz=5
+
+C          factor = 1.0/(float(nkz*nky*nkx))
+          factor = TU_LEVEL
+
+          if (factor .gt. 0.00001) then
+          do kz=1,nkz-1
+             do ky=1,nky-1
+                do kx=0,nkx-1
+                   
+                   do i=2,imx-1
+                      sinx=cos(2.0*pi*float(i-3)*kx/lx)
+C     sinx=1.0
+                      do j=2,jmx-1
+                         IF (Y(J) .GT. YBOT .AND. Y(J) .LT. YTOP) THEN
+                            siny=cos(2.0*pi*float(j-3)*ky/ly)
+C     siny=1.0
+                            do k=3,kmx-2
+                               IF (Z(K) .GT. ZBOT .AND. 
+     $                             Z(K) .LT. ZTOP) THEN
+                                  sinz=sin(2.0*pi*float(k-3)*kz/lz)
+                                  
+                                  T(k,j,i)=T(k,j,i) 
+     $                                 + factor*sinx*siny*sinz
+     $                                 + factor*(RANF() - 0.5)
+                                  
+                               ENDIF
+                               
+                            enddo
+                         ENDIF
+                      enddo
+                   enddo
+                   
+                enddo
+             enddo
+          enddo
+          endif
+          RETURN
+C		HERE TURBLUENT BOUNDARY LAYER
+      ELSE
+C
+      DO 300 I=2,IM2
+      DO 310 J=3,JM2
+         DO 320 K=3,KM2
+C
+            T(K,J,I) = (MIN(1.0              ,
+     +                     (Z(K)-ZBOT)/HKZ,
+     +                     (ZTOP-Z(K))/HKZ,
+     +                     (Y(J)-YBOT)/HKY,
+     +                     (YTOP-Y(J))/HKY))**EXPONT*TSCAIN
+                           
+C
+  320    CONTINUE
+  310 CONTINUE
+  300 CONTINUE
+C
+C
+C
+C                                  *************************************
+C                                  ERMITTLUNG DER SCHWANKUNGSGESCHWIN-
+C                                  DIGKEITEN MITTELS ZUFALLSZAHLENGENE-
+C                                  RATOR. DIE SCHWANKUNGEN WERDEN SO BE-
+C                                  STIMMT, DASS EINE VORGEGEBENE TURBU-
+C                                  LENZENERGIEVERTEILUNG EINGEHALTEN
+C                                  WIRD.
+C                                  *************************************
+C
+C                                  KONSTANTEN DER K-VERTEILUNG (AN-
+C                                  NAEHERUNG EINER MIT DEM K-EPS-MODELL
+C                                  BERECHNETEN K-VERTEILUNG)
+C
+      CK1    = 0.0015
+      CK2    = 0.017
+      CK3    = 1.443
+C
+C                                  NAEHERUNGSWEISE BEST. DER DICKE DER
+C                                  VISKOSEN UNTERSCHICHT
+C
+      DYV    = (HK2**EXPON * CM25RE*GMOL*LOG(ECONST*CM25RE)
+     $       /  (CAPPA*RHO*(1.0+EXPON)))**(1.0/(1.0+EXPON))
+      TKV    = TKEIN(HK2-DYV)
+      GRADKV = TKV/DYV
+C
+      DO 370 I=2,IM2
+      DO 380 J=3,JM2
+         DO 390 N=3,KM2
+            ZMMIN        = MAX(HKZ-Z(N),Z(N)-HKZ,HKY-Y(J),Y(J)-HKY)
+            TKMIN        = TKEIN(ZMMIN)
+            IF(
+     +         MIN((Z(N)-ZBOT),(ZTOP-Z(N)),(Y(J)-YBOT),(YTOP-Y(J)))
+     +        .LE. DYV) TKMIN = GRADKV*(HK2-ZMMIN)
+C
+C                                 ERSTE SCHAETZUNG FUER DIE QUADRATE DER
+C                                 SCHWANKUNGSGESCHWINDIGKEITEN
+C
+            TS2M  = RANEQU(0.123)
+C                                 ERMITTLUNG EINES FAKTORS, DER DIE
+C                                 SCHAETZWERTE D. SCHWANKUNGSGESCHW. AN
+C                                 DIE GEFORDERTE TURBULENZENERGIE AN-
+C                                 PASST
+C
+            FAKM  = 2.0*TKMIN/TS2M
+C
+            T(N,J,I) = T(N,J,I)+SQRT(FAKM*TS2M)*VORZ(N)
+  390    CONTINUE
+  385 CONTINUE
+  380 CONTINUE
+  370 CONTINUE
+C
+      ENDIF
+C
+      ENDIF
+C
+#endif
+      RETURN
+      END
+
+      

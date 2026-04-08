@@ -1,0 +1,89 @@
+      SUBROUTINE INTERPOLATEDJ(KK,JJ,II,KMX,JMX,IMX,KSTART,JSTART,
+     $			       ISTART,KSTOP,
+     $                         JSTOP,ISTOP,DX,DY,DZ,DDX,DDY,DDZ,
+     $                         LCOL,DIAG,RCOL,RSIDE1,RSIDE2,
+     $                         RSGS,FAKTOR,F,FIN,FD)
+C*MGLET***************************************************************
+C        I N T E R P O L A T E D J     
+C        BERECHNUNG DER ERSTEN ABLEITUNG IN J BZW. Y-RICHTUNG
+C*MGLET***************************************************************
+C
+C PARAM: F(K,J,I)       - BEKANNTE GROESSE AN DEN GITTERKANTEN
+C      : FIN(K,J,I)     - INTERPOLIERTE GROESSE IN J(Y)-RICHTUNG
+C                         ZWISCHEN DEN BEIDEN KANTEN aus interpolatek)      
+C      : FD (K,J,I)     - ERSTE ABLEITUNG, First Dirivative
+C
+C      : LCOL           - ENTHAELT KOEFFIZIENTEN DER "LINKEN SPALTE"
+C                         PARALLEL ZUR HAUPTDIAGONALEN
+C      : DIAG           - ENTHAELT KOEFFIZIENTEN DER HAUPTDIAGONALEN
+C      : RCOL           - ENTHAELT KOEFFIZIENTEN DER "RECHTEN SPALTE"
+C                         PARALLEL ZUR HAUPTDIAGONALEN
+C      : RSIDE1,RSIDE2  - KOEFFIZIENTEN AUF DER RECHTEN SEITE DES 
+C                         GLEICHUNGSSYSTEMS
+C
+C DEFINE DIREKTIVEN     : KEINE 
+C
+C UPROG                 :  THOMASJ    : THOMAS-ALGORITHMUS IN I-RICHTUNG
+C                          INTERCOEF3 : BERECHNUNG DER KOEFFIZIENTEN
+C                                       VIERTER ORDNUNG
+C VERS:  (18.10.96 AM)  : ORIGINAL      (KOMPAKT 4. ORDNUNG)
+C
+C*MGLET***************************************************************
+C
+
+      REAL       DX(II),        DY(JJ),        DZ(KK),
+     $          DDX(II),       DDY(JJ),       DDZ(KK)
+
+      REAL F(KK,JJ,II),FIN(KK,JJ,II),RSGS(KK,JJ,II),
+     $     FD(KK,JJ,II),
+     $     RCOL(JJ),DIAG(JJ),FAKTOR(JJ),RSIDE1(JJ),
+     $     LCOL(JJ),RSIDE2(JJ)
+
+
+       DO I = ISTART, ISTOP
+	 DO K = KSTART, KSTOP
+
+            J = JSTART
+            CALL RANDWERTAND (JJ,J,DY,DDY,LCOL(J),DIAG(J),
+     $	    RCOL(J),RSIDE1(J),RSIDE2(J))
+ 
+            RSGS(K,J,I) = RSIDE1(J)*F(K,J,I) + RSIDE2(J)*
+     $			  F(K,J+1,I) + F(K,J+2,I)
+C           WRITE (44,*) J,LCOL(J),DIAG(J),RCOL(J),
+C    $                   RSIDE1(J),RSIDE2(J)
+
+            J = JSTOP
+ 	    CALL RANDWERTD (JJ,J,DY,DDY,LCOL(J),DIAG(J),
+     $	    RCOL(J),RSIDE1(J),RSIDE2(J))
+ 
+            RSGS(K,J,I) = RSIDE1(J)*F(K,J,I) + RSIDE2(J)*
+     $			F(K,J-1,I) + F(K,J-2,I)
+C           WRITE (44,*) J,LCOL(J),DIAG(J),RCOL(J),
+C    $                   RSIDE1(J),RSIDE2(J)
+
+	    DO J = JSTART+1, JSTOP-1
+C
+            CALL INTERCOEF3(JJ,J,DY,DDY,LCOL(J),DIAG(J),
+     $	                    RCOL(J),RSIDE1(J),RSIDE2(J)) 
+
+            RSGS(K,J,I) = RSIDE1(J)*F(K,J+1,I) + RSIDE2(J)*
+     $	       		  FIN(K,J,I) + F(K,J,I)
+C
+C          WRITE (44,*) J,LCOL(J),DIAG(J),RCOL(J),
+C    $                  RSIDE1(J),RSIDE2(J)
+
+
+C
+	    ENDDO                   
+	 ENDDO                   
+       ENDDO                   
+
+
+CC     WRITE (44,*) 'THOMAS WIRD IN INTERPOLATED  AUFGERUFEN'        
+       CALL THOMASJ (KK,JJ,II,KSTART,KSTOP,JSTART,JSTOP,ISTART,ISTOP,
+     $               LCOL,DIAG,RCOL,RSGS,FAKTOR,FD)
+CC     WRITE (44,*) 'THOMAS WURDE IN INTERPOLATED ERFOLGREICH BEENDET '     
+
+       RETURN
+       END
+

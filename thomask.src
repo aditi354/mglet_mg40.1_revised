@@ -1,0 +1,117 @@
+      SUBROUTINE THOMASK (KK,JJ,II,KL,KU,JL,JU,IL,IU,
+     $                    LCOL,DIAG,RCOL,RSGS,FAKTOR,FOUTP
+#ifdef _FRED_BODY_
+     $                    ,BP,GI,GJ,GK
+#endif
+     $                    )
+C*MGLET***************************************************************
+C        T H O M A S     DAS UNTERPROGRAMM THOMAS LOEST EIN TRIDIAGONA-
+C                        LES LINEARES GLEICHUNGSSYSTEM NACH DEM
+C                        THOMAS - ALGORITHMUS
+C*MGLET***************************************************************
+C  PARAM:  LCOL        - ENTHAELT KOEFFIZIENTEN DER "LINKEN SPALTE"
+C                        PARALLEL ZUR HAUPTDIAGONALEN
+C          DIAG        - ENTHAELT KOEFFIZIENTEN DER HAUPTDIAGONALEN
+C          RCOL        - ENTHAELT KOEFFIZIENTEN DER "RECHTEN SPALTE"
+C                        PARALLEL ZUR HAUPTDIAGONALEN
+C          RSGS        - ENTHAELT  WERTE DES KONSTANTEN VEKTORS
+C                        AUF DER RECHTEN SEITE DES GL.SYSTEMS
+C          FOUTP       - ENTHAELT  DIE LOESUNG DES GL.SYSTEMS   
+C
+C  DEFINE DIREKTIVEN   : KEINE
+C
+C  UPROG               : KEINE
+C
+C     15.10.96 (AM)    : ORIGINAL
+C
+C*MGLET***************************************************************
+
+      IMPLICIT NONE
+
+      INTEGER  KK,JJ,II,K,J,I,KL,KU,JL,JU,IL,IU,LP,N
+
+      REAL     LCOL(KK), DIAG(KK), RCOL(KK),     
+     $         FOUTP(KK,JJ,II),RSGS(KK,JJ,II),
+#ifdef _FRED_BODY_
+     $         FAKTOR(KK,JJ,II),BP(KK,JJ,II),
+     $         GI(KK,JJ,II),GJ(KK,JJ,II),GK(KK,JJ,II)
+#else
+     $         FAKTOR(II)
+#endif
+
+C
+C                                 BILDUNG DER OBEREN DREIECKSMATRIX
+C
+
+      LP = KL+1
+
+#ifndef _FRED_BODY_
+      DO K = LP,KU
+         FAKTOR(K) = LCOL(K) / DIAG(K-1)
+         DIAG(K) = DIAG(K) - (FAKTOR(K) * RCOL(K-1))
+      ENDDO
+#else
+
+      DO I = IL,IU
+         DO J = JL,JU
+            DO K = LP,KU
+               FAKTOR(K,J,I)= GI(K,J,I) / GJ(K-1,J,I)
+               GJ(K,J,I)    = GJ(K,J,I) - (FAKTOR(K,J,I) * GK(K-1,J,I))
+            END DO
+         END DO
+      END DO
+
+#endif
+
+      DO I = IL,IU
+         DO J = JL,JU
+            FOUTP(KL,J,I) = RSGS(KL,J,I)
+         ENDDO
+      ENDDO
+
+      DO I = IL,IU
+         DO  J = JL,JU
+            DO  K = KL+1,KU
+#ifndef _FRED_BODY_
+             FOUTP(K,J,I)= RSGS(K,J,I) - FAKTOR(K) * FOUTP(K-1,J,I)
+#else
+             FOUTP(K,J,I)= RSGS(K,J,I) - FAKTOR(K,J,I) * FOUTP(K-1,J,I)
+#endif
+            ENDDO
+         ENDDO
+      ENDDO
+
+
+
+C
+C                                 RUECKSUBSTITUTION
+C
+      DO I = IL,IU
+         DO  J = JL,JU
+#ifndef _FRED_BODY_
+            FOUTP(KU,J,I) = FOUTP(KU,J,I)/DIAG(KU)
+#else
+            FOUTP(KU,J,I) = FOUTP(KU,J,I)/GJ(KU,J,I)
+#endif
+         ENDDO
+      ENDDO
+
+      DO I = IL,IU
+         DO  J = JL,JU
+            DO   N = LP,KU
+               K = KU-N+KL
+#ifndef _FRED_BODY_
+            FOUTP(K,J,I) = 
+     $     (FOUTP(K,J,I) - RCOL(K) * FOUTP(K+1,J,I))/DIAG(K)
+#else
+            FOUTP(K,J,I) = (FOUTP(K,J,I) - GK(K,J,I) *
+     $                      FOUTP(K+1,J,I)) / GJ(K,J,I)
+#endif
+            ENDDO
+         ENDDO
+      ENDDO
+
+C     WRITE (44,*) 'THOMAS ERFOLGREICH DURCHLAUFEN!!'
+
+      RETURN
+      END

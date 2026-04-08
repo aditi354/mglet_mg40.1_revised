@@ -1,0 +1,205 @@
+      SUBROUTINE FDERFOWZ(KK,JJ,II,KSTART,JSTART,ISTART,
+     $     KSTOP,JSTOP,ISTOP,DZ,DDZ,COEFDZ,RSGS,FAKTOR,
+     $     F,FIN,FD,NBOT,NTOP,LCOL,DIAG,RCOL
+#ifdef _FRED_BODY_
+     $     ,BP,GI,GJ,GK
+#endif
+     $     )
+C*MGLET***************************************************************
+C        F D E R F O W Z  (First DERive Fourth Order)
+C        BERECHNUNG DER ERSTEN ABLEITUNG (DW/DZ)                    
+C*MGLET***************************************************************
+C
+C PARAM: F(K,J,I)       - BEKANNTE GROESSE AN DEN GITTERKANTEN
+C      : FIN(K,J,I)     - INTERPOLIERTE GROESSE
+C                         ZWISCHEN DEN BEIDEN KANTEN       
+C      : FD (K,J,I)       - ERSTE ABLEITUNG, FIRST DERINATIVE  DW/DZ
+C
+C      : LCOL           - ENTHAELT KOEFFIZIENTEN DER "LINKEN SPALTE"
+C                         PARALLEL ZUR HAUPTDIAGONALEN
+C      : DIAG           - ENTHAELT KOEFFIZIENTEN DER HAUPTDIAGONALEN
+C      : RCOL           - ENTHAELT KOEFFIZIENTEN DER "RECHTEN SPALTE"
+C                         PARALLEL ZUR HAUPTDIAGONALEN
+C
+C DEFINE DIREKTIVEN     : KEINE 
+C
+C UPROG                 : THOMASK     THOMAS-ALGORITHMUS IN Z-RICHTUNG
+C
+C VERS:  08.01.97(AM)  : ORIGINAL     (KOMPAKT 4. ORDNUNG)
+C
+C*MGLET***************************************************************
+
+      IMPLICIT NONE
+
+      INTEGER KK,JJ,II,K,J,I,KSTART,JSTART,ISTART,KSTOP,JSTOP,ISTOP,
+     $        KA,KE,NBOT,NTOP
+
+      REAL    DZ(KK),DDZ(KK),LCOL(KK),DIAG(KK),RCOL(KK),
+     $        F(KK,JJ,II),FIN(KK,JJ,II),FD(KK,JJ,II),RSGS(KK,JJ,II),
+#ifndef _FRED_BODY_
+     $        COEFDZ(KK,12),FAKTOR(KK)
+#else
+     $        COEFDZ(KK,12*3),FAKTOR(KK,JJ,II),A,B,C,D,
+     $        GI(KK,JJ,II),GJ(KK,JJ,II),GK(KK,JJ,II),BP(KK,JJ,II)
+#endif
+  
+
+      IF (NBOT .EQ. 5) THEN
+         KA = 3
+      ELSE
+         WRITE(6,*) 'RANDBEDINGUNG IN FDERFOWZ NOCH NICHT '
+         STOP
+      ENDIF  
+      
+      IF (NTOP .EQ. 5 .OR. NTOP .EQ. 3) THEN
+         KE = KK-2
+      ELSE
+         WRITE(6,*) 'RANDBEDINGUNG IN FDERFOWZ NOCH NICHT '
+         STOP
+      ENDIF
+
+C                                    ERSTER PHYSIKALISCHER PUNKT
+      K = KA
+#ifndef _FRED_BODY_
+      LCOL(K) = COEFDZ(K,1)
+      DIAG(K) = COEFDZ(K,2)
+      RCOL(K) = COEFDZ(K,3)
+C       LCOL(K) = 0.0
+C       DIAG(K) = 1.0
+C       RCOL(K) = 0.0
+#endif
+
+      DO I = ISTART, ISTOP
+         DO J = JSTART, JSTOP
+#ifdef _FRED_BODY_
+            GI(K,J,I) = COEFDZ(K,1)
+            GJ(K,J,I) = COEFDZ(K,2)
+            GK(K,J,I) = COEFDZ(K,3)
+#endif
+
+#if !defined _4TH_KOBAYASHI_ 
+            RSGS(K,J,I) =  COEFDZ(K,4) * F(K-1,J,I)
+     $                   + COEFDZ(K,5) * F(K  ,J,I)
+     $                   + COEFDZ(K,6) * F(K+1,J,I)
+#else
+            RSGS(K,J,I) =  COEFDZ(K,4) * F(K-1,J,I)
+     $                   + COEFDZ(K,5) * F(K  ,J,I)
+     $                   + COEFDZ(K,6) * F(K+1,J,I)
+C            RSGS(K,J,I) = (
+C     $                   + F(K  ,J,I))*DZ(K)
+#endif     
+   
+         ENDDO
+      ENDDO
+
+C                                    LETZTER PHYSIKALISCHER PUNKT
+
+      K = KE
+#ifndef _FRED_BODY_
+      LCOL(K) = COEFDZ(K,1)
+      DIAG(K) = COEFDZ(K,2)
+      RCOL(K) = COEFDZ(K,3)
+C      LCOL(K) = 0.0
+C      DIAG(K) = 1.0
+C      RCOL(K) = 0.0
+#endif
+
+      DO I = ISTART, ISTOP
+         DO J = JSTART, JSTOP
+#ifdef _FRED_BODY_
+            GI(K,J,I) = COEFDZ(K,1)
+            GJ(K,J,I) = COEFDZ(K,2)
+            GK(K,J,I) = COEFDZ(K,3)
+#endif
+            RSGS(K,J,I) =  COEFDZ(K,4) * F(K  ,J,I)
+     $                   + COEFDZ(K,5) * F(K-1,J,I)
+     $                   + COEFDZ(K,6) * F(K-2,J,I)
+C            RSGS(K,J,I) =
+C     $                   (- F(K-1,J,I))*DZ(K)
+         ENDDO
+      ENDDO
+
+
+
+C                                                IM GEBIET 
+
+      DO I = ISTART, ISTOP
+         DO J = JSTART, JSTOP
+            DO K = KA+1 , KE-1
+#ifndef _FRED_BODY_
+               LCOL(K) = COEFDZ(K,1)
+               DIAG(K) = COEFDZ(K,2)
+               RCOL(K) = COEFDZ(K,3)
+#if !defined _4TH_KOBAYASHI_ 
+               RSGS(K,J,I) = (COEFDZ(K,4) * F  (K  ,J,I)
+     $                      + COEFDZ(K,5) * FIN(K  ,J,I)
+     $                      + COEFDZ(K,6) * F  (K-1,J,I))* DDZ(K)
+#else
+               RSGS(K,J,I) = (COEFDZ(K,4) * F  (K-1  ,J,I)
+     $                      + COEFDZ(K,5) * FIN(K  ,J,I)
+     $                      + COEFDZ(K,6) * F  (K,J,I))
+#endif
+
+#else
+
+C          A =    BP(K,J,I)
+C          B = (1-BP(K,J,I))*    BP(K+1,J,I)
+C          C = (1-BP(K,J,I))*    BP(K-1,J,I)
+C          D = (1-BP(K,J,I))* (1-BP(K-1,J,I))* (1-BP(K+1,J,I))
+
+          A =    BP(K-1,J,I) *   BP(K,J,I)
+          B = (1-BP(K-1,J,I))*   BP(K,J,I)
+          C = (1-BP(K,J,I  ))*   BP(K-1,J,I)
+          D = (1-BP(K,J,I  ))*(1-BP(K-1,J,I))
+
+          GI(K,J,I) =  COEFDZ(K,1)    * A
+     $               + COEFDZ(K,12+1) * B
+     $               + COEFDZ(K,24+1) * C
+          GJ(K,J,I) =  COEFDZ(K,2)    * A
+     $               + COEFDZ(K,12+2) * B
+     $               + COEFDZ(K,24+2) * C
+     $               + 1.0            * D
+          GK(K,J,I) =  COEFDZ(K,3)    * A
+     $               + COEFDZ(K,12+3) * B
+     $               + COEFDZ(K,24+3) * C
+
+                RSGS(K,J,I) =
+     $   (COEFDZ(K,4)    * F(K,J,I)+
+     $    COEFDZ(K,5)    * FIN(K,J,I)+
+     $    COEFDZ(K,6)    * F(K-1,J,I))*DDZ(K) * A
+     $ + (COEFDZ(K,12+4) * F(K-1,J,I)+
+     $    COEFDZ(K,12+5) * F(K,J,I)+
+     $    COEFDZ(K,12+6) * F(K+1,J,I)) *        B
+     $ + (COEFDZ(K,24+4) * F(K,J,I)+
+     $    COEFDZ(K,24+5) * F(K-1,J,I)+
+     $    COEFDZ(K,24+6) * F(K-2,J,I)) *        C
+#endif
+
+
+            ENDDO
+         ENDDO
+      ENDDO
+
+      CALL THOMASK(KK,JJ,II,KA,KE,JSTART,JSTOP,ISTART,ISTOP,
+     $     LCOL,DIAG,RCOL,RSGS,FAKTOR,FD
+#ifdef _FRED_BODY_
+     $     ,BP,GI,GJ,GK
+#endif
+     $     )
+C*********************  EXTRAPOLATION   *******************************
+
+      IF (NTOP.EQ.3) THEN
+         K = KE+1
+         DO I = ISTART,ISTOP
+            DO J = JSTART,JSTOP
+               FD(K,J,I) = - COEFDZ(K,1) * FD(K-1,J,I)
+     $                    +  COEFDZ(K,4) * F (K-1,J,I)
+     $                    +  COEFDZ(K,5) * F (K-2,J,I)
+     $                    +  COEFDZ(K,6) * F (K-3,J,I)
+            ENDDO
+         ENDDO
+      ENDIF
+
+      RETURN
+      END
+

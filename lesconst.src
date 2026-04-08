@@ -1,0 +1,72 @@
+       SUBROUTINE LESCONST (KK,JJ,II,KMX,JMX,IMX,
+     $                              X,Y,Z,
+     $                              DX,DY,DZ,
+     $                              DDX,DDY,DDZ,
+     $                              CONV1S,CONV1SANF,CONV1SEND,
+     $                              TRANSLES1,TRANSLES2)
+C*MGLET***************************************************************
+C        LESCONST     CALCULATION OF THE SUBGRID SCALE CONSTANT
+C                         AND STORING IN CONV1S-FIELD
+C*MGLET***************************************************************
+C
+C PARAM: KK, JJ, II     - ARRAYDIMENSIONEN
+C        KMX, JMX, IMX  - GRENZEN DES BERECHNUNGSGEBIETES (MIT BOUND)
+C        X, Y, Z        - KOORDINATEN DER ZELLDEFINITIONSPUNKTE
+C        DX,DY,DZ       - ABSTAND DER GITTERPUNKTE
+C        DDX,DDY,DDZ    - KANTENLAENGEN DER KONTROLLVOLUMINA
+C
+C
+C VERS:  12.09.96 (A.O.): ORIGINAL
+C
+C
+C*MGLET***************************************************************
+C
+#include "konsta.h"
+#include "conles.h"
+C
+C
+      REAL        X(II),         Y(JJ),         Z(KK),
+     $           DX(II),        DY(JJ),        DZ(KK),
+     $          DDX(II),       DDY(JJ),       DDZ(KK)
+C
+C       SUBGRIDSCALE CONSTANT
+      REAL   CONV1S(II)
+C
+C
+C
+      KM1    = KMX-1
+      JM1    = JMX-1
+      IM1    = IMX-1
+      KM2    = KMX-2
+      JM2    = JMX-2
+      IM2    = IMX-2
+C
+C
+C       GEOMETRY CONSTANT TO CALCULATE THE 
+C         TRANSITION INTERPOLATION OF LES
+
+      TRANSCON = 1./(TRANSLES2-TRANSLES1)
+
+      DO I  = 1,IMX
+         IF (X(I) .LE. TRANSLES1) THEN
+           CONV1S(I) = CONV1SANF
+        
+         ELSEIF (X(I).LT.TRANSLES2 .AND. X(I).GT.TRANSLES1) THEN
+           CONV1S(I) = ((TRANSLES2-X(I))*CONV1SANF+
+     &               (X(I)-TRANSLES1)*CONV1SEND)*TRANSCON
+         
+         ELSEIF (X(I) .GE. TRANSLES2) THEN
+           CONV1S(I) = CONV1SEND
+
+         ENDIF
+       ENDDO
+
+       WRITE(44,*) '********************'
+       WRITE(44,*) 'SUBGRID SCALE CONSTANT CONV1S(I)'
+       WRITE(44,*) (CONV1S(I),I=1,IMX,1)
+       WRITE(44,*) '********************'
+
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
+
+      RETURN
+      END

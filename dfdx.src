@@ -1,0 +1,139 @@
+      SUBROUTINE DFDX (KK,JJ,II,RDX,RDY,RDZ,RDDX,RDDY,RDDZ,
+     $                  IVAR,PHI,DPHI)
+C------------------------------------------------------------
+C
+C     GETS DERIVATIVES IN SPACE ON STAGGERED GRIDS
+C
+C     260600 (SE)  ORIGINAL
+C
+C------------------------------------------------------------
+
+      REAL PHI(KK,JJ,II), DPHI(KK,JJ,II)
+
+      REAL  RDX(II),  RDY(JJ),  RDZ(KK),
+     $     RDDX(II), RDDY(JJ), RDDZ(KK)
+
+      INTEGER I,J,K
+
+      CHARACTER (LEN=3) IVAR
+
+C---------------------------------- COMPUTE DPHIDX
+
+      IF ( IVAR .EQ. 'DXS' ) THEN
+         DO I=2,II-1
+            DO J=2,JJ-1
+               DO K=2,KK-1
+
+                  DPHI(K,J,I) = (PHI(K,J,I+1) - PHI(K,J,I))*RDX(I)
+
+               ENDDO
+            ENDDO
+         ENDDO
+
+C---------------------------------- COMPUTE DPHIDX ON PRESSURE POINT
+      ELSEIF (IVAR .EQ. 'DXT' ) THEN
+       DO I=3,II-2
+        DO J=3,JJ-2
+         DO K=3,KK-2
+
+             DPHI(K,J,I) = (PHI(K,J,I+1) - PHI(K,J,I-1))/
+     $                      (1/RDX(I) + 1/RDX(I-1))
+    
+         ENDDO
+        ENDDO
+       ENDDO
+
+      ELSEIF ( IVAR .EQ. 'DDX' ) THEN
+         DO I=2,II-1
+            DO J=2,JJ-1
+               DO K=2,KK-1
+
+                  DPHI(K,J,I) = (PHI(K,J,I) - PHI(K,J,I-1))*RDDX(I)
+
+               ENDDO
+            ENDDO
+         ENDDO
+
+C---------------------------------- COMPUTE DPHIDY
+
+      ELSEIF ( IVAR .EQ. 'DYS' ) THEN
+         DO I=2,II-1
+            DO J=2,JJ-1
+               DO K=2,KK-1
+
+                  DPHI(K,J,I) = (PHI(K,J+1,I) - PHI(K,J,I))*RDY(J)
+
+               ENDDO
+            ENDDO
+         ENDDO
+
+      ELSEIF (IVAR .EQ. 'DYT' ) THEN
+       DO I=3,II-2
+        DO J=3,JJ-2
+         DO K=3,KK-2
+
+             DPHI(K,J,I) = (PHI(K,J+1,I) - PHI(K,J-1,I))/
+     $                      (1/RDY(J) + 1/RDY(J-1))
+
+         ENDDO
+        ENDDO
+       ENDDO
+
+      ELSEIF ( IVAR .EQ. 'DDY' ) THEN
+         DO I=2,II-1
+            DO J=2,JJ-1
+               DO K=2,KK-1
+
+                  DPHI(K,J,I) = (PHI(K,J,I) - PHI(K,J-1,I))*RDDY(J)
+
+               ENDDO
+            ENDDO
+         ENDDO
+
+C---------------------------------- COMPUTE DPHIDZ
+
+      ELSEIF ( IVAR .EQ. 'DZS' ) THEN
+         DO I=2,II-1
+            DO J=2,JJ-1
+               DO K=2,KK-1
+
+                  DPHI(K,J,I) = (PHI(K+1,J,I) - PHI(K,J,I))*RDZ(K)
+
+               ENDDO
+            ENDDO
+         ENDDO
+
+      ELSEIF (IVAR .EQ. 'DZT' ) THEN
+       DO I=3,II-2
+        DO J=3,JJ-2
+             K=3
+             DPHI(K,J,I) = (PHI(K+1,J,I) - PHI(K-1,J,I))/
+     $                      (1/RDZ(K) + 1/(0.5*RDZ(K-1)))
+         DO K=4,KK-3
+
+             DPHI(K,J,I) = (PHI(K+1,J,I) - PHI(K-1,J,I))/
+     $                      (1/RDZ(K) + 1/RDZ(K-1))
+
+         ENDDO
+            K=KK-2
+             DPHI(K,J,I) = (PHI(K+1,J,I) - PHI(K-1,J,I))/
+     $                      (1/(0.5*RDZ(K)) + 1/RDZ(K-1))
+        ENDDO
+       ENDDO
+
+
+      ELSEIF ( IVAR .EQ. 'DDZ' ) THEN
+         DO I=2,II-1
+            DO J=2,JJ-1
+               DO K=2,KK-1
+
+                  DPHI(K,J,I) = (PHI(K,J,I) - PHI(K-1,J,I))*RDDZ(K)
+
+               ENDDO
+            ENDDO
+         ENDDO
+
+      ENDIF
+   
+      RETURN
+      END

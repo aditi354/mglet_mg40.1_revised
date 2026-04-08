@@ -1,0 +1,81 @@
+      SUBROUTINE BBOOP1 (KMX,JMX,IMX,
+     $                    U,V,W,P,G,
+     $                    ISTART,ISTOP,JSTART,JSTOP,ITYP
+#ifdef _TSCAL_
+     $                   ,T
+#endif
+     $                   )  
+C*STARLET***************************************************************
+C        B B O N O S   SETZEN DER RANDBEDINGUNGEN FUER DIE
+C                         GESCHWINDIGKEITSFELDER  AND SCALAR T.
+C                         (LARGE-EDDY-SIMULATION)
+C*STARLET***************************************************************
+C
+C PARAM: 
+C        KMX, JMX, IMX  - DIMENSIONEN DES GITTERS 
+C        U(KMX,JMX,IMX) + GESCHWINDIGKEITSFELD
+C        V(KMX,JMX,IMX) + GESCHWINDIGKEITSFELD
+C        W(KMX,JMX,IMX) + GESCHWINDIGKEITSFELD
+C        T(KMX,JMX,IMX) + SCALAR T FIELD
+C        P(KMX,JMX,IMX) - DRUCKFELD
+C        G(KMX,JMX,IMX) - EFFEKTIVE DYNAMISCHE VISKOSITAET (= MUE)
+C        ITYP           - HOLLERITH-KONSTANTE:
+C                         'P'  VOR DER DRUCKKORREKTUR
+C                         'T'  VOR DEM ZEITSCHRITT
+C
+C VERS:   8. 3.93 (MM)  : ORIGINAL
+C                         AUS BFROLE (BFROL) ABGELEITET
+C        28.02.03 (TB)  : SCALAR BOUNDARY TREATMENT IMPLEMENTED
+C
+C DEFINE-DIREKTIVEN     : QUD 
+C
+C*STARLET***************************************************************
+C
+#include "konsta.h"
+C
+      CHARACTER (LEN=1)  ITYP
+C
+      REAL
+     $            U(KMX,JMX,IMX),   V(KMX,JMX,IMX),   W(KMX,JMX,IMX),
+     $            P(KMX,JMX,IMX),   G(KMX,JMX,IMX)
+C
+#ifdef _TSCAL_
+      REAL        T(KMX,JMX,IMX)
+#endif
+C
+C
+C                                 **************************************
+C                                 REIBUNGSBEHAFTETE, UNDURCHLAESSIGE WAN
+C                                 **************************************
+C
+C
+C 
+         IF (ITYP.EQ.'P') RETURN    
+C                              FUER ZEITSCHRITT
+         DO I=ISTART,ISTOP
+         DO J=JSTART,JSTOP
+
+#ifdef _LIMIT_OUTFLOW_BOTTOM_
+               U(  2,J,I) = 0.0
+               V(  2,J,I) = 0.0
+               W(  1,J,I) = MIN(0.01,W(  2,J,I))
+C jk 3.8.2003
+C               W(  2,J,I) = MIN(0.01,W(  2,J,I))
+C               W(  1,J,I) = MIN(0.01,W(  2,J,I))
+#else
+               U(  2,J,I) = U(  3,J,I)
+               V(  2,J,I) = V(  3,J,I)
+               W(  1,J,I) = W(  2,J,I)
+#endif
+               P(  2,J,I) = 0.0
+               G(  2,J,I) = G(  3,J,I)
+#ifdef _TSCAL_
+               T(  2,J,I) = T(  3,J,I)
+#endif               
+
+         ENDDO
+         ENDDO
+
+      RETURN
+      END
+

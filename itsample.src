@@ -1,0 +1,450 @@
+      SUBROUTINE ITSAMPLE (IGRID,IPCGES,DIVGMX,EPSU,EPSV,EPSW,
+     $     ESUMG,ESUMS,WSSX,WSSY,WSSZ,WNSX,WNSY,WNSZ,
+     $     UBULK,WALLSSX,WALLSSY,WALLSSZ
+     $    ,IDIVMAX,JDIVMAX,KDIVMAX,XDIVMAX,YDIVMAX,ZDIVMAX,GRDIVMAX
+#ifdef _TSCAL_
+     $    ,DTMAX,TMAX,ITMAX,JTMAX,KTMAX,XTMAX,YTMAX,ZTMAX,GRDTMAX,ITSTEP
+     $    ,PRTMAX,XPRTMAX,YPRTMAX,ZPRTMAX,PRTMIN,XPRTMIN,YPRTMIN,ZPRTMIN 
+#ifdef _SCALGRIDDIAGNOSE_
+     $    ,DDSMAX,SMMAX,SPMAX,ISPMAX,JSPMAX,KSPMAX,XSPMAX,YSPMAX,ZSPMAX
+     $    ,GRDSMAX         
+#endif 
+#ifdef _SCALTRANSDIAGNOSE_
+     $    ,QCE,QCW,QCN,QCS,QCT,QCB,QDE,QDW,QDN,QDS,QDT,QDB,QDC            
+#endif         
+#endif     
+     $     )
+
+#include "mgpar.h"
+#include "colevel.h"
+#include "cogrdpro.h"
+#include "cogrdcon.h"
+#include "comgrid.h"
+#include "konsta.h"
+#ifdef _MPI_
+#include "compi.h"
+#include "mpif.h"
+
+CCCCCCADDED FOR CORRECTION BY TB, 280503 CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
+C                 MPI-VARIABLEN
+C
+      INTEGER ISTATUS(MPI_STATUS_SIZE)
+#endif
+C
+C                                 FUER DIE KONTROLLE DES RECHENVORGANGES
+C
+      REAL     EPSU(MAXGRIDS),  EPSV(MAXGRIDS),  EPSW(MAXGRIDS)
+      REAL     ESUMG(MAXGRIDS),  ESUMS(MAXGRIDS)
+      REAL     WSSX(MAXGRIDS),  WSSY(MAXGRIDS),  WSSZ(MAXGRIDS)
+      REAL     WNSX(MAXGRIDS),  WNSY(MAXGRIDS),  WNSZ(MAXGRIDS)
+      REAL     WALLSSX(6,MAXGRIDS),
+     $         WALLSSY(6,MAXGRIDS),
+     $         WALLSSZ(6,MAXGRIDS)
+      REAL     UBULK(MAXGRIDS)
+      INTEGER IPCGES(MAXGRIDS)
+      
+      REAL    DIVGMX(MAXGRIDS),XDIVMAX(MAXGRIDS),YDIVMAX(MAXGRIDS),
+     $        ZDIVMAX(MAXGRIDS)
+
+      INTEGER 
+     $ IDIVMAX(MAXGRIDS),JDIVMAX(MAXGRIDS),KDIVMAX(MAXGRIDS),
+     $ GRDIVMAX(MAXGRIDS)
+
+#ifdef _TSCAL_
+      REAL DTMAX(MAXGRIDS),TMAX(MAXGRIDS),
+     $     XTMAX(MAXGRIDS),YTMAX(MAXGRIDS),ZTMAX(MAXGRIDS),
+     $     PRTMAX(MAXGRIDS),PRTMIN(MAXGRIDS),
+     $     XPRTMAX(MAXGRIDS),YPRTMAX(MAXGRIDS),ZPRTMAX(MAXGRIDS),    
+     $     XPRTMIN(MAXGRIDS),YPRTMIN(MAXGRIDS),ZPRTMIN(MAXGRIDS)     
+      INTEGER 
+     $ ITMAX(MAXGRIDS),JTMAX(MAXGRIDS),KTMAX(MAXGRIDS),GRDTMAX(MAXGRIDS)
+#ifdef _SCALGRIDDIAGNOSE_
+      REAL DDSMAX(MAXGRIDS),SMMAX(MAXGRIDS),SPMAX(MAXGRIDS),
+     $     XSPMAX(MAXGRIDS),YSPMAX(MAXGRIDS),ZSPMAX(MAXGRIDS)  
+      INTEGER ISPMAX(MAXGRIDS),JSPMAX(MAXGRIDS),KSPMAX(MAXGRIDS),
+     $        GRDSMAX(MAXGRIDS)                       
+#endif     
+#ifdef _SCALTRANSDIAGNOSE_
+      REAL QCE(MAXGRIDS),QCW(MAXGRIDS),QCN(MAXGRIDS),QCS(MAXGRIDS),
+     $     QCT(MAXGRIDS),QCB(MAXGRIDS),QDE(MAXGRIDS),QDW(MAXGRIDS),
+     $     QDN(MAXGRIDS),QDS(MAXGRIDS),QDT(MAXGRIDS),QDB(MAXGRIDS),
+     $     QDC(MAXGRIDS) 
+#endif         
+#endif
+
+          IF (LSLICE(IGRID)) THEN
+                G = 1./FLOAT(NOFSLCHILDS(IGRID))
+                GX= 1./FLOAT(NXSLICE(IGRID)) 
+
+                      IPCGES(IGRID) = 0
+                      DIVGMX(IGRID) = 0.0
+                      EPSU(IGRID) = 0.0
+                      EPSV(IGRID) = 0.0
+                      EPSW(IGRID) = 0.0
+                      ESUMG(IGRID) = 0.0
+                      ESUMS(IGRID) = 0.0
+                      WSSX(IGRID) = 0.0
+                      WSSY(IGRID) = 0.0
+                      WSSZ(IGRID) = 0.0
+                      WNSX(IGRID) = 0.0
+                      WNSY(IGRID) = 0.0
+                      WNSZ(IGRID) = 0.0
+                      UBULK(IGRID) = 0.0
+                      GRADPX(IGRID) = 0.0
+                      DO IDIR = 1,6
+                         WALLSSX(IDIR,IGRID) = 0.0
+                         WALLSSY(IDIR,IGRID) = 0.0
+                         WALLSSZ(IDIR,IGRID) = 0.0
+                      ENDDO     
+C
+                      IDIVMAX(IGRID) =  0   
+                      JDIVMAX(IGRID) =  0   
+                      KDIVMAX(IGRID) =  0   
+                      XDIVMAX(IGRID) =  0.0 
+                      YDIVMAX(IGRID) =  0.0 
+                      ZDIVMAX(IGRID) =  0.0                      
+                      GRDIVMAX(IGRID)=  0                       
+
+#ifdef _TSCAL_
+          IF (ITSTEP .GT. 0) THEN
+                      DTMAX(IGRID) =  0.0
+                       TMAX(IGRID) =  0.0                      
+                      ITMAX(IGRID) =  0   
+                      JTMAX(IGRID) =  0   
+                      KTMAX(IGRID) =  0   
+                      XTMAX(IGRID) =  0.0 
+                      YTMAX(IGRID) =  0.0 
+                      ZTMAX(IGRID) =  0.0                      
+                      GRDTMAX(IGRID)= 0 
+                      PRTMAX(IGRID) = 0.0 
+                      PRTMIN(IGRID) = GREAT 
+                      XPRTMAX(IGRID)= 0.0
+                      YPRTMAX(IGRID)= 0.0
+                      ZPRTMAX(IGRID)= 0.0 
+                      XPRTMIN(IGRID)= 0.0
+                      YPRTMIN(IGRID)= 0.0
+                      ZPRTMIN(IGRID)= 0.0  
+#ifdef _SCALGRIDDIAGNOSE_
+                      DDSMAX(IGRID) = 0.0
+                      SMMAX(IGRID) = 0.0  
+                      SPMAX(IGRID) = 0.0
+                      XSPMAX(IGRID) = 0.0 
+                      YSPMAX(IGRID) = 0.0
+                      ZSPMAX(IGRID) = 0.0  
+                      ISPMAX(IGRID) = 0
+                      JSPMAX(IGRID) = 0  
+                      KSPMAX(IGRID) = 0 
+                      GRDSMAX(IGRID)= 0                    
+#endif                                                                                        
+#ifdef _SCALTRANSDIAGNOSE_
+                      QCE(IGRID) = 0.0
+                      QCW(IGRID) = 0.0  
+                      QCN(IGRID) = 0.0
+                      QCS(IGRID) = 0.0 
+                      QCT(IGRID) = 0.0
+                      QCB(IGRID) = 0.0  
+                      QDE(IGRID) = 0.0
+                      QDW(IGRID) = 0.0  
+                      QDN(IGRID) = 0.0
+                      QDS(IGRID) = 0.0 
+                      QDT(IGRID) = 0.0
+                      QDB(IGRID) = 0.0 
+                      QDC(IGRID) = 0.0                       
+#endif                      
+          ENDIF
+#endif
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
+             DO I = 1,NOFSLCHILDS(IGRID)
+                ISUB = IGRDOFSLCHILD(I,IGRID)
+#ifdef _MPI_
+                IPROC = IDPROCOFGRD(ISUB)
+                IF ( 0 .NE. IPROC ) THEN
+                   IF (MYID .EQ. IPROC) THEN
+                      SENDBUF(1) = FLOAT(IPCGES(ISUB))
+                      SENDBUF(2) = DIVGMX(ISUB)
+                      SENDBUF(3) = EPSU(ISUB)
+                      SENDBUF(4) = EPSV(ISUB)
+                      SENDBUF(5) = EPSW(ISUB)
+                      SENDBUF(6) = ESUMG(ISUB)
+                      SENDBUF(7) = ESUMS(ISUB)
+                      SENDBUF(8) = WSSX(ISUB)
+                      SENDBUF(9) = WSSY(ISUB)
+                      SENDBUF(10) = WSSZ(ISUB)
+                      SENDBUF(11) = WNSX(ISUB)
+                      SENDBUF(12) = WNSY(ISUB)
+                      SENDBUF(13) = WNSZ(ISUB)
+                      SENDBUF(14) = UBULK(ISUB)
+                      SENDBUF(15) = GRADPX(ISUB)
+
+                      DO IDIR = 1,6
+                         SENDBUF(15+IDIR) = WALLSSX(IDIR,ISUB)
+                         SENDBUF(21+IDIR) = WALLSSY(IDIR,ISUB)
+                         SENDBUF(27+IDIR) = WALLSSZ(IDIR,ISUB)                      
+                      ENDDO
+
+                      SENDBUF(34) = IDIVMAX(ISUB)
+                      SENDBUF(35) = JDIVMAX(ISUB)                      
+                      SENDBUF(36) = KDIVMAX(ISUB)
+                      SENDBUF(37) = XDIVMAX(ISUB)
+                      SENDBUF(38) = YDIVMAX(ISUB)                      
+                      SENDBUF(39) = ZDIVMAX(ISUB)                      
+                      SENDBUF(40) = ISUB
+#ifdef _TSCAL_                      
+                   IF (ITSTEP .GT. 0) THEN
+                      SENDBUF(41) = DTMAX(ISUB)
+                      SENDBUF(42) = ITMAX(ISUB)
+                      SENDBUF(43) = JTMAX(ISUB)                      
+                      SENDBUF(44) = KTMAX(ISUB)
+                      SENDBUF(45) = XTMAX(ISUB)
+                      SENDBUF(46) = YTMAX(ISUB)                      
+                      SENDBUF(47) = ZTMAX(ISUB)                      
+                      SENDBUF(48) = ISUB
+                      SENDBUF(49) = TMAX(ISUB)  
+                      SENDBUF(50) = PRTMAX(ISUB) 
+                      SENDBUF(51) = PRTMIN(ISUB) 
+                      SENDBUF(52) = XPRTMAX(ISUB)
+                      SENDBUF(53) = YPRTMAX(ISUB)
+                      SENDBUF(54) = ZPRTMAX(ISUB)
+                      SENDBUF(55) = XPRTMIN(ISUB)
+                      SENDBUF(56) = YPRTMIN(ISUB)
+                      SENDBUF(57) = ZPRTMIN(ISUB)
+#ifdef _SCALGRIDDIAGNOSE_
+                      SENDBUF(58) = DDSMAX(ISUB)
+                      SENDBUF(59) = SMMAX(ISUB)  
+                      SENDBUF(60) = SPMAX(ISUB)
+                      SENDBUF(61) = XSPMAX(ISUB) 
+                      SENDBUF(62) = YSPMAX(ISUB)
+                      SENDBUF(63) = ZSPMAX(ISUB)  
+                      SENDBUF(64) = ISPMAX(ISUB)
+                      SENDBUF(65) = JSPMAX(ISUB)  
+                      SENDBUF(66) = KSPMAX(ISUB)   
+                      SENDBUF(67) = ISUB                                          
+#endif                       
+#ifdef _SCALTRANSDIAGNOSE_
+                      SENDBUF(68) = QCE(ISUB)
+                      SENDBUF(69) = QCW(ISUB)  
+                      SENDBUF(70) = QCN(ISUB)
+                      SENDBUF(71) = QCS(ISUB) 
+                      SENDBUF(72) = QCT(ISUB)
+                      SENDBUF(73) = QCB(ISUB)  
+                      SENDBUF(74) = QDE(ISUB)
+                      SENDBUF(75) = QDW(ISUB)  
+                      SENDBUF(76) = QDN(ISUB)
+                      SENDBUF(77) = QDS(ISUB) 
+                      SENDBUF(78) = QDT(ISUB)
+                      SENDBUF(79) = QDB(ISUB) 
+                      SENDBUF(80) = QDC(ISUB)                       
+#endif                                            
+                   ENDIF                   
+#endif  
+C                                      
+C				   write (0,*) myid,igrid
+                      CALL MPI_SEND (SENDBUF, 80, 
+     $ MPI_DOUBLE_PRECISION, 
+     $                     0, IGRID, MPI_COMM_WORLD , IERR)
+                   ENDIF
+                   
+                   IF (MYID .EQ. 0 ) THEN
+                      CALL MPI_RECV    (RECVBUF, 80, 
+     $ MPI_DOUBLE_PRECISION,
+     $                     IPROC, IGRID, MPI_COMM_WORLD, ISTATUS,IERR)
+
+                      IPCGES(IGRID) = MAX(IPCGES(IGRID),INT(RECVBUF(1)))
+C                      DIVGMX(IGRID) = MAX(DIVGMX(IGRID),RECVBUF(2))
+                      EPSU(IGRID) = EPSU(IGRID) + RECVBUF(3)*G
+                      EPSV(IGRID) = EPSV(IGRID) + RECVBUF(4)*G
+                      EPSW(IGRID) = EPSW(IGRID) + RECVBUF(5)*G
+                      ESUMG(IGRID) = ESUMG(IGRID) + RECVBUF(6)*G
+                      ESUMS(IGRID) = ESUMS(IGRID) + RECVBUF(7)*G
+                      WSSX(IGRID) = WSSX(IGRID) + RECVBUF(8)*G   
+                      WSSY(IGRID) = WSSY(IGRID) + RECVBUF(9)*G
+                      WSSZ(IGRID) = WSSZ(IGRID) + RECVBUF(10)*G
+                      WNSX(IGRID) = WNSX(IGRID) + RECVBUF(11)*G
+                      WNSY(IGRID) = WNSY(IGRID) + RECVBUF(12)*G
+                      WNSZ(IGRID) = WNSZ(IGRID) + RECVBUF(13)*G
+                      UBULK(IGRID) = UBULK(IGRID) + RECVBUF(14)*G
+                      GRADPX(IGRID) = GRADPX(IGRID) + RECVBUF(15)*G
+
+                      DO IDIR = 1,6
+                         WALLSSX(IDIR,IGRID) = WALLSSX(IDIR,IGRID) 
+     $                                       + RECVBUF(15+IDIR)*G
+                         WALLSSY(IDIR,IGRID) = WALLSSY(IDIR,IGRID) 
+     $                                       + RECVBUF(21+IDIR)*G
+                         WALLSSZ(IDIR,IGRID) = WALLSSZ(IDIR,IGRID)
+     $                                       + RECVBUF(27+IDIR)*G
+                      ENDDO
+                
+                      IF (ABS(RECVBUF(2)) .GT. ABS(DIVGMX(IGRID))) THEN                     
+                       DIVGMX(IGRID)   = RECVBUF(2)
+                       IDIVMAX(IGRID)  = RECVBUF(34)
+                       JDIVMAX(IGRID)  = RECVBUF(35)
+                       KDIVMAX(IGRID)  = RECVBUF(36)
+                       XDIVMAX(IGRID)  = RECVBUF(37)
+                       YDIVMAX(IGRID)  = RECVBUF(38)
+                       ZDIVMAX(IGRID)  = RECVBUF(39) 
+                       GRDIVMAX(IGRID) = RECVBUF(40) 
+                      ENDIF 
+                                      
+#ifdef _TSCAL_
+                      IF (ITSTEP .GT. 0) THEN
+                      IF (ABS(RECVBUF(41)) .GT. ABS(DTMAX(IGRID))) THEN                     
+                       DTMAX(IGRID)  = RECVBUF(41)
+                       ITMAX(IGRID)  = RECVBUF(42)
+                       JTMAX(IGRID)  = RECVBUF(43)
+                       KTMAX(IGRID)  = RECVBUF(44)
+                       XTMAX(IGRID)  = RECVBUF(45)
+                       YTMAX(IGRID)  = RECVBUF(46)
+                       ZTMAX(IGRID)  = RECVBUF(47) 
+                       GRDTMAX(IGRID)= RECVBUF(48)
+                        TMAX(IGRID) =  RECVBUF(49)  
+#ifdef _SCALTRANSDIAGNOSE_
+                       QCE(IGRID)    = RECVBUF(68) 
+                       QCW(IGRID)    = RECVBUF(69)   
+                       QCN(IGRID)    = RECVBUF(70) 
+                       QCS(IGRID)    = RECVBUF(71)  
+                       QCT(IGRID)    = RECVBUF(72) 
+                       QCB(IGRID)    = RECVBUF(73)   
+                       QDE(IGRID)    = RECVBUF(74) 
+                       QDW(IGRID)    = RECVBUF(75)   
+                       QDN(IGRID)    = RECVBUF(76) 
+                       QDS(IGRID)    = RECVBUF(77)  
+                       QDT(IGRID)    = RECVBUF(78) 
+                       QDB(IGRID)    = RECVBUF(79)  
+                       QDC(IGRID)    = RECVBUF(80)                        
+#endif                         
+                      ENDIF
+#ifdef _SCALGRIDDIAGNOSE_
+                      IF (ABS(RECVBUF(60)) .GT. ABS(SPMAX(IGRID))) THEN 
+                       DDSMAX(IGRID)  = RECVBUF(58) 
+                       SMMAX(IGRID)  = RECVBUF(59)   
+                       SPMAX(IGRID)  = RECVBUF(60) 
+                       XSPMAX(IGRID) = RECVBUF(61)  
+                       YSPMAX(IGRID) = RECVBUF(62) 
+                       ZSPMAX(IGRID) = RECVBUF(63)   
+                       ISPMAX(IGRID) = RECVBUF(64) 
+                       JSPMAX(IGRID) = RECVBUF(65)   
+                       KSPMAX(IGRID) = RECVBUF(66)
+                       GRDSMAX(IGRID)= RECVBUF(67)                       
+                      ENDIF                       
+#endif                     
+                      IF (ABS(RECVBUF(50)) .GT. ABS(PRTMAX(IGRID))) THEN                                               
+                       PRTMAX(IGRID) = RECVBUF(50)
+                       XPRTMAX(IGRID)= RECVBUF(51)
+                       YPRTMAX(IGRID)= RECVBUF(52)
+                       ZPRTMAX(IGRID)= RECVBUF(53)
+                      ENDIF 
+                      IF (ABS(RECVBUF(54)) .LT. ABS(PRTMIN(IGRID))) THEN                        
+                       PRTMIN(IGRID) = RECVBUF(54)                       
+                       XPRTMIN(IGRID)= RECVBUF(55)
+                       YPRTMIN(IGRID)= RECVBUF(56)
+                       ZPRTMIN(IGRID)= RECVBUF(57)                                                                                
+                      ENDIF 
+                      ENDIF                                                                                        
+#endif               
+                   ENDIF
+                ELSE
+                   IF (MYID .EQ. 0) THEN
+#endif
+
+                      IPCGES(IGRID) = MAX(IPCGES(IGRID),IPCGES(ISUB))
+C                      DIVGMX(IGRID) = MAX(DIVGMX(IGRID),DIVGMX(ISUB))
+                      EPSU(IGRID) = EPSU(IGRID) + EPSU(ISUB)*G
+                      EPSV(IGRID) = EPSV(IGRID) + EPSV(ISUB)*G
+                      EPSW(IGRID) = EPSW(IGRID) + EPSW(ISUB)*G
+                      ESUMG(IGRID) = ESUMG(IGRID) + ESUMG(ISUB)*G
+                      ESUMS(IGRID) = ESUMS(IGRID) + ESUMS(ISUB)*G
+                      WSSX(IGRID) = WSSX(IGRID) + WSSX(ISUB)*G
+                      WSSY(IGRID) = WSSY(IGRID) + WSSY(ISUB)*G
+                      WSSZ(IGRID) = WSSZ(IGRID) + WSSZ(ISUB)*G
+                      WNSX(IGRID) = WNSX(IGRID) + WNSX(ISUB)*G
+                      WNSY(IGRID) = WNSY(IGRID) + WNSY(ISUB)*G
+                      WNSZ(IGRID) = WNSZ(IGRID) + WNSZ(ISUB)*G
+                      UBULK(IGRID) = UBULK(IGRID) + UBULK(ISUB)*G
+                      GRADPX(IGRID) = GRADPX(IGRID) + GRADPX(ISUB)*G
+                     
+                      DO IDIR = 1,6
+                         WALLSSX(IDIR,IGRID) = WALLSSX(IDIR,IGRID) *G
+     $                                       + WALLSSX(IDIR,ISUB)*G
+                         WALLSSY(IDIR,IGRID) = WALLSSY(IDIR,IGRID)*G 
+     $                                       + WALLSSY(IDIR,ISUB)*G
+                         WALLSSZ(IDIR,IGRID) = WALLSSZ(IDIR,IGRID)*G
+     $                                       + WALLSSZ(IDIR,ISUB) *G
+                      ENDDO
+
+                     IF (ABS(DIVGMX(ISUB)) .GT. ABS(DIVGMX(IGRID))) THEN                     
+                       DIVGMX(IGRID)  = DIVGMX(ISUB)
+                       IDIVMAX(IGRID) = IDIVMAX(ISUB)
+                       JDIVMAX(IGRID) = JDIVMAX(ISUB)
+                       KDIVMAX(IGRID) = KDIVMAX(ISUB)
+                       XDIVMAX(IGRID) = XDIVMAX(ISUB)
+                       YDIVMAX(IGRID) = YDIVMAX(ISUB)
+                       ZDIVMAX(IGRID) = ZDIVMAX(ISUB)                       
+                       GRDIVMAX(IGRID)= ISUB                                           
+                      ENDIF 
+
+#ifdef _TSCAL_
+                      IF (ITSTEP .GT. 0) THEN
+                      IF (ABS(DTMAX(ISUB)) .GT. ABS(DTMAX(IGRID))) THEN                     
+                       DTMAX(IGRID) = DTMAX(ISUB)
+                       ITMAX(IGRID) = ITMAX(ISUB)
+                       JTMAX(IGRID) = JTMAX(ISUB)
+                       KTMAX(IGRID) = KTMAX(ISUB)
+                       XTMAX(IGRID) = XTMAX(ISUB)
+                       YTMAX(IGRID) = YTMAX(ISUB)
+                       ZTMAX(IGRID) = ZTMAX(ISUB)                       
+                       GRDTMAX(IGRID)=ISUB 
+                       TMAX(IGRID)  = TMAX(ISUB) 
+#ifdef _SCALTRANSDIAGNOSE_
+                       QCE(IGRID)   = QCE(ISUB) 
+                       QCW(IGRID)   = QCW(ISUB)   
+                       QCN(IGRID)   = QCN(ISUB) 
+                       QCS(IGRID)   = QCS(ISUB)  
+                       QCT(IGRID)   = QCT(ISUB) 
+                       QCB(IGRID)   = QCB(ISUB)   
+                       QDE(IGRID)   = QDE(ISUB) 
+                       QDW(IGRID)   = QDW(ISUB)   
+                       QDN(IGRID)   = QDN(ISUB) 
+                       QDS(IGRID)   = QDS(ISUB)  
+                       QDT(IGRID)   = QDT(ISUB) 
+                       QDB(IGRID)   = QDB(ISUB)  
+                       QDC(IGRID)   = QDC(ISUB)                        
+#endif                                                                  
+                      ENDIF
+#ifdef _SCALGRIDDIAGNOSE_
+                      IF (ABS(SPMAX(ISUB)) .GT. ABS(SPMAX(IGRID))) THEN 
+                       DDSMAX(IGRID) = DDSMAX(ISUB) 
+                       SMMAX(IGRID)  = SMMAX(ISUB)   
+                       SPMAX(IGRID)  = SPMAX(ISUB) 
+                       XSPMAX(IGRID) = XSPMAX(ISUB)  
+                       YSPMAX(IGRID) = YSPMAX(ISUB) 
+                       ZSPMAX(IGRID) = ZSPMAX(ISUB)   
+                       ISPMAX(IGRID) = ISPMAX(ISUB) 
+                       JSPMAX(IGRID) = JSPMAX(ISUB)   
+                       KSPMAX(IGRID) = KSPMAX(ISUB)
+                       GRDSMAX(IGRID)= ISUB                        
+                      ENDIF                       
+#endif                   
+                     IF (ABS(PRTMAX(ISUB)) .GT. ABS(PRTMAX(IGRID))) THEN                     
+                       PRTMAX(IGRID)  = PRTMAX(ISUB)
+                       XPRTMAX(IGRID) = XPRTMAX(ISUB)
+                       YPRTMAX(IGRID) = YPRTMAX(ISUB)
+                       ZPRTMAX(IGRID) = ZPRTMAX(ISUB)                                                                
+                     ENDIF       
+                     IF (ABS(PRTMIN(ISUB)) .LT. ABS(PRTMIN(IGRID))) THEN                     
+                       PRTMIN(IGRID)  = PRTMIN(ISUB)
+                       XPRTMIN(IGRID) = XPRTMIN(ISUB)
+                       YPRTMIN(IGRID) = YPRTMIN(ISUB)
+                       ZPRTMIN(IGRID) = ZPRTMIN(ISUB)                                                                 
+                     ENDIF                                        
+                      ENDIF                                                             
+#endif
+
+#ifdef _MPI_ 
+                   ENDIF
+                ENDIF
+#endif
+                
+             ENDDO
+          ENDIF        
+       RETURN
+       END

@@ -1,0 +1,4090 @@
+#ifdef _MPI_
+      PROGRAM MAIN
+#endif
+#ifdef _MPI_PARTICLES_
+      PROGRAM MAIN
+#endif
+#ifndef _MPI_
+#ifdef _T3E_
+      PROGRAM MLET
+#endif
+#if (defined _CRAY_)
+      PROGRAM MLET
+#endif
+#if (defined _CRAYT90_)
+      PROGRAM MLET
+#endif
+#endif
+#ifdef _CYBER_
+      PROGRAM MLET  (INPUT,OUTPUT,TAPE1,TAPE2,
+     $                 TAPE3,TAPE4,TAPE5=INPUT,TAPE6=OUTPUT,
+     $                 TAPE11,TAPE12,TAPE13,TAPE14,
+     $                 TAPE24,TAPE26,TAPE27,
+     $                 TAPE31,TAPE32,TAPE33)
+#endif
+C*STARLET***************************************************************
+C
+C
+C  UEBERSICHT ITERATIVE  NAVIER-STOKES LOESUNG IM U,V,W,P-
+C             SYSTEM.
+C             LAUFFAEHIG UNTER NOS/VE MIT FTN 5 (CYBER 990)
+C                        UNTER UNIX (CRAY, CONVEX, SILICON GRAPHICS, KSR)
+C
+C  STICHWORTE QUADERFOERMIGE BERECHNUNGSGEBIETE
+C             EINGEBETTETE GITTER
+C             BELIEBIG GEFORMTE EINBAUTEN
+C
+C  BELEGUNG
+C  D. KANAELE KANAL 1: UNFORMATIERTES LESEN DER 3-D STARTFELDER (SUBR.
+C                      DIB)
+C             KANAL 2: UNFORMATIERTES SCHREIBEN DER 3-D FELDER AM ENDE
+C                      EINES LAUFES (SUBR. DOB)
+C             KANAL 3: FORMATIERTES LESEN DER 3-D STARTFELDER (SUBR.
+C                      DIC)
+C             KANAL 4: FORMATIERTES SCHREIBEN DER 3-D FELDER AM ENDE
+C                      EINES LAUFES (SUBR. DOC)
+C             KANAL 5: INPUT
+C             KANAL 6: OUTPUT
+C
+C             KANAL 8: CHECK-OUTPUT, WIRD MIT ITPRIN GESTEUERT
+C             KANAL 9: CHECK-OUTPUT, WIRD MIT ITPRIN GESTEUERT
+C
+C             KANAL11: UNFORMATIERTES LESEN DER EINTRITTS-PROFILE
+C                      U,V,W UND G  IN SUBR. DEIBI. (NUR F. LES)
+C             KANAL12: UNFORMATIERTES SCHREIBEN DER EINTRITTS-PROFILE
+C                      U,V,W UND G IN SUBR. DEOBI. (NUR F. LES)
+C             KANAL13: FORMATIERTES LESEN DER EINTRITTS-PROFILE
+C                      U,V,W UND G  IN SUBR. DEICI. (NUR F. LES)
+C             KANAL14: FORMATIERTES SCHREIBEN DER EINTRITTS-PROFILE
+C                      U,V,W UND G IN SUBR. DEOCI. (NUR F. LES)
+C             KANAL21: LESEN DER PARTIKEL-POSITIONEN UND -ORIENTIERUNGEN
+C             KANAL22: SCHREIBEN DER ""
+C             KANAL23: ZEITSCHREIBE DER ""
+C             KANAL24: FORMATIERTES LESEN U. SCHREIBEN F. PARTIKEL-
+C                      PROGRAMM (SIEHE D.A. GEORG EDER)
+C             KANAL31: INPUT MEHRGITTERVERFAHREN
+C             KANAL36: OUTPUT MEHRGITTERVERFAHREN
+C             KANAL26: FORMATIERTES LESEN U. SCHREIBEN F. PARTIKEL-
+C                      PROGRAMM (SIEHE D.A. GEORG EDER)
+C             KANAL27: FORMATIERTES SCHREIBEN EINZELNER GESCHWINDIG-
+C                      KEITSPROFILE (FUER ZEITREIHEN)
+C             KANAL44: MELDUNGEN ZUR KONTROLLE DES RAUSSCHREIBENS
+C                      VON ZEITRECORDS
+C             KANAL52: STEUERDATEN FUER RAUSSCHREIBEN VON ZEITRECORDS
+C
+C             KANAL57: LESEN DER CPU-ZEIT-SCHRANKE
+C
+C  DEFINE-DIREKTIVEN     : ADBA,   CRAY,   CYBER,  EULER,  LEAPF,
+C                          XHOMOG, YHOMOG,  RECORD, HTMG 
+C
+C  VERS:  09.01.87 (HW)  : D00990 (VOELLIG NEUE REVISION)
+C         18. 2.92 (MM)  : REFERENZVERSION FUER KOMPLETT NEUE VERSION
+C         02.04.92 (MM)  : VOELLIG NEUE VERSION, WANDERKENNUNG GESCHIEHT
+C                          B-FELD, SCHLEIFEN LAUFEN DURCH KOERPER DURCH,
+C                          BELIEBIG GEFORMTER KOERPER DADURCH MOEGLICH
+C        10. 6.92  (WA)  : MEHRGITTERVERFAHREN FUER DRUCKKORREKTUR 
+C                          EINGEFUEHRT
+C            2.93  (MM)  : MIT UMBAU FUER BELIEBIG VIELE GITTER BEGONNEN
+C         01.12.03 (TB)  : SCALAR TRANSPORT IMPLEMENTED
+C         29.01.03 (TB)  : _KSR_ REMOVED
+C
+C*STARLET***************************************************************
+C
+C                                       GESAMTSPEICHER FUER EIN 3D-FELD
+      PARAMETER   ( IDIM3D =   3000000 )
+C                                       GESAMTSPEICHER FUER EIN 2D-FELD
+      PARAMETER   ( IDIM2D =    200000 )
+C                                       GESAMTSPEICHER FUER EIN 1D-FELD
+      PARAMETER   ( IDIM1D =    6000 )
+C                                       LAENGSTE 1D-DIMENSIONIERUNG 
+C                                       EINES GITTERS
+      PARAMETER   ( IDIMF  =    6000 )
+C                                       GESAMTSPEICHER FUER EIN 
+C                                       AUSWERTE-FELD
+      PARAMETER   ( IDIMA  =  3000000 )
+C                                       DIM. FUER LINIENFELDER
+      PARAMETER   ( IDIM1L = 10 )
+      PARAMETER   ( IDIM2L = 10 )
+C                                       ANZAHL DER RANDSCHICHTEN
+      PARAMETER   ( NBND   =  2     )
+C                                       ANZAHL DER BUFFERSCHICHTEN
+      PARAMETER   ( NBUF   =  3     )
+C
+C                                 MULTIGRID-VERWALTUNG
+C
+      
+#include "mgpar.h"
+#include "comgrid.h"
+#include "colevel.h"
+#include "comgvp.h"
+#include "cobound.h"
+
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
+#ifdef _MPI_
+C          MPI- LIBRARY
+#include "mpif.h"
+#include "compi.h"
+
+C       DOUBLE PRECISION MPI_WTIME
+       DOUBLE PRECISION WTIME, MPI_STARTTIME
+       DOUBLE PRECISION WTIME1,WTIME2,MTIME1,MTIME2
+CCCCCCADDED FOR CORRECTION BY TB, 280503 CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
+      INTEGER ISTATUS(MPI_STATUS_SIZE)       
+
+#endif
+#ifdef _MPI_PARTICLES_
+#include "mpif.h"
+#include "compi.h"
+#endif
+C
+C                                 PARAMETER-STATEMENTS F. PARTIKEL-PROG.
+C
+      PARAMETER   (NDGL =  3, NMAX =   20, NPRUZL = 50000)
+      PARAMETER   (NRZUL = 2, NWTVGL = 1)
+      PARAMETER   (EPS = 0.1)
+C
+C
+C                                 PARAMETER-STATEMENTS F. KORRELATIONS-
+C                                 FUNKTIONEN, -KOEFFIZIENTEN, LEISTUNGS-
+C                                 DICHTESPEKTREN UND HAEUFIGKEITSVER-
+C                                 TEILUNGEN
+C                                 NUR  ILIMXP  DARF VERAENDERT WERDEN !!
+C
+      PARAMETER   (JJ1L =  1, JJ2L =  2, ILIMXP =  30, ISLIDI = 500)
+      PARAMETER   (LINFB= 25)
+C
+C                                 PARAMETER-STATEMENTS F. KORRELATIONS-
+C                                 FUNKTIONEN UND -KOEFFIZIENTEN
+C
+CSR22      PARAMETER   (KKXL =  IIP + 1 - 2*NBND + LINFB)
+CSR22      PARAMETER   (KKYL =  JJP + 1 - 2*NBND + LINFB)
+CSR22      PARAMETER   (KKZL =  KKP + 1 - 2*NBND + LINFB)
+      PARAMETER   (KKXL =  IDIMF + 1 - 2*NBND + LINFB)
+      PARAMETER   (KKYL =  IDIMF + 1 - 2*NBND + LINFB)
+      PARAMETER   (KKZL =  IDIMF + 1 - 2*NBND + LINFB)
+C
+C                                 PARAMETER-STATEMENTS F. LEISTUNGS-
+C                                 DICHTESPEKTREN
+C
+CSR22      PARAMETER   (KSXL = (IIP + 1 - 2*NBND)/2 + 1 + LINFB)
+CSR22      PARAMETER   (KSYL = (JJP + 1 - 2*NBND)/2 + 1 + LINFB)
+CSR22      PARAMETER   (KSZL = (KKP + 1 - 2*NBND)/2 + 1 + LINFB)
+      PARAMETER   (KSXL = (IDIMF + 1 - 2*NBND)/2 + 1 + LINFB)
+      PARAMETER   (KSYL = (IDIMF + 1 - 2*NBND)/2 + 1 + LINFB)
+      PARAMETER   (KSZL = (IDIMF + 1 - 2*NBND)/2 + 1 + LINFB)
+C
+C                                 PARAMETER-STATEMENTS F. HAEUFIGKEITS-
+C                                 VERTEILUNGEN DER INKLINATIONSWINKEL
+C                                 DER WIRBELVEKTOREN
+C
+      PARAMETER   (KLASS=  72)
+      PARAMETER   (KH0L = KLASS + LINFB)
+C
+C                                 MAXIMALE DIMENSION DER "LINIEN-FELDER"
+C                                 IN K-RICHTUNG
+C
+#if defined _CRAY_
+          PARAMETER   (KKML =  KKXL )
+#elif defined _CRAYT90_
+          PARAMETER   (KKML =  KKXL )
+#elif defined _LINUX_
+          PARAMETER   (KKML =  KKXL )
+
+#else
+      PARAMETER   (KKML = MAX0 (KKXL, KKYL, KKZL, KSXL, KSYL, KSZL,
+     $                          KH0L                               ))
+#endif
+C
+C                                 PARAMETER-STATEMENTS FUER DEN
+C                                 GITTERGENERATOR  G R D F M I
+C
+C     PARAMETER    (IDIMF=       IDIM1D         )
+      PARAMETER    (NGRP1  = IDIMF + 1,  NGRP3  = IDIMF + 3)
+C
+#ifdef _RECORD_
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+C
+C                   PARAMETER FUER DAS RAUSSCHREIBEN VON BINAEREN
+C                   ZEITRECORDS AUF TESTVOLUMINA (TV)
+C      NPREC: MAXIMALE ANZAHL DER GIITERPUNKTE IM TV
+C      NMREC  : MAXIMALE ANZAHL DER TV
+C
+#include "corecdef.h"
+C
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+#endif
+#ifdef _HTMG_
+C                                 PARAMETERSTATEMENTS FUER MEHRGITTER-
+C                                 VERFAHREN
+      PARAMETER    (MAXCBP = 100000, NGRDMX = 6) 
+#endif
+#include "costrles.h"
+#include "cophyspar.h"
+#include "coprint.h"
+#include "cogrddef.h"
+#include "cogrdpro.h"
+#include "cogrdcon.h"
+#include "konsta.h"
+#include "conles.h"
+#include "conpot.h"
+#include "clinou.h"
+C
+      CHARACTER (LEN=8)   CIDENT(10),   CIDEND(10)
+C
+
+      REAL        U (   IDIM3D  ), V (   IDIM3D  ), W (   IDIM3D  ),
+     $            UO(   IDIM3D  ), VO(   IDIM3D  ), WO(   IDIM3D  ),
+     $            P (   IDIM3D  ), G (   IDIM3D  ), B (   IDIM3D  ),
+     $            DP(   IDIM3D  ),
+     $            UP(   IDIM3D  ), VP(   IDIM3D  ), WP(   IDIM3D  ),
+     $           WCU(  IDIM3D   ),WCV(   IDIM3D  ),WCW(   IDIM3D  ),
+     $           H3D1( IDIM3D   ),H3D2(  IDIM3D  ),H3D3(  IDIM3D  ),
+     $            RDDX(IDIM1D),     RDDY(IDIM1D),     RDDZ(IDIM1D),
+     $             RDX(IDIM1D),      RDY(IDIM1D),      RDZ(IDIM1D),
+     $             DDX(IDIM1D),      DDY(IDIM1D),      DDZ(IDIM1D),
+     $              DX(IDIM1D),       DY(IDIM1D),       DZ(IDIM1D),
+     $               X(IDIM1D),        Y(IDIM1D),        Z(IDIM1D),
+
+     $            RIDENT(100),     RIDEND(100),     DIVG(IDIM2D) 
+C
+INTEGER  numxloc, numvar, numzloc, req_xloc
+      PARAMETER ( numxloc = 5 )
+      PARAMETER ( numvar = 4 )
+      PARAMETER ( numzloc = 2 )
+      PARAMETER ( numzloc_stream = 3 )
+
+      INTEGER MYID_loc(numxloc),x_loc(numxloc),z_loc(numzloc)
+
+      INTEGER yloc_stream, zloc_stream(numzloc_stream)
+
+      INTEGER INUNIT, i, MYID_temp, x_loc_temp(numxloc)
+
+#ifdef _FRED_BODY_ 
+#if defined _MULTIGRID_ | defined _POISSONITER_
+      REAL SDIV(IDIM3D),BP(IDIM3D),BU(IDIM3D),BV(IDIM3D),BW(IDIM3D)
+#else
+      REAL SDIV(1),BP(IDIM3D),BU(1),BV(1),BW(1)
+#endif
+#else
+      REAL SDIV(1),BP(1),BU(1),BV(1),BW(1) 
+#endif
+
+#ifdef _TSCAL_
+      REAL BT(IDIM3D)	
+#endif
+
+#if defined _TAU_NN_ | defined _INC_ 
+C                             NICHT-NEWTONSCHER SPANNUNGSTENSOR
+      REAL    TAU11( IDIM3D ), TAU12( IDIM3D ), TAU13( IDIM3D ),
+     $        TAU21( IDIM3D ), TAU22( IDIM3D ), TAU23( IDIM3D ),
+     $        TAU31( IDIM3D ), TAU32( IDIM3D ), TAU33( IDIM3D )
+#else
+      REAL    TAU11( 1 ), TAU12( 1 ), TAU13( 1 ),
+     $        TAU21( 1 ), TAU22( 1 ), TAU23( 1 ),
+     $        TAU31( 1 ), TAU32( 1 ), TAU33( 1 )
+#endif
+#ifdef _INC_
+      REAL FINC(IDIM3D)
+#endif
+#ifdef _LPART_ORIENTATION_
+#include "copart.h"
+#endif
+
+#ifdef _PASSIVE_PARTICLE_
+#include "copart2.h"
+#endif
+
+#ifdef _ORRSOMMER_
+       REAL UOLD(IDIM3D),VOLD(IDIM3D),WOLD(IDIM3D)
+#endif
+
+#if  defined _KOMXK_  | defined _KOMYK_ | defined _KOMZK_
+C                             FELDER FUER KOEFFIZENTEN DES KOMPAKTVER.
+C
+#ifndef _FRED_BODY_
+
+      REAL     COEFFX(IDIM2D),COEFFY(IDIM2D),
+     $         COEFFZ(IDIM2D),COEFDX(IDIM2D),
+     $         COEFDY(IDIM2D),COEFDZ(IDIM2D),
+     $         LCOL  (IDIM1D),DIAG  (IDIM1D),  RCOL(IDIM1D),
+     $         UZ    (IDIM1D),  RSP (IDIM1D),
+     $         RSGS3 (IDIM3D),  FAKTOR(IDIM1D)
+#ifdef _TSCAL_
+      REAL COEFTX(IDIM2D),COEFTY(IDIM2D),COEFTZ(IDIM2D)
+#endif
+
+#else
+
+      REAL     COEFFX(IDIM1D*12*3),COEFFY(IDIM1D*12*3),
+     $         COEFFZ(IDIM1D*12*3),COEFDX(IDIM1D*12*3),
+     $         COEFDY(IDIM1D*12*3),COEFDZ(IDIM1D*12*3),
+     $         LCOL  (IDIM1D),DIAG  (IDIM1D),  RCOL(IDIM1D),
+     $         UZ    (IDIM1D),  RSP (IDIM1D),
+     $         RSGS3 (IDIM3D),  FAKTOR(IDIM3D)
+#ifdef _TSCAL_
+      REAL COEFTX(IDIM1D*12*3),COEFTY(IDIM1D*12*3),COEFTZ(IDIM1D*12*3)
+#endif
+#endif
+
+
+#else
+      REAL     COEFFX(1),     COEFFY(1),     COEFFZ(1),
+     $         COEFDX(1),     COEFDY(1),     COEFDZ(1),
+     $         LCOL  (1),     DIAG  (1),     RCOL(1),
+     $         UZ    (1),     RSP (1),
+     $         RSGS3 (1),     FAKTOR(1)
+#ifdef _TSCAL_
+      REAL COEFTX(1),COEFTY(1),COEFTZ(1)
+#endif
+
+
+#endif
+
+C                             FELDER FUER DIE BERECHNUNG DER
+C                             ABLEITUNG FUER DAS KOMPAKTVERFAHREN
+c         oder 3D-Felder fuer koeffizienten A-Matrix bei iterative Verfahren
+c                          AS-FDUI;AT-FDVI;AB-FDWI
+#if defined _KOMXK_ | defined _PREPROC_
+      REAL        FUI(IDIM3D), FVI(IDIM3D), FWI(IDIM3D)
+#if defined _TSCAL_ | defined _PREPROC
+      REAL        FTI(IDIM3D)
+#endif
+
+#else
+      REAL        FUI(1), FVI(1), FWI(1)
+#if defined _TSCAL_
+      REAL        FTI(1)
+#endif
+
+#endif
+
+
+
+
+#if defined _KOMYK_ | defined _ZEN_ | defined _PREPROC_
+      REAL FUJ(IDIM3D),FVJ(IDIM3D),FWJ(IDIM3D)
+#if defined _TSCAL_ | defined _PREPROC_
+      REAL        FTJ(IDIM3D)
+#endif
+#else
+      REAL FUJ(1),FVJ(1),FWJ(1)
+#ifdef _TSCAL_
+      REAL        FTJ(1)
+#endif
+#endif
+
+
+#if defined _KOMZK_ | defined _PREPROC_
+      REAL FUK(IDIM3D),FVK(IDIM3D),FWK(IDIM3D)
+#if defined _TSCAL_ | defined _PREPROC_
+      REAL        FTK(IDIM3D)
+#endif
+#else
+      REAL FUK(1),FVK(1),FWK(1)
+#ifdef _TSCAL_
+      REAL        FTK(1)
+#endif
+#endif
+C#if defined _PREPROC_
+C      REAL HPX(IDIM3D)
+C#endif
+
+C--------------------------------------------------------
+
+#if defined _FASTBUTBIGMEM_ | defined _POISSONITER_
+      REAL GEOVP ( IDIM3D )
+#endif
+#ifdef _POISSONITER_
+      REAL GSAB( IDIM1D ),GSAT( IDIM1D ),GSAW( IDIM1D ),
+     $     GSAE( IDIM1D ),GSAS( IDIM1D ),GSAN( IDIM1D )
+#ifdef _SIP_ITER_
+      REAL RES  ( IDIM3D ), SIPLB ( IDIM3D ), SIPUT( IDIM3D ),
+     $     SIPLW( IDIM3D ), SIPUE ( IDIM3D ), SIPLS( IDIM3D ),
+     $     SIPUN( IDIM3D ), SIPLPR( IDIM3D )
+
+#else
+      REAL RES ( 1 )
+      REAL GSRAP( IDIM3D )
+#endif
+#endif
+
+      REAL        YHILF1(NDGL),    YHILF2(NDGL),    YMAT(NMAX,NDGL),
+     $            K1(NDGL),        K2(NDGL),        K3(NDGL),
+     $            K4(NDGL),        YV(NDGL)
+C
+      REAL        DIV(   IDIM3D  )
+
+C                                 ACHTUNG !!! TK- UND TE-FELD WERDEN
+C                                 MOMENTAN NICHT BENOETIGT
+C
+      REAL        TK( 1, 1, 1),    TE( 1, 1, 1)
+C
+      INTEGER     FINT,CHILDREN, 
+     $            IIDENT(100),     IIDEND(100)
+      INTEGER     IWTEND(NMAX),    ISTART(NRZUL),   MSTART(NRZUL)
+C
+      LOGICAL     LPRLE
+      LOGICAL     PRUFUL, LPART
+
+      REAL  UI1(IDIM2D*2),  VI1(IDIM2D*2),  WI1(IDIM2D*2),
+     $      UI2(IDIM2D*2),  VI2(IDIM2D*2),  WI2(IDIM2D*2),
+     $      GI1(IDIM2D),    GI2(IDIM2D),
+     $      UFR(IDIM2D*2), VFR(IDIM2D*2), WFR(IDIM2D*2),
+     $      PFR(IDIM2D*2), GFR(IDIM2D*2),
+     $      UTO(IDIM2D*2),  VTO(IDIM2D*2),  WTO(IDIM2D*2),
+     $      PTO(IDIM2D*2),  GTO(IDIM2D*2),
+     $      UBACK(IDIM2D*2),  VBACK(IDIM2D*2),  WBACK(IDIM2D*2),
+     $      VRI(IDIM2D*2),  
+     $      UBO(IDIM2D*2),  VBO(IDIM2D*2),  WBO(IDIM2D*2),
+     $      PBO(IDIM2D*2),  GBO(IDIM2D*2),
+     $      UBA(IDIM2D*2), VBA(IDIM2D*2), WBA(IDIM2D*2),
+     $      PBA(IDIM2D*2),  GBA(IDIM2D*2)
+
+C                                            FIELDS FOR SCALAR TRANSPORT
+#ifdef _TSCAL_
+      REAL T( IDIM3D ),TO( IDIM3D ),TOLD(IDIM3D),TP(IDIM2D*NBUF),
+     $     TFR(IDIM2D*2),TTO(IDIM2D*2),TBO(IDIM2D*2),TBA(IDIM2D*2),
+     $     WCT(IDIM3D)
+      REAL DTMAX(MAXGRIDS),TMAX(MAXGRIDS),
+     $     XTMAX(MAXGRIDS),YTMAX(MAXGRIDS),ZTMAX(MAXGRIDS),
+CTBC       FIELDS FOR MIN AND MAX TURB. PRANDTL NUMBER AND MAX S+       
+     $     PRTMAX(MAXGRIDS),PRTMIN(MAXGRIDS),SPMAX(MAXGRIDS),
+     $     XPRTMAX(MAXGRIDS),YPRTMAX(MAXGRIDS),ZPRTMAX(MAXGRIDS),    
+     $     XPRTMIN(MAXGRIDS),YPRTMIN(MAXGRIDS),ZPRTMIN(MAXGRIDS), 
+     $     XSMAX(MAXGRIDS),YSMAX(MAXGRIDS),ZSMAX(MAXGRIDS)               
+#ifdef _SCALGRIDDIAGNOSE_
+CTBC       FIELDS FOR GRID DIAGNOSE (SPLUS, WALL CORRECTION)
+      REAL DDSPLUS( IDIM3D ),SMPLUS( IDIM3D ),SPLUS( IDIM3D ) 
+      REAL DDSMAX(MAXGRIDS),SMMAX(MAXGRIDS),SPMAX(MAXGRIDS),
+     $     XSPMAX(MAXGRIDS),YSPMAX(MAXGRIDS),ZSPMAX(MAXGRIDS)  
+      INTEGER ISPMAX(MAXGRIDS),JSPMAX(MAXGRIDS),KSPMAX(MAXGRIDS),
+     $        GRDSMAX(MAXGRIDS)                 
+#endif 
+#ifdef _SCALTRANSDIAGNOSE_
+      REAL QCTE( IDIM3D ),QCTW( IDIM3D ),QCTN( IDIM3D ),
+     $     QCTS( IDIM3D ),QCTT( IDIM3D ),QCTB( IDIM3D ),
+     $     QDTE( IDIM3D ),QDTW( IDIM3D ),QDTN( IDIM3D ),
+     $     QDTS( IDIM3D ),QDTT( IDIM3D ),QDTB( IDIM3D ),QDTC( IDIM3D ) 
+      REAL FCTE( IDIM3D ),FCTW( IDIM3D ),FCTN( IDIM3D ),               
+     $     FCTS( IDIM3D ),FCTT( IDIM3D ),FCTB( IDIM3D ),               
+     $     FDTE( IDIM3D ),FDTW( IDIM3D ),FDTN( IDIM3D ),                                                                       
+     $     FDTS( IDIM3D ),FDTT( IDIM3D ),FDTB( IDIM3D ),FDTC( IDIM3D ) 
+      REAL OCTE( IDIM3D ),OCTW( IDIM3D ),OCTN( IDIM3D ),               
+     $     OCTS( IDIM3D ),OCTT( IDIM3D ),OCTB( IDIM3D ),               
+     $     ODTE( IDIM3D ),ODTW( IDIM3D ),ODTN( IDIM3D ),               
+     $     ODTS( IDIM3D ),ODTT( IDIM3D ),ODTB( IDIM3D ),ODTC( IDIM3D )
+      REAL QCE(MAXGRIDS),QCW(MAXGRIDS),QCN(MAXGRIDS),QCS(MAXGRIDS),
+     $     QCT(MAXGRIDS),QCB(MAXGRIDS),QDE(MAXGRIDS),QDW(MAXGRIDS),
+     $     QDN(MAXGRIDS),QDS(MAXGRIDS),QDT(MAXGRIDS),QDB(MAXGRIDS),
+     $     QDC(MAXGRIDS)
+#endif
+      INTEGER 
+     $ ITMAX(MAXGRIDS),JTMAX(MAXGRIDS),KTMAX(MAXGRIDS),GRDTMAX(MAXGRIDS)
+#endif
+C                                            FIELDS FOR DIV ANALYSIS
+      INTEGER 
+     $ IDIVMAX(MAXGRIDS),JDIVMAX(MAXGRIDS),KDIVMAX(MAXGRIDS),
+     $ GRDIVMAX(MAXGRIDS)
+      REAL    XDIVMAX(MAXGRIDS),YDIVMAX(MAXGRIDS),ZDIVMAX(MAXGRIDS)
+C
+C                   FELDER FUER FEEDBACK-ROUTINEN (Jens Neumann)
+C
+C      REAL        VAROPT(2,IDIM2D*8)
+
+C
+C                                 HILFSFELDER FUER EFVISC
+C
+      REAL        DUDY(IDIM2D),  DUDZ(IDIM2D),
+     $            DVDX(IDIM2D),  DVDZ(IDIM2D),
+     $            DWDX(IDIM2D),  DWDY(IDIM2D),
+     $            CONV1S(IDIM1D)
+
+#ifdef _DYNSGSM_
+
+      real  cdelta(IDIM1D)
+
+      real
+     $  hilf0(IDIM2D),hilf1(IDIM2D),hilf2(IDIM2D),
+     $  hilf3(IDIM2D),hilf4(IDIM2D),hilf5(IDIM2D),
+     $  hilf6(IDIM2D),
+     $  lux(IDIM2D),luy(IDIM2D),luz(IDIM2D),
+     $  lvy(IDIM2D),lvz(IDIM2D),lwz(IDIM2D),
+     $  mux(IDIM2D),muy(IDIM2D),muz(IDIM2D),
+     $  mvy(IDIM2D),mvz(IDIM2D),mwz(IDIM2D),
+     $  fa11(IDIM2D),fa12(IDIM2D),fa13(IDIM2D),
+     $  fa21(IDIM2D),fa22(IDIM2D),fa23(IDIM2D),
+     $  fa31(IDIM2D),fa32(IDIM2D),fa33(IDIM2D)
+
+      real 
+     $ dudx3(IDIM2D*3),dudy3(IDIM2D*3),dudz3(IDIM2D*3),
+     $ dvdx3(IDIM2D*3),dvdy3(IDIM2D*3),dvdz3(IDIM2D*3),
+     $ dwdx3(IDIM2D*3),dwdy3(IDIM2D*3),dwdz3(IDIM2D*3),
+     $ norms(IDIM2D*3),
+     $ sdudx3(IDIM2D*3),sdudy3(IDIM2D*3),sdudz3(IDIM2D*3),
+     $ sdvdy3(IDIM2D*3),sdvdz3(IDIM2D*3),sdwdz3(IDIM2D*3),
+     $ uc(IDIM2D*3),vc(IDIM2D*3),wc(IDIM2D*3),
+     $ uuc(IDIM2D*3),uvc(IDIM2D*3),uwc(IDIM2D*3),
+     $ vvc(IDIM2D*3),vwc(IDIM2D*3),wwc(IDIM2D*3)
+                           
+#else
+ 
+      real  cdelta(1)
+
+      real
+     $  hilf0(1),hilf1(1),hilf2(1),
+     $  hilf3(1),hilf4(1),hilf5(1),
+     $  hilf6(1),
+     $  lux(1),luy(1),luz(1),
+     $  lvy(1),lvz(1),lwz(1),
+     $  mux(1),muy(1),muz(1),
+     $  mvy(1),mvz(1),mwz(1),
+     $  fa11(1),fa12(1),fa13(1),
+     $  fa21(1),fa22(1),fa23(1),
+     $  fa31(1),fa32(1),fa33(1)
+
+      real
+     $ dudx3(1),dudy3(1),dudz3(1),
+     $ dvdx3(1),dvdy3(1),dvdz3(1),
+     $ dwdx3(1),dwdy3(1),dwdz3(1),
+     $ norms(1),
+     $ sdudx3(1),sdudy3(1),sdudz3(1),
+     $ sdvdy3(1),sdvdz3(1),sdwdz3(1),
+     $ uc(1),vc(1),wc(1),
+     $ uuc(1),uvc(1),uwc(1),
+     $ vvc(1),vwc(1),wwc(1)
+
+#endif
+
+
+C                                 ARRAYDIMENSIONIERUNG FUER DEN
+C                                 GITTERGENERATOR  G R D F M I
+C
+#ifdef _NO_GRDFMI_
+	  INTEGER IGRHF(IDIMF,1)
+#else
+      INTEGER IGRHF(IDIMF,NGRP1)
+#endif
+C
+C
+      REAL    GRX0(IDIMF),     GRX1(IDIMF)
+#ifdef _NO_GRDFMI_
+      REAL GRHF(IDIMF,100)
+#else
+      REAL GRHF(IDIMF,NGRP3)
+#endif
+C
+C                                 FELDER FUER DEN DIREKTEN POISSONLOESER
+C
+      REAL
+     $           FPSFAK(IDIM2D),FCOSMY(IDIM1D),FCOSNY(IDIM1D)
+C
+C                                 FELDER FUER DIE FOURIERTRANSFORMATION
+C
+      INTEGER IFFTX(19,MAXGRIDS),IFFTY(19,MAXGRIDS)
+      INTEGER IPERMUX(IDIM1D)	     ,IPERMUY(IDIM1D)
+      REAL    RFFTX(IDIM1D*2)     ,RFFTY(IDIM1D*2)  
+C
+C                                 DIE FOLGENDEN FELDER WERDEN ZUR
+C                                 AUSWERTUNG FUER DIE LARGE-EDDY-
+C                                 SIMULATION BENOETIGT
+C
+      INTEGER  ISELEA (2,752)      , ISELEP (2,752),
+     $         ISAMPA (752,MAXGRIDS),ISAMPP (752,MAXGRIDS),
+     $         ISLINP (ISLIDI)     , ISLINA (ISLIDI),
+     $         ISLINI (ISLIDI)
+
+#ifdef _POISSONDIR_
+      REAL     HILF   (2* IDIM3D     ),    HILFL  (KKML,JJ2L,ILIMXP ),
+#else
+      REAL     HILF   (   IDIM3D     ),    HILFL  (KKML,JJ2L,ILIMXP ),
+#endif
+     $         FVT     (0:IDIMF),          HVK    (KLASS,JJ2L)
+
+#ifdef _RUNGEKUTTA3_
+      REAL       FELD1(IDIM3D),FELD2(IDIM3D),FELD3(IDIM3D)
+#ifdef _TSCAL_
+      REAL       FELDT(IDIM3D)
+#endif     
+#endif 
+
+#ifdef _NEWSTAT_
+      REAL       HILF3D1(IDIM3D),HILF3D2(IDIM3D),HILF3D3(IDIM3D)
+#endif
+
+#ifdef _HITACHI_
+      COMPLEX*16    CXY(IDIM3D),CTB(IDIM1D),CWK(IDIM2D),CHILF(IDIM2D)
+#endif
+
+C-------------------------------- FELDER FUER DECONVOLVE SCA -TEST by FLORIAN 24.11.2003
+#ifdef _DECONVOLVESCA_
+      REAL     HILF3D4(IDIM3D),HILF3D5(IDIM3D),
+     $         TFX(IDIM1D),TFY(IDIM1D)
+#endif
+C---------------------------------------------------------------------------------------
+
+
+C                                 FUER DIE KONTROLLE DES RECHENVORGANGES
+C
+      REAL     EPSU(MAXGRIDS),  EPSV(MAXGRIDS),  EPSW(MAXGRIDS)
+      REAL     ESUMG(MAXGRIDS),  ESUMS(MAXGRIDS)
+      REAL     WSSX(MAXGRIDS),  WSSY(MAXGRIDS),  WSSZ(MAXGRIDS)
+      REAL     WNSX(MAXGRIDS),  WNSY(MAXGRIDS),  WNSZ(MAXGRIDS)
+      REAL     WALLSSX(6,MAXGRIDS),
+     $         WALLSSY(6,MAXGRIDS),
+     $         WALLSSZ(6,MAXGRIDS)
+      REAL     UBULK(MAXGRIDS)
+#ifdef _TSCAL_
+      REAL     WALLQX(6,MAXGRIDS)
+#endif
+
+C
+C
+#if defined _STAT0_
+#include  "stat0.h"
+#define _STATISTIK_LEVEL_DEFINED_
+
+#elif defined _STAT1_
+#include  "stat1.h"
+#define _STATISTIK_LEVEL_DEFINED_
+
+#elif defined _STAT2_
+#include  "stat2.h"
+#define _STATISTIK_LEVEL_DEFINED_
+
+#elif defined _STAT3_
+#include  "stat3.h"
+#define _STATISTIK_LEVEL_DEFINED_
+
+#elif defined _STAT4_
+#include  "stat4.h"
+#define _STATISTIK_LEVEL_DEFINED_
+
+#elif defined _STAT5_
+#include  "stat5.h"
+#define _STATISTIK_LEVEL_DEFINED_
+
+#elif defined _STAT6_
+#include  "stat6.h"
+#define _STATISTIK_LEVEL_DEFINED_
+
+#elif defined _STAT7_
+#include  "stat7.h"
+#define _STATISTIK_LEVEL_DEFINED_
+
+#elif defined _STAT8_
+#include  "stat8.h"
+#define _STATISTIK_LEVEL_DEFINED_
+#endif
+
+c
+c Neue Statistik
+c
+
+#ifdef _NEWSTAT_
+#if defined _STAT0_ || ! defined _STATISTIK_LEVEL_DEFINED_
+c Include stat1.h
+#include  "stat1.h"
+#endif
+#define _STATISTIK_LEVEL_DEFINED_
+#endif
+
+#ifdef _STAT11_
+#include  "stat11.h"
+c Included stat11.h
+#endif
+
+#ifdef _STAT12_
+#include  "stat12.h"
+c Included stat12.h
+#endif
+
+#ifdef _STAT13_
+#include  "stat13.h"
+c Included stat13.h
+#endif
+
+#ifdef _STAT14_
+#include  "stat14.h"
+c Included stat14.h
+#endif
+
+#ifdef _STAT15_
+#include  "stat15.h"
+c Included stat14.h
+#endif
+
+#ifdef _STAT17_
+#include  "stat17.h"
+#endif
+
+#ifdef _STAT20_
+#include "stat20.h"
+#endif
+
+#if ! defined _STATISTIK_LEVEL_DEFINED_
+          PLEASE DEFINE STATISTIK-LEVEL _STAT0_ .... _STAT7_
+     &      OR _STAT11_ .... _STAT14_
+#endif
+C
+C
+#ifdef _HTMG_
+      INTEGER ICUBPT(MAXCBP),JCUBPT(MAXCBP),KCUBPT(MAXCBP)
+      INTEGER IDXGRD(9,NGRDMX)
+      LOGICAL LRESID
+      REAL    LCUB(8,MAXCBP)
+      REAL    LALFAX(IDIM1D,NGRDMX),LGAMAX(IDIM1D,NGRDMX)
+      REAL    LALFAY(IDIM1D,NGRDMX),LGAMAY(IDIM1D,NGRDMX)
+      REAL    LALFAZ(IDIM1D,NGRDMX),LGAMAZ(IDIM1D,NGRDMX)
+#endif
+#ifdef _RECORD_
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+C
+C                      FELDER FUER DAS RAUSSCHREIBEN VON ZEITRECORDS
+C
+C
+C
+C
+       REAL RTREC( IDIM3D )
+       REAL 
+     +      XREC(NMREC,IDIM1D),YREC(NMREC,IDIM1D),ZREC(NMREC,IDIM1D)
+C
+       INTEGER
+     +         IARREC(NMREC,IDIM1D)
+     +        ,JARREC(NMREC,IDIM1D)
+     +        ,KARREC(NMREC,IDIM1D)
+C
+#ifdef _ACOUSTICTERMS_
+        REAL H3D(IDIM3D)
+#else
+        REAL H3D(1)
+#endif
+C
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+#endif
+#ifdef _HITACHI_
+      INTEGER nxtstp(6)
+#endif
+C
+      EQUIVALENCE ( HILF  (1), HILFL (1,1,1))
+      
+CTBC  DIV NOW USED FOR DIVMAX OUTPUT - NO EQUIVALENCE HILF <-> DIV!!! 
+C#ifdef _POISSONDIR_
+C      EQUIVALENCE ( HILF  (1), DIV   (1))
+C#else
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC VORSICHT !!!!
+CC     EQUIVALENCE ( HILF  (1), DIV   (1), DP(1))
+C      EQUIVALENCE ( HILF  (1), DIV   (1))
+C#endif
+C
+C                                 EQUIVALENCE-STATEMENTS FUER DEN
+C                                 GITTERGENERATOR  G R D F M I
+C
+      EQUIVALENCE ( HILF  (1), GRHF  (1,1)  )
+C
+      DATA   PRUFUL                            /.FALSE./
+C
+C
+C
+C                         KANPR: AUSGABEKANAL FUER
+C                         KONTROLLAUSDRUECKE 
+
+      DATA       KANPR               /  8  /
+
+      DATA   RKOMXP                            / 3.0    /
+      DATA   IDOBD1, IDOBD2, IDOBD3, IDOBD4    /999, 999, 999, 999/
+      DATA   RDOBD1, RDOBD2, RDOBD3, RDOBD4    /9.99,9.99,9.99,9.99/
+C
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
+C
+#if defined _MPI_ | defined _MPI_PARTICLES_
+C                          INITIALISIERUNG VON MPI
+C
+C
+      CALL MPI_INIT (IERR)
+      MPI_STARTTIME = MPI_WTIME()
+
+      CALL STARTCONTROL ()
+C                                 FESTLEGUNG DER ANZAHL AN PROZESSOREN
+C                                 UND DER NUMMER (MYID) DES JEW. PROZESSORS
+
+      CALL MPI_COMM_RANK (MPI_COMM_WORLD,MYID,IERR)
+      CALL MPI_COMM_SIZE (MPI_COMM_WORLD,NUMPROCS,IERR)
+
+      WRITE (6,*) 'MPI: MYID=',MYID,'    NUMPROCS=',NUMPROCS
+
+C
+C                                 CHECK, OB DIMENSIONIERUNG 
+C                                 DER BUFFER AUSREICHT
+C
+      IF (IDIM_MG_BUFS .LT. IDIM2D) CALL ERRR(763,' MLET ')
+C
+#endif
+#ifdef _VPP_
+       WRITE (59,*) 'RUNNING'
+       CALL FLUSH (59)
+#endif
+
+#if defined _HITACHI_ | defined _SP2_
+       OPEN (KANPR,FILE='ft.08',FORM='FORMATTED')
+#else
+       OPEN (KANPR,FILE='fort.8',FORM='FORMATTED')
+#endif
+C                                 FALLS  KKML "VON HAND"
+C                                 DIMENSIONIERT WERDEN MUSS, IST
+C                                 EINE UEBERPRUEFUNG UNERLAESSLICH !
+C
+      IF(KKML  .LT. (MAX0 (KKXL, KKYL, KKZL, KSXL, KSYL, KSZL,
+     $                     KH0L)))         THEN
+         WRITE (6,*) ' KKML  = ',KKML
+         WRITE (6,*) ' KKXL  = ',KKXL,' KKYL = ',KKYL,' KKZL = ',KKZL
+         WRITE (6,*) ' KSXL  = ',KSXL,' KSYL = ',KSYL,' KSZL = ',KSZL
+         WRITE (6,*) ' KH0L  = ',KH0L
+         CALL ERRR (502,' MLET   ')
+      END IF      
+C
+C                                 CP-ZEITUEBERNAHME, EINLESEN VON
+C                                 STEUERPARAMETERN, TEST AUF FELD-
+C                                 GRENZENUEBERSCHREITUNG UND ERMITTLUNG
+C                                 WICHTIGER KONSTANTEN
+      CPSEC = GETSEC(0)
+C                                 KONSTANTEN
+      CALL SETKON
+C
+C                                 INITIALISIEREN DER MULTIGRID-VERW.
+C
+       CALL ICOMGRID
+CTBCM 290103: LAMDA,PRMOL,PRTURB,TREF,EXPONT,CIDTFR,TFRCON,DELTAT added
+       CALL ICOPHYSPAR
+       CALL ICOLEVEL
+       CALL ICOMGVP
+       CALL ICOGRDCON
+CTBCM 290103: Comments about new ITYPBOCONDS (15,16) in Header
+       CALL ICOBOUND
+       CALL ICOGRDDEF
+       CALL ICOGRDPRO
+       CALL ICOBODY
+       DO I=1,MAXGRIDS
+          EPSU(I) = 0.0
+          EPSV(I) = 0.0
+          EPSW(I) = 0.0
+          ESUMG(I)= 0.0
+          ESUMS(I)= 0.0
+       ENDDO
+C
+C                                 STARTPARAMETER EINLESEN
+      CALL STRLES
+C
+C                                 KONSTANTEN DES TURBULENZMODELLS
+      CALL SKONLE (GMOL,RHO,1)
+C
+#if defined _MPI_ | defined _MPI_PARTICLES_
+      IF (MYID .EQ. 0) THEN
+#endif
+      CALL LINOUT (DREAD,  DWRITE, IWRB  )
+#if defined _MPI_ | defined _MPI_PARTICLES_
+      ENDIF
+#endif
+C
+#ifdef _LPART_ORIENTATION_
+C                                INITIALISIERUNG DER SPANNUNGEN
+            CALL SETS (IDIM3D,1,1,IDIM3D,1,1,TAU11,0.0)
+            CALL SETS (IDIM3D,1,1,IDIM3D,1,1,TAU12,0.0)
+            CALL SETS (IDIM3D,1,1,IDIM3D,1,1,TAU13,0.0)
+            CALL SETS (IDIM3D,1,1,IDIM3D,1,1,TAU21,0.0)
+            CALL SETS (IDIM3D,1,1,IDIM3D,1,1,TAU22,0.0)
+            CALL SETS (IDIM3D,1,1,IDIM3D,1,1,TAU23,0.0)
+            CALL SETS (IDIM3D,1,1,IDIM3D,1,1,TAU31,0.0)
+            CALL SETS (IDIM3D,1,1,IDIM3D,1,1,TAU32,0.0)
+            CALL SETS (IDIM3D,1,1,IDIM3D,1,1,TAU33,0.0)
+
+#endif
+C
+C
+C                                 AUSGABE EINIGER WICHTIGER KENNGROESSEN
+C                                 ZU BEGINN DES LAUFES
+C
+C     CALL LISTI6 (KMX(1), JMX(1), IMX(1), CIDENT, IIDENT, RIDENT, 6)
+C
+C                                 VORBELEGUNG DER FELDER FUER DIE
+C                                 STATISTISCHE AUSWERTUNG
+C                                 -------------------------------
+C
+      IF(MTURB .GT. 0) THEN
+C
+C                                 BELEGUNG DES "INHALTSVERZEICHNISSES"
+C                                 DER AUSZUWERTENDEN STATIST. GROESSEN
+C
+         NAUFP = ISLIDI
+
+         CALL SEL0  (ISELEA,ISELEP,ISAMPA,ISAMPP,MAXGRIDS)
+
+#if defined _STAT1_
+         CALL SEL1  (ISELEA,ISELEP,ISAMPA,ISAMPP,MAXGRIDS)
+#elif defined _STAT2_
+         CALL SEL2  (ISELEA,ISELEP,ISAMPA,ISAMPP,MAXGRIDS)
+#elif defined _STAT3_
+         CALL SEL3  (ISELEA,ISELEP,ISAMPA,ISAMPP,MAXGRIDS)
+#elif defined _STAT4_
+         CALL SEL4  (ISELEA,ISELEP,ISAMPA,ISAMPP,MAXGRIDS)
+#elif defined _STAT5_
+         CALL SEL5  (ISELEA,ISELEP,ISAMPA,ISAMPP,MAXGRIDS)
+#elif defined _STAT6_
+         CALL SEL6  (ISELEA,ISELEP,ISAMPA,ISAMPP,MAXGRIDS)
+#elif defined _STAT7_
+         CALL SEL7  (ISELEA,ISELEP,ISAMPA,ISAMPP,MAXGRIDS)
+#elif defined _STAT8_
+         CALL SEL8  (ISELEA,ISELEP,ISAMPA,ISAMPP,MAXGRIDS)                 
+C#elif ! defined _STATISTIK_LEVEL_DEFINED_
+#endif
+
+#if defined _STAT11_
+         CALL SEL11 (ISELEP)
+#endif
+#if defined _STAT12_
+         CALL SEL12 (ISELEP)
+#endif
+#if defined _STAT13_
+         CALL SEL13 (ISELEP)
+#endif
+#if defined _STAT14_
+         CALL SEL14 (ISELEP)
+#endif
+#if defined _STAT15_
+         CALL SEL15 (ISELEP)
+#endif
+#if defined _STAT17_
+         CALL SEL17 (ISELEP)
+#endif
+#if defined _STAT20_
+         CALL SEL20 (ISELEP)
+#endif
+      
+C
+C                                 BELEGUNG DER AUFPUNKTE FUER DIE BIL-
+C                                 DUNG VON KORRELATIONEN, LEISTUNGS-
+C                                 DICHTESPEKTREN ETC.
+#if defined _MPI_PARTICLES_
+      IF (MYID .EQ. 0) THEN
+#endif
+C
+         CALL SELAUF  (ISLINP, ISLINA, ISLIDI, ISLINI, ILIMXP, ILIMX,
+     $                 IB1, IB2, JB1, JB2, KB, NBND, ILINT0,
+     $                 ILINTX, ILINTY, ILINTZ)
+#if defined _MPI_PARTICLES_
+      ENDIF
+#endif
+         IIDENT (75) = 1
+      ENDIF
+C
+C                                 WENN DREAD DANN EINLESEN VON
+C                                 STARTPARAMETERN UND FELDWERTEN, TEST
+C                                 AUF PLAUSIBILITAET UND FELDGRENZEN
+C
+      IF(DREAD) THEN
+         IF((LDIB).AND.(.NOT.LDIC)) THEN
+
+#if defined _HITACHI_ | defined _SP2_
+            OPEN (1,FILE='ft.01',FORM='UNFORMATTED')
+#else
+            OPEN (1,FILE='fort.1',FORM='UNFORMATTED')
+#endif
+            CALL DIBHEAD (CIDENT,IIDENT,RIDENT,
+     $                    ISELEA,ISAMPA,ISLINA,ISLIDI)
+         ELSEIF((LDIC).AND.(.NOT.LDIB)) THEN
+
+#if defined _HITACHI_ | defined _SP2_
+            OPEN (3,FILE='ft.03',FORM='FORMATTED')
+#else
+            OPEN (3,FILE='fort.3',FORM='FORMATTED')
+#endif
+
+            CALL DICHEAD (CIDENT,IIDENT,RIDENT,
+     $                    ISELEA,ISAMPA,ISLINA,ISLIDI)
+         ELSE
+            CALL ERRR (503,' MLET ')
+         ENDIF
+      ELSE
+         DCONT = .FALSE.
+         NGRDOLD = 0
+      ENDIF
+C
+
+
+C                                 IDENTIFIKATION:
+C
+      CALL SETID8 (CIDENT,IIDENT,RIDENT,'AERO WENGLE',VERS,MTSTEP,
+     $             NRRUN,MPCORR,KB,JB1,JB2,IB1,IB2,RE,DT,EPCORR,
+     $             ZTOT(1),YTOT(1),XTOT(1),
+     $             BETA,VREF,EXPON,GRADPX,RHO,GMOL,DREAD,ZCUB
+#ifdef _TSCAL_
+     $		   ,LAMDA,PRMOL,PRTURB,EXPONT,TREF
+#endif
+     $		   )
+C
+      CALL STRSET (IDIM3D,IDIM2D,IDIM1D,NBUF,NBND,
+     $               IDIMA,IDIM1L,IDIM2L,IDIMF,IIDENT,
+     $             X,Y,Z,ISAMPA)
+      CALL BODYCHECK
+
+C050696C
+C050696C                           GITTER FUER GEBIETSZERLEGUNG
+C050696C
+C050696      DO ILEVEL = MINLEVEL,MAXLEVEL
+C050696        DO I = 1,NOFSLCED(ILEVEL)
+C050696           IGRID = IGRDOFSLCED(I,ILEVEL)
+C050696
+C050696           CALL SETSLICE (IGRID,IDIM3D,IDIM2D,IDIM1D,
+C050696     $                    NBUF,NBND,IDIMA,IDIM1L,IDIM2L,IDIMF,X,Y,Z)
+C050696
+C050696        ENDDO
+C050696      ENDDO
+C050696
+C050696      CALL SETMPI
+C050696
+      IF(DREAD) THEN     	
+         DO IGRID = 1,NGRDOLD 
+             CALL DIGRID (CIDENT,IIDENT,RIDENT,
+     $                   DDX,DDY,DDZ,DX,DY,DZ,X,Y,Z,
+#ifdef _TSCAL_
+     $              U,V,W,T,P,G,B,BP,BU,BV,BW,BT,
+#else
+     $              U,V,W,P,G,B,BP,BU,BV,BW,	
+#endif
+     $              ITSTEP,ITTOT,TIMEPH,
+     $              IDIMF,NGRP1, NGRP3, IGRHF, GRX0, GRX1, HILF,
+     $              IDIM3D,IDIM2D,IDIM1D,NBUF,NBND,IDIMA,IDIM1L,IDIM2L,
+     $              IGRID,CONV1S)
+
+
+
+#ifndef _ALLOW_J_EXTEND_
+#ifndef _ALLOW_I_EXTEND_ 
+CTBC  DO NOT READ OLD STATISTICS WHILE EXTENDING GRID -> OLD STAT. LOST!        
+            IF(MTURB .GT. 0) THEN
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCC   BEI ERGEBNISSEN AUS MLET
+C                                      WIRD KEINE STATISTIK EINGELESEN
+            IF (IIDENT(5) .GT. 8) THEN
+
+C                                 EINLESEN DER ENSEMBLE-MITTELWERTE
+C                                 DES VORANGEGANGENEN LAUFES 
+            CALL MGDPB (KK,JJ,II,IP3,IP2,IP1,IBB,IBU,
+     $                   NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB,IGRID) 
+            CALL MGDIMA  (KKA,JJA,IIA,IGRID)
+            CALL MGPOINA (IAV,I2L,I1L,IGRID)
+                IF(LDIB  ) THEN
+            CALL DIBCA   (  1  ,'BINAER  ',IIDENT,
+     $                    ILIMXA,IDIBD1,IDIBD2,IDIBD3,IDIBD4,RKOMXA,
+     $                    RDIBD1,RDIBD2,RDIBD3,RDIBD4,IGRID,IDIM3D,  
+#include "cstsga.h"
+
+            CALL DIBCA1  (  1  ,'BINAER  ',HILFL,KKML,ILIMX ,
+#include "cstmg1.h"
+ 
+            END IF
+            IF(LDIC  ) THEN
+            CALL DIBCA   (  3  ,'CODIERT ',IIDENT,
+     $                    ILIMXA,IDIBD1,IDIBD2,IDIBD3,IDIBD4,RKOMXA,
+     $                    RDIBD1,RDIBD2,RDIBD3,RDIBD4,IGRID,IDIM3D,
+#include "cstsga.h"
+
+            CALL DIBCA1  (  3  ,'CODIERT ',HILFL,KKML,ILIMX ,
+#include "cstmg1.h"
+            END IF
+
+            END IF        
+            END IF 
+#endif
+#endif       
+ 
+
+         ENDDO
+C                                 GESAMTANZAHL DER ITERATIONEN
+C                                 PHYS. GESAMTZEIT 
+         ITTOT  = IIDENT(30)
+         TIMEPH = RIDENT(30)        
+            
+CTBA1 070203: NOW INITIALISE SCALAR FIELD IF IIDENT(50) = 0 
+C             THEN SET IIDENT(50) TO 1 
+C             -> T-FIELD IS SET AND WILL BE WRITTEN TO RESULT 
+#ifdef _TSCAL_
+         WRITE(6,*)'NGRDOLD: ',NGRDOLD,IIDENT(50)
+         DO IGRID = 1,NGRDOLD 
+         WRITE(6,*)'LOOP NGRD: ',IGRID,IIDENT(50)
+         IF (IIDENT(50) .EQ. 0) THEN         	        	
+            CALL INITSCA
+     $             (CIDENT,IIDENT,RIDENT,
+     $              DDX,DDY,DDZ,DX,DY,DZ,X,Y,Z,
+     $              T,
+     $              ITSTEP,ITTOT,TIMEPH,
+     $              IDIMF,NGRP1, NGRP3, IGRHF, GRX0, GRX1, GRHF,
+     $              IDIM3D,IDIM2D,IDIM1D,NBUF,NBND,IDIMA,IDIM1L,IDIM2L,
+     $              IGRID,CONV1S)          
+        ENDIF
+        ENDDO        
+        IIDENT(50) = 1
+#endif
+#ifdef _ORRSOMMER_
+        WRITE(6,*)'INITIALISING PERTURBATIONS ON BASE FLOW'
+        DO IGRID = 1,NGRDOLD
+        CALL INITORRSOMMER
+     $             (CIDENT,IIDENT,RIDENT,
+     $              DDX,DDY,DDZ,DX,DY,DZ,X,Y,Z,
+     $              U,V,W,P,G,B,BP,BU,BV,BW,
+     $              ITSTEP,ITTOT,TIMEPH,
+     $              IDIMF,NGRP1, NGRP3, IGRHF, GRX0, GRX1, GRHF,
+     $              IDIM3D,IDIM2D,IDIM1D,NBUF,NBND,IDIMA,IDIM1L,IDIM2L,
+     $              IGRID,CONV1S,UOLD,VOLD,WOLD)
+        ENDDO
+#endif
+C
+C***********************************************************************
+C123     CALL HPRORD (LPART,ITBGN,IVGL)
+C***********************************************************************
+C
+      END IF
+CTBC  END DREAD CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
+C
+C---- ------------------------------------ EINLESEN DER PARTIKEL 
+#ifdef _LPART_ORIENTATION_
+C
+#ifdef _HITACHI_MPP_
+        IF (MYID .EQ. 0) THEN
+            OPEN (21,FILE='ft.21',FORM='UNFORMATTED')
+        ENDIF
+#else
+         OPEN (21,FILE='ft.21',FORM="UNFORMATTED")
+#endif
+         CALL READ_PARTICLES (21, NPART, NFAM, CONF, XPART)
+         CLOSE (21)
+        write (6,*) 'MLET',nfam,npart
+        write (6,*) 'MLET',conf(1),conf(nfam*npart + 1),
+     $                           conf(nfam*npart*2 + 1)
+        write (6,*) 'MLET',xpart(1),xpart(nfam + 1),xpart(nfam*2 + 1)
+
+         IF (MOD (ITTOT,IPART_OUT) .EQ. 0) THEN
+
+C            CALL WRITE_PARTICLES (23, NPART, NPART_MAX, IPART, CONF)
+C            CALL WRITE_DUPART
+C     $              (29, LPART_VEC, LPART_VEC_MAX, IPART, DUPART)
+         ENDIF
+
+#endif
+#ifdef _PASSIVE_PARTICLE_
+C PARREAD = TRUE entspricht Fortsetzungslauf
+C Kanal 22: Inititalisierungswerte der Partikel
+C Kanal 23: Fortlaufende Information ueber Partikel
+       IF (PARREAD) THEN
+         OPEN (22,FORM="UNFORMATTED")
+         CALL READ_PARTICLES_INI (22,RUN,NFAM,XPART,START_VEC,NFAM_MAX,
+     $                            WLOP,DS)
+         CLOSE (22)
+         OPEN (23,FORM="UNFORMATTED",POSITION="APPEND")
+       ELSE
+         WRITE(6,*)'NXNPART: ',NXNPART,'IPART_OUT: ',IPART_OUT
+         CALL INIT_PARTICLES (NXNPART,NPART_MAX,XPART,START_VEC,RUN,
+     $                        NPART,PFLOWCASE)
+         NFAM = NPART
+         WLOP = 0
+         OPEN (23,FORM="UNFORMATTED")
+       ENDIF
+#endif
+C---- ------------------------------------ EINLESEN DER PARTIKEL FERTIG
+C
+C                            BELEGUNG VON WEITEREN GITTERN
+C                            FALLS LGRIDNEW = .TRUE.
+C
+
+
+      DO IGRID=NGRDOLD+1,NGRDDFD
+        CALL INIGRIDGEO
+     $             (CIDENT,IIDENT,RIDENT,
+     $              DDX,DDY,DDZ,DX,DY,DZ,X,Y,Z,
+#ifdef _TSCAL_
+     $              U,V,W,T,P,G,B,BP,BU,BV,BW,BT,
+#else
+     $              U,V,W,P,G,B,BP,BU,BV,BW,
+#endif
+     $              ITSTEP,ITTOT,TIMEPH,
+     $              IDIMF,NGRP1, NGRP3, IGRHF, GRX0, GRX1, GRHF,
+     $              IDIM3D,IDIM2D,IDIM1D,NBUF,NBND,IDIMA,IDIM1L,IDIM2L,
+     $              IGRID,CONV1S)
+
+      ENDDO              
+
+#ifdef _FRED_BODY_
+C     jk 28.7.2005
+C     Gitternachbarn stezten
+      WRITE(6,*)'VOR BLOCKBP!'
+      CALL MGNBRSET (DDX,DDY,DDZ,DX,DY,DZ,X,Y,Z,HILF,
+     $     IDIM1D,IDIM2D,NBND)
+C     BP Feld erzeugen
+      CALL BLOCKBP (
+     $     DDX,DDY,DDZ,
+     $     DX,DY,DZ,
+     $     X,Y,Z,
+     $     BP, HILF,
+     $     IDIM3D,IDIM2D,IDIM1D)
+#endif
+
+      DO IGRID=NGRDOLD+1,NGRDDFD
+        CALL INIGRIDVAR
+     $             (CIDENT,IIDENT,RIDENT,
+     $              DDX,DDY,DDZ,DX,DY,DZ,X,Y,Z,
+#ifdef _TSCAL_
+     $              U,V,W,T,P,G,B,BP,BU,BV,BW,BT,
+#else
+     $              U,V,W,P,G,B,BP,BU,BV,BW,
+#endif
+     $              ITSTEP,ITTOT,TIMEPH,
+     $              IDIMF,NGRP1, NGRP3, IGRHF, GRX0, GRX1, GRHF,
+     $              IDIM3D,IDIM2D,IDIM1D,NBUF,NBND,IDIMA,IDIM1L,IDIM2L,
+     $              IGRID,CONV1S)
+
+      ENDDO              
+
+C                           GITTER FUER GEBIETSZERLEGUNG
+C
+      DO ILEVEL = MINLEVEL,MAXLEVEL
+        DO I = 1,NOFSLCED(ILEVEL)
+           IGRID = IGRDOFSLCED(I,ILEVEL)
+C         CALL SLICEGRD (U,V,W,P,G,B,HILF,IDIM3D,IGRID)
+        ENDDO
+      ENDDO
+C
+C                       JETZT SIND BERECHNINGSGITTER ZERSCHNITTEN
+C                       GEBIETSZERLEGUNG ABGESCHLOSSEN
+C
+C
+C                            GROBGITTER FUER MULTIGRID-DRUCKKORREKTUR
+C
+
+      DO ILEVEL = MINLEVEL,MAXLEVEL
+      DO I = 1,NOFVPIT(ILEVEL)
+         IGRID = IGRDOFVPIT( I , ILEVEL )
+           
+         CALL MGVPSET
+     $             (CIDENT,IIDENT,RIDENT,
+     $              DDX,DDY,DDZ,DX,DY,DZ,X,Y,Z,
+#ifdef _TSCAL_
+     $              U,V,W,T,P,G,BU,BV,BW,BP,BT,
+#else
+     $              U,V,W,P,G,B,BU,BV,BW,BP,	
+#endif
+     $              ITSTEP,ITTOT,TIMEPH,
+     $              IDIMF,NGRP1, NGRP3, IGRHF, GRX0, GRX1, GRHF,
+     $              IDIM3D,IDIM2D,IDIM1D,NBUF,NBND,IDIMA,IDIM1L,IDIM2L,
+     $              IDIMF,IGRID,CONV1S
+     $             )     
+         ENDDO
+      ENDDO
+
+C                       SETZEN DER INDIZES FUER DIE BLOWING/SUCTION-
+C                       RANDBEDINGUNG
+CTBC1                   SET INDICES FOR SCALAR BOUNDARY CONDITIONS
+      CALL MGBLOINDSET (DDX,DDY,DDZ,DX,DY,DZ,X,Y,Z,HILF,
+     $               IDIM1D,IDIMF,NBND,UBO,VBO,WBO)
+
+C                       SETZEN DER PARENTGITTER, DIE NOCH NICHT
+C                       UEBER STEUERFILE SPEZIFIZIERT WURDEN
+C
+      CALL MGPARSET (DDX,DDY,DDZ,DX,DY,DZ,X,Y,Z,HILF,
+     $               IDIM1D,IDIMF,NBND)
+
+C                       SETZEN DER NACHBARGITTER, DIE NOCH NICHT
+C                       UEBER STEUERFILE SPEZIFIZIERT WURDEN
+C
+      CALL MGNBRSET (DDX,DDY,DDZ,DX,DY,DZ,X,Y,Z,HILF,
+     $               IDIM1D,IDIM2D,NBND)
+C
+C                       INFORMATION UEBER VERNETZUNG DER GITTER
+C
+      CALL MGCONINF (DX,DY,DZ,X,Y,Z,IDIM1D,NBND)      
+C
+C                       EINIGE GITTERSPEZIFISCHE INITIALISIERUNGEN
+C
+      DO ILEVEL = MINLEVEL,MAXLEVEL
+        DO I = 1,NOFLEVEL(ILEVEL)
+           IGRID = IGRDOFLEVEL(I,ILEVEL)
+C
+C                                NUR, FALLS GITTER NICHT GEBIETSZERLEGT
+C
+         IF ( .NOT. LSLICE(IGRID) ) THEN
+         CALL MGDPB (KK,JJ,II,IP3,IP2,IP1,IBB,IBU,
+     $           NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB,IGRID)
+         CALL MGBASBSCA (NFROSCA,NBACSCA,NRGTSCA,NLFTSCA,NBOTSCA,
+     $        NTOPSCA,NCUBSCA,IGRID)
+C         CALL WRITE3DDIAGY(KK,JJ,II,W(IP3),31,3)
+C         CALL WRITE3DDIAGY(KK,JJ,II,U(IP3),41,4)
+C
+C                                 FESTSTELLEN IN WELCHEN KOORD.-RI.
+C                                 DAS GITTER AEQUIDISTANT IST
+C
+         CALL AEQGRD (KK,JJ,II,KK,JJ,II,DX(IP1),DY(IP1),DZ(IP1),NBND,
+     &                NXGRAE(IGRID),NYGRAE(IGRID),NZGRAE(IGRID),IGRID)
+C
+C                  BERECHNEN DER REZIPROKWERTE DER GEOMETRIEFAKTOREN
+C
+C
+         CALL REZIPD(KK,JJ,II,KK,JJ,II,DX(IP1),DY(IP1),DZ(IP1),
+     $               DDX(IP1),DDY(IP1),DDZ(IP1),
+     $               RDX(IP1),RDY(IP1),RDZ(IP1),
+     $               RDDX(IP1),RDDY(IP1),RDDZ(IP1))     
+
+C
+C                  BERECHNEN DER FAKTOREN FUER DIREKTEN POISSONLOESER
+C
+         IF (LPOISSONDIR(IGRID)) THEN
+            CALL CALPSFAK 
+     $                   (KK,JJ,II,NBND,
+     $                     DX(IP1), DY(IP1), DZ(IP1),
+     $                    DDX(IP1),DDY(IP1),DDZ(IP1),
+     $                    FPSFAK(IP2),FCOSMY(IP1),FCOSNY(IP1),
+     &                NXGRAE(IGRID),NYGRAE(IGRID),NZGRAE(IGRID),
+     $                     NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,IGRID)
+C
+C                 SINUS- UND COSINUS-TABELLEN FUER FOURIERTRANSFORMATION
+C                 IN X- UND Y-RICHTUNG
+C
+#if (defined _CRAY_ || defined _C3820_)
+#if (defined _CRAY_)
+            CALL FFTFAX ( (JJ-2*NBND) , IFFTY(1,IGRID) , RFFTY(IP1) )
+            CALL CFTFAX ( (II-2*NBND) , IFFTX(1,IGRID) , RFFTX(IP1) )
+#endif
+#else
+
+            CALL FFTSET 
+     $     ( II-2*NBND , IFFTX(1,IGRID) , IPERMUX(IP1) , RFFTX(IP1*2))
+            CALL FFTSET 
+     $     ( JJ-2*NBND , IFFTY(1,IGRID) , IPERMUY(IP1) , RFFTY(IP1*2))
+
+
+ 
+#endif
+
+         ENDIF
+C
+#ifdef _MPI_
+       IF (MYID .EQ. IDPROCOFGRD(IGRID))  THEN
+#endif
+C
+C************************** BERECHNUNG DER KOEFFIZIENTEN DES
+C*********************** KOMPAKTVERFAHRENS FUER JEDES GITTER
+C
+
+#ifndef _FRED_BODY_
+
+#ifdef _KOMXK_
+      CALL COEFKON(II,DX(IP1),DDX(IP1),NFRO,NBAC,COEFFX(IP2))
+      CALL COEFDIV(II,DX(IP1),DDX(IP1),NFRO,NBAC,COEFDX(IP2))
+#ifdef _TSCAL_
+      CALL COEFSCAL(II,DX(IP1),DDX(IP1),COEFTX(IP2),NFROSCA,NBACSCA)
+#endif
+#endif
+
+#ifdef _KOMYK_
+      CALL COEFKON(JJ,DY(IP1),DDY(IP1),NRGT,NLFT,COEFFY(IP2))
+      CALL COEFDIV(JJ,DY(IP1),DDY(IP1),NRGT,NLFT,COEFDY(IP2))
+#ifdef _TSCAL_
+      CALL COEFSCAL(JJ,DY(IP1),DDY(IP1),COEFTY(IP2),NRGTSCA,NLFTSCA)
+#endif
+#endif
+
+#ifdef _KOMZK_
+      CALL COEFKON(KK,DZ(IP1),DDZ(IP1),NBOT,NTOP,COEFFZ(IP2))
+      CALL COEFDIV(KK,DZ(IP1),DDZ(IP1),NBOT,NTOP,COEFDZ(IP2))
+#ifdef _TSCAL_
+      CALL COEFSCAL(KK,DZ(IP1),DDZ(IP1),COEFTZ(IP2),NBOTSCA,NTOPSCA)
+#endif
+#endif
+
+#else
+
+      CIP1 = 12*3*(IP1-1)+1
+#ifdef _KOMXK_
+      CALL COEFKON(II,DX(IP1),DDX(IP1),NFRO,NBAC,COEFFX(CIP1))
+      CALL COEFDIV(II,DX(IP1),DDX(IP1),NFRO,NBAC,COEFDX(CIP1))
+#ifdef _TSCAL_
+      CALL COEFSCAL(II,DX(IP1),DDX(IP1),COEFTX(CIP1),NFROSCA,NBACSCA)
+#endif
+#endif
+
+#ifdef _KOMYK_
+      CALL COEFKON(JJ,DY(IP1),DDY(IP1),NRGT,NLFT,COEFFY(CIP1))
+      CALL COEFDIV(JJ,DY(IP1),DDY(IP1),NRGT,NLFT,COEFDY(CIP1))
+#ifdef _TSCAL_
+      CALL COEFSCAL(JJ,DY(IP1),DDY(IP1),COEFTY(CIP1),NRGTSCA,NLFTSCA)
+#endif
+#endif
+
+#ifdef _KOMZK_
+      CALL COEFKON(KK,DZ(IP1),DDZ(IP1),NBOT,NTOP,COEFFZ(CIP1))
+      CALL COEFDIV(KK,DZ(IP1),DDZ(IP1),NBOT,NTOP,COEFDZ(CIP1))
+#ifdef _TSCAL_
+      CALL COEFSCAL(KK,DZ(IP1),DDZ(IP1),COEFTZ(CIP1),NBOTSCA,NTOPSCA)
+#endif
+#endif
+
+#endif
+C********************************************************************
+C   Berechnung der Ubertragunsfunktion des Filters fuer ADM-Scalar
+#ifdef _DECONVOLVESCA_
+      CALL INIT_FILTER_PERIODIC((II-4)/2,TFX(IP1))
+      CALL INIT_FILTER_PERIODIC((JJ-4)/2,TFY(IP1))
+#endif
+C*********************************************************************
+C
+#ifdef _FASTBUTBIGMEM_
+C                       GEOMETRIEFAKTOREN ZUR BESCHLEUNIGUNG DER 
+C                       VPLESC BZW. VPRBC ROUTINE
+
+
+      CALL SETGEOVP  (KK,JJ,II,KK,JJ,II,
+     $                        RDX(IP1),RDY(IP1),RDZ(IP1),GEOVP(IP3))
+#endif
+
+C************************************SET POISSON FAKTORS**************
+#ifdef _POISSONITER_
+      CALL GITEIG     (KK,JJ,II, DX(IP1),DY(IP1),DZ(IP1),
+     $                 GSAW(IP1),GSAE(IP1),GSAN(IP1),
+     $                 GSAS(IP1),GSAT(IP1),GSAB(IP1),
+#ifdef _FRED_BODY_
+     $                 BP(IP3),
+#endif
+     $                 NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,
+     $                 GEOVP(IP3)
+#ifndef _SIP_ITER_
+     $                 ,GSRAP(IP3))
+#else
+     $                 )
+
+
+      CALL    SIPLU    (KK,JJ,II,
+     $                 GSAW(IP1),GSAE(IP1),GSAN(IP1),
+     $                 GSAS(IP1),GSAT(IP1),GSAB(IP1),
+#ifdef _FRED_BODY_
+     $                 BP(IP3),
+#endif
+     $                 GEOVP(IP3),SIPLW(IP3),SIPLS(IP3),
+     $                 SIPLB(IP3),SIPLPR(IP3),SIPUE(IP3),
+     $                 SIPUN(IP3),SIPUT(IP3))
+#endif
+#endif
+#ifdef _MPI_
+       ENDIF
+#endif
+CTBC     ENDIF (.NOT. LSLICE)
+         ENDIF
+        ENDDO
+      ENDDO
+C
+C
+C
+#ifdef _RECORD_
+C
+CTBC1 WRITING OF SCALAR RECORDS NOT YET IMPLEMENTED!!! 
+C
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
+C            CHECKEN DER DATEN FUER RAUSSCHREIBEN VON ZEITRECORDS
+C
+
+        IF (LREC) THEN
+
+         DO IREC = 1,NVREC
+          CALL MGDPB (KK,JJ,II,IP3,IP2,IP1,IBB,IBU,
+     $           NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB,NGREC(IREC))
+c
+          CALL DICREC (LREC)
+C
+          CALL GRDREC (NMREC,NVREC,ITREC,MAXREC,LREC,NTREC,
+     +                    CIDREC,CIDRE2,IVEREC,IVOREC,KANREC,KANGEO,
+     +                    INXREC,INYREC,INZREC,
+     +                    XUGREC,XOGREC,YUGREC,YOGREC,ZUGREC,ZOGREC,
+     +                    XREC,YREC,ZREC,IARREC,JARREC,KARREC,
+     +                    KK,JJ,II,X(IP1),Y(IP1),Z(IP1),
+     +                    DX(IP1),DY(IP1),DZ(IP1),IREC)
+C
+C
+          CALL POSREC (NMREC,NVREC,ITREC,MAXREC,LREC,NTREC,
+     +                    CIDREC,CIDRE2,
+     +                    IVEREC,IVOREC,KANREC,KANGEO,
+     +                    INXREC,INYREC,INZREC,
+     +                    XREC,YREC,ZREC,
+     +                    IARREC,JARREC,KARREC,
+     +                    NPREC,
+     +                    KK,JJ,II,
+     +                    TIMEPH,IREC)
+
+         ENDDO
+C
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
+C
+        ENDIF
+C
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
+#endif
+C
+
+      ITSTEP = 0
+
+      IF(.NOT. DCONT) THEN
+         ITTOT  = 0
+         TIMEPH = 0.0
+      END IF
+C
+C
+C
+C                       EINIGE GITTERSPEZIFISCHE INITIALISIERUNGEN
+C
+C-101296      DO IGRID = 1,NGRDSET
+      DO ILEVEL = MAXLEVEL,MINLEVEL,-1
+        DO I = 1,NOFTST(ILEVEL)
+           IGRID = IGRDOFTST(I,ILEVEL)
+         CALL MGDPB (KK,JJ,II,IP3,IP2,IP1,IBB,IBU,
+     $           NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB,IGRID)
+#ifdef _MPI_
+       IF (MYID .EQ. IDPROCOFGRD(IGRID))  THEN
+#endif
+
+
+C
+C
+C                             BELEGEN DES FRONT-BUFFERS
+C
+C
+         IF ( NFRO .EQ. 2 .OR. NFRO .EQ. 11) THEN
+
+           IF (IVPCHILD(IGRID).EQ.0) THEN
+C                                            REGULAERES GITTER
+
+             IF(LDIEIB) THEN
+C
+C                                 EINLESEN DES G-PROFILS UND DER GESCHW.
+C                                 PROFILE AM EINTRITTSRAND (UNFOR-
+C                                 MATIERT AUF KANAL 11)
+C
+CTBC11 260203 READING OF T PROFILES NOT YET IMPLEMENTED CCCCCCCCCCCCCCCC
+                CALL DEIBI   (KMX(1),JMX(1),IMX(1),KMX(1),JMX(1),IMX(1),
+     $                        ZTOT(1),YTOT(1),XTOT(1),
+     $                        CIDEND,IIDEND,RIDEND,
+C#ifdef _TSCAL_
+C     $            UFR(IBB),VFR(IBB),WFR(IBB),TFR(IBB),PFR(IBB),GFR(IBB),
+C     $               UI1,VI1,WI1,TI1,UI2,VI2,WI2,TI2,GI1,GI2,
+C#else
+     $                     UFR(IBB),VFR(IBB),WFR(IBB),PFR(IBB),GFR(IBB),
+     $                        UI1,VI1,WI1,UI2,VI2,WI2,GI1,GI2,
+C#endif 
+     $                        UGRID,ITSTEP,ITTOT,TIMEPH,DT)
+C
+             END IF
+             IF(LDIEIC) THEN
+C
+C                                 EINLESEN DES G-PROFILS UND DER GESCHW.
+C                                 PROFILE AM EINTRITTSRAND (FORMATIERT
+C                                 AUF KANAL 13)
+C
+CTBC11 260203 READING OF T PROFILES NOT YET IMPLEMENTED CCCCCCCCCCCCCCCC
+                CALL DEICI   (KMX(1),JMX(1),IMX(1),KMX(1),JMX(1),IMX(1),
+     $                        ZTOT(1),YTOT(1),XTOT(1),
+     $                        CIDEND,IIDEND,RIDEND,
+C#ifdef _TSCAL_
+C     $            UFR(IBB),VFR(IBB),WFR(IBB),TFR(IBB),PFR(IBB),GFR(IBB),
+C     $               UI1,VI1,WI1,TI1,UI2,VI2,WI2,TI2,GI1,GI2,
+C#else
+     $                     UFR(IBB),VFR(IBB),WFR(IBB),PFR(IBB),GFR(IBB),
+     $                        UI1,VI1,WI1,UI2,VI2,WI2,GI1,GI2,
+C#endif 
+     $                        UGRID,ITSTEP,ITTOT,TIMEPH,DT)
+C  
+        END IF
+      
+             IF((.NOT.LDIEIB).AND.(.NOT.LDIEIC)) THEN
+               CALL SVEIPR (KK,JJ, 2,KK,JJ, 2,
+     $                     UFR(IBB),VFR(IBB),WFR(IBB),PFR(IBB),
+     $                     GFR(IBB),Y(IP1),Z(IP1),DZ(IP1),VCON,WCON,
+     $                     YBANF(1,1,IGRID),YBEND(1,1,IGRID),
+     $                     ZBANF(1,1,IGRID),ZBEND(1,1,IGRID),
+     $                     FREQB(1,1,IGRID),ANIVEAU(1,1,IGRID),
+     $                     AUB(1,1,IGRID),AVB(1,1,IGRID),AWB(1,1,IGRID),
+     $                     TIMEPH,DT)
+#ifdef _TSCAL_
+               CALL SVEIPRSCA (KK,JJ, 2,KK,JJ, 2,
+     $                     TFR(IBB),Y(IP1),Z(IP1),DZ(IP1),
+     $                     TIMEPH,DT,IGRID)
+#endif     
+             ENDIF
+           ENDIF
+         ENDIF
+#ifdef _MPI_
+       ENDIF
+#endif
+
+C hier Randschicht noch ok
+C       CALL WRITE3DDIAGY (KMX(1),JMX(1),IMX(1),U,99,3)
+C       stop
+
+         IF ( NFRO .EQ. 11 .OR. NFRO .EQ. 12) THEN
+            CALL MGSVFLU (U,V,W,P,G,AU,AV,AW,
+     $                    HILF,UFR,VFR,WFR,PFR,GFR,X,Y,Z,
+     $                    IDIM3D,IDIM2D,IDIM1D,IDIMA,
+     $                    NBND,IGRID,ITSTEP,1,NFRO
+#ifdef _TSCAL_
+     $                   ,T,AT,TFR,2
+#endif
+     $                   )
+            
+         ENDIF
+
+#ifdef _MPI_
+       IF (MYID .EQ. IDPROCOFGRD(IGRID))  THEN
+#endif
+C
+C
+C                             BELEGEN DES BOTTOM-BUFFERS
+C
+C
+         IF ( NBOT .EQ. 2 .OR. NBOT .EQ. 11) THEN
+#ifdef _TSCAL_
+      STOP 
+     $'FIXED/FLUCTUATION BOUNDARY AT BOTTOM NOT IMPLEMENTED FOR SCALAR'
+#endif         	
+
+            IF (IVPCHILD(IGRID).EQ.0) THEN
+C                                            REGULAERES GITTER
+               IF((.NOT.LDIEIB).AND.(.NOT.LDIEIC)) THEN
+                  CALL SV3D (JJ,II, 2,JJ,II, 2,
+     $                 WBO(IBB),UBO(IBB),VBO(IBB),PBO(IBB),
+     $                 GBO(IBB),HILF(IBB),
+     $                   Z(IP1),  X(IP1),  Y(IP1),
+     $                  DZ(IP1), DX(IP1), DY(IP1),
+     $                 DDZ(IP1),DDX(IP1),DDY(IP1),
+     $                 VCON,WCON,
+     $                 YBANF(1,5,IGRID),YBEND(1,5,IGRID),
+     $                 XBANF(1,5,IGRID),XBEND(1,5,IGRID),
+     $                 ZBANF(1,5,IGRID),ZBEND(1,5,IGRID),
+     $                 FREQB(1,5,IGRID),ANIVEAU(1,5,IGRID),
+     $                 AUB(1,5,IGRID),AVB(1,5,IGRID),AWB(1,5,IGRID),
+     $                 TIMEPH,DT,0)
+               ENDIF
+            ENDIF
+         ENDIF
+#ifdef _MPI_
+      ENDIF
+#endif
+         IF ( NBOT .EQ. 11 .OR. NBOT .EQ. 12 ) THEN
+#ifdef _TSCAL_         	
+             STOP
+     $'FLUCTUATION/RECYCLING BOUNDARY AT BOTTOM NOT IMPL. FOR SCALAR'         	
+#endif
+            CALL MGBOFLU (U,V,W,P,G,AU,AV,AW,
+     $                    HILF,UBO,VBO,WBO,PBO,GBO,X,Y,Z,
+     $                    IDIM3D,IDIM2D,IDIM1D,IDIMA,
+     $                    NBND,IGRID,ITSTEP,1,NBOT)
+            
+         ENDIF
+      ENDDO
+      ENDDO
+C                                  LEVELS FROM FINE TO COARSE, IN
+C                                  ORDER TO PROPAGATE BOUNDARY-COND.
+C                                  FROM FINE TO COARSE GRIDS
+      DO ILEVEL = MAXLEVEL,MINLEVEL,-1
+         DO I = 1,NOFVPIT(ILEVEL)
+            IGRID = IGRDOFVPIT(I,ILEVEL)
+            IF (IPARENT(IGRID) .NE. 0) THEN
+            IPROCF = 0
+            IPROCC = 0
+#ifdef _MPI_
+            IPROCF = IDPROCOFGRD(IGRID)
+            IPROCC = IDPROCOFGRD(IPARENT(IGRID))
+            IF (MYID .EQ. IPROCF .OR. MYID .EQ. IPROCC)  THEN
+#endif
+
+               CALL MGDPB (KK,JJ,II,IP3,IP2,IP1,IBB,IBU,
+     $              NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB,IGRID)
+C
+               IF ( LCHILD(IGRID) ) THEN
+C
+C                                 FRONT BUFFER
+C
+                  IF (      NFRO .EQ. 2 
+     $                 .OR. NFRO .EQ. 11 
+     $                 .OR. NFRO .EQ. 12 ) THEN
+
+C                                 BEREITSTELLUNG DER POINTER
+C                                 DIMENSIONIERUNGEN DES FEINGITTERS
+
+                     CALL MGDIMS  (KKC,JJC,IIC,IPARENT(IGRID))
+                     CALL MGPOINT 
+     &              (IP3C,IP2C,IP1C,IBBC,IB3C,IBUC,IPARENT(IGRID))
+                
+                
+                     CALL MGBFTC (KK,JJ, 2 ,DX(IP1),DY(IP1),DZ(IP1),
+     &                    DDX(IP1),DDY(IP1),DDZ(IP1),UFR(IBB),
+     &                    KKC,JJC, 2 ,DX(IP1C),DY(IP1C),DZ(IP1C),
+     &                    DDX(IP1C),DDY(IP1C),DDZ(IP1C),UFR(IBBC),
+     &                    KPOSITION(IGRID),JPOSITION(IGRID),
+     &                    IPOSITION(IGRID),'U',IPROCF,IPROCC)
+
+                  END IF
+C
+C                                BOTTOM BUFFER
+C
+                  IF (       NBOT .EQ. 2 
+     $                  .OR. NBOT .EQ. 11 
+     $                  .OR. NBOT .EQ. 12 ) THEN     	
+                     CALL MGDIMS  (KKC,JJC,IIC,IPARENT(IGRID))
+                     CALL MGPOINT 
+     &                 (IP3C,IP2C,IP1C,IBBC,IB3C,IBUC,IPARENT(IGRID))
+                     CALL MGBFTC (JJ,II, 2 ,DZ(IP1),DX(IP1),DY(IP1),
+     &                    DDZ(IP1),DDX(IP1),DDY(IP1),WBO(IBB),
+     &                    JJC,IIC, 2 ,DZ(IP1C),DX(IP1C),DY(IP1C),
+     &                    DDZ(IP1C),DDX(IP1C),DDY(IP1C),WBO(IBBC),
+     &                    JPOSITION(IGRID),IPOSITION(IGRID),
+     &                    KPOSITION(IGRID),'U',IPROCF,IPROCC)
+                  END IF
+               END IF
+#ifdef _MPI_
+            ENDIF
+#endif
+         ENDIF
+         ENDDO
+      ENDDO
+C
+C
+C
+C                                 SHIFTEN DES U-FELDES FUER DIE GALILEI-
+C                                 TRANSFORMATION. DAS GITTER WIRD MIT
+C                                 DER GESCHW.  UGRID  BEWEGT.
+      DO ILEVEL = MINLEVEL,MAXLEVEL
+         DO I = 1,NOFTST(ILEVEL)
+            IGRID = IGRDOFTST(I,ILEVEL)
+#ifdef _MPI_
+            IF (MYID .EQ. IDPROCOFGRD(IGRID))  THEN
+#endif
+
+               CALL MGDPB (KK,JJ,II,IP3,IP2,IP1,IBB,IBU,
+     $              NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB,IGRID)
+C
+C                                 BELEGUNG DER AUSTRITTSRANDFELDER
+C                                 UBA,VBA,WBA FUER DIE KONVEKTIVE
+C                                 AUSTRITTSRANDBEDINGUNG
+C
+C
+               CALL VSHIFT  (KK,JJ,II,KK,JJ,II,U(IP3),UGRID,'S')
+C
+CTBC6 041202 CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
+      CALL SETBACKOLD   (KK,JJ,II,KK,JJ,II,UBA(IBB), VBA(IBB), WBA(IBB),
+     $                   U(IP3),V(IP3),W(IP3)
+#ifdef _TSCAL_
+     $                  ,TBA(IBB),T(IP3),2
+#endif   
+     $                  )
+C
+#ifdef _MPI_
+            ENDIF
+#endif
+         ENDDO
+      ENDDO
+
+C
+C                                 SETZEN DER RANDBEDINGUNGEN
+C
+
+      DO ILEVEL = MINLEVEL,MAXLEVEL
+Cifdef _MPI_
+C
+C                                 BEI MESSAGE-PASSING, KOMMUNIKATION
+C
+         CALL CONNECTMG
+     $             (IDIM3D,IDIM2D,IDIM1D,
+     $              X,Y,Z,DX,DY,DZ,DDX,DDY,DDZ,
+#ifdef _TSCAL_
+     $              U,V,W,T,P,G,B,UFR,VRI,WBO,HILF,UTO,VTO,WTO,PTO,GTO,
+#else     
+     $              U,V,W,P,G,B,UFR,VRI,WBO,HILF,UTO,VTO,WTO,PTO,GTO,
+#endif
+     $              VFR,WFR,PFR,GFR,
+     $              'T',ILEVEL,0,0,0,
+     $              NOFTST(ILEVEL),IGRDOFTST(1,ILEVEL))
+
+C
+C                               FILL THE BOUNDARY BUFFER FOR LOCAL GRIDS
+C
+         CALL BPARMG
+     $             (IDIM3D,IDIM2D,IDIM1D,
+     $              X,Y,Z,DX,DY,DZ,DDX,DDY,DDZ,
+     $              U,V,W,P,G,B,UFR,VRI,WBO,DUDY,DUDZ,DVDX,
+     $              UTO,VTO,WTO,PTO,GTO,UBA,VBA,WBA,PBA,GBA,
+     $              VFR,WFR,PFR,GFR,
+     $              'T',ILEVEL,0,0,0,
+     $              NOFTST(ILEVEL),IGRDOFTST(1,ILEVEL)
+#ifdef _TSCAL_
+     $             ,T,TFR,TBA,TTO
+#endif
+     $             )      
+Cendif
+        DO I = 1,NOFTST(ILEVEL)
+           IGRID = IGRDOFTST(I,ILEVEL)
+#ifdef _MPI_
+       IF (MYID .EQ. IDPROCOFGRD(IGRID))  THEN
+#endif
+
+         CALL MGDPB (KK,JJ,II,IP3,IP2,IP1,IBB,IBU,
+     $           NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB,IGRID)
+
+         CALL BOUNDMG
+     $             (IDIM3D,IDIM2D,IDIM1D,
+     $              X,Y,Z,DX,DY,DZ,DDX,DDY,DDZ,
+     $              U,V,W,P,G,B,UFR,VFR,WFR,VRI,HILF,
+     $                 UTO,VTO,WTO,PTO,GTO,
+     $              'T',IGRID,0,0,0,
+     $              TIMEPH,UBA,VBA,WBA,PBA,GBA,UBO,VBO,WBO,
+     $              PFR,GFR
+#ifdef _TSCAL_
+     $              ,T,TFR,TBA,TTO,TBO
+#endif
+     $             )     
+#ifdef _MPI_
+       ENDIF
+#endif
+        ENDDO
+      ENDDO
+CCCCCCCCCCCCCCC  	AM 18.3.1996 AUSGESCHALTET,
+CCCCCCCCCCCCCCC         DA REYNOLDSZAHLWECHSEL BEI LAMINAREN
+CCCCCCCCCCCCCCC         LAEUFEN SONST NICHT MOEGLICH!
+CCCCCCCCCCCCCCC         IF(MTURB .EQ. 1) THEN
+
+      DO ILEVEL = MINLEVEL,MAXLEVEL
+Cifdef _MPI_
+C
+C                                 BEI MESSAGE-PASSING, KOMMUNIKATION
+C
+         CALL CONNECTMG
+     $             (IDIM3D,IDIM2D,IDIM1D,
+     $              X,Y,Z,DX,DY,DZ,DDX,DDY,DDZ,
+#ifdef _TSCAL_
+     $              U,V,W,T,P,G,B,UFR,VRI,WBO,HILF,UTO,VTO,WTO,PTO,GTO,
+#else     
+     $              U,V,W,P,G,B,UFR,VRI,WBO,HILF,UTO,VTO,WTO,PTO,GTO,
+#endif     
+     $              VFR,WFR,PFR,GFR,
+     $              'T',ILEVEL,0,0,0,
+     $              NOFTST(ILEVEL),IGRDOFTST(1,ILEVEL))
+
+Cendif
+        DO I = 1,NOFTST(ILEVEL)
+           IGRID = IGRDOFTST(I,ILEVEL)
+#ifdef _MPI_
+       IF (MYID .EQ. IDPROCOFGRD(IGRID))  THEN
+#endif
+
+         CALL MGDPB (KK,JJ,II,IP3,IP2,IP1,IBB,IBU,
+     $           NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB,IGRID)
+           CALL MGPOINT (IP3,IP2,IP1,IBB,IB3,IBU,IGRID)
+C
+C
+C                                 SETZEN DER RANDBEDINGUNGEN
+C
+         CALL BOUNDMG
+     $             (IDIM3D,IDIM2D,IDIM1D,
+     $              X,Y,Z,DX,DY,DZ,DDX,DDY,DDZ,
+     $              U,V,W,P,G,B,UFR,VFR,WFR,VRI,HILF,
+     $                 UTO,VTO,WTO,PTO,GTO,
+     $              'T',IGRID,0,0,0,
+     $              TIMEPH,UBA,VBA,WBA,PBA,GBA,UBO,VBO,WBO,
+     $              PFR,GFR
+#ifdef _TSCAL_
+     $             ,T,TFR,TBA,TTO,TBO
+#endif
+     $             )     
+C                                 CALCULATION OF THE LES CONSTANT CONV1S
+C
+      CALL LESCONST (KK,JJ,II,KK,JJ,II,
+     $                              X(IP1),Y(IP1),Z(IP1),
+     $                              DX(IP1),DY(IP1),DZ(IP1),
+     $                              DDX(IP1),DDY(IP1),DDZ(IP1),
+     $                              CONV1S(IP1),CONV1SANF(IGRID),
+     $                              CONV1SEND(IGRID),
+     $                              TRANSLES1(IGRID),TRANSLES2(IGRID))
+
+C                                 BELEGUNG DES G-FELDES UND SETZEN
+C                                 DER RANDBEDINGUNGEN FUER G.
+C
+#ifdef _DYNSGSM_
+#ifdef _FRED_BODY_
+         CALL EFVISC (KK,JJ,II,KK,JJ,II,
+     $                              X(IP1),Y(IP1),Z(IP1),
+     $                              DX(IP1),DY(IP1),DZ(IP1),
+     $                              DDX(IP1),DDY(IP1),DDZ(IP1),
+     $                              RDX(IP1),RDY(IP1),RDZ(IP1),
+     $                              RDDX(IP1),RDDY(IP1),RDDZ(IP1),
+     $                              U(IP3),V(IP3),W(IP3),G(IP3),BP(IP3),
+     $                              DUDY(IP2),DUDZ(IP2),DVDX(IP2),
+     $                              DVDZ(IP2),DWDX(IP2),DWDY(IP2),
+     $                              GMOL,RHO,UGRID,
+     $                              IC1(IGRID),IC2(IGRID),
+     $                              JC1(IGRID),JC2(IGRID),
+     $                              KC1(IGRID),KC2(IGRID),
+     $                              NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB,
+     $                              CONV1S(IP1), 
+     $   HILF0(IP2),HILF1(IP2),HILF2(IP2),HILF3(IP2),HILF4(IP2),
+     $   HILF5(IP2),HILF6(IP2),
+     $   LUX(IP2),LUY(IP2),LUZ(IP2),LVY(IP2),LVZ(IP2),LWZ(IP2),MUX(IP2),
+     $   MUY(IP2),MUZ(IP2),MVY(IP2),MVZ(IP2),MWZ(IP2),
+     $   FA11(IP2),FA12(IP2),FA13(IP2),FA21(IP2),FA22(IP2),FA23(IP2),
+     $   FA31(IP2),FA32(IP2),FA33(IP2),
+     $   DUDX3(IB3),DUDY3(IB3),DUDZ3(IB3),DVDX3(IB3),DVDY3(IB3),
+     $   DVDZ3(IB3),
+     $   DWDX3(IB3),DWDY3(IB3),DWDZ3(IB3),NORMS(IB3),SDUDX3(IB3),
+     $   SDUDY3(IB3),SDUDZ3(IB3),
+     $   SDVDY3(IB3),SDVDZ3(IB3),SDWDZ3(IB3),
+     $   UC(IB3),VC(IB3),WC(IB3),UUC(IB3),UVC(IB3),UWC(IB3),VVC(IB3),
+     $   VWC(IB3),WWC(IB3),CDELTA(IP1))
+#else
+         CALL EFVISC (KK,JJ,II,KK,JJ,II,
+     $                              X(IP1),Y(IP1),Z(IP1),
+     $                              DX(IP1),DY(IP1),DZ(IP1),
+     $                              DDX(IP1),DDY(IP1),DDZ(IP1),
+     $                              RDX(IP1),RDY(IP1),RDZ(IP1),
+     $                              RDDX(IP1),RDDY(IP1),RDDZ(IP1),
+     $                              U(IP3),V(IP3),W(IP3),G(IP3),B(IP3),
+     $                              DUDY(IP2),DUDZ(IP2),DVDX(IP2),
+     $                              DVDZ(IP2),DWDX(IP2),DWDY(IP2),
+     $                              GMOL,RHO,UGRID,
+     $                              IC1(IGRID),IC2(IGRID),
+     $                              JC1(IGRID),JC2(IGRID),
+     $                              KC1(IGRID),KC2(IGRID),
+     $                              NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB,
+     $                              CONV1S(IP1),
+     $   HILF0(IP2),HILF1(IP2),HILF2(IP2),HILF3(IP2),HILF4(IP2),
+     $   HILF5(IP2),HILF6(IP2),
+     $   LUX(IP2),LUY(IP2),LUZ(IP2),LVY(IP2),LVZ(IP2),LWZ(IP2),MUX(IP2),
+     $   MUY(IP2),MUZ(IP2),MVY(IP2),MVZ(IP2),MWZ(IP2),
+     $   FA11(IP2),FA12(IP2),FA13(IP2),FA21(IP2),FA22(IP2),FA23(IP2),
+     $   FA31(IP2),FA32(IP2),FA33(IP2),
+     $   DUDX3(IB3),DUDY3(IB3),DUDZ3(IB3),DVDX3(IB3),DVDY3(IB3),
+     $   DVDZ3(IB3),
+     $   DWDX3(IB3),DWDY3(IB3),DWDZ3(IB3),NORMS(IB3),SDUDX3(IB3),
+     $   SDUDY3(IB3),SDUDZ3(IB3),
+     $   SDVDY3(IB3),SDVDZ3(IB3),SDWDZ3(IB3),
+     $   UC(IB3),VC(IB3),WC(IB3),UUC(IB3),UVC(IB3),UWC(IB3),VVC(IB3),
+     $   VWC(IB3),WWC(IB3),CDELTA(IP1))
+#endif
+#else
+#ifdef _FRED_BODY_
+         CALL EFVISC (KK,JJ,II,KK,JJ,II,
+     $                              X(IP1),Y(IP1),Z(IP1),
+     $                              DX(IP1),DY(IP1),DZ(IP1),
+     $                              DDX(IP1),DDY(IP1),DDZ(IP1),
+     $                              RDX(IP1),RDY(IP1),RDZ(IP1),
+     $                              RDDX(IP1),RDDY(IP1),RDDZ(IP1),
+     $                              U(IP3),V(IP3),W(IP3),G(IP3),BP(IP3),
+     $                              DUDY(IP2),DUDZ(IP2),DVDX(IP2),
+     $                              DVDZ(IP2),DWDX(IP2),DWDY(IP2),
+     $                              GMOL,RHO,UGRID,
+     $                              IC1(IGRID),IC2(IGRID),
+     $                              JC1(IGRID),JC2(IGRID),
+     $                              KC1(IGRID),KC2(IGRID),
+     $                              NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB,
+     $                              CONV1S(IP1),
+     $   HILF0(1),HILF1(1),HILF2(1),HILF3(1),HILF4(1),
+     $   HILF5(1),HILF6(1),
+     $   LUX(1),LUY(1),LUZ(1),LVY(1),LVZ(1),LWZ(1),MUX(1),
+     $   MUY(1),MUZ(1),MVY(1),MVZ(1),MWZ(1),
+     $   FA11(1),FA12(1),FA13(1),FA21(1),FA22(1),FA23(1),
+     $   FA31(1),FA32(1),FA33(1),
+     $   DUDX3(1),DUDY3(1),DUDZ3(1),DVDX3(1),DVDY3(1),
+     $   DVDZ3(1),
+     $   DWDX3(1),DWDY3(1),DWDZ3(1),NORMS(1),SDUDX3(1),
+     $   SDUDY3(1),SDUDZ3(1),
+     $   SDVDY3(1),SDVDZ3(1),SDWDZ3(1),
+     $   UC(1),VC(1),WC(1),UUC(1),UVC(1),UWC(1),VVC(1),
+     $   VWC(1),WWC(1),CDELTA(1))
+#else
+         CALL EFVISC (KK,JJ,II,KK,JJ,II,
+     $                              X(IP1),Y(IP1),Z(IP1),
+     $                              DX(IP1),DY(IP1),DZ(IP1),
+     $                              DDX(IP1),DDY(IP1),DDZ(IP1),
+     $                              RDX(IP1),RDY(IP1),RDZ(IP1),
+     $                              RDDX(IP1),RDDY(IP1),RDDZ(IP1),
+     $                              U(IP3),V(IP3),W(IP3),G(IP3),B(IP3),
+     $                              DUDY(IP2),DUDZ(IP2),DVDX(IP2),
+     $                              DVDZ(IP2),DWDX(IP2),DWDY(IP2),
+     $                              GMOL,RHO,UGRID,
+     $                              IC1(IGRID),IC2(IGRID),
+     $                              JC1(IGRID),JC2(IGRID),
+     $                              KC1(IGRID),KC2(IGRID),
+     $                              NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB,
+     $                              CONV1S(IP1),
+     $   HILF0(1),HILF1(1),HILF2(1),HILF3(1),HILF4(1),
+     $   HILF5(1),HILF6(1),
+     $   LUX(1),LUY(1),LUZ(1),LVY(1),LVZ(1),LWZ(1),MUX(1),
+     $   MUY(1),MUZ(1),MVY(1),MVZ(1),MWZ(1),
+     $   FA11(1),FA12(1),FA13(1),FA21(1),FA22(1),FA23(1),
+     $   FA31(1),FA32(1),FA33(1),
+     $   DUDX3(1),DUDY3(1),DUDZ3(1),DVDX3(1),DVDY3(1),
+     $   DVDZ3(1),
+     $   DWDX3(1),DWDY3(1),DWDZ3(1),NORMS(1),SDUDX3(1),
+     $   SDUDY3(1),SDUDZ3(1),
+     $   SDVDY3(1),SDVDZ3(1),SDWDZ3(1),
+     $   UC(1),VC(1),WC(1),UUC(1),UVC(1),UWC(1),VVC(1),
+     $   VWC(1),WWC(1),CDELTA(1))
+#endif
+#endif
+#ifdef _TAU_NN_
+         CALL TAUNN(KK, JJ, II,
+     $        X(IP1),Y(IP1),Z(IP1),
+     $        DX(IP1),DY(IP1),DZ(IP1),
+     $        DDX(IP1),DDY(IP1),DDZ(IP1),
+     $        RDX(IP1),RDY(IP1),RDZ(IP1),
+     $        RDDX(IP1),RDDY(IP1),RDDZ(IP1),
+     $        U(IP3),V(IP3),W(IP3),G(IP3),B(IP3),
+     $        DUDY(IP2),DUDZ(IP2),DVDX(IP2),
+     $        DVDZ(IP2),DWDX(IP2),DWDY(IP2),
+     $        TAU11(IP3),TAU12(IP3),TAU13(IP3),
+     $        TAU21(IP3),TAU22(IP3),TAU23(IP3),
+     $        TAU31(IP3),TAU32(IP3),TAU33(IP3))
+#endif
+
+
+#ifdef _MPI_
+       ENDIF
+#endif
+         ENDDO
+       ENDDO
+
+      DO ILEVEL = MINLEVEL,MAXLEVEL
+Cifdef _MPI_
+C
+C                                 BEI MESSAGE-PASSING, KOMMUNIKATION
+C
+         CALL CONNECTMG
+     $             (IDIM3D,IDIM2D,IDIM1D,
+     $              X,Y,Z,DX,DY,DZ,DDX,DDY,DDZ,
+#ifdef _TSCAL_
+     $              U,V,W,T,P,G,B,UFR,VRI,WBO,HILF,UTO,VTO,WTO,PTO,GTO,
+#else     
+     $              U,V,W,P,G,B,UFR,VRI,WBO,HILF,UTO,VTO,WTO,PTO,GTO,
+#endif     
+     $              VFR,WFR,PFR,GFR,
+     $              'T',ILEVEL,0,0,0,
+     $              NOFTST(ILEVEL),IGRDOFTST(1,ILEVEL))
+
+Cendif
+        DO I = 1,NOFTST(ILEVEL)
+           IGRID = IGRDOFTST(I,ILEVEL)
+#ifdef _MPI_
+       IF (MYID .EQ. IDPROCOFGRD(IGRID))  THEN
+#endif
+
+           CALL BOUNDMG
+     $             (IDIM3D,IDIM2D,IDIM1D,
+     $              X,Y,Z,DX,DY,DZ,DDX,DDY,DDZ,
+     $              U,V,W,P,G,B,UFR,VFR,WFR,VRI,HILF,
+     $                 UTO,VTO,WTO,PTO,GTO,
+     $              'T',IGRID,0,0,0,
+     $              TIMEPH,UBA,VBA,WBA,PBA,GBA,UBO,VBO,WBO,
+     $              PFR,GFR
+#ifdef _TSCAL_
+     $             ,T,TFR,TBA,TTO,TBO
+#endif
+     $             )       
+#ifdef _MPI_
+       ENDIF
+#endif
+         ENDDO
+       ENDDO
+
+CCCCCCCCCCCCCCC  	AM 18.3.1996 AUSGESCHALTET      ENDIF
+C
+C
+      DO ILEVEL = MINLEVEL,MAXLEVEL
+Cifdef _MPI_
+C
+C                                 BEI MESSAGE-PASSING, KOMMUNIKATION
+C
+         CALL CONNECTMG
+     $             (IDIM3D,IDIM2D,IDIM1D,
+     $              X,Y,Z,DX,DY,DZ,DDX,DDY,DDZ,
+#ifdef _TSCAL_
+     $              U,V,W,T,P,G,B,UFR,VRI,WBO,HILF,UTO,VTO,WTO,PTO,GTO,
+#else     
+     $              U,V,W,P,G,B,UFR,VRI,WBO,HILF,UTO,VTO,WTO,PTO,GTO,
+#endif     
+     $              VFR,WFR,PFR,GFR,
+     $              'T',ILEVEL,0,0,0,
+     $              NOFTST(ILEVEL),IGRDOFTST(1,ILEVEL))
+
+Cendif
+        DO I = 1,NOFTST(ILEVEL)
+           IGRID = IGRDOFTST(I,ILEVEL)
+#ifdef _MPI_
+       IF (MYID .EQ. IDPROCOFGRD(IGRID))  THEN
+#endif
+
+         CALL MGDPB (KK,JJ,II,IP3,IP2,IP1,IBB,IBU,
+     $           NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB,IGRID)
+C
+         CALL BOUNDMG
+     $             (IDIM3D,IDIM2D,IDIM1D,
+     $              X,Y,Z,DX,DY,DZ,DDX,DDY,DDZ,
+     $              U,V,W,P,G,B,UFR,VFR,WFR,VRI,HILF,
+     $                 UTO,VTO,WTO,PTO,GTO,
+     $              'T',IGRID,0,0,0,
+     $              TIMEPH,UBA,VBA,WBA,PBA,GBA,UBO,VBO,WBO,
+     $              PFR,GFR
+#ifdef _TSCAL_
+     $             ,T,TFR,TBA,TTO,TBO
+#endif
+     $             )       
+
+C                                 BELEGUNG DER UO, VO, WO -FELDER MIT
+C                                 DEN WERTEN DER U, V, W -FELDER
+#ifdef _FRED_BODY_
+c        write(0,*) 'before boundmg    myid = ', myid
+c        stop
+         CALL BOUNDMG
+     $             (IDIM3D,IDIM2D,IDIM1D,
+     $              X,Y,Z,DX,DY,DZ,DDX,DDY,DDZ,
+     $              U,V,W,P,G,B,UFR,VFR,WFR,VRI,HILF,
+     $                 UTO,VTO,WTO,PTO,GTO,
+     $              'Z',IGRID,0,0,0,
+     $              TIMEPH,UBA,VBA,WBA,PBA,GBA,UBO,VBO,WBO,
+     $              PFR,GFR
+#ifdef _TSCAL_
+     $             ,T,TFR,TBA,TTO,TBO
+#endif
+     $             )       
+c        write(0,*) 'after first boundmg with Z  myid=', myid
+c        stop
+#endif
+C
+        CALL EXCHAN  (KK,JJ,II,KK,JJ,II,
+     $                U(IP3),V(IP3),W(IP3),UO(IP3),VO(IP3),WO(IP3),2)
+CTBA2 19.11.02 CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
+#ifdef _TSCAL_
+        CALL EXCHANSCA  (KK,JJ,II,KK,JJ,II,T(IP3),TO(IP3),2)
+#endif 
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
+C
+#ifdef _MPI_
+       ENDIF
+#endif
+        ENDDO
+      ENDDO
+C
+C
+      IF (MTURB .EQ. 1) THEN
+C                                 VORBELEGUNG DER STATISTIK
+
+      DO ILEVEL = MINLEVEL,MAXLEVEL
+C----------------------------------------------------------------------
+       IF (LSCAI(ILEVEL)) THEN 
+          NGRIDPERLEVEL = NOFSCAI(ILEVEL)
+        DO I=1,NGRIDPERLEVEL
+          NOFTHISGRID(I) = IGRDOFSCAI(I,ILEVEL)
+        ENDDO
+       ELSE
+          NGRIDPERLEVEL = NOFTST(ILEVEL)
+        DO I=1,NGRIDPERLEVEL
+          NOFTHISGRID(I) = IGRDOFTST(I,ILEVEL)
+        ENDDO
+       ENDIF
+C----------------------------------------------------------------------
+        DO I = 1,NGRIDPERLEVEL
+           IGRID = NOFTHISGRID(I)
+#ifdef _MPI_
+       IF (MYID .EQ. IDPROCOFGRD(IGRID))  THEN
+#endif
+C
+C                                NUR, FALLS GITTER NICHT GEBIETSZERLEGT
+C
+          IF ( .NOT. LSLICE(IGRID) ) THEN
+             
+             CALL MGDPB (KK,JJ,II,IP3,IP2,IP1,IBB,IBU,
+     $            NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB,IGRID)
+             CALL MGDIMA  (KKA,JJA,IIA,IGRID)
+             CALL MGPOINA (IAV,I2L,I1L,IGRID)
+C
+C                                 STATISTIK WIRD AUF REGULAEREN GITTERN 
+C                                 GEMACHT
+C
+C
+             CALL SETSTA  (KPP,JPP,IPP,IC1(IGRID),IC2(IGRID),JC1(IGRID),
+     $                    JC2(IGRID),KC1(IGRID),KC2(IGRID),
+     $                          NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB,
+     $                        XHOMOG(IGRID),YHOMOG(IGRID),ZHOMOG(IGRID),
+#ifdef _TSCAL_
+     $           GMOL,RHO,PRMOL,PRTURB,UGRID,DDX(IP1),DDY(IP1),DDZ(IP1),
+#else
+     $                 GMOL,RHO,UGRID,DDX(IP1),DDY(IP1),DDZ(IP1),
+#endif
+     $                 DX(IP1),DY(IP1),DZ(IP1),X(IP1),Y(IP1),Z(IP1),
+     $                 RDX(IP1),RDY(IP1),RDZ(IP1),
+     $                 RDDX(IP1),RDDY(IP1),RDDZ(IP1),
+#include "cstmga.h"
+ 
+            CALL SETST1  (HILFL,KKML,RKOMXP,RKOMXA,
+#include "cstmg1.h"
+
+C
+
+         ENDIF
+#ifdef _MPI_
+       ENDIF
+#endif
+
+        ENDDO
+       ENDDO
+
+      ENDIF
+C
+C                               ENDE DER GITTERSPEZIFISCHEN VORBELEGUNG
+C
+C
+C
+      IF(DREAD) THEN
+                    CLOSE(1)
+                    CLOSE(3)
+      ENDIF
+C
+C                                                 KONTROLLAUSDRUCK
+C
+
+
+      IF(ITPRIN.EQ.0) THEN
+        IPG = IPRGRID
+        IP3 = IP3D(IPG)
+        IP1 = IP1D(IPG)
+      CALL PRLE3M (1,1,4,'J',KMX(IPG),JMX(IPG),IMX(IPG),
+#ifdef _TSCAL_
+     $             U(IP3),1,V(IP3),1,W(IP3),1,T(IP3),1,P(IP3),1,
+#else
+     $             U(IP3),1,V(IP3),1,W(IP3),1,P(IP3),1,
+#endif
+     $             G(IP3),1,B(IP3),0,DIV(IP3),0,  1,  1,  4,  1,  1,  4,
+     $             DX(IP1),DY(IP1),DZ(IP1),X(IP1),Y(IP1),Z(IP1),
+     $             KANPR,ITSTEP)
+      ENDIF
+C
+C
+C                                 ZUERST WIRD EIN DIVERGENZFREIES FELD
+C                                 ERZEUGT !!
+C
+                               OMBETA = OMG*RHO/(-2.0*DT)
+                               WSOR = 1.0
+
+
+
+#ifdef _POISSONITER_
+        CALL MGPOISL1    (IDIM3D,IDIM2D,IDIM1D,NBND,
+     $                    X,Y,Z,DX,DY,DZ,DDX,DDY,DDZ,
+     $                    RDX,RDY,RDZ,RDDX,RDDY,RDDZ,
+     $                    U,V,W,P,DP,G,B,DIV,RES,
+     $                    UFR,VFR,WFR,
+     $                    UTO,VTO,WTO,PTO,GTO,VRI,HILF,
+     $                    WSOR,RHO,DIVG,IPRGRID,
+     $                    MINLEVEL,MAXLEVEL,MAXLEVEL,TIMEPH,
+     $                    UBA,VBA,WBA,PBA,GBA,UBO,VBO,WBO,
+     $                    PFR,GFR,
+     $                    GSAW,GSAE,GSAN,GSAS,GSAT,GSAB,
+     $                    BP,BU,BV,BW,SDIV
+#ifdef _SIP_ITER_
+     $                   ,GEOVP,SIPLW,SIPLS,
+     $                    SIPLB,SIPLPR,SIPUE,SIPUN,SIPUT
+#else
+     $                   ,GSRAP
+#endif
+#ifdef _TSCAL_
+     $                   ,T,TFR,TBA,TTO,TBO
+#endif
+     $                   )
+#else
+
+         CALL MGVPL1 (IDIM3D,IDIM2D,IDIM1D,NBND,
+     $                X,Y,Z,DX,DY,DZ,DDX,DDY,DDZ,
+     $                RDX,RDY,RDZ,RDDX,RDDY,RDDZ,
+     $                FPSFAK,FCOSMY,FCOSNY,
+     $                IFFTX,IPERMUX,RFFTX,IFFTY,IPERMUY,RFFTY,   
+     $                U,V,W,P,DP,G,B,BP,BU,BV,BW,SDIV,
+     $                DIV,UFR,VFR,WFR,
+     $                UTO,VTO,WTO,PTO,GTO,VRI,HILF,
+     $                DUDY,DUDZ,DVDX,DVDZ,DWDX,DWDY,
+     $                WSOR,RHO,DIVG,IPRGRID,
+     $                MINLEVEL,MAXLEVEL,MAXLEVEL,TIMEPH,
+     $                UBA,VBA,WBA,PBA,GBA,GEOVP,UBO,VBO,WBO,
+     $                PFR,GFR
+#ifdef _HITACHI_
+     $                ,CXY,CTB,CWK,CHILF
+#endif
+#ifdef _TSCAL_
+     $                ,T,TFR,TBA,TTO,TBO
+#endif
+     $                     )
+
+#endif    
+C
+#ifdef _TAYLOR_VORT_
+                   CALL PRINTVEL(KK,JJ,II,
+     &                         U(IP3), V(IP3),  W(IP3), P(IP3),
+     &                         X(IP1), Y(IP1),  Z(IP1) ,TIMEPH)
+        write (6,*) '-o-o-o-o-o-o-o-o-o-o-o-o-o-o-o-o-o-o-o-o-o-o-o-o-o'
+
+#endif
+C
+C               REDUZIERUNG DES DRUCKNIVEAUS FUER GEWUENSCHTE GITTER
+C
+      DO ILEVEL = MINLEVEL,MAXLEVEL
+        DO I = 1,NOFTST(ILEVEL)
+           IGRID = IGRDOFTST(I,ILEVEL)
+#ifdef _MPI_
+       IF (MYID .EQ. IDPROCOFGRD(IGRID))  THEN
+#endif
+        IF (LPLEVEL(IGRID)) THEN
+           CALL MGDIMS  (KK,JJ,II,IGRID)
+           CALL MGPOINT (IP3,IP2,IP1,IBB,IB3,IBU,IGRID)
+           CALL MGBASB  (NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB,IGRID)
+#ifdef _FRED_BODY_
+           CALL PLEVEL  (KK,JJ,II,KK,JJ,II,P(IP3),BP(IP3),
+     $             DDX(IP1), DDY(IP1), DDZ(IP1),NFRO,NRGT,NBOT)
+#else
+           CALL PLEVEL  (KK,JJ,II,KK,JJ,II,P(IP3),B(IP3),
+     $             DDX(IP1), DDY(IP1), DDZ(IP1),NFRO,NRGT,NBOT)
+#endif
+
+        ENDIF
+#ifdef _MPI_
+       ENDIF
+#endif
+        ENDDO
+      ENDDO
+
+C                                 **************************************
+C                                 ENDE DER INITIALISIERUNGSPHASE
+C                                 **************************************
+C
+
+      DO ILEVEL = MINLEVEL,MAXLEVEL
+C----------------------------------------------------------------------
+       IF (LSCAI(ILEVEL)) THEN
+          NGRIDPERLEVEL = NOFSCAI(ILEVEL)
+        DO I=1,NGRIDPERLEVEL
+          NOFTHISGRID(I) = IGRDOFSCAI(I,ILEVEL)
+        ENDDO
+       ELSE
+          NGRIDPERLEVEL = NOFTST(ILEVEL)
+        DO I=1,NGRIDPERLEVEL
+          NOFTHISGRID(I) = IGRDOFTST(I,ILEVEL)
+        ENDDO
+       ENDIF
+C----------------------------------------------------------------------
+
+        DO I = 1,NGRIDPERLEVEL
+           IGRID = NOFTHISGRID(I)
+#ifdef _MPI_
+       IF (MYID .EQ. IDPROCOFGRD(IGRID))  THEN
+#endif
+
+               CALL MGDPB (KK,JJ,II,IP3,IP2,IP1,IBB,IBU,
+     $                     NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB,IGRID)
+C         CALL WRITE3DDIAGY(KK,JJ,II,W(IP3),33,3)
+C         CALL WRITE3DDIAGY(KK,JJ,II,U(IP3),43,4)
+               IF (LPOISSONDIR(IGRID)) THEN
+#ifdef _FRED_BODY_
+                  CALL DIVCAL
+     $                 (KK,JJ,II,KK,JJ,II,
+     $                 RDDX(IP1),RDDY(IP1),RDDZ(IP1),
+     $                 U(IP3),V(IP3),W(IP3),BP(IP3),DIV(IP3),
+     $                 1.0,-2,DIVGMX(IGRID),BU(IP3),BV(IP3),
+     $                 BW(IP3),SDIV(IP3))
+#else
+                  CALL DIVCAL
+     $                 (KK,JJ,II,KK,JJ,II,
+     $                 RDDX(IP1),RDDY(IP1),RDDZ(IP1),
+     $                 U(IP3),V(IP3),W(IP3),B(IP3),DIV(IP3),
+     $                 1.0,-2,DIVGMX(IGRID),BU(IP3),BV(IP3),
+     $                 BW(IP3),SDIV(IP3))
+#endif
+               ENDIF
+
+                  
+               IF(IPRINT_WSS .EQ. 1) THEN              	
+                  CALL WSSINT(KK,JJ,II,NBND,
+     $                 DX(IP1),DY(IP1),DZ(IP1),
+     $                 DDX(IP1),DDY(IP1),DDZ(IP1),
+     $                 U(IP3),V(IP3),W(IP3),G(IP3),
+     $                 WSSX(IGRID),WSSY(IGRID),WSSZ(IGRID),
+     $                 GMOL,RHO,UGRID,IC1(IGRID),IC2(IGRID),
+     $                 JC1(IGRID),JC2(IGRID),KC1(IGRID),KC2(IGRID),
+     $                 NFRO,NBAC,NRGT,NLFT,NBOT,NTOP)
+               ENDIF
+               IF(IPRINT_WNS .EQ. 1) THEN
+                  CALL WNSINT(KK,JJ,II,NBND,
+     $                 DX(IP1),DY(IP1),DZ(IP1),
+     $                 DDX(IP1),DDY(IP1),DDZ(IP1),
+     $                 P(IP3),G(IP3),
+     $                 WNSX(IGRID),WNSY(IGRID),WNSZ(IGRID),
+     $                 GMOL,RHO,UGRID,IC1(IGRID),IC2(IGRID),
+     $                 JC1(IGRID),JC2(IGRID),KC1(IGRID),KC2(IGRID),
+     $                 NFRO,NBAC,NRGT,NLFT,NBOT,NTOP)
+               ENDIF
+#ifdef _CHANNEL_DIAGNOSE_
+               CALL CHANNELD(KK,JJ,II,NBND,
+     $              DX(IP1),DY(IP1),DZ(IP1),
+     $              DDX(IP1),DDY(IP1),DDZ(IP1),
+     $              U(IP3),V(IP3),W(IP3),
+     $              WALLSSX(1,IGRID),WALLSSY(1,IGRID),WALLSSZ(1,IGRID),
+     $              GMOL,RHO,UGRID,NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,IGRID
+#ifdef _TSCAL_
+     $              ,NFROSCA,NBACSCA,NRGTSCA,NLFTSCA,NBOTSCA,NTOPSCA
+     $              ,WALLQX(1,IGRID),T(IP3)
+#endif
+     $              )
+
+
+               CALL CAL_UBULK(KK,JJ,II,NBND,DDX(IP1),
+     $              DDY(IP1),DDZ(IP1),U(IP3),W(IP3),B(IP3),
+     $              UGRID,UBULK(IGRID),BP(IP3))
+#endif 
+               IF(MTURB .EQ. 0) THEN
+                 CALL ERNORM(KK,JJ,II,KK,JJ,II,NBND,
+     $                       U(IP3),UO(IP3),EPSU(IGRID))
+                 CALL ERNORM(KK,JJ,II,KK,JJ,II,NBND,
+     $                       V(IP3),VO(IP3),EPSV(IGRID))
+                 CALL ERNORM(KK,JJ,II,KK,JJ,II,NBND,
+     $                       W(IP3),WO(IP3),EPSW(IGRID))
+               ELSE
+#ifdef _ORRSOMMER_
+               CALL FLUCTUATIONS(KK,JJ,II,U(IP3),V(IP3),W(IP3),
+     $                           H3D1(IP3),H3D2(IP3),H3D3(IP3),
+     $                           UOLD(IP3),VOLD(IP3),WOLD(IP3),DREAD,
+     $                           DZ(IP1),Z(IP1))
+
+                 CALL ENERFG  (KK,JJ,II,KK,JJ,II,
+     $           DDX(IP1),DDY(IP1),DDZ(IP1),DX(IP1), DY(IP1), DZ(IP1),
+     $             X(IP1),  Y(IP1),  Z(IP1),
+     $           H3D1(IP3),H3D2(IP3),H3D3(IP3),
+     $           HILF(IP3),ESUMG(IGRID),
+     $           NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB,1,GRADPX(IGRID))
+#else
+
+                 CALL ENERFG  (KK,JJ,II,KK,JJ,II,
+     $           DDX(IP1),DDY(IP1),DDZ(IP1),DX(IP1), DY(IP1), DZ(IP1),
+     $             X(IP1),  Y(IP1),  Z(IP1),U(IP3),V(IP3),W(IP3),
+     $           HILF(IP3),ESUMG(IGRID),
+     $           NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB,1,GRADPX(IGRID))
+#endif
+#ifndef _DNS_
+                 CALL ENERFS  (KK,JJ,II,KK,JJ,II,
+     $           DDX(IP1),DDY(IP1),DDZ(IP1),DX(IP1), DY(IP1), DZ(IP1),
+     $             X(IP1),  Y(IP1),  Z(IP1),B(IP3),G(IP3),GMOL,RHO,
+     $           HILF(IP3),ESUMS(IGRID),IC1,IC2,JC1,JC2,KC1,KC2,
+     $           NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB,1,CONV1S(IP1))
+#endif
+             ENDIF
+CTBA4 070503
+#ifdef _TSCAL_
+               CALL DTMXCAL (KK,JJ,II,KK,JJ,II,X(IP1),Y(IP1),Z(IP1),
+     $                   T(IP3),TO(IP3),B(IP3),DTMAX(IGRID),TMAX(IGRID),
+     $                   ITMAX(IGRID),JTMAX(IGRID),KTMAX(IGRID),
+     $                   XTMAX(IGRID),YTMAX(IGRID),ZTMAX(IGRID),IGRID,
+     $                   IC1(IGRID),IC2(IGRID),
+     $                   JC1(IGRID),JC2(IGRID),
+     $                   KC1(IGRID),KC2(IGRID),
+     $                   DIV(IP3),DIVGMX(IGRID),TSCA(1,1,IGRID),
+     $                   IDIVMAX(IGRID),JDIVMAX(IGRID),KDIVMAX(IGRID),
+     $                   XDIVMAX(IGRID),YDIVMAX(IGRID),ZDIVMAX(IGRID)
+#ifdef _SCALGRIDDIAGNOSE_
+     $                ,DDSPLUS(IP3),SMPLUS(IP3),SPLUS(IP3),
+     $                 DDSMAX(IGRID),SMMAX(IGRID),SPMAX(IGRID),
+     $                 ISPMAX(IGRID),JSPMAX(IGRID),KSPMAX(IGRID),
+     $                 XSPMAX(IGRID),YSPMAX(IGRID),ZSPMAX(IGRID)     
+                       
+#endif      
+#ifdef _SCALTRANSDIAGNOSE_  
+     $                ,QCTE(IP3),QCTW(IP3),QCTN(IP3),QCTS(IP3),
+     $                 QCTT(IP3),QCTB(IP3),QDTE(IP3),QDTW(IP3),
+     $                 QDTN(IP3),QDTS(IP3),QDTT(IP3),QDTB(IP3),QDTC(IP3)
+     $                ,QCE(IGRID),QCW(IGRID),QCN(IGRID),QCS(IGRID),
+     $                 QCT(IGRID),QCB(IGRID),QDE(IGRID),QDW(IGRID),
+     $                 QDN(IGRID),QDS(IGRID),QDT(IGRID),QDB(IGRID),
+     $                 QDC(IGRID)              
+#endif
+#ifdef _FRED_BODY_
+     $                 ,BP(IP3)
+#endif
+     $                      )
+
+#ifdef _SCALAR_DIAG1_
+         OPEN (23,FORM="UNFORMATTED",POSITION="APPEND")
+         OPEN (22,FORM="UNFORMATTED")
+         CALL WRITEKOORD(KK,JJ,II,X(IP1),22)
+         CLOSE(22)
+#endif
+
+#endif         
+         
+#ifdef _MPI_
+       ENDIF
+#endif
+        ENDDO
+      ENDDO
+#if defined _MPI_ | defined _MPI_PARTICLES_
+       IF (MYID .EQ. 0) THEN
+          WTIME =  MPI_WTIME()
+          WRITE (6,*)'ITSTEP, WTIME:',ITSTEP, WTIME-MPI_STARTTIME
+       ENDIF
+#endif
+
+       DO IGRID = 1,NGRID
+          IF (LSLICE(IGRID)) THEN
+          	            
+             CALL ITSAMPLE (IGRID,IPCGES,DIVGMX,EPSU,EPSV,EPSW,
+     $            ESUMG,ESUMS,WSSX,WSSY,WSSZ,WNSX,WNSY,WNSZ,
+     $            UBULK,WALLSSX,WALLSSY,WALLSSZ
+     $    ,IDIVMAX,JDIVMAX,KDIVMAX,XDIVMAX,YDIVMAX,ZDIVMAX,GRDIVMAX       
+#ifdef _TSCAL_
+     $    ,DTMAX,TMAX,ITMAX,JTMAX,KTMAX,XTMAX,YTMAX,ZTMAX,GRDTMAX,ITSTEP
+     $    ,PRTMAX,XPRTMAX,YPRTMAX,ZPRTMAX,PRTMIN,XPRTMIN,YPRTMIN,ZPRTMIN
+#ifdef _SCALGRIDDIAGNOSE_
+     $    ,DDSMAX,SMMAX,SPMAX,ISPMAX,JSPMAX,KSPMAX,XSPMAX,YSPMAX,ZSPMAX,
+     $     GRDSMAX         
+#endif            
+#ifdef _SCALTRANSDIAGNOSE_   
+     $    ,QCE,QCW,QCN,QCS,QCT,QCB,QDE,QDW,QDN,QDS,QDT,QDB,QDC                          
+#endif
+#endif
+     $                     )                  
+          ENDIF
+
+#if defined _MPI_ | defined _MPI_PARTICLES_
+          IF (MYID .EQ. 0)  THEN
+#endif
+
+      
+             CALL ITINF (ITTOT,TIMEPH,IPCGES(IGRID),DIVGMX(IGRID),IGRID,
+     $            CPSEC,MTURB,EPSU(IGRID),EPSV(IGRID),EPSW(IGRID),
+     $            ESUMG(IGRID),ESUMS(IGRID),
+     $            IPRINT_WSS,WSSX(IGRID),WSSY(IGRID),WSSZ(IGRID),
+     $            IPRINT_WNS,WNSX(IGRID),WNSY(IGRID),WNSZ(IGRID)
+     $            ,UBULK(IGRID),GRADPX(IGRID),
+     $            WALLSSX(1,IGRID),WALLSSY(1,IGRID),WALLSSZ(1,IGRID)
+     $            ,IDIVMAX(IGRID),JDIVMAX(IGRID),KDIVMAX(IGRID)
+     $            ,XDIVMAX(IGRID),YDIVMAX(IGRID),ZDIVMAX(IGRID)
+     $            ,GRDIVMAX(IGRID)      
+#ifdef _TSCAL_
+     $       ,DTMAX(IGRID),ITMAX(IGRID),JTMAX(IGRID),KTMAX(IGRID)
+     $       ,XTMAX(IGRID),YTMAX(IGRID),ZTMAX(IGRID), TMAX(IGRID)    
+     $       ,GRDTMAX(IGRID),ITSTEP,WALLQX(1,IGRID)
+     $       ,PRTMAX(IGRID),XPRTMAX(IGRID),YPRTMAX(IGRID),ZPRTMAX(IGRID)
+     $       ,PRTMIN(IGRID),XPRTMIN(IGRID),YPRTMIN(IGRID),ZPRTMIN(IGRID)
+#ifdef _SCALGRIDDIAGNOSE_
+     $       ,DDSMAX(IGRID),SMMAX(IGRID),SPMAX(IGRID),ISPMAX(IGRID),
+     $        JSPMAX(IGRID),KSPMAX(IGRID),XSPMAX(IGRID),YSPMAX(IGRID),
+     $        ZSPMAX(IGRID),GRDSMAX(IGRID)
+#endif      
+#ifdef _SCALTRANSDIAGNOSE_  
+     $       ,QCE(IGRID),QCW(IGRID),QCN(IGRID),QCS(IGRID),QCT(IGRID)
+     $       ,QCB(IGRID),QDE(IGRID),QDW(IGRID),QDN(IGRID),QDS(IGRID)
+     $       ,QDT(IGRID),QDB(IGRID),QDC(IGRID)              
+#endif           
+#endif
+     $                 )
+          
+#if defined _MPI_ | defined _MPI_PARTICLES_
+          ENDIF
+#endif
+      ENDDO
+
+C#ifdef _MPI_
+C                       EINLESEN FUER FREQUENZOPTIMIERUNG (Jens Neumann)
+C      CALL READVAROPT(VAROPT,IDIM2D,NDIMVAROPT)
+C        IF (MYID .EQ. 0) THEN
+C      WRITE(6,*)'OPTF: READ: TIMEOPT,FREQOPT',TIMEALT,FREQOPT
+C        ENDIF
+C#else
+C      CALL READVAROPT(VAROPT,IDIM2D,NDIMVAROPT)
+C      WRITE(6,*)'OPTF: READ: TIMEOPT,FREQOPT',TIMEALT,FREQOPT
+C#endif
+
+    
+C 
+C                                 **************************************
+C                                 BEGINN DER ZEITITERATIONEN 
+C                                 **************************************
+C
+
+CCCCCCCCCCC ******** Read the PARAMETERS from printdata.dat ******** CCCCCCC
+
+      INUNIT = 1000
+      OPEN(UNIT=INUNIT,FILE='printdata.dat',FORM='FORMATTED')
+
+      DO i = 1, numxloc
+        READ(INUNIT,*)x_loc_temp(i)
+      END DO
+
+      DO i = 1, numzloc
+        READ(INUNIT,*)z_loc(i)
+      END DO
+
+      req_xloc = 0 
+      DO i = 1, numxloc
+        READ(INUNIT,*)MYID_temp
+        if (MYID_temp .NE. 999) then
+          req_xloc = req_xloc + 1
+          MYID_loc(req_xloc) = MYID_temp 
+          x_loc(req_xloc) = x_loc_temp(i)
+      end if
+      END DO
+
+      READ(INUNIT,*)yloc_stream
+
+      DO I = 1, numzloc_stream
+        READ(INUNIT,*)zloc_stream(I)
+      END DO
+
+      CLOSE(INUNIT)
+
+      DO 2000 ISTEP=1,MTSTEP
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC  TESTWEISE VOR AUFRUF ALLER ZEITSCHRITT-
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC  UND RANDBED.-ROUTINEN GESCHALTET
+#ifndef _RUNGEKUTTA3_ 
+      TIMEPH     = TIMEPH + DT
+#endif      
+
+#ifdef _ADJUST_DPDX_
+C      DO ILEVEL = MINLEVEL,MAXLEVEL
+C         DO I = 1,NOFTST(ILEVEL)
+C            IGRID = IGRDOFTST(I,ILEVEL)
+      DO I=1,NGRID
+         DO ISUB=1,MAX (1,NOFSLCHILDS(I))
+            IF (LSLICE(I)) THEN
+               IGRID = IGRDOFSLCHILD(ISUB,I)
+            ELSE
+               IGRID = I
+            ENDIF
+#ifdef _MPI_
+            IPROC = IDPROCOFGRD(IGRID)
+C		write (0,*)'adjdpdx fur Gitter',igrid,'von Proc',iproc
+            IF (MYID .EQ. IPROC)  THEN
+#endif
+
+               CALL MGDPB (KK,JJ,II,IP3,IP2,IP1,IBB,IBU,
+     $              NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB,IGRID)
+     
+               CALL ADJDPDX(KK,JJ,II,NBND,ITSTEP,ITMIT,
+     $              X(IP1),Y(IP1),Z(IP1),
+     $              DX(IP1),DY(IP1),DZ(IP1),
+     $              DDX(IP1),DDY(IP1),DDZ(IP1),
+     $              U(IP3),V(IP3),W(IP3),UO(IP3),VO(IP3),WO(IP3),B(IP3),
+     $              WALLSSX(1,IGRID),WALLSSY(1,IGRID),WALLSSZ(1,IGRID),
+     $              GRADPX(IGRID),UBULK(IGRID),UBULKX(IGRID),
+     $              GMOL,RHO,UGRID,DT,NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,
+     $              BP(IP3),GRADPXOLD(IGRID))
+#ifdef _MPI_
+            ENDIF
+            IF (IPROC .NE. 0) THEN
+            IF (MYID .EQ. IPROC) THEN
+               CALL MPI_SSEND (GRADPX(IGRID), 1, 
+     $ MPI_DOUBLE_PRECISION, 
+     $              0, IGRID, MPI_COMM_WORLD , IERR)
+            ENDIF
+            IF (MYID .EQ. 0) THEN
+               CALL MPI_RECV  (GRADPX(IGRID), 1, 
+     $ MPI_DOUBLE_PRECISION,
+     $              IPROC, IGRID, MPI_COMM_WORLD, ISTATUS,IERR)
+            ENDIF
+            ENDIF
+#endif
+         ENDDO
+         IF (LSLICE(I)) THEN
+            
+            GRADPX(I) = 0
+            GFAK = 1./FLOAT(NOFSLCHILDS(I))
+
+C            DO ISUB=1,NOFSLCHILDS(I)
+C               IGRID=IGRDOFSLCHILD(ISUB,I)
+C               write (0,*) 'igrid',igrid,gradpx(igrid),GFAK
+C            ENDDO
+            
+            DO ISUB=1,NOFSLCHILDS(I)
+               IGRID=IGRDOFSLCHILD(ISUB,I)
+
+               GRADPX(I)=GRADPX(I) + GRADPX(IGRID)*GFAK
+            ENDDO
+C               write (0,*) 'i',i,gradpx(i)
+            DO ISUB=1,NOFSLCHILDS(I)
+               IGRID=IGRDOFSLCHILD(ISUB,I)
+
+               GRADPX(IGRID)=GRADPX(I)
+            ENDDO
+         ENDIF
+#ifdef _MPI_
+         CALL MPI_BCAST(GRADPX,NOFSLCHILDS(I),
+     $        
+     $ MPI_DOUBLE_PRECISION,0,MPI_COMM_WORLD,IERR)
+#endif
+      ENDDO
+#endif
+
+#if defined _MPI_ | defined _MPI_PARTICLES_
+       WTIME1 = MPI_WTIME()
+#endif
+
+CCCCCCCCCCCCCCCCCCCCCCC RANDOME ZAHL PRO ZEITSCHRITT
+#ifdef _MPI_
+      IF (IPROC .EQ. 0) THEN
+#endif
+      RANNUM= RANF()
+#ifdef _MPI_
+      ENDIF
+      CALL MPI_BCAST(RANNUM,1,
+     $ MPI_DOUBLE_PRECISION,0,MPI_COMM_WORLD,IERR)
+#endif
+CCCCCCCCCCCCCCCCCCCCCCC
+
+
+      DO ILEVEL = MINLEVEL,MAXLEVEL
+Cifdef _MPI_
+C
+C                                 BEI MESSAGE-PASSING, KOMMUNIKATION
+C
+Cendif
+
+        DO I = 1,NOFTST(ILEVEL)
+           IGRID = IGRDOFTST(I,ILEVEL)
+#ifdef _MPI_
+       IF (MYID .EQ. IDPROCOFGRD(IGRID))  THEN
+#endif
+
+         CALL MGDPB (KK,JJ,II,IP3,IP2,IP1,IBB,IBU,
+     $           NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB,IGRID)
+C
+C
+C
+C                                 BELEGUNG DER UO, VO, WO -FELDER MIT
+C                                 DEN WERTEN DER U, V, W -FELDER
+#ifdef _FRED_BODY_
+c        write(0,*) 'before boundmg    myid = ', myid
+c        stop
+         CALL BOUNDMG
+     $             (IDIM3D,IDIM2D,IDIM1D,
+     $              X,Y,Z,DX,DY,DZ,DDX,DDY,DDZ,
+     $              U,V,W,P,G,B,UFR,VFR,WFR,VRI,HILF,
+     $                 UTO,VTO,WTO,PTO,GTO,
+     $              'X',IGRID,0,0,0,
+     $              TIMEPH,UBA,VBA,WBA,PBA,GBA,UBO,VBO,WBO,
+     $              PFR,GFR
+#ifdef _TSCAL_
+     $             ,T,TFR,TBA,TTO,TBO
+#endif
+     $             )      
+
+#ifdef _ZERO_FLUX_
+ 
+         call outflux(kk,jj,ii,u(ip3),v(ip3),w(ip3),bp(ip3),bp(ip3),
+     $           stot,badflux,ddx(ip1),ddy(ip1),ddz(ip1),rdx(ip1),
+     $           rdy(ip1),rdz(ip1),0,corr,gflux)
+            if (stot.ne.0) then
+            corr = -badflux/stot
+c           write(*,*) 'before correction : ', badflux
+            else
+            corr = 0.0
+            end if
+#ifdef _MPI_
+            call mpi_reduce(badflux,badfluxtot,1,
+     $ MPI_DOUBLE_PRECISION,MPI_SUM,
+     $                      0,MPI_COMM_WORLD, IERR)
+            call mpi_reduce(stot,stottot,1,
+     $ MPI_DOUBLE_PRECISION,MPI_SUM,
+     $                      0,MPI_COMM_WORLD, IERR)
+           if (myid.eq.0) then
+              if (stottot.ne.0) then
+              corr = -(badfluxtot-gflux)/stottot
+              else
+              corr = 0.0
+              end if
+c             write(*,*) 'before correction : ',badfluxtot
+           end if
+           call mpi_bcast(corr,1,
+     $ MPI_DOUBLE_PRECISION, 0, MPI_COMM_WORLD,IERR)
+#endif
+       call outflux(kk,jj,ii,u(ip3),v(ip3),w(ip3),bp(ip3),bp(ip3),
+     $           stot,badflux,ddx(ip1),ddy(ip1),ddz(ip1),rdx(ip1),
+     $           rdy(ip1),rdz(ip1),1,corr,gflux)
+
+#endif
+
+            CALL BOUNDMG
+     $             (IDIM3D,IDIM2D,IDIM1D,
+     $              X,Y,Z,DX,DY,DZ,DDX,DDY,DDZ,
+     $              U,V,W,P,G,B,UFR,VFR,WFR,VRI,HILF,
+     $                 UTO,VTO,WTO,PTO,GTO,
+     $              'Z',IGRID,0,0,0,TIMEPH,UBA,VBA,WBA,
+     $              PBA,GBA,UBO,VBO,WBO,
+     $              PFR,GFR
+#ifdef _TSCAL_
+     $             ,T,TFR,TBA,TTO,TBO
+#endif
+     $             )       
+      
+c        write(0,*) 'after first boundmg with Z  myid=', myid
+c        stop
+#endif
+C
+
+#ifdef _MPI_
+       ENDIF
+#endif
+        ENDDO
+      ENDDO
+#ifdef _RUNGEKUTTA3_
+#ifndef _RUNGEKUTTA3SCA_
+           STOP 'RUNGEKUTTA3 MUST GO WITH RUNGEKUTTA3SCA'
+           CALL ERRR (501,'MLET')       
+#endif
+
+           CALL  TST3RK 
+     $                   (IDIM3D,IDIM2D,IDIM1D,IDIMA,
+     $                         X,     Y,     Z,
+     $                        DX,    DY,    DZ,    DDX,    DDY,    DDZ,
+     $                       RDX,   RDY,   RDZ,   RDDX,   RDDY,   RDDZ,
+     $                    FPSFAK,FCOSMY,FCOSNY,
+     $                     IFFTX,IPERMUX,RFFTX,IFFTY,IPERMUY,RFFTY,
+     $                         U,     V,     W,     UO,     VO,     WO,
+     $                         P,    DP,     G,      B,   BP,     BU,
+     $                        BV,    BW,   SDIV,   HILF,    DIV,
+     $                      DIVG,    AU,    AV,     AW,
+     $                       WCU,    WCV,    WCW,
+     $                       UFR,   VFR,   WFR,    PFR,    GFR,
+     $                       UTO,VTO,WTO,PTO,GTO,
+     $                       UBACK,    VBACK,    WBACK,
+     $                       VRI, 
+     $                       UI1,   VI1,   WI1,    UI2,    VI2,    WI2,
+     $                       GI1,   GI2,
+     $                      DUDY,  DUDZ,  DVDX,   DVDZ,   DWDX,   DWDY,
+     $                      NBUF,ITSTEP, ITTOT,TIMEPH,
+     $                      NBND, CIDEND, IIDEND, RIDEND,
+     $                      UBA,VBA,WBA,PBA,GBA,
+     $                      GEOVP,UBO,VBO,WBO,PBO,GBO,CONV1S,
+     $                      RSGS3,FAKTOR,
+     $                      FUI,FVI,FWI,
+     $                      FUJ,FVJ,FWJ,
+     $                      FUK,FVK,FWK,
+     $                      COEFFX,COEFFY,COEFFZ,COEFDX,COEFDY,COEFDZ,
+     $                      LCOL,DIAG,RCOL,UZ,RSP,
+     $   HILF0,HILF1,HILF2,HILF3,HILF4,HILF5,HILF6,
+     $   LUX,LUY,LUZ,LVY,LVZ,LWZ,MUX,MUY,MUZ,MVY,MVZ,MWZ,
+     $   FA11,FA12,FA13,FA21,FA22,FA23,FA31,FA32,FA33,
+     $   DUDX3,DUDY3,DUDZ3,DVDX3,DVDY3,DVDZ3,
+     $   DWDX3,DWDY3,DWDZ3,NORMS,SDUDX3,SDUDY3,SDUDZ3,
+     $   SDVDY3,SDVDZ3,SDWDZ3,
+     $   UC,VC,WC,UUC,UVC,UWC,VVC,VWC,WWC,CDELTA,
+     $   H3D1,H3D2,H3D3,
+     $   FELD1,FELD2,FELD3,
+     $   TAU11,TAU12,TAU13,TAU21,TAU22,TAU23,TAU31,TAU32,TAU33
+#ifdef _HITACHI_
+     $   ,CXY,CTB,CWK,CHILF
+#endif
+#ifdef _TSCAL_
+     $ ,FELDT,T,TO,TOLD,AT,TFR,TBA,TTO,TBO,BT,WCT,
+     $  FTI,FTJ,FTK,COEFTX,COEFTY,COEFTZ,
+     $  PRTMAX,XPRTMAX,YPRTMAX,ZPRTMAX,PRTMIN,XPRTMIN,YPRTMIN,ZPRTMIN
+#ifdef _SCALGRIDDIAGNOSE_
+     $ ,DDSPLUS,SMPLUS,SPLUS                  
+#endif         
+#ifdef _SCALTRANSDIAGNOSE_
+     $ ,QCTE,QCTW,QCTN,QCTS,QCTT,QCTB,QDTE,QDTW,QDTN,QDTS,QDTT,QDTB,QDTC
+     $ ,FCTE,FCTW,FCTN,FCTS,FCTT,FCTB,FDTE,FDTW,FDTN,FDTS,FDTT,FDTB,FDTC
+     $ ,OCTE,OCTW,OCTN,OCTS,OCTT,OCTB,ODTE,ODTW,ODTN,ODTS,ODTT,ODTB,ODTC
+#endif
+#ifdef _DECONVOLVESCA_
+     $  ,HILF3D4,HILF3D5,TFX,TFY
+#endif
+#endif
+#ifdef _POISSONITER_
+     $ ,RES
+     $ ,GSAW,GSAE,GSAN,GSAS,GSAT,GSAB
+#ifdef _SIP_ITER_
+     $ ,SIPLW,SIPLS,SIPLB,SIPLPR,SIPUE,SIPUN,SIPUT
+#else
+     $ ,GSRAP
+#endif
+#endif
+C#if defined _PREPROC_
+C     $ ,HPX
+C#endif
+     $  )
+#else     
+#ifdef _LEAPFSCA_ 
+C           WRITE(6,*)'LEAPFROG ERROR: LCR-FIELDS NOT DECLARED'
+C           STOP
+#endif
+
+           CALL  TST1G 
+     $                   (IDIM3D,IDIM2D,IDIM1D,IDIMA,
+     $                         X,     Y,     Z,
+     $                        DX,    DY,    DZ,    DDX,    DDY,    DDZ,
+     $                       RDX,   RDY,   RDZ,   RDDX,   RDDY,   RDDZ,
+     $                    FPSFAK,FCOSMY,FCOSNY,
+     $                     IFFTX,IPERMUX,RFFTX,IFFTY,IPERMUY,RFFTY,
+     $                         U,     V,     W,     UO,     VO,     WO,
+     $                         P,    DP,     G,      B,   BP,     BU,
+     $                        BV,    BW,   SDIV,   HILF,    DIV,
+     $                      DIVG,    AU,    AV,     AW,
+     $                        UP,    VP,    WP,    WCU,    WCV,    WCW,
+     $                       UFR,   VFR,   WFR,    PFR,    GFR,
+     $                       UTO,VTO,WTO,PTO,GTO,
+     $                       UBACK,    VBACK,    WBACK,
+     $                       VRI, 
+     $                       UI1,   VI1,   WI1,    UI2,    VI2,    WI2,
+     $                       GI1,   GI2,
+     $                      DUDY,  DUDZ,  DVDX,   DVDZ,   DWDX,   DWDY,
+     $                      NBUF,ITSTEP, ITTOT,TIMEPH,
+     $                      NBND, CIDEND, IIDEND, RIDEND,
+     $                      UBA,VBA,WBA,PBA,GBA,
+     $                      GEOVP,UBO,VBO,WBO,PBO,GBO,CONV1S,
+     $                      RSGS3,RSGS2,FAKTOR,
+     $                      FUI,FVI,FWI,
+     $                      FUJ,FVJ,FWJ,
+     $                      FUK,FVK,FWK,
+     $                      COEFFX,COEFFY,COEFFZ,COEFDX,COEFDY,COEFDZ,
+     $                      UZ,RSP,LCOL,DIAG,RCOL,
+     $   HILF0,HILF1,HILF2,HILF3,HILF4,HILF5,HILF6,
+     $   LUX,LUY,LUZ,LVY,LVZ,LWZ,MUX,MUY,MUZ,MVY,MVZ,MWZ,
+     $   FA11,FA12,FA13,FA21,FA22,FA23,FA31,FA32,FA33,
+     $   DUDX3,DUDY3,DUDZ3,DVDX3,DVDY3,DVDZ3,
+     $   DWDX3,DWDY3,DWDZ3,NORMS,SDUDX3,SDUDY3,SDUDZ3,
+     $   SDVDY3,SDVDZ3,SDWDZ3,
+     $   UC,VC,WC,UUC,UVC,UWC,VVC,VWC,WWC,CDELTA,
+     $   H3D1,H3D2,H3D3,
+     $   TAU11,TAU12,TAU13,TAU21,TAU22,TAU23,TAU31,TAU32,TAU33,VAROPT,
+     $   NDIMVAROPT
+#ifdef _TSCAL_
+     $  ,T,TO,AT,TP,TFR,TBA,TTO,TBO,BT
+#endif
+#ifdef _POISSONITER_
+     $  ,RES
+     $  ,GSAW,GSAE,GSAN,GSAS,GSAT,GSAB
+#ifdef _SIP_ITER_
+     $  ,SIPLW,SIPLS,SIPLB,SIPLPR,SIPUE,SIPUN,SIPUT
+#else
+     $  ,GSRAP
+#endif
+#endif
+     $   )     
+#endif
+
+
+C#ifdef _MPI_
+C     WTIME2 = MPI_WTIME()  - WTIME1
+C     MTIME2 = FLOAT(MCLOCK())/100.  - MTIME1
+C     WRITE (6,*)
+C    $'TST1G, WTIME:',WTIME2,'  MTIME:',MTIME2,' DIFF:',WTIME2-MTIME2
+C      WTIME1 = MPI_WTIME()
+C      MTIME1 = FLOAT(MCLOCK())/100.
+Cendif
+C
+      IF(ITPRIN.GT.0) THEN
+      IF(MOD(ITTOT,ITPRIN) .EQ. 0) THEN
+        IPG = IPRGRID
+        IP3 = IP3D(IPG)
+        IP1 = IP1D(IPG)
+      CALL PRLE3M (1,1,4,'J',KMX(IPG),JMX(IPG),IMX(IPG),
+#ifdef _TSCAL_
+     $             U(IP3),1,V(IP3),1,W(IP3),1,T(IP3),1,P(IP3),1,
+#else
+     $             U(IP3),1,V(IP3),1,W(IP3),1,P(IP3),1,
+#endif
+     $             G(IP3),1,B(IP3),0,DIV(IP3),0,  1,  1,  4,  1,  1,  4,
+     $             DX(IP1),DY(IP1),DZ(IP1),X(IP1),Y(IP1),Z(IP1),
+     $             KANPR,ITSTEP)
+      ENDIF
+      ENDIF
+
+
+C***********************************************************************
+C                                 AUFRUF DES PROGRAMMPAKETES FUER
+C                                 DEN TRANSPORT MASSELOSER PARTIKEL
+C
+C123               IF (.NOT.LPART .OR. PRUFUL) GOTO 2210
+C
+C123               CALL HPRO (DCONT,ITSTEP,X,Y,Z,DX,DY,DZ,DDX,DDY,DDZ,
+C123 $                        KSTW,U,UO,V,VO,W,WO,ITBGN,ITTOT,T0,
+C123 $                        TIMEPH,DT,IVGL,NBND,II,JJ,KK,
+C123 $                        IMXS,JMXS,KMXS,NOUT1S,NOUT2S,
+C123 $                        NOUT3S,NCOUNT,ICALL,IWTEND,YV,YHILF1,
+C123 $                        YHILF2,K1,K2,K3,K4,YMAT,NPA,
+C123 $                        ISTART,MSTART,NWTVGL,RINDEF,NMAX,
+C123 $                        NDGL,NREIHE,EPS,NRZUL,PRUFUL,NPRUZL,NPRU)
+C***********************************************************************
+C
+C123  2210 CONTINUE
+C
+                   IF(LDOEIB) THEN
+C
+C                                 AUSGABE DER GESCHWINDIGKEITSKOMP.
+C                                 UND DES G-FELDES DER EBENEN I=IWRB
+C                                 UND I=IWRB+1 (UNFORMATIERTE AUS-
+C                                 GABE AUF KANAL 12)
+C
+                   CALL DEOBI  (KK,JJ,II,KMXS,JMXS,IMXS,
+     $                          XTOT(IGRID),YTOT(IGRID),ZTOT(IGRID),
+     $                          CIDEND,IIDEND,RIDEND,CIDENT,IIDENT,
+     $                          RIDENT,U,V,W,P,G,P1,UGRID,ITSTEP,
+     $                          ITTOT,ITINT,MTSTEP,TIMEPH,DT,IWRB)
+                   END IF
+                   IF(LDOEIC) THEN
+C
+C                                 AUSGABE DER GESCHWINDIGKEITSKOMP.
+C                                 UND DES G-FELDES DER EBENEN I=IWRB
+C                                 UND I=IWRB+1 (FORMATIERTE AUSGABE
+C                                 AUF KANAL 14)
+C
+                   CALL DEOCI  (KK,JJ,II,KMXS,JMXS,IMXS,
+     $                          XTOT(IGRID),YTOT(IGRID),ZTOT(IGRID),
+     $                          CIDEND,IIDEND,RIDEND,CIDENT,IIDENT,
+     $                          RIDENT,U,V,W,P,G,P1,UGRID,ITSTEP,
+     $                          ITTOT,ITINT,MTSTEP,TIMEPH,DT,IWRB)
+                   END IF
+
+#if defined _FRED_BODY_ && defined _INTERPOL_
+
+      IF(ITSTEP .GT. 0 .AND. MOD(ITTOT,ITFLUC) .EQ. 0) THEN
+             CALL SOLINT(IDIM3D,IDIM2D,IDIM1D,IDIMA,
+     $            X(IP1),Y(IP1),Z(IP1),DX(IP1),DY(IP1),DZ(IP1),
+     $            DDX(IP1),DDY(IP1),DDZ(IP1),
+     $            U(IP3),V(IP3),W(IP3),P(IP3),TIME,GMOL)
+
+      ENDIF
+
+#endif
+
+c#ifdef  _FRED_BODY_
+c#ifdef _INTERPOL_
+
+!!!!     HERE WE CAN EXTRACT A PART OF THE SOLUTION AND INTERPOLATE ON ANOTHER GRID
+
+c      DO ILEVEL = MINLEVEL,MAXLEVEL
+c        DO I = 1,NOFTST(ILEVEL)
+c           IGRID = IGRDOFTST(I,ILEVEL)
+c#ifdef _MPI_
+c       IF (MYID .EQ. IDPROCOFGRD(IGRID))  THEN
+c#endif
+cC
+cC                                NUR, FALLS GITTER NICHT GEBIETSZERLEGT
+cC
+c         IF ( .NOT. LSLICE(IGRID) ) THEN
+c
+c                     CALL MGDIMS  (KK,JJ,II,IGRID)
+c                     CALL MGPOINT (IP3,IP2,IP1,IBB,IB3,IBU,IGRID)
+c                     CALL MGBASB  (NFRO,NBAC,NRGT,NLFT,
+c     $                             NBOT,NTOP,NCUB,IGRID)
+c                     CALL MGDIMA  (KKA,JJA,IIA,IGRID)
+c                     CALL MGPOINA (IAV,I2L,I1L,IGRID)
+c
+cC
+c                   IF(ITSTEP .GT. 0 .AND. MOD(ITTOT,ITFLUC) .EQ. 0)
+c     $                   THEN
+cC                                 STATISTIK WIRD AUF REGULAEREN GITTERN
+cC          
+cC                      GEMACHT
+c      write(*,*) 'taking sample'
+cC     
+cC     B muss wahrscheinlich durch BP ersetzt werden...
+cC
+cC
+
+
+c      call solint (kk,jj,ii,u(ip3),v(ip3),w(ip3),p(ip3),BP(ip3),
+c     $x(ip1),y(ip1),z(ip1),dx(ip1),dy(ip1),dz(ip1),timeph
+c     $,myid,ddx(ip1),ddy(ip1),ddz(ip1),0,numprocs)
+c#ifdef _MPI_
+c      CALL MPI_BARRIER(MPI_COMM_WORLD,IERR)
+c      if (myid.eq.0) then
+c 
+c      call solint (kk,jj,ii,u(ip3),v(ip3),w(ip3),p(ip3),BP(ip3),
+c     $x(ip1),y(ip1),z(ip1),dx(ip1),dy(ip1),dz(ip1),timeph
+c     $,myid,ddx(ip1),ddy(ip1),ddz(ip1),1,numprocs)
+c         CALL MPI_BARRIER(MPI_COMM_WORLD,IERR)
+c      else
+c         CALL MPI_BARRIER(MPI_COMM_WORLD,IERR)
+c      end if
+c
+c#else
+c      call solint (kk,jj,ii,u(ip3),v(ip3),w(ip3),p(ip3),BP(ip3),
+c     $x(ip1),y(ip1),z(ip1),dx(ip1),dy(ip1),dz(ip1),timeph
+c     $,myid,ddx(ip1),ddy(ip1),ddz(ip1),1,numprocs)
+c#endif
+c
+c#ifdef _ANALYZ_
+c#ifdef _MPI_ 
+c      if (myid.eq.0) then
+c#endif
+c      call analyz
+c#ifdef _MPI_ 
+c      endif
+c#endif
+c#endif
+c
+c                      END IF
+c                      END IF
+c#ifdef _MPI_
+c               ENDIF
+c#endif
+c                    ENDDO
+c                    ENDDO
+c#endif
+c#endif
+
+                   IF(MTURB .GT. 0) THEN
+C
+C                                 STATISTISCHE AUSWERTUNG ZUR SPAETEREN
+C                                 BILDUNG VON ENSEMBLE-MITTELWERTEN
+C
+C                   DO IGRID = 1,NGRID
+      DO ILEVEL = MINLEVEL,MAXLEVEL
+C----------------------------------------------------------------------
+       IF (LSCAI(ILEVEL)) THEN
+          NGRIDPERLEVEL = NOFSCAI(ILEVEL)
+        DO I=1,NGRIDPERLEVEL
+          NOFTHISGRID(I) = IGRDOFSCAI(I,ILEVEL)
+        ENDDO
+       ELSE
+          NGRIDPERLEVEL = NOFTST(ILEVEL)
+        DO I=1,NGRIDPERLEVEL
+          NOFTHISGRID(I) = IGRDOFTST(I,ILEVEL)
+        ENDDO
+       ENDIF
+C----------------------------------------------------------------------
+
+        DO I = 1,NGRIDPERLEVEL
+           IGRID = NOFTHISGRID(I)
+#ifdef _MPI_
+       IF (MYID .EQ. IDPROCOFGRD(IGRID))  THEN
+#endif
+C
+C                                NUR, FALLS GITTER NICHT GEBIETSZERLEGT
+C
+         IF ( .NOT. LSLICE(IGRID) ) THEN
+
+                     CALL MGDIMS  (KK,JJ,II,IGRID)
+                     CALL MGPOINT (IP3,IP2,IP1,IBB,IB3,IBU,IGRID)
+                     CALL MGBASB  (NFRO,NBAC,NRGT,NLFT,
+     $                             NBOT,NTOP,NCUB,IGRID)
+                     CALL MGDIMA  (KKA,JJA,IIA,IGRID)
+                     CALL MGPOINA (IAV,I2L,I1L,IGRID)
+
+C
+                      IF(ITSTEP .GT. 0 .AND. MOD(ITTOT,ITFLUC) .EQ. 0)
+     $                   THEN
+C                                 STATISTIK WIRD AUF REGULAEREN GITTERN 
+C                                 GEMACHT
+C
+                         CALL SUMSTA  (KPP,JPP,IPP,IC1(IGRID),
+     $                              IC2(IGRID),JC1(IGRID),JC2(IGRID),
+     $                              KC1(IGRID),KC2(IGRID),NFRO,NBAC,
+     $                              NRGT,NLFT,NBOT,NTOP,NCUB,
+     $                        XHOMOG(IGRID),YHOMOG(IGRID),ZHOMOG(IGRID),
+#ifdef _TSCAL_
+     $           GMOL,RHO,PRMOL,PRTURB,UGRID,DDX(IP1),DDY(IP1),DDZ(IP1),
+#else
+     $                 GMOL,RHO,UGRID,DDX(IP1),DDY(IP1),DDZ(IP1),
+#endif
+     $                 DX(IP1),DY(IP1),DZ(IP1),X(IP1),Y(IP1),Z(IP1),
+     $                 RDX(IP1),RDY(IP1),RDZ(IP1),RDDX(IP1),
+     $                 RDDY(IP1),RDDZ(IP1),
+#include "cstmga.h"
+                         CALL SUMST1  (ILIMX,RKOMXP,NBND,
+     $                                 X(IP1),Y(IP1),Z(IP1),
+     $                                 DX(IP1),DY(IP1),DZ(IP1),
+     $                                 DDX(IP1),DDY(IP1),DDZ(IP1),
+     %                    NXGRAE(IGRID),NYGRAE(IGRID),NZGRAE(IGRID),
+     $                        XHOMOG(IGRID),YHOMOG(IGRID),ZHOMOG(IGRID),
+#include "cstmg1.h" 
+
+C
+C        IF (LSLICE(IGRID)) 
+C    $       CALL SLICEGRD (U,V,W,P,G,B,HILF,IDIM3D,IGRID)
+                      END IF
+                      END IF
+#ifdef _MPI_
+               ENDIF
+#endif
+                    ENDDO
+                    ENDDO
+                   END IF
+
+CCCCC (NP) TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST
+#undef test
+#if defined _MPI_ && defined test
+      DO I=1,NGRID
+         FINT = 0
+         CHILDREN = MAX (1,NOFSLCHILDS(I))
+         DO ISUB=1,CHILDREN
+            FINT = 0
+            IF (LSLICE(I)) THEN
+               IGRID = IGRDOFSLCHILD(ISUB,I)
+            ELSE
+               IGRID = I
+            ENDIF
+            IPROC = IDPROCOFGRD(IGRID)
+            IF (MYID .EQ. IPROC)  THEN
+              IF (MYID.EQ.0 ) THEN
+                 CALL MPI_SEND (FINT, 1,
+     $                MPI_INTEGER,
+     $                  (myid+1),IGRID+1,MPI_COMM_WORLD,IERR)
+                 write(*,*) myid,'Sending to',myid+1
+c                 OPEN(UNIT=10,FILE="test",FORM="FORMATTED",
+c     $                                    STATUS="REPLACE")
+                 CALL  WRITE3DMPI(KK,JJ,II,X(IP1),Y(IP1),Z(IP1),
+     $                              U(IP3),10,3,1,ITTOT)
+              ELSE
+                 CALL MPI_RECV  (FINT, 1,
+     $                MPI_INTEGER,
+     $                  (myid-1),IGRID,MPI_COMM_WORLD,ISTATUS,IERR)
+                 write(*,*) myid,'Recieving from',myid-1
+c                 OPEN(UNIT=10,FILE="test",FORM="FORMATTED",
+c     $                                    STATUS="APPEND")
+                 CALL  WRITE3DMPI(KK,JJ,II,X(IP1),Y(IP1),Z(IP1),
+     $                              U(IP3),10,3,0,ITTOT)
+                 IF (MYID+1.LT.CHILDREN) THEN
+                    CALL MPI_SEND (FINT, 1,
+     $                   MPI_INTEGER,
+     $                     (myid+1),IGRID+1,MPI_COMM_WORLD,IERR)
+                    write(*,*) myid,'Sending to',myid+1
+                 ENDIF
+              ENDIF
+            ENDIF
+         ENDDO
+      ENDDO
+#endif
+c       CALL  WRITE3DMPI(KK,JJ,II,X(IP1),Y(IP1),Z(IP1),
+c     $                              W(IP3),10,3,1,ITTOT)
+
+
+CCCCC (NP) TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST 
+
+
+#ifdef _RECORD_
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+C
+C                     RAUSSCHREIBEN VON GESCHWINDIGKEITSRECORDS
+C
+C
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+C
+         IF (LREC) THEN
+         IF (MOD(ITTOT,ITREC).EQ.0) THEN
+C
+         DO IREC = 1,NVREC
+
+         IGRID = NGREC(IREC)
+#ifdef _MPI_
+         IF (LSLICE(IGRID)) THEN
+             WRITE (6,*)' WRITING RECORDS OUT OF SLICED GRIDS IS NOT'
+             WRITE (6,*)' ALLOWED, IF MESSAGE-PASSING IS USED'
+             WRITE (6,*)' PLEASE WRITE RECORDS OF THE SUB-GRIDS!'
+             CALL ERRR (767,' MLET ')
+         ENDIF
+
+       IF (MYID .EQ. IDPROCOFGRD(IGRID))  THEN
+#endif
+         IF (LSLICE(IGRID)) 
+     $       CALL COMPOSEGRD (U,V,W,P,G,B,HILF,IDIM3D,IGRID,NBND)
+
+          CALL MGDPB (KK,JJ,II,IP3,IP2,IP1,IBB,IBU,
+     $           NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB,IGRID)
+
+        WRITE(44,*)'AUFRUF VON DOBRST BEI ZEITSCHRITT',ITSTEP
+        CALL DOBREC (NMREC,NVREC,ITREC,MAXREC,LREC,NTREC,
+     +                    CIDREC,CIDRE2,
+     +                    IVEREC,IVOREC,KANREC,KANGEO,
+     +                    INXREC,INYREC,INZREC,
+     +                    IARREC,JARREC,KARREC,
+     +                    XREC,YREC,ZREC,
+     +                    NPREC,
+     +                    RTREC,TIMEPH,
+     +                    U(IP3),V(IP3),W(IP3),P(IP3),
+#ifdef _TSCAL_
+     +                    T(IP3),
+#endif
+     +                    UFG(IP3),VFG(IP3),WFG(IP3),PFG(IP3),
+     +                    AU(IP3),AV(IP3),AW(IP3),AP(IP3),
+     +                    OX(IP3),OY(IP3),OZ(IP3),
+     +                    OXFG(IP3),OYFG(IP3),OZFG(IP3),
+     +                    HILF(IP3),H3D(IP3),
+     +                    KK,JJ,II,
+     +                    DX(IP1),DY(IP1),DZ(IP1),
+     +                    DDX(IP1),DDY(IP1),DDZ(IP1),IREC)
+
+         IF (LSLICE(IGRID)) 
+     $       CALL SLICEGRD (U,V,W,P,G,B,HILF,IDIM3D,IGRID)
+
+#ifdef _MPI_
+       ENDIF
+#endif
+        ENDDO
+C
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+C             SCHLEIFE 1010 UEBER ALLE TV ZUM ABPRUEFEN, OB SCHON
+C             ALLE TV DEN ANSCHLAG ERREICHT HABEN
+
+	  IREADY = 0
+
+	  DO 1010 IREC=1,NVREC
+        IF (NTREC(IREC).GE.MAXREC) IREADY = IREADY + 1
+ 1010     CONTINUE
+
+	  IF (IREADY.EQ.NVREC) LREC=.FALSE.
+
+
+
+        ENDIF
+       ENDIF
+C
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+#endif
+C#ifdef _MPI_
+C      WTIME2 = MPI_WTIME()  - WTIME1
+C      MTIME2 = FLOAT(MCLOCK())/100.  - MTIME1
+C      WRITE (6,*)
+C     $'BIS ERRNORM, WTIME:',
+C     $WTIME2,'  MTIME:',MTIME2,' DIFF:',WTIME2-MTIME2
+C       WTIME1 = MPI_WTIME()
+C       MTIME1 = FLOAT(MCLOCK())/100.
+C
+C                                 AUSGABE DER ZWISCHENERGEBNISSE
+C
+         IF(ITSTEP            .EQ. 0       .OR.
+     $      ITSTEP            .EQ. MTSTEP  .OR.
+     $      ITTOT             .EQ. ITINT   .OR.
+     $      MOD (ITTOT,IPINF) .EQ. 0           ) THEN
+
+      DO ILEVEL = MINLEVEL,MAXLEVEL
+C----------------------------------------------------------------------
+       IF (LSCAI(ILEVEL)) THEN
+          NGRIDPERLEVEL = NOFSCAI(ILEVEL)
+        DO I=1,NGRIDPERLEVEL
+          NOFTHISGRID(I) = IGRDOFSCAI(I,ILEVEL)
+        ENDDO
+       ELSE
+          NGRIDPERLEVEL = NOFTST(ILEVEL)
+        DO I=1,NGRIDPERLEVEL
+          NOFTHISGRID(I) = IGRDOFTST(I,ILEVEL)
+        ENDDO
+       ENDIF
+C----------------------------------------------------------------------
+      
+        DO I = 1,NGRIDPERLEVEL
+           IGRID = NOFTHISGRID(I)
+
+#ifdef _MPI_
+       IF (MYID .EQ. IDPROCOFGRD(IGRID))  THEN
+#endif
+               CALL MGDPB (KK,JJ,II,IP3,IP2,IP1,IBB,IBU,
+     $                     NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB,IGRID)
+               IF (LPOISSONDIR(IGRID)) THEN
+#ifdef _FRED_BODY_
+                  CALL DIVCAL
+     $                 (KK,JJ,II,KK,JJ,II,
+     $                 RDDX(IP1),RDDY(IP1),RDDZ(IP1),
+     $                 U(IP3),V(IP3),W(IP3),BP(IP3),DIV(IP3),
+     $                 1.0,-2,DIVGMX(IGRID),BU(IP3),BV(IP3),
+     $                 BW(IP3),SDIV(IP3))
+#else
+                  CALL DIVCAL
+     $                 (KK,JJ,II,KK,JJ,II,
+     $                 RDDX(IP1),RDDY(IP1),RDDZ(IP1),
+     $                 U(IP3),V(IP3),W(IP3),B(IP3),DIV(IP3),
+     $                 1.0,-2,DIVGMX(IGRID),BU(IP3),BV(IP3),
+     $                 BW(IP3),SDIV(IP3))
+#endif
+               ENDIF
+               IF(IPRINT_WSS .EQ. 1) THEN
+                CALL WSSINT(KK,JJ,II,NBND,
+     $                    DX(IP1),DY(IP1),DZ(IP1),
+     $                    DDX(IP1),DDY(IP1),DDZ(IP1),
+     $                    U(IP3),V(IP3),W(IP3),G(IP3),
+     $                    WSSX(IGRID),WSSY(IGRID),WSSZ(IGRID),
+     $                    GMOL,RHO,UGRID,IC1(IGRID),IC2(IGRID),
+     $                    JC1(IGRID),JC2(IGRID),KC1(IGRID),KC2(IGRID),
+     $                     NFRO,NBAC,NRGT,NLFT,NBOT,NTOP)
+               ENDIF
+               IF(IPRINT_WNS .EQ. 1) THEN
+                CALL WNSINT(KK,JJ,II,NBND,
+     $                    DX(IP1),DY(IP1),DZ(IP1),
+     $                    DDX(IP1),DDY(IP1),DDZ(IP1),
+     $                    P(IP3),G(IP3),
+     $                    WNSX(IGRID),WNSY(IGRID),WNSZ(IGRID),
+     $                    GMOL,RHO,UGRID,IC1(IGRID),IC2(IGRID),
+     $                    JC1(IGRID),JC2(IGRID),KC1(IGRID),KC2(IGRID),
+     $                     NFRO,NBAC,NRGT,NLFT,NBOT,NTOP)
+               ENDIF       
+#ifdef _TAYLOR_VORT_
+               CALL PRINTVEL(KK,JJ,II,
+     &                         U(IP3), V(IP3),  W(IP3), P(IP3),
+     &                         X(IP1), Y(IP1),  Z(IP1) ,TIMEPH)
+#endif
+
+
+
+#ifdef _CHANNEL_DIAGNOSE_
+               CALL CHANNELD(KK,JJ,II,NBND,
+     $              DX(IP1),DY(IP1),DZ(IP1),
+     $              DDX(IP1),DDY(IP1),DDZ(IP1),
+     $              U(IP3),V(IP3),W(IP3),
+     $              WALLSSX(1,IGRID),WALLSSY(1,IGRID),WALLSSZ(1,IGRID),
+     $              GMOL,RHO,UGRID,NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,IGRID
+#ifdef _TSCAL_
+     $              ,NFROSCA,NBACSCA,NRGTSCA,NLFTSCA,NBOTSCA,NTOPSCA
+     $              ,WALLQX(1,IGRID),T(IP3)
+#endif
+     $              )
+
+
+               CALL CAL_UBULK(KK,JJ,II,NBND,DDX(IP1),
+     $                    DDY(IP1),DDZ(IP1),U(IP3),W(IP3),B(IP3),
+     $                    UGRID,UBULK(IGRID),BP(IP3))
+#endif
+               IF(MTURB .EQ. 0) THEN
+                 CALL ERNORM(KK,JJ,II,KK,JJ,II,NBND,
+     $                       U(IP3),UO(IP3),EPSU(IGRID))
+                 CALL ERNORM(KK,JJ,II,KK,JJ,II,NBND,
+     $                       V(IP3),VO(IP3),EPSV(IGRID))
+                 CALL ERNORM(KK,JJ,II,KK,JJ,II,NBND,
+     $                       W(IP3),WO(IP3),EPSW(IGRID))
+               ELSE   
+#ifdef _ORRSOMMER_
+               CALL FLUCTUATIONS(KK,JJ,II,U(IP3),V(IP3),W(IP3),
+     $                           H3D1(IP3),H3D2(IP3),H3D3(IP3),
+     $                           UOLD(IP3),VOLD(IP3),WOLD(IP3),DREAD,
+     $                           DZ(IP1),Z(IP1))
+
+                 CALL ENERFG  (KK,JJ,II,KK,JJ,II,
+     $           DDX(IP1),DDY(IP1),DDZ(IP1),DX(IP1), DY(IP1), DZ(IP1),
+     $             X(IP1),  Y(IP1),  Z(IP1),
+     $           H3D1(IP3),H3D2(IP3),H3D3(IP3),
+     $           HILF(IP3),ESUMG(IGRID),
+     $           NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB,1,GRADPX(IGRID))
+#else
+                 CALL ENERFG  (KK,JJ,II,KK,JJ,II,
+     $           DDX(IP1),DDY(IP1),DDZ(IP1),DX(IP1), DY(IP1), DZ(IP1),
+     $             X(IP1),  Y(IP1),  Z(IP1),U(IP3),V(IP3),W(IP3),
+     $           HILF(IP3),ESUMG(IGRID),
+     $           NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB,1,GRADPX(IGRID))
+#endif
+#ifndef _DNS_
+                 CALL ENERFS  (KK,JJ,II,KK,JJ,II,
+     $           DDX(IP1),DDY(IP1),DDZ(IP1),DX(IP1), DY(IP1), DZ(IP1),
+     $             X(IP1),  Y(IP1),  Z(IP1),B(IP3),G(IP3),GMOL,RHO,
+     $           HILF(IP3),ESUMS(IGRID),IC1,IC2,JC1,JC2,KC1,KC2,
+     $           NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB,1,CONV1S(IP1))
+#endif
+               ENDIF 
+CTBA4 070503
+#ifdef _TSCAL_
+               CALL DTMXCAL (KK,JJ,II,KK,JJ,II,X(IP1),Y(IP1),Z(IP1),
+     $                   T(IP3),TO(IP3),B(IP3),DTMAX(IGRID),TMAX(IGRID),
+     $                   ITMAX(IGRID),JTMAX(IGRID),KTMAX(IGRID),
+     $                   XTMAX(IGRID),YTMAX(IGRID),ZTMAX(IGRID),IGRID,
+     $                   IC1(IGRID),IC2(IGRID),
+     $                   JC1(IGRID),JC2(IGRID),
+     $                   KC1(IGRID),KC2(IGRID),
+     $                   DIV(IP3),DIVGMX(IGRID),TSCA(1,1,IGRID),
+     $                   IDIVMAX(IGRID),JDIVMAX(IGRID),KDIVMAX(IGRID),
+     $                   XDIVMAX(IGRID),YDIVMAX(IGRID),ZDIVMAX(IGRID)
+#ifdef _SCALGRIDDIAGNOSE_
+     $                ,DDSPLUS(IP3),SMPLUS(IP3),SPLUS(IP3),
+     $                 DDSMAX(IGRID),SMMAX(IGRID),SPMAX(IGRID),
+     $                 ISPMAX(IGRID),JSPMAX(IGRID),KSPMAX(IGRID),
+     $                 XSPMAX(IGRID),YSPMAX(IGRID),ZSPMAX(IGRID)     
+      
+#endif      
+#ifdef _SCALTRANSDIAGNOSE_  
+     $                ,QCTE(IP3),QCTW(IP3),QCTN(IP3),QCTS(IP3),
+     $                 QCTT(IP3),QCTB(IP3),QDTE(IP3),QDTW(IP3),
+     $                 QDTN(IP3),QDTS(IP3),QDTT(IP3),QDTB(IP3),QDTC(IP3)
+     $                ,QCE(IGRID),QCW(IGRID),QCN(IGRID),QCS(IGRID),
+     $                 QCT(IGRID),QCB(IGRID),QDE(IGRID),QDW(IGRID),
+     $                 QDN(IGRID),QDS(IGRID),QDT(IGRID),QDB(IGRID),
+     $                 QDC(IGRID)              
+#endif       
+#ifdef _FRED_BODY_
+     $                 ,BP(IP3)
+#endif
+     $                      )
+
+#ifdef _SCALAR_DIAG1_
+         CALL WRITE1D_TMIX(KK,JJ,II,T(IP3),23,TIMEPH)
+#endif
+
+#endif        
+     
+#ifdef _MPI_
+       ENDIF
+#endif
+            ENDDO
+            ENDDO
+        
+C#ifdef _MPI_
+C      WTIME2 = MPI_WTIME()  - WTIME1
+C      MTIME2 = FLOAT(MCLOCK())/100.  - MTIME1
+C      WRITE (6,*)
+C     $'ENER, WTIME:',WTIME2,'  MTIME:',MTIME2,' DIFF:',WTIME2-MTIME2
+C       WTIME1 = MPI_WTIME()
+C       MTIME1 = FLOAT(MCLOCK())/100.
+C#endif
+
+#if defined _MPI_ | defined _MPI_PARTICLES_
+       IF (MYID .EQ. 0) THEN
+          WTIME =  MPI_WTIME()
+          WRITE (6,*)'ITSTEP, WTIME:',ITSTEP, WTIME-MPI_STARTTIME
+       ENDIF
+#endif
+       DO IGRID = 1,NGRID
+C          write (0,*) 'igrid:',igrid
+          IF (LSLICE(IGRID)) THEN               
+             CALL ITSAMPLE (IGRID,IPCGES,DIVGMX,EPSU,EPSV,EPSW,
+     $            ESUMG,ESUMS,WSSX,WSSY,WSSZ,WNSX,WNSY,WNSZ,
+     $            UBULK,WALLSSX,WALLSSY,WALLSSZ
+     $    ,IDIVMAX,JDIVMAX,KDIVMAX,XDIVMAX,YDIVMAX,ZDIVMAX,GRDIVMAX     
+#ifdef _TSCAL_
+     $    ,DTMAX,TMAX,ITMAX,JTMAX,KTMAX,XTMAX,YTMAX,ZTMAX,GRDTMAX,ITSTEP
+     $    ,PRTMAX,XPRTMAX,YPRTMAX,ZPRTMAX,PRTMIN,XPRTMIN,YPRTMIN,ZPRTMIN
+#ifdef _SCALGRIDDIAGNOSE_
+     $    ,DDSMAX,SMMAX,SPMAX,ISPMAX,JSPMAX,KSPMAX,XSPMAX,YSPMAX,ZSPMAX, 
+     $     GRDSMAX              
+#endif       
+#ifdef _SCALTRANSDIAGNOSE_  
+     $    ,QCE,QCW,QCN,QCS,QCT,QCB,QDE,QDW,QDN,QDS,QDT,QDB,QDC              
+#endif         
+#endif
+     $                     )                  
+          ENDIF
+
+#if defined _MPI_ | defined _MPI_PARTICLES_
+       IF (MYID .EQ. IDPROCOFGRD(IGRID))  THEN
+#endif
+            CALL ITINF (ITTOT,TIMEPH,IPCGES(IGRID),DIVGMX(IGRID),IGRID,
+     $              CPSEC,MTURB,EPSU(IGRID),EPSV(IGRID),EPSW(IGRID),
+     $                  ESUMG(IGRID),ESUMS(IGRID),
+     $                 IPRINT_WSS,WSSX(IGRID),WSSY(IGRID),WSSZ(IGRID),
+     $                 IPRINT_WNS,WNSX(IGRID),WNSY(IGRID),WNSZ(IGRID)
+     $                 ,UBULK(IGRID),GRADPX(IGRID),
+     $              WALLSSX(1,IGRID),WALLSSY(1,IGRID),WALLSSZ(1,IGRID)
+     $             ,IDIVMAX(IGRID),JDIVMAX(IGRID),KDIVMAX(IGRID)
+     $             ,XDIVMAX(IGRID),YDIVMAX(IGRID),ZDIVMAX(IGRID)
+     $             ,GRDIVMAX(IGRID)      
+#ifdef _TSCAL_
+     $       ,DTMAX(IGRID),ITMAX(IGRID),JTMAX(IGRID),KTMAX(IGRID)
+     $       ,XTMAX(IGRID),YTMAX(IGRID),ZTMAX(IGRID), TMAX(IGRID)     
+     $       ,GRDTMAX(IGRID),ITSTEP,WALLQX(1,IGRID)
+     $       ,PRTMAX(IGRID),XPRTMAX(IGRID),YPRTMAX(IGRID),ZPRTMAX(IGRID)
+     $       ,PRTMIN(IGRID),XPRTMIN(IGRID),YPRTMIN(IGRID),ZPRTMIN(IGRID)
+#ifdef _SCALGRIDDIAGNOSE_
+     $       ,DDSMAX(IGRID),SMMAX(IGRID),SPMAX(IGRID),ISPMAX(IGRID),
+     $        JSPMAX(IGRID),KSPMAX(IGRID),XSPMAX(IGRID),YSPMAX(IGRID),
+     $        ZSPMAX(IGRID),GRDSMAX(IGRID)
+#endif       
+#ifdef _SCALTRANSDIAGNOSE_  
+     $       ,QCE(IGRID),QCW(IGRID),QCN(IGRID),QCS(IGRID),QCT(IGRID)
+     $       ,QCB(IGRID),QDE(IGRID),QDW(IGRID),QDN(IGRID),QDS(IGRID)
+     $       ,QDT(IGRID),QDB(IGRID),QDC(IGRID)              
+#endif      
+#endif
+     $                 )
+C
+#if defined _MPI_ | defined _MPI_PARTICLES_
+       ENDIF
+#endif
+            ENDDO
+         ENDIF
+C
+   if (req_xloc .GT. 0) then
+
+      CALL PRINTDATA(MYID,KK,JJ,II,NBND, U(IP3), V(IP3),
+     $	W(IP3), P(IP3), ISTEP, NXSLICE, MTSTEP, req_xloc,
+     $  numzloc, numvar, x_loc, z_loc, MYID_loc, ITTOT,
+     $  yloc_stream, zloc_stream, numzloc_stream)
+
+      end if
+C                   AUSGABE DER ZWISCHENERGEBNISSE FERTIG
+C
+C#ifdef _MPI_
+C      WTIME2 = MPI_WTIME()  - WTIME1
+C      MTIME2 = FLOAT(MCLOCK())/100.  - MTIME1
+C      WRITE (6,*)
+C     $'ITINF, WTIME:',WTIME2,'  MTIME:',MTIME2,' DIFF:',WTIME2-MTIME2
+C       WTIME1 = MPI_WTIME()
+C       MTIME1 = FLOAT(MCLOCK())/100.
+C#endif
+
+
+         IIDENT(30) = ITTOT
+         RIDENT(30) = TIMEPH
+C
+         IF(ITTOT  .EQ. ITINT)  GOTO 2400
+C
+#if defined _MPI_ | defined _MPI_PARTICLES_
+         ISTOP = 0
+         IF (MYID .EQ. 0) THEN
+#endif
+#ifdef _HITACHI_
+        OPEN(57,file='ft.57')
+        REWIND(57)
+        READ(57,*,END=1189) TSTOP
+        CLOSE(57)
+        CALL NEXTSCHEDSTOP(nxtstp)
+        IF((GETSEC(0).GE.TSTOP).OR.(nxtstp(6).LE.45)) THEN
+           WRITE(6,2301) TSTOP, GETSEC(0)
+#else
+C         OPEN(57,file='fort.57')
+C         REWIND(57)
+C         READ(57,*,END=1189) TSTOP
+C        WRITE(6,*)TSTOP
+         OPEN(57,file="fort.57")
+         READ(57,*,iostat=IO57) TSTOP
+         CLOSE(57)
+
+#ifdef _LINUX_
+         IF((GETSEC(0)-CPSEC .GE. TSTOP).AND.(IO57.EQ.0)) THEN
+           WRITE(6,*) TSTOP, GETSEC(0)-CPSEC
+#else
+         IF(GETSEC(0) .GE. TSTOP) THEN
+           WRITE(6,2301) TSTOP, GETSEC(0)
+#endif
+#endif
+           
+ 2301      FORMAT(1H1,10X,'TSTOP =',F10.2,'Processor time =',F10.2)
+
+#if defined _MPI_ | defined _MPI_PARTICLES_
+           ISTOP = 1
+         ENDIF
+         ENDIF
+ 1189    CONTINUE
+
+         CALL MPI_BCAST(ISTOP,1,MPI_INTEGER,0,MPI_COMM_WORLD,IERR)
+         IF(ISTOP .EQ. 1) GOTO 2400
+#else
+           GO TO 2400
+         ENDIF
+ 1189    CONTINUE
+#endif
+C
+C
+C#ifdef _MPI_
+C      WTIME2 = MPI_WTIME()  - WTIME1
+C      MTIME2 = FLOAT(MCLOCK())/100.  - MTIME1
+C      WRITE (6,*)
+C     $'FORT57, WTIME:',WTIME2,'  MTIME:',MTIME2,' DIFF:',WTIME2-MTIME2
+C#endif
+C        
+C
+C                                 **************************************
+C                                 VOLLSTAENDIGER ZEITSCHRITT ABGESCHLOSS
+C                                 **************************************
+C                                 HIER ZEITSCHRITTSCHLEIFE BEENDET. AB-
+C                                 SPEICHERN BZW AUSDRUCK DER VARIABLEN
+C                                 UND PROGRAMMSTOP
+ 2000 CONTINUE
+ 2400 CONTINUE
+
+
+
+c#ifdef _MPI_
+c                                 RAUSSCHREIBEN FUER FREQUENZOPTIMIERUNG
+c      IF (MYID .EQ. 0) THEN
+c         CALL WRIVAROPT(VAROPT,IDIM2D,NDIMVAROPT)
+c      ENDIF
+c#else
+c      CALL WRIVAROPT(VAROPT,IDIM2D,NDIMVAROPT)
+c#endif
+
+      IF(ITPRIN.EQ.-8) THEN
+        IPG = IPRGRID
+        IP3 = IP3D(IPG)
+        IP1 = IP1D(IPG)
+      CALL PRLE3M (1,1,4,'J',KMX(IPG),JMX(IPG),IMX(IPG),
+#ifdef _TSCAL_
+     $             U(IP3),1,V(IP3),1,W(IP3),1,T(IP3),1,P(IP3),1,
+#else
+     $             U(IP3),1,V(IP3),1,W(IP3),1,P(IP3),1,
+#endif
+     $             G(IP3),1,B(IP3),0,DIV(IP3),0,  1,  1,  4,  1,  1,  4,
+     $             DX(IP1),DY(IP1),DZ(IP1),X(IP1),Y(IP1),Z(IP1),
+     $             KANPR,ITSTEP)
+      ENDIF
+
+
+C      DO IGRID = 1,NGRID
+      DO ILEVEL = MINLEVEL,MAXLEVEL
+C----------------------------------------------------------------------
+       IF (LSCAI(ILEVEL)) THEN
+          NGRIDPERLEVEL = NOFSCAI(ILEVEL)
+        DO I=1,NGRIDPERLEVEL
+          NOFTHISGRID(I) = IGRDOFSCAI(I,ILEVEL)
+        ENDDO
+       ELSE
+          NGRIDPERLEVEL = NOFTST(ILEVEL)
+        DO I=1,NGRIDPERLEVEL
+          NOFTHISGRID(I) = IGRDOFTST(I,ILEVEL)
+        ENDDO
+       ENDIF
+C----------------------------------------------------------------------
+
+        DO I = 1,NGRIDPERLEVEL
+           IGRID = NOFTHISGRID(I)
+#ifdef _MPI_
+       IF (MYID .EQ. IDPROCOFGRD(IGRID))  THEN
+#endif
+#ifdef _MPI_PARTICLES_
+C                                THE FOLLOWING ONLY BY MASTER
+       IF (MYID .EQ. 0) THEN
+#endif
+
+C
+C                                NUR, FALLS GITTER NICHT GEBIETSZERLEGT
+C
+         IF ( .NOT. LSLICE(IGRID) ) THEN
+
+C                                 AB HIER WIEDER ALLE GITTER 
+C                                 ZUSAMMENGESETZT
+
+                     CALL MGDIMS  (KK,JJ,II,IGRID)
+                     CALL MGPOINT (IP3,IP2,IP1,IBB,IB3,IBU,IGRID)
+                     CALL MGBASB  (NFRO,NBAC,NRGT,NLFT,
+     $                             NBOT,NTOP,NCUB,IGRID)
+       CALL MGDIMA  (KKA,JJA,IIA,IGRID)
+       CALL MGPOINA (IAV,I2L,I1L,IGRID)
+  
+
+
+
+      IF(MTURB         .GT. 0) THEN
+C
+C                                 NEUE STATIST. MITTELWERTE
+C
+         CALL STMIMP  (DREAD,DCONT,NPRNEU,FPRNEU,
+     $     DX(IP1),DY(IP1),DZ(IP1),DDX(IP1),DDY(IP1),DDZ(IP1)
+     $     ,X(IP1),Y(IP1),Z(IP1),
+#include "cstmga.h"
+
+         CALL STMIM1  (DREAD,DCONT,NPRNEU,FPRNEU,ILINT0,ILINTX,ILINTY,
+     $                 ILINTZ,
+#include "cstmg1.h"
+
+C
+         CALL SUMAAN  (
+#include "cstmga.h"
+
+      END IF
+C
+C                                 STABILITAETSANALYSE
+C
+#ifdef _FRED_BODY_
+      CALL STABED (KK,JJ,II,KK,JJ,II,DDX(IP1),DDY(IP1),DDZ(IP1),
+     $             U(IP3),V(IP3),W(IP3),G(IP3),BP(IP3),RHO,
+     $             DT,XTOT(IGRID),YTOT(IGRID),ZTOT(IGRID),IGRID)
+#else
+      CALL STABED (KK,JJ,II,KK,JJ,II,DDX(IP1),DDY(IP1),DDZ(IP1),
+     $             U(IP3),V(IP3),W(IP3),G(IP3),B(IP3),RHO,
+     $             DT,XTOT(IGRID),YTOT(IGRID),ZTOT(IGRID),IGRID)
+#endif
+C
+C                                 RUECKTRANSFORMATION DES GESCHW.-
+C                                 FELDES (GALILEI-TRANSFORMATION)
+C
+      CALL VSHIFT (KK,JJ,II,KMXS,JMXS,IMXS,U,UGRID,'A')
+            CALL BOUNDMG
+     $             (IDIM3D,IDIM2D,IDIM1D,
+     $              X,Y,Z,DX,DY,DZ,DDX,DDY,DDZ,
+     $              U,V,W,P,G,B,UFR,VFR,WFR,VRI,HILF,
+     $                 UTO,VTO,WTO,PTO,GTO,
+     $              'T',IGRID,0,0,0,
+     $              TIMEPH,UBA,VBA,WBA,PBA,GBA,UBO,VBO,WBO,
+     $              PFR,GFR
+#ifdef _TSCAL_
+     $             ,T,TFR,TBA,TTO,TBO
+#endif
+     $             )       
+C
+
+
+
+      CALL SETREF (KK,JJ,II,KKA,JJA,IIA,KK,JJ,II,KKA,JJA,IIA,
+     $             KPP,JPP,IPP,DDX,DDY,DDZ,
+     $             ZTOT(IGRID),YTOT(IGRID),XTOT(IGRID),XREF,
+     $             RHO,GMOL,GRADPX,IIDENT,RIDENT,AU(IAV),
+     $             ALREF,UREF,TRF,ISETRE,
+     $             XHOMOG(IGRID),YHOMOG(IGRID),ZHOMOG(IGRID),IGRID)
+
+       ENDIF
+
+#ifdef _MPI_PARTICLES_
+       ENDIF
+#endif
+#ifdef _MPI_
+       ENDIF
+#endif
+
+      ENDDO
+      ENDDO
+
+      DO IGRID = 1,NGRID
+        
+        IF (LSLICE(IGRID)) THEN
+         
+#ifdef _MPI_
+
+C            SEND ISAMPP TO PROCESSORS
+C     DO I = 1,NOFSLCHILDS(IGRID)
+C        ISUB = IGRDOFSLCHILD(I,IGRID)
+
+      IF ( 0 .NE. IDPROCOFGRD(IGRDOFSLCHILD(1,IGRID))) THEN
+          LENGTH = 752
+        IF (MYID .EQ. IDPROCOFGRD(IGRDOFSLCHILD(1,IGRID)))
+     $    CALL MPI_SSEND    ( ISAMPP(1,IGRDOFSLCHILD(1,IGRID)),
+     $                 LENGTH , MPI_INTEGER ,
+     $                  0 , IGRID  ,
+     $                 MPI_COMM_WORLD , IERR)
+          IF (MYID .EQ. 0 )
+     $    CALL MPI_RECV    ( ISAMPP(1,IGRID) ,LENGTH  ,
+     $                  MPI_INTEGER ,
+     $                  IDPROCOFGRD(IGRDOFSLCHILD(1,IGRID)), IGRID ,
+     $                 MPI_COMM_WORLD , ISTATUS ,IERR)
+
+        IF (MYID .EQ. IDPROCOFGRD(IGRDOFSLCHILD(1,IGRID)))
+     $    CALL MPI_SSEND    ( ISAMPA(1,IGRDOFSLCHILD(1,IGRID)),
+     $                 LENGTH , MPI_INTEGER ,
+     $                  0 , IGRID  ,
+     $                 MPI_COMM_WORLD , IERR)
+          IF (MYID .EQ. 0 )
+     $    CALL MPI_RECV    ( ISAMPA(1,IGRID) ,LENGTH  ,
+     $                  MPI_INTEGER ,
+     $                  IDPROCOFGRD(IGRDOFSLCHILD(1,IGRID)), IGRID ,
+     $                 MPI_COMM_WORLD , ISTATUS ,IERR)
+
+      ELSE
+
+        IF (MYID .EQ. 0) THEN
+          DO I = 1, 752
+            ISAMPP (I,IGRID) = ISAMPP (I,IGRDOFSLCHILD(1,IGRID))
+            ISAMPA (I,IGRID) = ISAMPA (I,IGRDOFSLCHILD(1,IGRID))
+          ENDDO
+        ENDIF
+
+
+      ENDIF
+
+
+#else
+        DO I = 1, 752
+          ISAMPP (I,IGRID) = ISAMPP (I,IGRDOFSLCHILD(1,IGRID))
+          ISAMPA (I,IGRID) = ISAMPA (I,IGRDOFSLCHILD(1,IGRID))
+        ENDDO
+   
+#endif
+        ENDIF
+      ENDDO
+
+C                      SCHREIBEN DES KOPFES DES DATENFILES
+C
+      IF(DWRITE) THEN
+C
+#if defined _MPI_ | defined _MPI_PARTICLES_
+C                      NUR MASTER-PROZESSOR SCHREIBT KOPF
+C
+      IF (MYID .EQ. 0) THEN
+C
+#endif
+         IF((LDOB).AND.(.NOT.LDOC)) THEN
+#if defined _HITACHI_ | defined _SP2_
+            OPEN (2,FILE='ft.02',FORM='UNFORMATTED')
+#else
+            OPEN (2,FILE='fort.2',FORM='UNFORMATTED')
+#endif
+            CALL DOBHEAD (CIDENT,IIDENT,RIDENT,
+     $                    ISELEP,ISAMPP,ISLINP,ISLIDI)
+         ELSEIF((LDOC).AND.(.NOT.LDOB)) THEN
+#if defined _HITACHI_ | defined _SP2_
+            OPEN (4,FILE='ft.04',FORM='FORMATTED')
+#else
+            OPEN (4,FILE='fort.4',FORM='FORMATTED')
+#endif
+            CALL DOCHEAD (CIDENT,IIDENT,RIDENT,
+     $                    ISELEP,ISAMPP,ISLINP,ISLIDI)
+         ELSE
+            CALL ERRR (503,' MLET ')
+         ENDIF
+C---------------------------- BEI EINFACHEM MPI MUSS JEDER PROZESSOR SCHREIBEN
+C---------------------------- BEI _MPI_PARTICLES_ NUR DER MASTER
+#if defined _MPI_ | defined _MPI_PARTICLES_
+      	ENDIF
+#endif
+#ifdef _MPI_PARTICLES_
+      IF (MYID .EQ. 0) THEN
+#endif
+
+         DO IGRID = 1,NGRID
+            CALL DOGRID (CIDENT,IIDENT,RIDENT,
+     $                   DDX,DDY,DDZ,DX,DY,DZ,X,Y,Z,
+#ifdef _TSCAL_
+     $              U,V,W,T,P,G,B,HILF,
+#else
+     $              U,V,W,P,G,B,HILF,
+#endif
+     $              IDIM3D,IDIM2D,IDIM1D,NBUF,NBND,IDIMA,IDIM1L,IDIM2L,
+     $              IGRID)
+
+            IF(MTURB .GT. 0) THEN
+
+               CALL MGDPB (KK,JJ,II,IP3,IP2,IP1,IBB,IBU,
+     $                   NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB,IGRID)
+               CALL MGDIMA  (KKA,JJA,IIA,IGRID)
+               CALL MGPOINA (IAV,I2L,I1L,IGRID)
+
+c hier Fehler bei Aufruf dobca... scheinbar BP Feld nicht ok
+c      call WRITE3DDIAGY (KK,JJ,II,BP,20,1)
+c hier BP Feld noch ok
+
+               IF(LDOB  ) THEN
+                  CALL DOBCA  (  2  ,'BINAER  ',IIDENT,
+     $                ISTALM,ISTPLM,JSTALM,JSTPLM,
+     $                ITTOT,ITFLUC,DT,X,Y,Z,DX,DY,DZ,DDX,DDY,DDZ,
+     $                ILIMX ,IDOBD1,IDOBD2,IDOBD3,IDOBD4,RKOMXP,RDOBD1,
+     $                RDOBD2,RDOBD3,RDOBD4,IGRID,IDIM3D,
+     $                XHOMOG(IGRID),YHOMOG(IGRID),ZHOMOG(IGRID),IDIMA,
+#include "cstsga.h"
+
+                  CALL DOBCA1 (2,'BINAER  ',ISTALM,ISTPLM,JSTALM,JSTPLM,
+     $                ITTOT,ITFLUC,DT,X,Y,Z,DX,DY,DZ,DDX,DDY,DDZ,
+     $                ILINT0,ILINTX,ILINTY,ILINTZ,
+#include "cstmg1.h"
+
+               END IF
+               IF(LDOC  ) THEN
+                  CALL DOBCA  (  4  ,'CODIERT ',IIDENT,
+     $                ISTALM,ISTPLM,JSTALM,JSTPLM,
+     $                ITTOT,ITFLUC,DT,X,Y,Z,DX,DY,DZ,DDX,DDY,DDZ,
+     $                ILIMX ,IDOBD1,IDOBD2,IDOBD3,IDOBD4,RKOMXP,RDOBD1,
+     $                RDOBD2,RDOBD3,RDOBD4,IGRID,IDIM3D,
+     $                XHOMOG(IGRID),YHOMOG(IGRID),ZHOMOG(IGRID),IDIMA,
+#include "cstsga.h"
+
+                  CALL DOBCA1 (4,'CODIERT ',ISTALM,ISTPLM,JSTALM,JSTPLM,
+     $                ITTOT,ITFLUC,DT,X,Y,Z,DX,DY,DZ,DDX,DDY,DDZ,
+     $                ILINT0,ILINTX,ILINTY,ILINTZ,
+#include "cstmg1.h"
+
+               END IF
+            END IF
+         ENDDO
+
+         write (6,*) 'Closing channel 2'
+         CLOSE (2)
+         write (6,*) 'Closing channel 23'
+         CLOSE(23)
+         write (6,*) 'Closing channel 4'
+         CLOSE (4)
+
+#ifdef _MPI_PARTICLES_
+       ENDIF
+#endif
+      END IF
+C
+
+#if defined _MPI_ | defined _MPI_PARTICLES_
+       IF (MYID .EQ. 0) THEN
+#endif
+
+      IF (MTURB.EQ.1)THEN
+C
+C                                 ERMITTLUNG VON MAXIMA, MINIMA,
+C                                 INTEGRALEN LAENGENMASSEN VON "LINIEN"-
+C                                 FELDERN
+C
+         CALL LININF  (ILINT0, ILINTX, ILINTY, ILINTZ,
+#include "cstmg1.h"
+      END IF
+C
+C
+C
+C                                 AUSGABE DER STATISTISCHEN MITTELWERTE
+C
+      IF(ITPRIN.EQ.-9) THEN
+         DO IGRID = 1,NGRID
+
+#ifdef _MPI_
+       IF (MYID .EQ. 0) THEN
+#endif
+
+               CALL MGDIMA  (KKA,JJA,IIA,IGRID)
+               CALL MGPOINA (IAV,I2L,I1L,IGRID)
+           CALL MGDPB (KK,JJ,II,IP3,IP2,IP1,IBB,IBU,
+     $                   NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB,IGRID)
+
+      CALL PRLE3E (JPP,  1,JPP,'J',IP1,IPS,IP2,KP1,KPS,KP2,
+     $             DX(IP1),DY(IP1),DZ(IP1),X(IP1),Y(IP1),Z(IP1),
+     $             KANPR,NRRUN,ITFLUC,DT,TRF,
+     $             XHOMOG(IGRID),YHOMOG(IGRID),ZHOMOG(IGRID),
+#include "cstmga.h"
+
+C      CALL PRLE3L (ILINT0,ILINTX,ILINTY,ILINTZ, 1 ,MSLIN,
+C     $             KANPR,NRRUN,LINPRN,
+C         "cstmg1.h"
+
+#ifdef _MPI_
+       ENDIF
+#endif
+
+       ENDDO
+C
+      ENDIF
+#if defined _MPI_ | defined _MPI_PARTICLES_
+       ENDIF
+#endif
+C***********************************************************************
+C123  IF (LPART) THEN
+C
+C                                 ABSPEICHERN ALLER PARTIKELKOORDINATEN
+C
+C123     CALL WTCON (NRRUN,NPRU,IMXS,JMXS,KMXS,X,Y,Z,DX,DY,DZ,
+C123 $               IB1,IB2,JB1,JB2,KB,DT,T0,TIMEPH,NWTVGL,
+C123 $               IVGL,ITBGN,NREIHE,ITTOT,NCOUNT,ICALL,
+C123 $               NOUT1S,NOUT2S,NOUT3S,IWTEND,YMAT,NPA,
+C123 $               NMAX,NDGL,II,JJ,KK)
+C123  END IF
+C***********************************************************************
+        WRITE (6,*) 'VOR WRITE_PARTICLES'
+#ifdef _LPART_ORIENTATION_
+#if defined _MPI_PARTICLES_
+        IF (MYID .EQ. 0) THEN
+            OPEN (22,FILE='ft.22',FORM='UNFORMATTED')
+        ENDIF
+#else
+         OPEN (22,FORM="UNFORMATTED")
+#endif
+         CALL WRITE_PARTICLES (22, NPART, NFAM, CONF, XPART)
+         CLOSE (22)
+#endif
+
+#ifdef _PASSIVE_PARTICLE_
+        OPEN (22,FORM="UNFORMATTED")
+        CALL WRITE_PARTICLES_FIN(22,RUN,NFAM,XPART,START_VEC,NFAM_MAX,
+     $                           WLOP,DS)
+        CLOSE (22)
+#endif
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
+#if defined _MPI_ | defined _MPI_PARTICLES_
+C
+C             BEENDEN DER MPI-ROUTINEN
+C
+      CALL MPI_FINALIZE(IERR)
+C
+#endif
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
+
+      WRITE(6,*) ' MLET WURDE ORDNUNGSGEMAESS BEENDET.'
+      STOP
+
+      END

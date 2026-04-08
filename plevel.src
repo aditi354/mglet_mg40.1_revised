@@ -1,0 +1,111 @@
+      SUBROUTINE PLEVEL  (KK,JJ,II,KMX,JMX,IMX,P,B,
+     $                    DDX, DDY, DDZ ,NFRO,NRGT,NBOT)
+C*STARLET***************************************************************
+C        P L E V E L      DAS DRUCKNIVEAU WIRD IN DER WEISE REDUZIERT,
+C                         DASS DER VOLUMENMITTELWERT DES DRUCKES (UEBER
+C                         DAS GESAMTE BERECHNUNGSGEBIET) ZU NULL WIRD.
+C*STARLET***************************************************************
+C
+C PARAM: KK, JJ, II     - ARRAYDIMENSIONEN
+C        KMX, JMX, IMX  - GRENZEN DES BERECHNUNGSGEBIETES (MIT BOUND)
+C        P(KK,JJ,II)    + DRUCKFELD
+C        DDX (II)       - KANTENLAENGE DER KONTROLLVOLUMEN IN X-RI.
+C        DDY (JJ)       - KANTENLAENGE DER KONTROLLVOLUMEN IN Y-RI.
+C        DDZ (KK)       - KANTENLAENGE DER KONTROLLVOLUMEN IN Z-RI.
+C
+C UPROG                 : KEINE
+C
+C DEFINE-DIREKTIVEN     : FRPER, RIPER
+C
+C        26.05.86 (HW)  : ORIGINAL
+C        17.10.89 (HW)  : PLEVEL1 AUS PLEVEL ABGELEITET.
+C        30.10.90 (HW)  : VOLUMENGEWICHTETE DRUCKWERTE
+C        12. 4.93 (MM)  : B-FELD EINGEFUEHRT, 
+C                         UEBERGABE DER RANDBEDINGUNGEN IM KOPF
+C
+C*STARLET***************************************************************
+C
+C
+      REAL     P(KK,JJ,II),B(KK,JJ,II),
+     $           DDX (II),  DDY (JJ),  DDZ (KK)
+#ifdef _MPI_
+C               MPI-INCLUDE
+C
+
+#include "mgpar.h"
+#include "colevel.h"
+#include "compi.h"
+#include "mpif.h"
+
+       INTEGER ISTATUS(MPI_STATUS_SIZE)
+
+#endif
+
+C
+C                                 START- UND STOPINDIZES
+C
+      IM2    = IMX - 2
+      JM2    = JMX - 2
+      KM2    = KMX - 2
+
+      ISTART = 3
+      ISTOP  = IMX - 2
+      IF(NFRO.EQ.1) ISTOP  = IMX - 1
+C
+      JSTART = 3
+      JSTOP  = JMX - 2
+      IF(NRGT.EQ.1) JSTOP  = JMX - 1
+C
+C                                 VOLUMENMITTELWERT DES DRUCKES
+C                                 VGL. DISSERTATION (ABSCHNITT 4.5.3)
+C
+      PSUM   = 0.0
+      VOLUME = 0.0
+      DO  I = 3,IM2
+      DO  J = 3,JM2
+      DO  K = 3,KM2
+               VOLIJK = DDX (I) * DDY (J) * DDZ (K)
+#ifdef _FRED_BODY_
+     $                * B(K,J,I)
+#else 
+     $                * (SIGN(0.5,B(K,J,I))+0.5)
+#endif
+               VOLUME = VOLUME + VOLIJK
+               PSUM   = PSUM + P(K,J,I) * VOLIJK
+      ENDDO
+      ENDDO
+      ENDDO
+#ifdef _MPI_
+      call mpi_reduce(psum,psumtot,1,
+     $ MPI_DOUBLE_PRECISION,MPI_SUM,
+     $  0,MPI_COMM_WORLD,IERR)
+      call mpi_reduce(volume,voltot,1,
+     $ MPI_DOUBLE_PRECISION,MPI_SUM,
+     $  0,MPI_COMM_WORLD,IERR)
+      if (myid.eq.0) then
+         psum = psumtot
+         volume = voltot
+#endif
+      PMEAN  = PSUM / VOLUME
+#ifdef _MPI_
+      end if
+      call mpi_bcast(pmean,1,
+     $ MPI_DOUBLE_PRECISION,0,mpi_comm_world,ierr)
+#endif
+
+C
+C
+      DO  I = 3,IM2
+      DO  J = 3,JM2  
+      DO  K = 3,KM2
+#ifdef _FRED_BODY_
+                  P(K,J,I) = P(K,J,I) - PMEAN*B(K,J,I)
+#else
+                  P(K,J,I) = P(K,J,I) - PMEAN
+#endif
+      ENDDO
+      ENDDO
+      ENDDO
+C
+      RETURN
+      END

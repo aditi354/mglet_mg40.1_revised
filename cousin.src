@@ -1,0 +1,151 @@
+      SUBROUTINE COUSIN (KK,JJ,II,KMX,JMX,IMX,
+     $                 ZMIT,YMIT,XMIT,DELTA,ALFA,
+     $                  B,HILF,X,Y,Z,DX,DY,DZ,DDX,DDY,DDZ,BPAR)
+C*STARLET***************************************************************
+C        C O U S I N    BELEGUNG DES WANDERKENNUNGSFELDES  
+C                       FUER EINE COUNINGHAM_FLOSSE
+C*STARLET***************************************************************
+C
+C PARAM: B              + WANDERKENNUNGSFELD FUER KOERPER IM BERECHNUNGS
+C                       + GEBIET:
+C
+C                             B>0.0  ==> IM BERECHNUNGSGEBIET
+C                             B=-1.0 ==> NOSLIP-WAND
+C                             B=-2.0 ==>   SLIP-WAND
+C
+C        HILF           - HILFSFELD
+C        KK,JJ,II       - ARRAYDIMENSIONEN
+C        KMX,JMX,IMX    - GRENZEN DES BERECHNUNGSGEBIETS (MIT BOUND)
+C
+C        ZMIT           -Z-POSITION DES ELLYPSENMITTELPUNKTES
+C        YMIT           -Y-POSITION DES ELLYPSENMITTELPUNKTES
+C        XMIT           -X-POSITION DES ELLYPSENMITTELPUNKTES
+C        DELTA          - HOEHE DER FLOSSE == GRENZSCHICHTDICKE
+C        ALFA           - SPITZENWINKEL
+C
+C VERS:  12. 5.92 (MM)  - ORIGINAL
+C                         _UPWARDS_ EINGEFUEHRT, STROEMUNG NACH OBEN
+C
+C UPROG                 : ERRR
+C
+C*STARLET***************************************************************
+C
+#include "konsta.h"
+#include "conles.h"
+
+      REAL        X(II),         Y(JJ),         Z(KK),
+     $           DX(II),        DY(JJ),        DZ(KK),
+     $          DDX(II),       DDY(JJ),       DDZ(KK),
+     $            B(KK,JJ,II),HILF(KK,JJ,II)
+
+      REAL    RRCUB(6)
+      INTEGER IICUB(6)
+
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+C                     HALBE BREITE DER FLOSSE IN ABHAENGIGKEIT 
+C                     DES SPITZENWINKELS UND DER X- Z- POSITION
+
+#ifdef _UPWARDS_
+
+       WEDGE(WX,WZ) =
+     $  TANALF *  
+     $  (D1*SQRT(MAX(0.0,1.0-((WX-X0)/D2)**2))-Z0+WZ)
+
+#else
+
+       WEDGE(WX,WZ) =
+     $  TANALF *  
+     $  (D2*SQRT(MAX(0.0,1.0-((WZ-Z0)/D1)**2))-X0+WX)
+
+#endif
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+C             ERMITTELN DER GEOMETRIEBESTIMMENDEN GROESSEN
+
+#ifdef _UPWARDS_
+       Z0   = XMIT
+       X0   = X(3) - 0.5*DDX(3)
+#else
+CSTUFE       Z0   = 1.0
+       Z0   = Z(3) - 0.5*DDZ(3)
+       X0   = XMIT
+#endif
+C
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+C                     HALBACHSEN DER ELLYPSE
+
+#ifdef _UPWARDS_
+       D1 = 0.5*DELTA
+       D2 = DELTA
+#else
+       D1 = DELTA
+       D2 = 0.5*DELTA
+#endif
+       TANALF = TAN(ALFA*ATAN(1.)/45.)
+
+C      WRITE (6,*) 'COUSIN, X0, Z0, D1, D2:',X0,Z0,D1,D2
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+C                      BELEGEN DER SCHLEIFENGRENZEN
+
+        IM2  = IMX-2
+        JM2  = JMX-2
+        KM2  = KMX-2
+         
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+C
+C
+
+       DO 97 I=3,IM2
+       DO 97 J=3,JM2
+       DO 97 K=3,KM2
+
+#ifdef _UPWARDS_
+           WIDTH = WEDGE(X(I),Z(K))
+#else
+           WIDTH = WEDGE(X(I),Z(K))
+#endif
+C      WRITE (6,*) 'COUSIN, Width:',width
+
+C
+C                            ELLYPSE IN X-Z-EBENE
+C
+           HILF(K,J,I) = 
+     $   (Z(K)-Z0)**2/D1**2
+     $  +(X(I)-X0)**2/D2**2
+     $  -1.0
+C
+C                            HINTEN ABGESCHNITTEN
+C
+#ifdef _UPWARDS_
+     $   + SIGN(1.0,(Z(K)-Z0))+1.0
+#else
+     $   + SIGN(1.0,(X(I)-X0))+1.0
+#endif
+C
+C                            SPITZENWINKEL RECHTS
+C
+     $   + SIGN(1.0,(Y(J)-(YMIT+WIDTH)))+1.0
+C
+C                            SPITZENWINKEL LINKS
+C
+     $   + SIGN(1.0,((YMIT-WIDTH)-Y(J)))+1.0
+
+CCCCC      WRITE (6,*)'COUSIN, B:',i,j,k,hilf(k,j,i)
+   97 CONTINUE
+
+
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+C
+C                             HINZUFUEGEN DES NEUEN KOERPERS ZU 'B'
+C
+       DO 145 I=3,IM2
+       DO 145 J=3,JM2
+       DO 145 K=3,KM2
+
+               B(K,J,I) = -BPAR    *(SIGN(0.5,HILF(K,J,I)) - 0.5)
+     $                    +B(K,J,I)*(SIGN(0.5,HILF(K,J,I)) + 0.5)
+
+  145 CONTINUE
+
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+        RETURN
+        END

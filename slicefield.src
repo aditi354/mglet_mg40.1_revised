@@ -1,0 +1,194 @@
+          SUBROUTINE SLICEFIELD (PHI,HILF,IDIM3D,IGRID)
+C--MGLET----------------------------------------------------------------
+C
+C                  ZERSCHEIDEN EINES GITTERS
+C
+C
+C        15. 2.94 (MM)  : ORIGINAL
+C        22. 5.95 (MM.AO): MPI
+C
+C--MGLET----------------------------------------------------------------
+
+
+#include "mgpar.h"
+#include "comgrid.h"
+#include "colevel.h"
+#include "cogrdcon.h"
+#include "cogrdpro.h"
+#ifdef _MPI_
+C
+C               MPI-INCLUDE
+C
+#include "compi.h"
+#include "mpif.h"
+#endif
+
+C
+C
+      REAL
+     $        PHI( IDIM3D ), HILF( IDIM3D )
+C
+#ifdef _MPI_
+C
+C                 MPI-VARIABLEN
+C
+      INTEGER ISTATUS(MPI_STATUS_SIZE)
+C
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
+C
+C                 MPI-ROUTINEN ZUR UEBERGABE VON PARAMETERN
+C                 
+C     CALL MPI_COMM_RANK (MPI_COMM_WORLD,MYID,IERR)
+C     CALL MPI_COMM_SIZE (MPI_COMM_WORLD,NUMPROCS,IERR)
+C
+#endif
+C
+C                                 BEREITSTELLUNG DER POINTER
+C                                 DIMENSIONIERUNGEN 
+C                                 FUER ZU ZERSCHNEIDENDES GITTER
+C
+       CALL MGDIMS  (KKP,JJP,IIP,IGRID)
+       CALL MGPOINT (IP3P,IP2P,IP1P,IBBP,IB3P,IBUP,IGRID)
+C
+#ifndef _MPI_
+C                                 STANDARD-VERSION
+C
+C                                 IF GRID IS NOT SLICED, THEN DO NOTHING
+        IF ( .NOT. LSLICE(IGRID)) RETURN
+C
+C                                 ZUERST WERDEN DIE SUBGITTER AUF DAS
+C                                   HILFSFELD GELEGT
+      DO I=1,NOFSLCHILDS(IGRID)
+
+         ISUB = IGRDOFSLCHILD(I,IGRID)
+
+C                                 BEREITSTELLUNG DER POINTER
+C                                 DIMENSIONIERUNGEN
+C                                 FUER SUB-GITTER
+C
+         CALL MGDIMS  (KKS,JJS,IIS,ISUB)
+         CALL MGPOINT (IP3S,IP2S,IP1S,IBBS,IB3S,IBUS,ISUB)
+C
+         CALL SLICE3D (KKP,JJP,IIP,PHI(IP3P),
+     &                 KKS,JJS,IIS,HILF(IP3S),
+     &                 ISLPOS(ISUB),JSLPOS(ISUB),KSLPOS(ISUB))
+
+
+      ENDDO
+C
+C                                 JETZT WIRD FUER ALLE SUBGITTER DAS
+C                                 HILFSFELD WIEDER ZURUECKKOPIERT
+C
+      DO I=1,NOFSLCHILDS(IGRID)
+
+         ISUB = IGRDOFSLCHILD(I,IGRID)
+
+C                                 BEREITSTELLUNG DER POINTER
+C                                 DIMENSIONIERUNGEN
+C                                 FUER SUB-GITTER
+C
+         CALL MGDIMS  (KKS,JJS,IIS,ISUB)
+         CALL MGPOINT (IP3S,IP2S,IP1S,IBBS,IB3S,IBUS,ISUB)
+
+
+         CALL COP3D (KKS,JJS,IIS,HILF(IP3S),PHI(IP3S))	
+
+      ENDDO
+C
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+C
+#endif
+#ifdef _MPI_
+C
+C                                 ZUERST WERDEN DIE SUBGITTER AUF DAS
+C                                   HILFSFELD GELEGT
+C                                 IN CASE OF MESSAGE-PASSING IS
+C                                 ASSUMED, THAT ANY COMPOSED (FULL)
+C                                 3D-FIELD IS IN FIELD BIGBUF BEFORE
+C                                 IT WILL BE DISTRIBUTED AMONG
+C                                 THE INDIVIDUAL PROCESSORS
+C                                 IF GRID IS NOT SLICED, THEN SEND
+C                                 GRID TO PROCESSOR 0
+      IF ( .NOT. LSLICE(IGRID)) THEN
+       IF ( 0 .NE. IDPROCOFGRD(IGRID)) THEN
+C
+C             VERSCHICKEN DES GITTERS AN PROZESSOREN
+C
+C
+        LENGTH = KKP*JJP*IIP
+        IF (MYID .EQ. 0 )
+     $    CALL MPI_SSEND    ( BIGBUF(IP3P), LENGTH , 
+     $ MPI_DOUBLE_PRECISION ,
+     $                  IDPROCOFGRD(IGRID), IGRID ,
+     $                 MPI_COMM_WORLD , IERR)
+        IF (MYID .EQ. IDPROCOFGRD(IGRID))
+     $    CALL MPI_RECV    ( PHI(IP3P) ,LENGTH  , 
+     $ MPI_DOUBLE_PRECISION ,
+     $                  0 , IGRID  ,
+     $                 MPI_COMM_WORLD , ISTATUS ,IERR)
+
+       ELSE
+C                               GRID IS NOT SLICED AND ON PROC NR. 0
+          WRITE (6,*) 'CALLING COP3D:', KKP,JJP,IIP,IP3P
+          CALL COP3D (KKP,JJP,IIP,BIGBUF(IP3P),PHI(IP3P))	
+       ENDIF
+C                                  GRID IS SLICED:
+      ELSE
+
+       DO I=1,NOFSLCHILDS(IGRID)
+
+        ISUB = IGRDOFSLCHILD(I,IGRID)
+
+C                                 BEREITSTELLUNG DER POINTER
+C                                 DIMENSIONIERUNGEN
+C                                 FUER SUB-GITTER
+C
+        CALL MGDIMS  (KKS,JJS,IIS,ISUB)
+        CALL MGPOINT (IP3S,IP2S,IP1S,IBBS,IB3S,IBUS,ISUB)
+C
+        IF ( MYID .EQ. 0 ) THEN
+
+         CALL SLICE3D (KKP,JJP,IIP,BIGBUF(IP3P),
+     &                 KKS,JJS,IIS,HILF(IP3S),
+     &                 ISLPOS(ISUB),JSLPOS(ISUB),KSLPOS(ISUB))
+
+        ENDIF
+
+C
+        IF (0 .NE. IDPROCOFGRD(ISUB)) THEN
+C
+C             VERSCHICKEN DER GITTER AN PROZESSOREN
+C
+C
+         LENGTH = KKS*JJS*IIS
+         IF (MYID .EQ. 0) 
+     $   CALL MPI_SSEND    ( HILF(IP3S), LENGTH , 
+     $ MPI_DOUBLE_PRECISION ,
+     $                   IDPROCOFGRD(ISUB) , I  ,
+     $                 MPI_COMM_WORLD , IERR)
+         IF (MYID .EQ. IDPROCOFGRD(ISUB)) 
+     $   CALL MPI_RECV    ( PHI(IP3S) ,LENGTH  , 
+     $ MPI_DOUBLE_PRECISION ,
+     $                  0 , I ,
+     $                 MPI_COMM_WORLD , ISTATUS ,IERR)
+ 
+        ELSE
+
+         IF (MYID .EQ. 0)  THEN
+
+
+          CALL COP3D (KKS,JJS,IIS,HILF(IP3S),PHI(IP3S))	
+
+         ENDIF
+        ENDIF
+       ENDDO
+      ENDIF
+C
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+C
+#endif
+
+      RETURN
+      END
+
+

@@ -1,0 +1,284 @@
+         SUBROUTINE PASSPART (IDIM3D,IDIM2D,IDIM1D,IDIMA,NBND,
+     $                      X,Y,Z,DX,DY,DZ,DDX,DDY,DDZ,
+     $                      RDX,RDY,RDZ,RDDX,RDDY,RDDZ,
+     $                      U,V,W,P,G,B,HILF1,HILF2,
+     $                      H2D1,H2D2,H2D3,H2D4,H2D5,H2D6,
+#if defined _STAT1_
+     $     AU,AV,AW,
+     $     FELD1,FELD2,FELD3,
+#endif
+#if defined  _TSCAL_
+     $      T,
+#endif
+#if defined _FRED_BODY_
+     $      BP,
+#endif
+     $                      TIMEPH,ITSTEP,ITTOT)
+
+
+C**MGLET****************************************************************
+C
+C       P A S S P A R T      
+C                     TRANSPORTIERT POSITIONEN UND ORIENTIERUNGSVEKTOREN
+C                     DER PARTIKEL
+C                     VERTEILT PARTIKEL AUF PROZESSOREN UND GITTER
+C
+C     1.9.99 (MM):  ORIGINAL
+C   10.06.03 (FS):  PASSIVER PARTIKELTRANSPORT FUER T-MISCHER
+C
+C**MGLET****************************************************************
+C
+#include "mgpar.h"
+#include "costrles.h"
+#include "comgrid.h"
+#include "colevel.h"
+#include "cogrdcon.h"
+#include "cogrdpro.h"
+#include "comgvp.h"
+#include "copart2.h"
+C
+#ifdef _MPI_PARTICLES_
+C
+C               MPI-INCLUDE
+C
+#include "compi.h"
+#include "mpif.h"
+
+#endif
+C
+      REAL        RDDX(IDIM1D),     RDDY(IDIM1D),     RDDZ(IDIM1D),
+     $             RDX(IDIM1D),      RDY(IDIM1D),      RDZ(IDIM1D),
+     $             DDX(IDIM1D),      DDY(IDIM1D),      DDZ(IDIM1D),
+     $              DX(IDIM1D),       DY(IDIM1D),       DZ(IDIM1D),
+     $               X(IDIM1D),        Y(IDIM1D),        Z(IDIM1D)
+
+
+      REAL        U (   IDIM3D  ), V (   IDIM3D  ), W (   IDIM3D  ),
+     $            P (   IDIM3D  ), G (   IDIM3D  ), B (   IDIM3D  )
+
+#ifdef _STAT1_
+      INTEGER KKA,JJA,IIA
+      REAL AU( IDIMA ),AV ( IDIMA ),AW ( IDIMA ),
+     $     FELD1(IDIM3D),FELD2(IDIM3D),FELD3(IDIM3D)
+#endif
+
+#ifdef _TSCAL_
+      REAL T ( IDIM3D )
+#endif
+#if defined _FRED_BODY_
+      REAL BP( IDIM3D )
+#endif
+
+      REAL     H2D1( IDIM2D ), H2D2( IDIM2D ), H2D3( IDIM2D ),
+     $         H2D4( IDIM2D ), H2D5( IDIM2D ), H2D6( IDIM2D )
+C
+C
+      REAL     HILF1( IDIM3D ),HILF2( IDIM3D )
+
+            tsearch = 0.0
+            tgetvel = 0.0
+            tgetder = 0.0
+            ttstorient = 0.0
+            ttstpos = 0.0
+            tbpart = 0.0
+            tges   = 0.0
+C
+C------------------------------------------  GERECHNET WIRD ERST NUR
+C                                            AUF DEM MAXIMALEN LEVEL
+C                                            (FEINSTES GITTER)
+
+      ILEVEL = MAXLEVEL
+
+      DO I = 1,NOFTST(ILEVEL)
+         IGRID = IGRDOFTST(I,ILEVEL)
+
+         CALL MGDPB (KK,JJ,II,IP3,IP2,IP1,IBB,IBU,
+     $        NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB,IGRID)
+         CALL MGDIMA  (KKA,JJA,IIA,IGRID)
+         CALL MGPOINA (IAV,I2L,I1L,IGRID)       
+C------------------------------------------- SEARCHING INDEX
+
+            t1 = GETSEC(0)
+            CALL SEARCHINDEX(KK,Z(IP1),DZ(IP1),DDZ(IP1),
+     $           NZGRAE(IGRID),NFAM,XPART(2*NFAM_MAX + 1),KINDEX,
+     $           HILF1(IP3))
+
+            CALL SEARCHINDEX(JJ,Y(IP1),DY(IP1),DDY(IP1),
+     $           NYGRAE(IGRID),NFAM,XPART(  NFAM_MAX + 1),JINDEX,
+     $           HILF1(IP3))
+
+            CALL SEARCHINDEX(II,X(IP1),DX(IP1),DDX(IP1),
+     $           NXGRAE(IGRID),NFAM,XPART(         1),IINDEX,
+     $           HILF1(IP3))
+
+            t2 = GETSEC(0)
+
+C------------------------------------------- GETTING VELOCITIES
+
+            CALL GETVELOCITIES (KK,JJ,II,  X(IP1),   Y(IP1),   Z(IP1),
+     $                                    DX(IP1),  DY(IP1),  DZ(IP1),
+     $                                  RDDX(IP1),RDDY(IP1),RDDZ(IP1),
+     $                          U(IP3),V(IP3),W(IP3),
+     $                          HILF1(IP3),HILF2(IP3),
+     $                          H2D1(IP1),H2D2(IP1),H2D3(IP1),
+     $                          NFAM,XPART(1),
+     $                          XPART(NFAM_MAX+1),XPART(2*NFAM_MAX+1),
+     $                          IINDEX,JINDEX,KINDEX,UPART,
+     $                          FXPART,FYPART,FZPART)
+
+            t3 = GETSEC(0)
+C------------------------------------------ GETTING VELOCITY DERIVATIVES
+
+            CALL GETDERIVATIVES(KK,JJ,II,  X(IP1),   Y(IP1),   Z(IP1),
+     $                                    DX(IP1),  DY(IP1),  DZ(IP1),
+     $                                   RDX(IP1), RDY(IP1), RDZ(IP1),
+     $                                  RDDX(IP1),RDDY(IP1),RDDZ(IP1),
+     $                          U(IP3),V(IP3),W(IP3),
+     $                          HILF1(IP3),HILF2(IP3),
+     $                          H2D1(IP1),H2D2(IP1),H2D3(IP1),
+     $                          NFAM,XPART(1),
+     $                          XPART(NFAM_MAX+1),XPART(2*NFAM_MAX+1),
+     $                          IINDEX,JINDEX,KINDEX,DUPART,
+     $                          FXPART,FYPART,FZPART)
+
+            t4 = GETSEC(0)
+
+C------------------------------ COMPUTING RANDOM NUMBERS
+
+C------------------------------------------- NEW ORIENTATION
+C
+CC------------------------------------------- PARTICLE STRESSES
+
+CC------------------------------------------- SETTING STRESSES FOR GRID
+CC------------------------------------------- OLD STRESSES ARE WEIGHTED BY
+CC------------------------------------------- FOLD = 0.1
+C
+
+CC------------------------------------------ HILF1 CONTAINS NUMBER OF
+CC------------------------------------------ PARTICLES IN CELL
+C
+
+C            t5c = GETSEC(0)
+C 1000  continue
+CC------------------------------------------- NEW POSITION
+
+
+            CALL TSTPOS (NFAM,UPART,
+     $                   XPART(1),XPART(NFAM_MAX+1),XPART(2*NFAM_MAX+1),
+     $                   DT,DS)
+
+            t6 = GETSEC(0)
+C------------------------------------------- Boundary Conditions
+            CALL SEARCHINDEX(KK,Z(IP1),DZ(IP1),DDZ(IP1),
+     $           NZGRAE(IGRID),NFAM,XPART(2*NFAM_MAX + 1),KINDEX_N,
+     $           HILF1(IP3))
+
+            CALL SEARCHINDEX(JJ,Y(IP1),DY(IP1),DDY(IP1),
+     $           NYGRAE(IGRID),NFAM,XPART(  NFAM_MAX + 1),JINDEX_N,
+     $           HILF1(IP3))
+
+            CALL SEARCHINDEX(II,X(IP1),DX(IP1),DDX(IP1),
+     $           NXGRAE(IGRID),NFAM,XPART(         1),IINDEX_N,
+     $           HILF1(IP3))
+
+#ifdef _FRED_BODY_
+            CALL BPART_BODY (KK,JJ,II,  X(IP1),   Y(IP1),   Z(IP1),
+     $                            DX(IP1),  DY(IP1),  DZ(IP1),
+     $                   NFAM,
+     $                   XPART(1),XPART(NFAM_MAX+1),XPART(2*NFAM_MAX+1),
+     $                   NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,RUN(1),
+     $       START_VEC(1),START_VEC(NFAM_MAX+1),START_VEC(2*NFAM_MAX+1)
+     $       ,IINDEX,JINDEX,KINDEX,IINDEX_N,JINDEX_N,KINDEX_N,BP(IP3))
+#endif
+            CALL BPART (KK,JJ,II,  X(IP1),   Y(IP1),   Z(IP1),
+     $                            DX(IP1),  DY(IP1),  DZ(IP1),
+     $                   NFAM,
+     $                   XPART(1),XPART(NFAM_MAX+1),XPART(2*NFAM_MAX+1),
+     $                   NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,RUN(1),
+     $       START_VEC(1),START_VEC(NFAM_MAX+1),START_VEC(2*NFAM_MAX+1))
+
+
+C------------------------------------------- CALCULATION OF DISSIPATION
+
+            CALL PARTDISS (KK,JJ,II,X,Y,Z,DX(IP1),DY(IP1),DZ(IP1),
+     $           RDDX(IP1),RDDY(IP1),RDDZ(IP1),
+     $           DDX(IP1),DDY(IP1),DDZ(IP1),
+     $           U(IP3),V(IP3),W(IP3),B(IP3),HILF1(IP3),HILF2(IP3),
+     $           H2D1(IP2),H2D2(IP2),H2D3(IP2),
+     $           NFAM,XPART(1),XPART(NFAM_MAX+1),XPART(2*NFAM_MAX+1),
+     $           IINDEX,JINDEX,KINDEX,DISSI,DISTURB,
+     $           FXPART,FYPART,FZPART,
+#if defined _STAT1_
+     $           AU(IAV),AV(IAV),AW(IAV),
+     $           KKA,JJA,IIA,
+     $           FELD1(IP3),FELD2(IP3),FELD3(IP3),
+#endif
+#ifdef _FRED_BODY_
+     $           BP(IP3),
+#endif
+     $           NFRO,NBAC,NRGT,NLFT,NBOT,NTOP)
+
+C------------------------------------------- LOOP OVER CLUSTER FINISHED
+            tsearch    = tsearch    + t2-t1
+            tgetvel    = tgetvel    + t3-t2
+            tgetder    = tgetder    + t4-t3
+            ttstorient = ttstorient + t5-t4
+            ttstpos    = ttstpos    + t6-t5
+            tbpart     = tbpart     + t7-t6
+            tges       = tges       + t7-t1
+C------------------------------------------- CALCULATION OF CONCENTRATION AT PARTICLE POSITION
+#ifdef _TSCAL_
+            CALL GETSCALAR (KK,JJ,II,X,Y,Z,DX(IP1),DY(IP1),DZ(IP1),
+     $           RDDX(IP1),RDDY(IP1),RDDZ(IP1),
+     $           DDX(IP1),DDY(IP1),DDZ(IP1),
+     $           T(IP3),HILF1(IP3),
+     $           H2D1(IP2),H2D2(IP2),H2D3(IP2),
+     $           NFAM,XPART(1),XPART(NFAM_MAX+1),XPART(2*NFAM_MAX+1),
+     $           IINDEX,JINDEX,KINDEX,
+     $           FXPART,FYPART,FZPART,PARTSCA,
+     $           NFRO,NBAC,NRGT,NLFT,NBOT,NTOP)
+#endif
+C------------------------------------------- OUTPUT?
+
+
+         IF (MOD (ITTOT,IPART_OUT) .EQ. 0) THEN
+            CALL WRITE_PASSPART (KK,JJ,II,23,RUN,NFAM,
+     $           XPART,DISSI,DISTURB,KINDEX,JINDEX,IINDEX,NFAM_MAX,WLOP,
+     $           DS,TIMEPH,PARTSCA)
+            
+         ENDIF
+      ENDDO
+
+C      IF (ITSTEP .EQ. 1) THEN
+C
+C            tsearch = t2-t1
+C            tgetvel = t3-t2
+C            tgetder = t4-t3
+C            ttstorient = t5-t4
+C            trr = t5a1-t5
+C            trrrr = t5a2-t5a1
+C            tstress = t5a-t5a2
+C            tparticle_stress = t5b-t5a
+C            tsmooth_stress = t5c-t5b
+C            ttstpos = t6-t5c
+C            tbpart = t7-t6
+C
+C        if (myid .eq. 0) then
+C            write (6,*)'   search index:',tsearch
+C            write (6,*)' get velocities:',tgetvel
+C            write (6,*)'get derivatives:',tgetder
+C            write (6,*)'   orientations:',ttstorient
+C            write (6,*)'             rr:',trr
+C            write (6,*)'           rrrr:',trrrr
+C            write (6,*)'         stress:',tstress
+C            write (6,*)'particle_stress:',tparticle_stress
+C            write (6,*)'  smooth_stress:',tsmooth_stress
+C            write (6,*)'  new positions:',ttstpos
+C            write (6,*)' boundary cond.:',tbpart
+C            write (6,*)'            all:',tges
+C        endif
+C
+C        ENDIF
+
+         RETURN
+         END

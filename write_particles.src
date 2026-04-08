@@ -1,0 +1,67 @@
+	SUBROUTINE WRITE_PARTICLES (CHANNEL, NPART, NFAM, CONF, XPART)
+C----------------------------------------------------------
+C
+C	WRITES POSITION AND ORIENTATION OF PARTICLES
+C
+C	1. 8. 1999 (MM): ORIGINAL
+C
+C----------------------------------------------------------
+
+	INTEGER CHANNEL, NPART, NFAM
+        REAL CONF( NFAM, NPART, 3), XPART( NFAM, 3)
+#ifdef _MPI_PARTICLES_
+#include "mpif.h"
+      INTEGER ISTATUS(MPI_STATUS_SIZE)
+
+C
+      CALL MPI_COMM_RANK (MPI_COMM_WORLD,MYID,IERR)
+      CALL MPI_COMM_SIZE (MPI_COMM_WORLD,NUMPROCS,IERR)
+C
+      WRITE (6,*) 'WRITE_PARTICLES, MYID...',
+     $             MYID,NFAM,NPART
+      DO IPROC = 0,NUMPROCS-1
+
+        IF (MYID .EQ. 0) THEN
+
+          IF (IPROC .NE. 0) THEN
+       WRITE (6,*) 'RECEIVING',MYID
+               CALL MPI_RECV  (CONF, NFAM*NPART*3, 
+     $ MPI_DOUBLE_PRECISION, 
+     $                 IPROC, IPROC, MPI_COMM_WORLD, ISTATUS, IERR)
+               CALL MPI_RECV  (XPART, NFAM*3, 
+     $ MPI_DOUBLE_PRECISION, 
+     $                 IPROC, IPROC, MPI_COMM_WORLD, ISTATUS, IERR)
+          ENDIF
+#endif
+
+       WRITE (6,*) 'WRITING',MYID,channel
+
+           WRITE (CHANNEL, ERR=2000) CONF
+           WRITE (CHANNEL, ERR=2000) XPART
+
+#ifdef _MPI_PARTICLES_
+
+        ELSE
+          IF (MYID .EQ. IPROC) THEN
+       WRITE (6,*) 'SENDING',MYID
+                CALL MPI_SEND (CONF, NFAM*NPART*3, 
+     $ MPI_DOUBLE_PRECISION, 
+     $                 0, IPROC, MPI_COMM_WORLD, IERR)     
+                CALL MPI_SEND (XPART, NFAM*3, 
+     $ MPI_DOUBLE_PRECISION, 
+     $                 0, IPROC, MPI_COMM_WORLD, IERR)     
+          ENDIF
+        ENDIF
+
+       ENDDO
+
+#endif
+
+
+	RETURN
+
+ 1000	FORMAT (I8, 6(1X,E12.5E3))
+
+ 2000	CALL ERRR (501,' READ_PART')
+
+	END

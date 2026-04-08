@@ -1,0 +1,39 @@
+       SUBROUTINE MGDIMA (KKA,JJA,IIA,IGRID)
+
+C*MGLET*****************************************************************
+C      M G D I M S           MULTIGRID-VERWALTUNG
+C                            LIEFERT DIMENSIONIERUNG DES GITTERS IGRID
+C*MGLET*****************************************************************
+C
+C PARAM: KK       : + DIMENSIONIERUNG IN K-RICHTUNG
+C        JJ       : + DIMENSIONIERUNG IN J-RICHTUNG
+C        II       : + DIMENSIONIERUNG IN I-RICHTUNG
+C        IGRID    : - GITTER, FUER DAS DIE GROESSEN GESETZT WERDEN
+C
+C
+C VERS:   8. 4.93 (MM)  : ORIGINAL
+C
+C
+C*MGLET*****************************************************************
+C
+#include "mgpar.h"
+#include "comgrid.h"
+C
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+C                           UEBERPRUEFUNGEN
+
+      IF (IGRID .GT. MAXGRIDS) CALL ERRR (  555 ,'MGDIMS')
+
+C
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+C
+
+        IIA = IMXA(IGRID)
+        JJA = JMXA(IGRID)
+        KKA = KMXA(IGRID)
+
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+C
+
+      RETURN
+      END

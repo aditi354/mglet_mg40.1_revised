@@ -1,0 +1,95 @@
+      SUBROUTINE INTERCOEFKOBS0(KK,K,DX,DDX,LCOL,DIAG,RCOL,
+     $			    RSIDE1,RSIDE2,RSIDE3)         
+C*MGLET*****************************************************************
+C              I N T E R C O E F 1
+C*MGLET*****************************************************************
+C
+C     BERECHNUNG DER KOEFFIZIENTEN FUER DIE KOMPAKTE INTER-
+C     INTERPOLATION VIERTER ORDNUNG
+C
+C     DIESER ANSATZ ENTHAELT  Z W E I  UNBEKANNTE AUF DER RECHTEN
+C     SEITE (Modifizierter Ansatz)
+C
+C   ! ACHTUNG : DIESE FORMULIERUNG IST NUR FUER M G L E T             
+C   !           (NICHTGESTAEGERT -------> GESTAEGERT)
+C
+C*MGLET*****************************************************************
+C
+C
+C DEFINE DIREKTIVEN     : KEINE
+C
+C UPROG                 : KEINE
+C
+C 03.10.1996            : ADNAN MERI (ORIGINAL)
+C
+C*MGLET*****************************************************************
+C
+
+      REAL LCOL,RCOL,DIAG,RSIDE1,RSIDE2,RSIDE3,
+     $     ALFA,GAMA,BETA,PHI,DX(KK),DDX(KK),
+     $     a,b,c,d,e,f
+
+
+#if !defined _6TH_KOBAYASHI_ 
+#if !defined _4TH_KOBAYASHI_ 
+
+      a = DDX(K-1) /DX(K-1)
+      b = DDX(K)/DX(K-1)
+      c = -4.0 * a**2 + 1.0
+      d = -4.0 * b**2 + 1.0
+      e = -8.0 * a**3 + 2.0 * a
+      f =  8.0 * b**3 - 2.0 * b
+
+      ALFA = f/(-c*f + e*d)         
+      BETA = (- 1.0 -ALFA*c)/d    
+      GAMA = 0.5 * ( (-2.0 * a +1)*ALFA + (2.0*b +1)*BETA + 1.0)
+      PHI  = 1.0 - GAMA + BETA +ALFA
+
+C     write (45,*) ALFA, BETA,GAMA,PHI
+c
+c*************BILDUNG DER MATRIX************************************
+c
+c
+      LCOL=ALFA
+      DIAG=1.0
+      RCOL=BETA
+      RSIDE1 =GAMA
+      RSIDE2 =PHI        
+      RSIDE3 =0.0       
+
+
+#else 
+C------------------Fourth-Order is defined---------
+
+      a = (DDX(K-1) +DDX(K))**2.0
+      b = (DDX(K-1) +DDX(K))**3.0
+      c = ( DDX(K) )**2.0
+      d = ( DDX(K-1) )**2.0
+
+
+      LCOL=c/a
+      DIAG=1.0
+      RCOL=d/a
+      RSIDE1 =2.0*c*(DDX(K)+2.0*DDX(K-1) )/b
+      RSIDE2 =1.0+ LCOL  +RCOL -RSIDE1
+      RSIDE3 =0.0        
+
+#endif 
+
+C------------- Sith-order is defined---------------
+#else
+
+#endif
+
+
+
+
+
+c 
+c
+c*******************************************************************
+c
+c 
+      return
+      end
+

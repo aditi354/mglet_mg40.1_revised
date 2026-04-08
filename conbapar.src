@@ -1,0 +1,503 @@
+#undef _OUTPUT_
+       SUBROUTINE CONBAPAR (KMX,JMX,IMX,X,Y,Z,DX,DY,DZ,DDX,DDY,DDZ,
+     $                   U,V,W,P,G,H2D1,H2D2,UBA,VBA,WBA,PBA,GBA,
+     $                   KMXN,JMXN,IMXN,
+     $                   XN,YN,ZN,DXN,DYN,DZN,DDXN,DDYN,DDZN,
+     $                   UN,VN,WN,PN,GN,HN,
+     $                   JSTA,JSTO,KSTA,KSTO,
+     $                   IPOS,JPOS,KPOS,ITYP,IRB,JRB,KRB,
+     $                   IPROC,IPROCNBR
+#ifdef _TSCAL_
+     $                  ,T,TBA,TN
+#endif
+     $                  )      
+C*MGLET*****************************************************************
+C     C O N B A P A R    SETZEN DER RANDBEDINGUNGEN FUER DIE
+C                         GESCHWINDIGKEITSFELDER. AUS PARENT-Gitter
+C*MGLET*****************************************************************
+C
+C PARAM: 
+C        KMX, JMX, IMX  - DIMENSIONEN DES GITTERS 
+C        U(KMX,JMX,IMX) + GESCHWINDIGKEITSFELD
+C        V(KMX,JMX,IMX) + GESCHWINDIGKEITSFELD
+C        W(KMX,JMX,IMX) + GESCHWINDIGKEITSFELD
+C        T(KK,JJ,II)    + SCALAR T FIELD
+C        P(KMX,JMX,IMX) - DRUCKFELD
+C        G(KMX,JMX,IMX) - EFFEKTIVE DYNAMISCHE VISKOSITAET (= MUE)
+C        ...N           - ENTSPRECHENDE GROESSE AUS DEM NACHBARGITTER
+C        JSTART,JSTOP
+C        KSTART,KSTOP   - BEREICH IN DEM RANDBEDINGUNG GESETZT WIRD
+C        IPOS,JPOS,KPOS - POSITION IM NACHBARGITTER, AUF DER DER PUNKT
+C                         MIT DEN INDIZES (3,3,3) ZU LIEGEN KOMMT
+C        ITYP           - HOLLERITH-KONSTANTE:
+C                         'P'  VOR DER DRUCKKORREKTUR
+C                         'T'  VOR DEM ZEITSCHRITT
+C            IRB                  - INTEGER-KENNZAHL I-RICHTUNG RED-BLACK
+C            JRB                  - INTEGER-KENNZAHL J-RICHTUNG RED-BLACK
+C            KRB                  - INTEGER-KENNZAHL K-RICHTUNG RED-BLACK
+C
+C VERS:  27.10.97 (MM)  : ORIGINAL AUS BBOPAR ABGELEITET
+C        28.02.03 (TB)  : SCALAR BOUNDARY TREATMENT IMPLEMENTED
+C
+C DEFINE-DIREKTIVEN     : QUD 
+C
+C*STARLET***************************************************************
+
+C
+      CHARACTER (LEN=1)  ITYP
+C
+      REAL
+     $     U(KMX,JMX,IMX),  V(KMX,JMX,IMX),    W(KMX,JMX,IMX),
+     $     P(KMX,JMX,IMX),  G(KMX,JMX,IMX),      
+     $       H2D1(KMX,JMXN),  H2D2(JMX,IMX),
+     $       UBA(KMX,JMX,2),    VBA(KMX,JMX,2),    WBA(KMX,JMX,2),
+     $       PBA(KMX,JMX,2),    GBA(KMX,JMX,2),
+     $       X(IMX),            Y(JMX),            Z(KMX),
+     $      DX(IMX),           DY(JMX),           DZ(KMX),
+     $     DDX(IMX),          DDY(JMX),          DDZ(KMX)
+
+      REAL
+     $    UN(KMXN,JMXN,IMXN),  VN(KMXN,JMXN,IMXN),  WN(KMXN,JMXN,IMXN),
+     $    PN(KMXN,JMXN,IMXN),  GN(KMXN,JMXN,IMXN),  HN(KMXN,JMXN     ),
+     $       XN(IMXN),            YN(JMXN),            ZN(KMXN),
+     $      DXN(IMXN),           DYN(JMXN),           DZN(KMXN),
+     $     DDXN(IMXN),          DDYN(JMXN),          DDZN(KMXN)
+
+      REAL I3DO2,I2DO2
+       CHARACTER (LEN=16) CIDREC
+C
+#ifdef _TSCAL_
+      REAL     T(KMX,JMX,IMX),TBA(KMX,JMX,2),TN(KMXN,JMXN,IMXN)
+#endif
+C
+
+#ifdef _MPI_
+C               MPI-INCLUDE
+C
+
+#include "mgpar.h"
+#include "colevel.h"
+#include "compi.h"
+#include "mpif.h"
+C
+#endif
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
+C                                 TEST OF DEFINE-DIRECTIVES
+#if ! defined _INT_ORDER_2_
+#define _INT_ORDER_1_
+#endif
+#if ! defined _P_INT_ORDER_2_
+#define _P_INT_ORDER_1_
+#endif
+
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
+      NBND = 2
+C
+C
+C                         FINE-GRID: I-INDEX=IMX -1  (BAC)
+              IIF = IMX - 1
+C                         I-INDEX OF COARSE-GRID
+C                                   (=PARENT, CALLED NEIGHBOUR)
+            IC = IPOS - 1 + (IF-1)/2
+C
+C
+C                                     ORDNUNG DER INTERPOLATION
+C
+          IORDER = 1
+#ifdef _INT_ORDER_2_
+          IORDER = 2
+#endif
+C
+C
+          IORDER_P = 1
+#ifdef _P_INT_ORDER_2_
+          IORDER_P = 2
+#endif
+          IORDER = 1
+
+#ifdef _OUTPUT_
+ 6050     FORMAT (6(E12.5E3,1X))
+ 6060     FORMAT (4(I9,1X))
+          open  (61,form='FORMATTED')
+          write (61,'(A)') 'APG2'
+          write (61,'(A)') '   X   '
+          write (61,6050 ) (xn(i),i=14,14)
+          write (61,'(A)') '   Y   '
+          write (61,6050 ) (yn(i),i=3,jmxn-2)
+          write (61,'(A)') '   Z   '
+          write (61,6050 ) (zn(i),i=3,kmxn-2)
+          write (61,'(A)') ' IARR '
+          write (61,6060 ) (i,i=imxn-2,imxn-2)
+          write (61,'(A)') ' JARR '
+          write (61,6060 ) (i,i=3,jmxn-2)
+          write (61,'(A)') ' KARR '
+          write (61,6060 ) (i,i=3,kmxn-2)
+          write (61,'(A)') ' NTREC'
+          write (61,6060 ) 1
+
+          open  (63,form='FORMATTED')
+          write (63,'(A)') 'APG2'
+          write (63,'(A)') '   X   '
+          write (63,6050 ) (xn(i),i=14,14)
+          write (63,'(A)') '   Y   '
+          write (63,6050 ) (y(i),i=3,jmxn-2)
+          write (63,'(A)') '   Z   '
+          write (63,6050 ) (z(i),i=3,kmx-2)
+          write (63,'(A)') ' IARR '
+          write (63,6060 ) (i,i=imxn-2,imxn-2)
+          write (63,'(A)') ' JARR '
+          write (63,6060 ) (i,i=3,jmxn-2)
+          write (63,'(A)') ' KARR '
+          write (63,6060 ) (i,i=3,kmx-2)
+          write (63,'(A)') ' NTREC'
+          write (63,6060 ) 1
+
+          open  (65,form='FORMATTED')
+          write (65,'(A)') 'APG2'
+          write (65,'(A)') '   X   '
+          write (65,6050 ) (x(i),i=14,14)
+          write (65,'(A)') '   Y   '
+          write (65,6050 ) (y(i),i=3,jmx-2)
+          write (65,'(A)') '   Z   '
+          write (65,6050 ) (z(i),i=3,kmx-2)
+          write (65,'(A)') ' IARR '
+          write (65,6060 ) (i,i=14,14)
+          write (65,'(A)') ' JARR '
+          write (65,6060 ) (i,i=3,jmx-2)
+          write (65,'(A)') ' IARR '
+          write (65,6060 ) (i,i=3,kmx-2)
+          write (65,'(A)') ' NTREC'
+          write (65,6060 ) 1
+C
+          open  (62,form='UNFORMATTED')
+          cidrec = 'APG2'
+          write (62) CIDREC
+          write (62) 1.0
+
+          open  (64,form='UNFORMATTED')
+          cidrec = 'APG2'
+          write (64) CIDREC
+          write (64) 1.0
+
+          open  (66,form='UNFORMATTED')
+          cidrec = 'APG2'
+          write (66) CIDREC
+          write (66) 1.0
+
+#endif
+C
+C                                 FUER ZEITSCHRITT
+      IF (ITYP.EQ.'T') THEN
+
+#ifdef _MPI_
+         IF (MYID .EQ. IPROCNBR) THEN
+#endif
+      CALL XTRACTYZ (KMXN,JMXN,IMXN,IMX,X,DX,DDX,XN,DXN,DDXN,
+     $               UN,HN,
+     $               JSTA,JSTO,KSTA,KSTO,
+#ifdef _BAPAR_FIXED_
+     $               IPOS,JPOS,KPOS,-1,1)
+#else
+     $               IPOS,JPOS,KPOS, 1,1)
+#endif
+#ifdef _MPI_
+         ENDIF
+            CALL COPYREGION(KMXN,JMXN,1,HN,
+     $           IPROCNBR,1,KMXN,1,JMXN,1,1,
+     $           KMXN,JMXN,1,HN,IPROC,
+     $           0,0,0,
+     $           H2D1,MYID)
+            IF (MYID .EQ. IPROC ) THEN
+#endif
+      CALL PROLONG1 (KMX,JMXN,KMXN,NBND,Z,DZ,DDZ,ZN,DZN,DDZN,
+     $               HN,H2D1,H2D2,
+     $               JSTA,JSTO,KSTA,KSTO,
+     $               JPOS,KPOS,0,IORDER)
+      CALL PROLONG2 (KMX,JMX,KMXN,NBND,Y,DY,DDY,YN,DYN,DDYN,
+     $               H2D1,UBA,H2D2,
+     $               JSTA,JSTO,KSTA,KSTO,
+     $               JPOS,KPOS,0,IORDER)
+#ifdef _OUTPUT_
+          write (62) ((hn(k,j),k=3,kmxn-2),j=3,jmxn-2)
+          write (64) ((H2D1(k,j),k=3,kmx-2),j=3,jmxn-2)
+          write (66) ((uba(k,j,1),k=3,kmx-2),j=3,jmx-2)
+#endif
+#ifdef _MPI_
+      ENDIF
+         IF (MYID .EQ. IPROCNBR) THEN
+#endif
+      CALL XTRACTYZ (KMXN,JMXN,IMXN,IMX,X,DX,DDX,XN,DXN,DDXN,
+     $               VN,HN,
+     $               JSTA,JSTO,KSTA,KSTO,
+     $               IPOS,JPOS,KPOS,0,1)
+#ifdef _MPI_
+         ENDIF
+            CALL COPYREGION(KMXN,JMXN,1,HN,
+     $           IPROCNBR,1,KMXN,1,JMXN,1,1,
+     $           KMXN,JMXN,1,HN,IPROC,
+     $           0,0,0,
+     $           H2D1,MYID)
+            IF (MYID .EQ. IPROC ) THEN
+#endif
+      CALL PROLONG1 (KMX,JMXN,KMXN,NBND,Z,DZ,DDZ,ZN,DZN,DDZN,
+     $               HN,H2D1,H2D2,
+     $               JSTA,JSTO,KSTA,KSTO,
+     $               JPOS,KPOS,0,IORDER)
+      CALL PROLONG2 (KMX,JMX,KMXN,NBND,Y,DY,DDY,YN,DYN,DDYN,
+     $               H2D1,VBA,H2D2,
+     $               JSTA,JSTO,KSTA,KSTO,
+     $               JPOS,KPOS,1,IORDER)
+
+#ifdef _OUTPUT_
+          write (62) ((hn(k,j),k=3,kmxn-2),j=3,jmxn-2)
+          write (64) ((H2D1(k,j),k=3,kmx-2),j=3,jmxn-2)
+          write (66) ((vba(k,j,1),k=3,kmx-2),j=3,jmx-2)
+#endif
+#ifdef _MPI_
+      ENDIF
+         IF (MYID .EQ. IPROCNBR) THEN
+#endif
+
+      CALL XTRACTYZ (KMXN,JMXN,IMXN,IMX,X,DX,DDX,XN,DXN,DDXN,
+     $               WN,HN,
+     $               JSTA,JSTO,KSTA,KSTO,
+     $               IPOS,JPOS,KPOS,0,1)
+#ifdef _MPI_
+         ENDIF
+            CALL COPYREGION(KMXN,JMXN,1,HN,
+     $           IPROCNBR,1,KMXN,1,JMXN,1,1,
+     $           KMXN,JMXN,1,HN,IPROC,
+     $           0,0,0,
+     $           H2D1,MYID)
+            IF (MYID .EQ. IPROC ) THEN
+#endif
+      CALL PROLONG1 (KMX,JMXN,KMXN,NBND,Z,DZ,DDZ,ZN,DZN,DDZN,
+     $               HN,H2D1,H2D2,
+     $               JSTA,JSTO,KSTA,KSTO,
+     $               JPOS,KPOS,1,IORDER)
+      CALL PROLONG2 (KMX,JMX,KMXN,NBND,Y,DY,DDY,YN,DYN,DDYN,
+     $               H2D1,WBA,H2D2,
+     $               JSTA,JSTO,KSTA,KSTO,
+     $               JPOS,KPOS,0,IORDER)
+
+#ifdef _OUTPUT_
+          write (62) ((hn(k,j),k=3,kmxn-2),j=3,jmxn-2)
+          write (64) ((H2D1(k,j),k=3,kmx-2),j=3,jmxn-2)
+          write (66) ((wba(k,j,1),k=3,kmx-2),j=3,jmx-2)
+#ifndef _TSCAL_
+          stop 'contopar!' 
+#endif
+#endif
+C-----------------------------------------------------------------------
+C                                  SCALAR T
+#ifdef _TSCAL_
+#ifdef _MPI_
+      ENDIF
+         IF (MYID .EQ. IPROCNBR) THEN
+#endif
+
+      CALL XTRACTYZ (KMXN,JMXN,IMXN,IMX,X,DX,DDX,XN,DXN,DDXN,
+     $               TN,HN,
+     $               JSTA,JSTO,KSTA,KSTO,
+     $               IPOS,JPOS,KPOS,0,1)
+#ifdef _MPI_
+         ENDIF
+            CALL COPYREGION(KMXN,JMXN,1,HN,
+     $           IPROCNBR,1,KMXN,1,JMXN,1,1,
+     $           KMXN,JMXN,1,HN,IPROC,
+     $           0,0,0,
+     $           H2D1,MYID)
+            IF (MYID .EQ. IPROC ) THEN
+#endif
+      CALL PROLONG1 (KMX,JMXN,KMXN,NBND,Z,DZ,DDZ,ZN,DZN,DDZN,
+     $               HN,H2D1,H2D2,
+     $               JSTA,JSTO,KSTA,KSTO,
+     $               JPOS,KPOS,1,IORDER)
+      CALL PROLONG2 (KMX,JMX,KMXN,NBND,Y,DY,DDY,YN,DYN,DDYN,
+     $               H2D1,TBA,H2D2,
+     $               JSTA,JSTO,KSTA,KSTO,
+     $               JPOS,KPOS,0,IORDER)
+
+#ifdef _OUTPUT_
+          write (62) ((hn(k,j),k=3,kmxn-2),j=3,jmxn-2)
+          write (64) ((H2D1(k,j),k=3,kmx-2),j=3,jmxn-2)
+          write (66) ((tba(k,j,1),k=3,kmx-2),j=3,jmx-2)
+
+          stop 'contopar!'
+#endif
+#endif
+C-----------------------------------------------------------------------
+#ifdef _MPI_
+      ENDIF
+         IF (MYID .EQ. IPROCNBR) THEN
+#endif
+C
+C---- ------------------------------------------------------------------
+C                                  Druck ausserhalb des lokalen Gitters
+
+
+      CALL XTRACTYZ (KMXN,JMXN,IMXN,IMX,X,DX,DDX,XN,DXN,DDXN,
+     $               PN,HN,
+     $               JSTA,JSTO,KSTA,KSTO,
+     $               IPOS,JPOS,KPOS,0,IORDER_P)
+#ifdef _MPI_
+         ENDIF
+            CALL COPYREGION(KMXN,JMXN,1,HN,
+     $           IPROCNBR,1,KMXN,1,JMXN,1,1,
+     $           KMXN,JMXN,1,HN,IPROC,
+     $           0,0,0,
+     $           H2D1,MYID)
+            IF (MYID .EQ. IPROC ) THEN
+#endif
+      CALL PROLONG1 (KMX,JMXN,KMXN,NBND,Z,DZ,DDZ,ZN,DZN,DDZN,
+     $               HN,H2D1,H2D2,
+     $               JSTA,JSTO,KSTA,KSTO,
+     $               JPOS,KPOS,0,IORDER_P)
+      CALL PROLONG2 (KMX,JMX,KMXN,NBND,Y,DY,DDY,YN,DYN,DDYN,
+     $               H2D1,PBA,H2D2,
+     $               JSTA,JSTO,KSTA,KSTO,
+     $               JPOS,KPOS,0,IORDER_P)
+#ifdef _MPI_
+      ENDIF
+#endif
+#ifdef _BAPAR_CORRECT_INTERFACE_VELOCITY_
+C
+C---- ------------------------------------------------------------------
+C                            Druck in letzter Zelle des lokalen Gitters
+
+#ifdef _MPI_
+         IF (MYID .EQ. IPROCNBR) THEN
+#endif
+
+      CALL XTRACTYZ (KMXN,JMXN,IMXN,IMX,X,DX,DDX,XN,DXN,DDXN,
+     $               PN,HN,
+     $               JSTA,JSTO,KSTA,KSTO,
+     $               IPOS,JPOS,KPOS,-1,IORDER_P)
+#ifdef _MPI_
+         ENDIF
+            CALL COPYREGION(KMXN,JMXN,1,HN,
+     $           IPROCNBR,1,KMXN,1,JMXN,1,1,
+     $           KMXN,JMXN,1,HN,IPROC,
+     $           0,0,0,
+     $           H2D1,MYID)
+            IF (MYID .EQ. IPROC ) THEN
+#endif
+      CALL PROLONG1 (KMX,JMXN,KMXN,NBND,Z,DZ,DDZ,ZN,DZN,DDZN,
+     $               HN,H2D1,H2D2,
+     $               JSTA,JSTO,KSTA,KSTO,
+     $               JPOS,KPOS,0,IORDER_P)
+      CALL PROLONG2 (KMX,JMX,KMXN,NBND,Y,DY,DDY,YN,DYN,DDYN,
+     $               H2D1,PBA(1,1,2),H2D2,
+     $               JSTA,JSTO,KSTA,KSTO,
+     $               JPOS,KPOS,0,IORDER_P)
+#ifdef _MPI_
+      ENDIF
+#endif
+#endif
+#ifdef _MPI_
+         IF (MYID .EQ. IPROCNBR) THEN
+#endif
+
+      CALL XTRACTYZ (KMXN,JMXN,IMXN,IMX,X,DX,DDX,XN,DXN,DDXN,
+     $               GN,HN,
+     $               JSTA,JSTO,KSTA,KSTO,
+     $               IPOS,JPOS,KPOS,0,1)
+#ifdef _MPI_
+         ENDIF
+            CALL COPYREGION(KMXN,JMXN,1,HN,
+     $           IPROCNBR,1,KMXN,1,JMXN,1,1,
+     $           KMXN,JMXN,1,HN,IPROC,
+     $           0,0,0,
+     $           H2D1,MYID)
+            IF (MYID .EQ. IPROC ) THEN
+#endif
+      CALL PROLONG1 (KMX,JMXN,KMXN,NBND,Z,DZ,DDZ,ZN,DZN,DDZN,
+     $               HN,H2D1,H2D2,
+     $               JSTA,JSTO,KSTA,KSTO,
+     $               JPOS,KPOS,0,1)
+      CALL PROLONG2 (KMX,JMX,KMXN,NBND,Y,DY,DDY,YN,DYN,DDYN,
+     $               H2D1,GBA,H2D2,
+     $               JSTA,JSTO,KSTA,KSTO,
+     $               JPOS,KPOS,0,1)
+#ifdef _MPI_
+      ENDIF
+#endif
+
+#ifdef _QUD_
+         CALL ERRR (578,'CONBAPAR')
+
+               U(K,J,  1) = U(K,J,IN-1)
+               V(K,J,  1) = V(K,J,IN-1)
+               W(K,J,  1) = W(K,J,IN-1)
+               P(K,J,  1) = P(K,J,IN-1)
+               G(K,J,  1) = G(K,J,IN-1)
+#endif
+
+C                                 FUER DRUCKKORREKTUR
+C                                 NUR NORMALKOMPONENTE MUSS GESETZT
+C                                 WERDEN
+
+       ELSEIF (ITYP.EQ.'P') THEN
+
+#ifdef _BAPAR_FIXED_
+#ifdef _MPI_
+         IF (MYID .EQ. IPROCNBR) THEN
+#endif
+      CALL XTRACTYZ (KMXN,JMXN,IMXN,IMX,X,DX,DDX,XN,DXN,DDXN, 
+     $               UN,HN,
+     $               JSTA,JSTO,KSTA,KSTO,
+     $               IPOS,JPOS,KPOS,-1,IORDER)
+#ifdef _MPI_
+         ENDIF
+            CALL COPYREGION(KMXN,JMXN,1,HN,
+     $           IPROCNBR,1,KMXN,1,JMXN,1,1,
+     $           KMXN,JMXN,1,HN,IPROC,
+     $           0,0,0,
+     $           H2D1,MYID)
+            IF (MYID .EQ. IPROC ) THEN
+#endif
+      CALL PROLONG1 (KMX,JMXN,KMXN,NBND,Z,DZ,DDZ,ZN,DZN,DDZN,
+     $               HN,H2D1,H2D2,
+     $               JSTA,JSTO,KSTA,KSTO,
+     $               JPOS,KPOS,0,1)
+      CALL PROLONG2 (KMX,JMX,JMXN,NBND,Y,DY,DDY,YN,DYN,DDYN,
+     $               H2D1,UBA,H2D2,
+     $               JSTA,JSTO,KSTA,KSTO,
+     $               JPOS,KPOS,0,1)
+#ifdef _MPI_
+      ENDIF
+#endif
+
+#else
+C                   NORMAL-KOMPONENT MUST NOT BE SET
+C                   BECAUSE PRESSURE IN THE BOUNDARY-CELLS
+C                   IS NOT MODIFIED, SO NORMAL-KOMPONENTS MUST
+C                   BE ABLE TO DEVELOP FREELY
+
+               RETURN
+
+
+#endif
+C
+       ELSE
+                CALL ERRR (501,' CONBAPAR')
+       ENDIF
+C
+C	write (0,*)'CONBAPAR.................'
+C	do k=1,kmx
+C	write (0,*) 'k: ',k,'   WBA: ',WBA(k,3,1)
+C	enddo
+
+      RETURN
+      END
+
+
+
+
+
+
+
+
+
+
+

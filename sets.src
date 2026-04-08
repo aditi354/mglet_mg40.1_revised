@@ -1,0 +1,46 @@
+      SUBROUTINE SETS(KK,JJ,II,KMX,JMX,IMX,VAR,CONST)
+C*STAR*****************************************************************
+C*STAR*  S E T S    VORBELEGUNG SKALARER FELDER MIT CONST
+C*STAR*****************************************************************
+C
+C PARAM :VAR(KK,JJ,II)  + SKALARES FELD (P-,G-,TK-,TE-FELD)
+C        KK,JJ,II       - ARRAYDIMENSIONEN
+C        KMX,JMX,IMX    - GRENZEN DES BERECHNUNGSGEBIETS (MIT BOUND)
+C        CONST          - KONSTANTER ANFANGSWERT
+C
+C VERS:  21.04.84 (SF)  - ORIGINAL
+C        07.12.84 (HW)  : ZUNAECHST VORBELEGUNG DES GESAMTEN FELDES
+C        07.01.85 (HW)  : GRENZEN DER DO-SCHLEIFEN GEAENDERT
+C                         MIT RINDEF
+C        27.02.92 (MM)  : RINDEF AUF PRESET GEAENDERT (0.0)
+C
+C*STAR*****************************************************************
+C
+#include "konsta.h"
+C
+      REAL VAR(KK,JJ,II)
+C
+
+      IM1 = IMX-1
+      IM2 = IMX-2
+      JM1 = JMX-1
+      JM2 = JMX-2
+      KM1 = KMX-1
+      KM2 = KMX-2
+C
+      DO 5 I=1,IMX
+         DO 6 J=1,JMX
+            DO 7 K=1,KMX
+    7          VAR(K,J,I) = PRESET
+    6    CONTINUE
+    5 CONTINUE
+C
+      DO 40 I=2,IM1
+         DO 50 J=2,JM1
+            DO 60 K=2,KM1
+   60          VAR(K,J,I) = CONST
+   50    CONTINUE
+   40 CONTINUE
+C
+      RETURN
+      END

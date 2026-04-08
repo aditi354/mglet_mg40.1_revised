@@ -1,0 +1,122 @@
+C#ifdef _TSCAL_
+      SUBROUTINE WIFAKSCA   (ITSTEP,ITMIT,WPHISCA,WCONSCA,WDIFSCA,
+     $                       WSORSCA,IDUZSCA)
+C*STARLET***************************************************************
+C        W I F A K S C A  WEIGHTING FACTOR CALCULATION
+C*STARLET***************************************************************
+C
+C PARAM: ITSTEP         - TIME STEP COUNTER
+C        ITMIT          - LEAPFROG METHOD: EACH ITMIT TIMESTEP 
+C                         ONE CLOSING STEP IS CARRIED OUT
+C        WPHI           + WEIGHTING FACTOR FOR POINT VALUE TERM
+C        WCON           + WEIGHTING FACTOR FOR CONVECTIVE TERM
+C        WDIF           + WEIGHTING FACTOR FOR DIFFUSIVE TERM
+C        WSOR           + WEIGHTING FACTOR FOR SOURCE TERM
+C        IDUZSCA        - TIME LEVEL
+C                         IDUZSCA = 1: OLD OLD 
+C                         IDUZSCA = 2:     OLD 
+C
+C UPROG                 : ERRR
+C
+C VERS:  27.11.02 (TB)  : ORIGINAL BASED ON WIFAK FOR MOMENTUM EQUATION
+C
+C*STARLET***************************************************************
+#ifdef _TSCA_
+#ifdef _RUNGEKUTTA3_
+      IF(IDUZ .NE. 2) CALL ERRR(506,' WIFAKSCA ')
+         WPHI = 0.0
+         WKON = 1.0
+         WDIF = 1.0
+         WSOR = 1.0
+         RETURN
+#else
+#ifdef _EULERSCA_
+C
+C                                 WICHTUNGSFAKTOREN FUER EULER-ZEIT-
+C                                 SCHRITT
+C
+      IF(IDUZSCA .EQ. 1) RETURN
+C
+      IF(IDUZSCA .NE. 2) CALL ERRR(501,' WIFAKSCA ')
+         WPHISCA = 1.0
+         WCONSCA = 1.0
+         WDIFSCA = 1.0
+         WSORSCA = 1.0
+         RETURN
+#else
+C
+C                                 ZU BEGINN EINER BERECHNUNG WIRD FUER
+C                                 DAS LEAPFROG- UND DAS ADAMS/BASHFORTH
+C                                 VERFAHREN EIN EULER-STARTSCHRITT GE-
+C                                 MACHT
+C
+      IF(ITSTEP .NE. 0) GOTO 2010
+C
+      IF(IDUZSCA .EQ. 1) RETURN
+C
+      IF(IDUZSCA .NE. 2) CALL ERRR(502,' WIFAKSCA ')
+         WPHISCA = 1.0
+         WCONSCA = 1.0
+         WDIFSCA = 1.0
+         WSORSCA = 1.0
+         RETURN
+#endif
+#ifdef _LEAPFSCA_
+C
+C                                 HIER: LEAPFROG ZWISCHENSCHRITT
+C
+ 2010 IF(MOD(ITSTEP,ITMIT) .EQ. 0) GOTO 2030
+C
+      IF(IDUZSCA .NE. 1) GOTO 2020
+         WPHISCA = 1.0
+         WCONSCA = 0.0
+         WDIFSCA = 2.0
+         WSORSCA = 0.0
+         RETURN
+C
+ 2020 IF(IDUZSCA .NE. 2) CALL ERRR(503,' WIFAKSCA ')
+         WPHISCA = 0.0
+         WCONSCA = 2.0
+         WDIFSCA = 0.0
+         WSORSCA = 2.0
+         RETURN
+C
+C                                 HIER: LEAPFROG ABSCHLUSSCHRITT
+C
+ 2030 IF(IDUZSCA .NE. 1) GOTO 2040
+         WPHISCA = 0.5
+         WCONSCA = 0.0
+         WDIFSCA = 1.5
+         WSORSCA = 0.0
+         RETURN
+C
+ 2040 IF(IDUZSCA .NE. 2) CALL ERRR(504,' WIFAKSCA ')
+         WPHISCA = 0.5
+         WCONSCA = 1.5
+         WDIFSCA = 0.0
+         WSORSCA = 1.5
+         RETURN
+#endif
+#ifdef _ADBASCA_
+C
+C                                 HIER: WICHTUNGSFAKTOREN FUER DAS
+C                                 ADAMS/BASHFORTH - VERFAHREN
+C
+ 2010 IF(IDUZSCA .NE. 1) GOTO 2020
+         WPHISCA = 0.0
+         WCONSCA = -0.5
+         WDIFSCA = -0.5
+         WSORSCA = 0.0
+         RETURN
+C
+ 2020 IF(IDUZSCA .NE. 2) CALL ERRR(505,' WIFAKSCA ')
+         WPHISCA = 1.0
+         WCONSCA = 1.5
+         WDIFSCA = 1.5
+         WSORSCA = 1.0
+         RETURN
+#endif
+C
+#endif
+#endif
+      END

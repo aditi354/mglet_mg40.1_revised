@@ -1,0 +1,26 @@
+       SUBROUTINE MGDPB (KK,JJ,II,IP3,IP2,IP1,IBB,IBU,
+     $                   NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB,IGRID)
+
+C*MGLET*****************************************************************
+C      M G D P B        MULTIGRID-VERWALTUNG
+C                      LIEFERT DIMENSIONIERUNG, POINTER UND
+C                      BASIS-RANDBEDINGUNGEN  DES GITTERS IGRID
+C*MGLET*****************************************************************
+C
+C
+C VERS:   4.10.93 (MM)  : ORIGINAL
+C
+C
+C*MGLET*****************************************************************
+C
+
+           CALL MGDIMS  (KK,JJ,II,IGRID)
+           CALL MGPOINT (IP3,IP2,IP1,IBB,IB3,IBU,IGRID)
+           CALL MGBASB  (NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB,IGRID)
+
+
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+C
+
+      RETURN
+      END

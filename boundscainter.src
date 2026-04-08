@@ -1,0 +1,95 @@
+      SUBROUTINE BOUNDSTARTINTERSCA(II,I,DX,LCOL,DIAG,RCOL,
+     $                              RSIDE1,RSIDE2,RSIDE3)
+C---------------------------------------------------------------
+C    BERECHNUNG DER KOEFFIZIENTEN FUER RANDBEDINGUNG SCALAR
+C    INTERPOLATION  FIXED GRADIENT
+C
+C    26.11.03 (FS)
+C---------------------------------------------------------------
+
+      REAL LCOL,RCOL,DIAG,RSIDE1, RSIDE2,RSIDE3,
+     $     alpha,beta,gamma
+
+C     Fi + alpha*f(i+1/2) + beta*F(i+1) + gamma*f(i+3/2) = O**3
+C     DIAG      RSIDE1       RCOL           RSIDE2 
+C          h1=DX(i-1)/2     h2=DX(i-1)/2    h3=DX(i-1)/2
+C                           +DX(i)/2        +DX(i)
+      h1 = DX(I-1)/2.0
+      h2 = DX(I-1)/2.0+DX(I)/2.0
+      h3 = DX(I-1)/2.0+DX(I)
+
+C--- KOEFFIZIENTEN DER 3x3 MATRIX
+      a1 = h1
+      a2 = h2
+      a3 = h3
+      b1 = 0.5*h1**2 
+      b2=0.5*h2**2 
+      b3=0.5*h3**2
+
+      a= a1*b2 - a2*b1 - a1*b3 + b1*a3 + a2*b3 - a3*b2
+      b= a3*b2 - a2*b3
+      C= a1*b3 - b1*a3
+      d= a2*b1 - a1*b2
+      
+      alpha = -b/a
+      beta = c/a
+      gamma = -d/a
+      
+      LCOL = 0.0
+      DIAG = 1.0
+      RCOL = beta
+      RSIDE1 = alpha
+      RSIDE2 = gamma
+      RSIDE3 = 0.0
+      
+      
+      RETURN
+      END
+
+      SUBROUTINE BOUNDSTOPINTERSCA(II,I,DX,LCOL,DIAG,RCOL,
+     $                              RSIDE1,RSIDE2,RSIDE3)
+C---------------------------------------------------------------
+C    BERECHNUNG DER KOEFFIZIENTEN FUER RANDBEDINGUNG SCALAR
+C    INTERPOLATION  FIXED GRADIENT
+C
+C    26.11.03 (FS)
+C---------------------------------------------------------------
+
+      REAL LCOL,RCOL,DIAG,RSIDE1, RSIDE2,RSIDE3,
+     $     alpha,beta,gamma
+
+C     Fi - alpha*f(i-1/2) - beta*F(i-1) - gamma*f(i-3/2) = O**3
+C     DIAG      RSIDE1       RCOL           RSIDE2 
+C          h1=DX(i-1)/2     h2=DX(i-1)/2    h3=DX(i-1)/2
+C                           +DX(i-2)/2        +DX(i-2)
+      h1 = DX(I-1)/2.0
+      h2 = DX(I-1)/2.0+DX(I-2)/2.0
+      h3 = DX(I-1)/2.0+DX(I-2)
+
+C--- KOEFFIZIENTEN DER 3x3 MATRIX
+      a1 = -h1 
+      a2 = -h2
+      a3 = -h3
+      b1 = 0.5*h1**2 
+      b2=0.5*h2**2 
+      b3=0.5*h3**2
+
+      a= a1*b2 - a2*b1 - a1*b3 + b1*a3 + a2*b3 - a3*b2
+      b= a3*b2 - a2*b3
+      C= a1*b3 - b1*a3
+      d= a2*b1 - a1*b2
+      
+      alpha = -b/a
+      beta = c/a
+      gamma = -d/a
+      
+      LCOL = beta
+      DIAG = 1.0
+      RCOL = 0.0
+      RSIDE1 = 0.0
+      RSIDE2 = alpha
+      RSIDE3 = gamma
+      
+      
+      RETURN
+      END

@@ -1,0 +1,177 @@
+      SUBROUTINE BLECONBP (
+     $     KMX,JMX,IMX,BP,
+     $     KMXN,JMXN,IMXN,BPN,
+     $     ISTA,ISTO,KSTA,KSTO,
+     $     IPOS,JPOS,KPOS,
+     $     IPROC,IPROCNBR)
+C     *MGLET*****************************************************************
+C     B L E C O N B P   SETZEN DER RANDBEDINGUNGEN FUER DAS
+C     BP-FELD AUS NACHBARGITTER
+C     *MGLET*****************************************************************
+C     
+C  KREUZINGER UND MANHART TURBULENZ GmbH
+C  JK      11. 8.2005
+C  aus BLECON
+C
+C     PARAM: 
+C     KMX, JMX, IMX  - DIMENSIONEN DES GITTERS 
+C     U(KMX,JMX,IMX) + GESCHWINDIGKEITSFELD
+C     V(KMX,JMX,IMX) + GESCHWINDIGKEITSFELD
+C     
+C     *STARLET***************************************************************
+C     
+#ifdef _MPI_
+C     
+C     MPI-INCLUDE
+C     
+#include "mgpar.h"
+#include "colevel.h"
+#include "compi.h"
+#include "mpif.h"
+#endif
+C     
+      REAL
+     $     BP(KMX,JMX,IMX)
+      REAL
+     $     BPN(KMXN,JMXN,IMXN)
+C     
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
+#ifdef _MPI_
+C     
+C     MPI-VARIABLEN
+C     
+      INTEGER ISTATUS(MPI_STATUS_SIZE)
+C     
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
+C     
+C     MPI-ROUTINEN ZUR UEBERGABE VON PARAMETERN
+C     
+C     CALL MPI_COMM_RANK (MPI_COMM_WORLD,MYID,IERR)
+C     CALL MPI_COMM_SIZE (MPI_COMM_WORLD,NUMPROCS,IERR)
+C     
+      ISEND = IPROCNBR
+      IRECV = IPROC
+
+C     
+#endif
+C     
+      JM1 = JMX-1
+      JM2 = JMX-2
+      JM3 = JMX-3
+
+C     JN = JPOS + 1 naechste Zeile ausgeschrieben
+C     JN = JM1 + JPOS - JM2
+      JN = JPOS +1
+C     
+#ifdef _MPI_
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCC BEI MESSAGE-PASSING WIRD ABGEPRUEFT,
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCC OB GITTER AUF EINEM PROZESSOR
+      IF (IPROC .EQ. IPROCNBR) THEN
+
+C     
+C     ZU TESTZWECKEN SOLL ISEND NORMALE BELEGUNG DURCHLAUFEN 
+C     IF (MYID .EQ. ISEND) THEN
+C     
+C     GITTER LIEGEN AUF EINEM PROZESSOR
+C     
+#endif
+C     
+C     
+         IF ((ISTA.NE.1).OR.(ISTO.NE.IMX)) STOP 'bleconbp A'
+         IF ((KSTA.NE.1).OR.(KSTO.NE.KMX)) STOP 'bleconbp A'
+C     
+C     FUER ZEITSCHRITT
+
+
+         DO I=ISTA,ISTO
+            DO K=KSTA,KSTO
+
+               IN = I + IPOS - 3
+               KN = K + KPOS - 3
+
+
+               BP(K,JM1,  I) = BPN(KN,JN,IN)
+               BP(K,JMX,  I) = BPN(KN,JN+1,IN)
+
+            ENDDO
+         ENDDO
+
+C     FUER DRUCKKORREKTUR
+C     NUR NORMALKOMPONENTE MUSS GESETZT
+C     WERDEN
+
+#ifdef _MPI_
+
+C     BIS HIER NUR SENDER
+      ELSE
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
+C     
+C     ARE THE GRIDS ON DIFFERENT PROCESSORS THE MESSAGE HAS 
+C     TO BE SENT BY MPI
+C     
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
+C     
+C     
+C     FUER ZEITSCHRITT
+         DO IPLANE = 0,1
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCSEND-BUFFER
+            IF (MYID .EQ. ISEND) THEN
+
+               ICOUNT = 0
+
+               DO I=ISTA,ISTO
+                  DO K=KSTA,KSTO
+
+                     IN = I + IPOS - 3
+                     KN = K + KPOS - 3
+
+
+                     SENDBUF(ICOUNT+1) = BPN(KN,JN+IPLANE,IN)
+                     ICOUNT = ICOUNT+1
+
+                  ENDDO
+               ENDDO
+
+               CALL MPI_SEND    ( SENDBUF , ICOUNT , 
+     $              MPI_DOUBLE_PRECISION ,
+     $              IRECV , ISEND ,
+     $              MPI_COMM_WORLD , IERR)
+
+            ENDIF
+
+            IF (MYID .EQ. IRECV) THEN
+
+               CALL MPI_RECV    ( RECVBUF , IDIM_MG_BUFS , 
+     $              MPI_DOUBLE_PRECISION ,
+     $              ISEND , ISEND ,
+     $              MPI_COMM_WORLD , ISTATUS ,IERR)
+C     
+C     BELEGUNG DES RECV-BUFFERS
+C     
+               ICOUNT = 0
+
+               DO I=ISTA,ISTO
+                  DO K=KSTA,KSTO
+
+                     IN = I + IPOS - 3
+                     KN = K + KPOS - 3
+
+
+                     BP(K,JM1+IPLANE,  I) = RECVBUF(ICOUNT+1)
+                     ICOUNT = ICOUNT + 1
+
+                  ENDDO
+               ENDDO
+
+            ENDIF
+
+
+
+         ENDDO
+         
+      ENDIF
+#endif
+      
+      RETURN
+      END
+

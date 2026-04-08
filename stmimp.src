@@ -1,0 +1,1575 @@
+      SUBROUTINE STMIMP  (DREAD,DCONT,NPRNEU,FPRNEU
+     $     ,DX,DY,DZ,DDX,DDY,DDZ,X,Y,Z,
+#include "cstaca.h"
+C*STARLET***************************************************************
+C        S T M I M P      IN STMIMP WERDEN DIE ALTEN ENSEMBLE-
+C                         MITTELWERTE VERBESSERT. DIE GEWICHTUNG DER
+C                         ALTEN (WAEHREND DER VORANGEGANGENEN LAEUFE
+C                         ERZEUGT) UND DER NEUEN ENSEMBLE-MITTELWERTE
+C                         (WAEHREND DES MOMENTANEN LAUFES ERZEUGT)
+C                         ERGIBT SICH AUS DEM VERHAELTNIS DER ANZAHL
+C                         DER STICHPROBEN, DIE ZU DEN JEWEILIGEN
+C                         MITTELWERTEN FUEHRTEN.
+C
+C                         STMIMP DIENT DAZU, DIE FELDER AUSZUWAEHLEN,
+C                         DEREN ENSEMBLE-MITTELWERT VERBESSERT WERDEN
+C                         SOLL. DIE EIGENTLICHE ARITHMET. OPERATION
+C                         FINDET IN SUBR. STMNEW STATT.
+C  A C H T U N G:         DIESE ROUTINE MUSS ERWEITERT WERDEN, FALLS
+C                         DIE STATIST. AUSWERTUNG ERWEITERT WIRD !
+C*STARLET***************************************************************
+C
+C PARAM: DREAD          - DREAD = .T. : DIE WAEHREND DES VORANGEGANGENEN
+C                         LAUFES ERZEUGTEN ENSEMBLE-MITTELWERTE WERDEN
+C                         EINGELESEN.
+C                         DREAD = .F. : ES FINDET EINE VORBELEGUNG MIT
+C                         "BESTMOEGLICHEN" ENSEMBLE-MITTELWERTEN STATT.
+C        DCONT          - DCONT = .T. .AND. DREAD = .T. : DIE GEWICH-
+C                         TUNG DER "ALTEN" ENSEMBLE-MITTELWERTE ERFOLGT
+C                         ENTSPRECHEND DER ANZAHL DER "ALTEN" STICH-
+C                         PROBEN.
+C
+C                         DCONT = .F. .AND. DREAD = .T. : DIE "ALTEN"
+C                         ENSEMBLE-MITTELWERTE WERDEN MIT NPRNEU
+C                         STICHPROBEN GEWICHTET.
+C        NPRNEU         - SIEHE BESCHREIBUNG  "DCONT"
+#include "cstapa.h"
+C
+C UPROG                 : STMNEW, STMNRM
+C
+C DEFINE-DIREKTIVEN     : KEINE
+C
+C        29.08.86 (HW)  : ORIGINAL
+C        03.09.86 (HW)  : KORREKTUREN
+C        10.09.86 (HW)  : KORREKTUREN
+C        12.09.86 (HW)  : SONDERBEHANDLUNG FUER DIE RMS-WERTE
+C                         (STMNRM EINGEFUEHRT)
+C        01.07.88 (HW)  : ERWEITERUNG: AUSWERTUNG DER DREI KOMPONENTEN
+C                         DER VORTICITY, DER ENSTROPHIE UND DER
+C                         HELIZITAET
+C        12.02.03 (TB)  : SCALAR FIELD STATISTICS IMPLEMENTED
+C
+C*STARLET***************************************************************
+C
+      LOGICAL  DREAD,  DCONT,XHOMOG,YHOMOG,ZHOMOG
+C
+#include "cstadi.h"
+C
+C                                 STATIST. GROESSEN DER U-KOMPONENTE
+C                                 ----------------------------------
+C
+C                                 VERBESSERUNG DER ALTEN <U>-WERTE
+C
+      IF(ISELEP(1,  4) .EQ. 1 .OR. ISELEP(1,  4) .EQ. 2) THEN
+         NPROLD = ISAMPA(    4)
+         IF(ISAMPP(    4) .GT. 0) THEN
+            NPRRUN = ISAMPP(    4)
+            CALL STMNEW  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $                    DREAD,DCONT,NPRNEU,FPRNEU,AU     ,SU     )
+         ENDIF
+         ISAMPA(    4) = NPROLD
+         ISAMPP(    4) = ISAMPP(    4) + NPROLD
+      ENDIF
+C
+C                                 VERBESSERUNG DER ALTEN <U-RMS>-WERTE
+C
+      IF(ISELEP(1,  7) .EQ. 1 .OR. ISELEP(1,  7) .EQ. 2) THEN
+         NPROLD = ISAMPA(    7)
+         IF(ISAMPP(    7) .GT. 0) THEN
+            NPRRUN = ISAMPP(    7)
+            CALL STMNRM  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $                    DREAD,DCONT,NPRNEU,FPRNEU,AURG   ,SURG   )
+         ENDIF
+         ISAMPA(    7) = NPROLD
+         ISAMPP(    7) = ISAMPP(    7) + NPROLD
+      ENDIF
+C
+C                                 VERBESSERUNG DER ALTEN <U-SKE>-WERTE
+C
+      IF(ISELEP(1, 10) .EQ. 1 .OR. ISELEP(1, 10) .EQ. 2) THEN
+         NPROLD = ISAMPA(   10)
+         IF(ISAMPP(   10) .GT. 0) THEN
+            NPRRUN = ISAMPP(   10)
+            CALL STMNEW  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $                    DREAD,DCONT,NPRNEU,FPRNEU,AUSKG  ,SUSKG  )
+         ENDIF
+         ISAMPA(   10) = NPROLD
+         ISAMPP(   10) = ISAMPP(   10) + NPROLD
+      ENDIF
+C
+C                                 VERBESSERUNG DER ALTEN <U-FLA>-WERTE
+C
+      IF(ISELEP(1, 12) .EQ. 1 .OR. ISELEP(1, 12) .EQ. 2) THEN
+         NPROLD = ISAMPA(   12)
+         IF(ISAMPP(   12) .GT. 0) THEN
+            NPRRUN = ISAMPP(   12)
+            CALL STMNEW  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $                    DREAD,DCONT,NPRNEU,FPRNEU,AUFLG  ,SUFLG  )
+         ENDIF
+         ISAMPA(   12) = NPROLD
+         ISAMPP(   12) = ISAMPP(   12) + NPROLD
+      ENDIF
+C
+C                                 STATIST. GROESSEN DER V-KOMPONENTE
+C                                 ----------------------------------
+C
+      IF(ISELEP(1, 29) .EQ. 1 .OR. ISELEP(1, 29) .EQ. 2) THEN
+         NPROLD = ISAMPA(   29)
+         IF(ISAMPP(   29) .GT. 0) THEN
+            NPRRUN = ISAMPP(   29)
+            CALL STMNEW  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $                    DREAD,DCONT,NPRNEU,FPRNEU,AV     ,SV     )
+         ENDIF
+         ISAMPA(   29) = NPROLD
+         ISAMPP(   29) = ISAMPP(   29) + NPROLD
+      ENDIF
+      IF(ISELEP(1, 32) .EQ. 1 .OR. ISELEP(1, 32) .EQ. 2) THEN
+         NPROLD = ISAMPA(   32)
+         IF(ISAMPP(   32) .GT. 0) THEN
+            NPRRUN = ISAMPP(   32)
+            CALL STMNRM  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $                    DREAD,DCONT,NPRNEU,FPRNEU,AVRG   ,SVRG   )
+         ENDIF
+         ISAMPA(   32) = NPROLD
+         ISAMPP(   32) = ISAMPP(   32) + NPROLD
+      ENDIF
+      IF(ISELEP(1, 35) .EQ. 1 .OR. ISELEP(1, 35) .EQ. 2) THEN
+         NPROLD = ISAMPA(   35)
+         IF(ISAMPP(   35) .GT. 0) THEN
+            NPRRUN = ISAMPP(   35)
+            CALL STMNEW  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $                    DREAD,DCONT,NPRNEU,FPRNEU,AVSKG  ,SVSKG  )
+         ENDIF
+         ISAMPA(   35) = NPROLD
+         ISAMPP(   35) = ISAMPP(   35) + NPROLD
+      ENDIF
+      IF(ISELEP(1, 37) .EQ. 1 .OR. ISELEP(1, 37) .EQ. 2) THEN
+         NPROLD = ISAMPA(   37)
+         IF(ISAMPP(   37) .GT. 0) THEN
+            NPRRUN = ISAMPP(   37)
+            CALL STMNEW  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $                    DREAD,DCONT,NPRNEU,FPRNEU,AVFLG  ,SVFLG  )
+         ENDIF
+         ISAMPA(   37) = NPROLD
+         ISAMPP(   37) = ISAMPP(   37) + NPROLD
+      ENDIF
+C
+C                                 STATIST. GROESSEN DER W-KOMPONENTE
+C                                 ----------------------------------
+C
+      IF(ISELEP(1, 54) .EQ. 1 .OR. ISELEP(1, 54) .EQ. 2) THEN
+         NPROLD = ISAMPA(   54)
+         IF(ISAMPP(   54) .GT. 0) THEN
+            NPRRUN = ISAMPP(   54)
+            CALL STMNEW  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $                    DREAD,DCONT,NPRNEU,FPRNEU,AW     ,SW     )
+         ENDIF
+         ISAMPA(   54) = NPROLD
+         ISAMPP(   54) = ISAMPP(   54) + NPROLD
+      ENDIF
+      IF(ISELEP(1, 57) .EQ. 1 .OR. ISELEP(1, 57) .EQ. 2) THEN
+         NPROLD = ISAMPA(   57)
+         IF(ISAMPP(   57) .GT. 0) THEN
+            NPRRUN = ISAMPP(   57)
+            CALL STMNRM  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $                    DREAD,DCONT,NPRNEU,FPRNEU,AWRG   ,SWRG   )
+         ENDIF
+         ISAMPA(   57) = NPROLD
+         ISAMPP(   57) = ISAMPP(   57) + NPROLD
+      ENDIF
+      IF(ISELEP(1, 60) .EQ. 1 .OR. ISELEP(1, 60) .EQ. 2) THEN
+         NPROLD = ISAMPA(   60)
+         IF(ISAMPP(   60) .GT. 0) THEN
+            NPRRUN = ISAMPP(   60)
+            CALL STMNEW  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $                    DREAD,DCONT,NPRNEU,FPRNEU,AWSKG  ,SWSKG  )
+         ENDIF
+         ISAMPA(   60) = NPROLD
+         ISAMPP(   60) = ISAMPP(   60) + NPROLD
+      ENDIF
+      IF(ISELEP(1, 62) .EQ. 1 .OR. ISELEP(1, 62) .EQ. 2) THEN
+         NPROLD = ISAMPA(   62)
+         IF(ISAMPP(   62) .GT. 0) THEN
+            NPRRUN = ISAMPP(   62)
+            CALL STMNEW  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $                    DREAD,DCONT,NPRNEU,FPRNEU,AWFLG  ,SWFLG  )
+         ENDIF
+         ISAMPA(   62) = NPROLD
+         ISAMPP(   62) = ISAMPP(   62) + NPROLD
+      ENDIF
+C
+C                                 STATIST. GROESSEN DER P-KOMPONENTE
+C                                 ----------------------------------
+C
+      IF(ISELEP(1, 79) .EQ. 1 .OR. ISELEP(1, 79) .EQ. 2) THEN
+         NPROLD = ISAMPA(   79)
+         IF(ISAMPP(   79) .GT. 0) THEN
+            NPRRUN = ISAMPP(   79)
+            CALL STMNEW  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $                    DREAD,DCONT,NPRNEU,FPRNEU,AP     ,SP     )
+         ENDIF
+         ISAMPA(   79) = NPROLD
+         ISAMPP(   79) = ISAMPP(   79) + NPROLD
+      ENDIF
+      IF(ISELEP(1, 82) .EQ. 1 .OR. ISELEP(1, 82) .EQ. 2) THEN
+         NPROLD = ISAMPA(   82)
+         IF(ISAMPP(   82) .GT. 0) THEN
+            NPRRUN = ISAMPP(   82)
+            CALL STMNRM  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $                    DREAD,DCONT,NPRNEU,FPRNEU,APRG   ,SPRG   )
+         ENDIF
+         ISAMPA(   82) = NPROLD
+         ISAMPP(   82) = ISAMPP(   82) + NPROLD
+      ENDIF
+      IF(ISELEP(1, 85) .EQ. 1 .OR. ISELEP(1, 85) .EQ. 2) THEN
+         NPROLD = ISAMPA(   85)
+         IF(ISAMPP(   85) .GT. 0) THEN
+            NPRRUN = ISAMPP(   85)
+            CALL STMNEW  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $                    DREAD,DCONT,NPRNEU,FPRNEU,APSKG  ,SPSKG  )
+         ENDIF
+         ISAMPA(   85) = NPROLD
+         ISAMPP(   85) = ISAMPP(   85) + NPROLD
+      ENDIF
+      IF(ISELEP(1, 87) .EQ. 1 .OR. ISELEP(1, 87) .EQ. 2) THEN
+         NPROLD = ISAMPA(   87)
+         IF(ISAMPP(   87) .GT. 0) THEN
+            NPRRUN = ISAMPP(   87)
+            CALL STMNEW  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $                    DREAD,DCONT,NPRNEU,FPRNEU,APFLG  ,SPFLG  )
+         ENDIF
+         ISAMPA(   87) = NPROLD
+         ISAMPP(   87) = ISAMPP(   87) + NPROLD
+      ENDIF
+C
+C                                 KINETISCHE ENERGIE DER SCHWANKUNGS-
+C                                 GESCHWINDIGKEITEN
+C                                 -----------------------------------
+C
+      IF(ISELEP(1,106) .EQ. 1 .OR. ISELEP(1,106) .EQ. 2) THEN
+         NPROLD = ISAMPA(  106)
+         IF(ISAMPP(  106) .GT. 0) THEN
+            NPRRUN = ISAMPP(  106)
+            CALL STMNEW  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $                    DREAD,DCONT,NPRNEU,FPRNEU,AEFG   ,SEFG   )
+         ENDIF
+         ISAMPA(  106) = NPROLD
+         ISAMPP(  106) = ISAMPP(  106) + NPROLD
+      ENDIF
+      IF(ISELEP(1,109) .EQ. 1 .OR. ISELEP(1,109) .EQ. 2) THEN
+         NPROLD = ISAMPA(  109)
+         IF(ISAMPP(  109) .GT. 0) THEN
+            NPRRUN = ISAMPP(  109)
+            CALL STMNEW  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $                    DREAD,DCONT,NPRNEU,FPRNEU,AEFS   ,SEFS   )
+         ENDIF
+         ISAMPA(  109) = NPROLD
+         ISAMPP(  109) = ISAMPP(  109) + NPROLD
+      ENDIF
+C
+C                                 DISSIPATION
+C                                 -----------
+      IF(ISELEP(1,120) .EQ. 1 .OR. ISELEP(1,120) .EQ. 2) THEN
+         NPROLD = ISAMPA(  120)
+         IF(ISAMPP(  120) .GT. 0) THEN
+            NPRRUN = ISAMPP(  120)
+            CALL STMNEW  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $                    DREAD,DCONT,NPRNEU,FPRNEU,ADFG   ,SDFG   )
+         ENDIF
+         ISAMPA(  120) = NPROLD
+         ISAMPP(  120) = ISAMPP(  120) + NPROLD
+      ENDIF
+C
+C                               FUER   TAYLOR''SCHES MIKROMASS
+C                               QUADRATE DER ELEMENTE DES 
+C                               DEFORMATIONSGESCHWINDIGKEITSTENSORS
+C                               -----------------------------------
+C                                  U_KOMPONENTE IN X_RICHTUNG
+      IF(ISELEP(1,131) .EQ. 1 .OR. ISELEP(1,131) .EQ. 2) THEN
+         NPROLD = ISAMPA(  131)
+         IF(ISAMPP(  131) .GT. 0) THEN
+            NPRRUN = ISAMPP(  131)
+            CALL STMNEW  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $                    DREAD,DCONT,NPRNEU,FPRNEU,ADUDX2 ,SDUDX2 )
+         ENDIF
+         ISAMPA(  131) = NPROLD
+         ISAMPP(  131) = ISAMPP(  131) + NPROLD
+      ENDIF
+C                                  U_KOMPONENTE IN Y_RICHTUNG
+      IF(ISELEP(1,132) .EQ. 1 .OR. ISELEP(1,132) .EQ. 2) THEN
+         NPROLD = ISAMPA(  132)
+         IF(ISAMPP(  132) .GT. 0) THEN
+            NPRRUN = ISAMPP(  132)
+            CALL STMNEW  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $                    DREAD,DCONT,NPRNEU,FPRNEU,ADUDY2 ,SDUDY2 )
+         ENDIF
+         ISAMPA(  132) = NPROLD
+         ISAMPP(  132) = ISAMPP(  132) + NPROLD
+      ENDIF
+C                                  U_KOMPONENTE IN Z_RICHTUNG
+      IF(ISELEP(1,133) .EQ. 1 .OR. ISELEP(1,133) .EQ. 2) THEN
+         NPROLD = ISAMPA(  133)
+         IF(ISAMPP(  133) .GT. 0) THEN
+            NPRRUN = ISAMPP(  133)
+            CALL STMNEW  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $                    DREAD,DCONT,NPRNEU,FPRNEU,ADUDZ2 ,SDUDZ2 )
+         ENDIF
+         ISAMPA(  133) = NPROLD
+         ISAMPP(  133) = ISAMPP(  133) + NPROLD
+      ENDIF
+C                                  V_KOMPONENTE IN X_RICHTUNG
+      IF(ISELEP(1,134) .EQ. 1 .OR. ISELEP(1,134) .EQ. 2) THEN
+         NPROLD = ISAMPA(  134)
+         IF(ISAMPP(  134) .GT. 0) THEN
+            NPRRUN = ISAMPP(  134)
+            CALL STMNEW  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $                    DREAD,DCONT,NPRNEU,FPRNEU,ADVDX2 ,SDVDX2 )
+         ENDIF
+         ISAMPA(  134) = NPROLD
+         ISAMPP(  134) = ISAMPP(  134) + NPROLD
+      ENDIF
+C                                  V_KOMPONENTE IN Y_RICHTUNG
+      IF(ISELEP(1,135) .EQ. 1 .OR. ISELEP(1,135) .EQ. 2) THEN
+         NPROLD = ISAMPA(  135)
+         IF(ISAMPP(  135) .GT. 0) THEN
+            NPRRUN = ISAMPP(  135)
+            CALL STMNEW  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $                    DREAD,DCONT,NPRNEU,FPRNEU,ADVDY2 ,SDVDY2 )
+         ENDIF
+         ISAMPA(  135) = NPROLD
+         ISAMPP(  135) = ISAMPP(  135) + NPROLD
+      ENDIF
+C                                  V_KOMPONENTE IN Z_RICHTUNG
+      IF(ISELEP(1,136) .EQ. 1 .OR. ISELEP(1,136) .EQ. 2) THEN
+         NPROLD = ISAMPA(  136)
+         IF(ISAMPP(  136) .GT. 0) THEN
+            NPRRUN = ISAMPP(  136)
+            CALL STMNEW  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $                    DREAD,DCONT,NPRNEU,FPRNEU,ADVDZ2 ,SDVDZ2 )
+         ENDIF
+         ISAMPA(  136) = NPROLD
+         ISAMPP(  136) = ISAMPP(  136) + NPROLD
+      ENDIF
+C                                  W_KOMPONENTE IN X_RICHTUNG
+      IF(ISELEP(1,137) .EQ. 1 .OR. ISELEP(1,137) .EQ. 2) THEN
+         NPROLD = ISAMPA(  137)
+         IF(ISAMPP(  137) .GT. 0) THEN
+            NPRRUN = ISAMPP(  137)
+            CALL STMNEW  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $                    DREAD,DCONT,NPRNEU,FPRNEU,ADWDX2 ,SDWDX2 )
+         ENDIF
+         ISAMPA(  137) = NPROLD
+         ISAMPP(  137) = ISAMPP(  137) + NPROLD
+      ENDIF
+C                                  W_KOMPONENTE IN Y_RICHTUNG
+      IF(ISELEP(1,138) .EQ. 1 .OR. ISELEP(1,138) .EQ. 2) THEN
+         NPROLD = ISAMPA(  138)
+         IF(ISAMPP(  138) .GT. 0) THEN
+            NPRRUN = ISAMPP(  138)
+            CALL STMNEW  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $                    DREAD,DCONT,NPRNEU,FPRNEU,ADWDY2 ,SDWDY2 )
+         ENDIF
+         ISAMPA(  138) = NPROLD
+         ISAMPP(  138) = ISAMPP(  138) + NPROLD
+      ENDIF
+C                                  W_KOMPONENTE IN Z_RICHTUNG
+      IF(ISELEP(1,139) .EQ. 1 .OR. ISELEP(1,139) .EQ. 2) THEN
+         NPROLD = ISAMPA(  139)
+         IF(ISAMPP(  139) .GT. 0) THEN
+            NPRRUN = ISAMPP(  139)
+            CALL STMNEW  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $                    DREAD,DCONT,NPRNEU,FPRNEU,ADWDZ2 ,SDWDZ2 )
+         ENDIF
+         ISAMPA(  139) = NPROLD
+         ISAMPP(  139) = ISAMPP(  139) + NPROLD
+      ENDIF
+C
+C                                 KOMPONENTEN DES SPANNUNGSTENSORS
+C                                 --------------------------------
+C
+C                                 HIER: U - W
+C                                 -----------
+C
+      IF(ISELEP(1,146) .EQ. 1 .OR. ISELEP(1,146) .EQ. 2) THEN
+         NPROLD = ISAMPA(  146)
+         IF(ISAMPP(  146) .GT. 0) THEN
+            NPRRUN = ISAMPP(  146)
+            CALL STMNEW  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $                    DREAD,DCONT,NPRNEU,FPRNEU,AUFWFG ,SUFWFG )
+         ENDIF
+         ISAMPA(  146) = NPROLD
+         ISAMPP(  146) = ISAMPP(  146) + NPROLD
+      ENDIF
+      IF(ISELEP(1,149) .EQ. 1 .OR. ISELEP(1,149) .EQ. 2) THEN
+         NPROLD = ISAMPA(  149)
+         IF(ISAMPP(  149) .GT. 0) THEN
+            NPRRUN = ISAMPP(  149)
+            CALL STMNEW  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $                    DREAD,DCONT,NPRNEU,FPRNEU,AUFWFS ,SUFWFS )
+         ENDIF
+         ISAMPA(  149) = NPROLD
+         ISAMPP(  149) = ISAMPP(  149) + NPROLD
+      ENDIF
+      IF(ISELEP(1,151) .EQ. 1 .OR. ISELEP(1,151) .EQ. 2) THEN
+         NPROLD = ISAMPA(  151)
+         IF(ISAMPP(  151) .GT. 0) THEN
+            NPRRUN = ISAMPP(  151)
+            CALL STMNEW  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $                    DREAD,DCONT,NPRNEU,FPRNEU,AUFWFM ,SUFWFM )
+         ENDIF
+         ISAMPA(  151) = NPROLD
+         ISAMPP(  151) = ISAMPP(  151) + NPROLD
+      ENDIF
+C
+C                                 HIER: V - W
+C                                 -----------
+C
+      IF(ISELEP(1,156) .EQ. 1 .OR. ISELEP(1,156) .EQ. 2) THEN
+         NPROLD = ISAMPA(  156)
+         IF(ISAMPP(  156) .GT. 0) THEN
+            NPRRUN = ISAMPP(  156)
+            CALL STMNEW  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $                    DREAD,DCONT,NPRNEU,FPRNEU,AVFWFG ,SVFWFG )
+         ENDIF
+         ISAMPA(  156) = NPROLD
+         ISAMPP(  156) = ISAMPP(  156) + NPROLD
+      ENDIF
+      IF(ISELEP(1,159) .EQ. 1 .OR. ISELEP(1,159) .EQ. 2) THEN
+         NPROLD = ISAMPA(  159)
+         IF(ISAMPP(  159) .GT. 0) THEN
+            NPRRUN = ISAMPP(  159)
+            CALL STMNEW  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $                    DREAD,DCONT,NPRNEU,FPRNEU,AVFWFS ,SVFWFS )
+         ENDIF
+         ISAMPA(  159) = NPROLD
+         ISAMPP(  159) = ISAMPP(  159) + NPROLD
+      ENDIF
+      IF(ISELEP(1,161) .EQ. 1 .OR. ISELEP(1,161) .EQ. 2) THEN
+         NPROLD = ISAMPA(  161)
+         IF(ISAMPP(  161) .GT. 0) THEN
+            NPRRUN = ISAMPP(  161)
+            CALL STMNEW  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $                    DREAD,DCONT,NPRNEU,FPRNEU,AVFWFM ,SVFWFM )
+         ENDIF
+         ISAMPA(  161) = NPROLD
+         ISAMPP(  161) = ISAMPP(  161) + NPROLD
+      ENDIF
+C
+C                                 HIER: U - V
+C                                 -----------
+C
+      IF(ISELEP(1,166) .EQ. 1 .OR. ISELEP(1,166) .EQ. 2) THEN
+         NPROLD = ISAMPA(  166)
+         IF(ISAMPP(  166) .GT. 0) THEN
+            NPRRUN = ISAMPP(  166)
+            CALL STMNEW  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $                    DREAD,DCONT,NPRNEU,FPRNEU,AUFVFG ,SUFVFG )
+         ENDIF
+         ISAMPA(  166) = NPROLD
+         ISAMPP(  166) = ISAMPP(  166) + NPROLD
+      ENDIF
+      IF(ISELEP(1,169) .EQ. 1 .OR. ISELEP(1,169) .EQ. 2) THEN
+         NPROLD = ISAMPA(  169)
+         IF(ISAMPP(  169) .GT. 0) THEN
+            NPRRUN = ISAMPP(  169)
+            CALL STMNEW  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $                    DREAD,DCONT,NPRNEU,FPRNEU,AUFVFS ,SUFVFS )
+         ENDIF
+         ISAMPA(  169) = NPROLD
+         ISAMPP(  169) = ISAMPP(  169) + NPROLD
+      ENDIF
+      IF(ISELEP(1,171) .EQ. 1 .OR. ISELEP(1,171) .EQ. 2) THEN
+         NPROLD = ISAMPA(  171)
+         IF(ISAMPP(  171) .GT. 0) THEN
+            NPRRUN = ISAMPP(  171)
+            CALL STMNEW  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $                    DREAD,DCONT,NPRNEU,FPRNEU,AUFVFM ,SUFVFM )
+         ENDIF
+         ISAMPA(  171) = NPROLD
+         ISAMPP(  171) = ISAMPP(  171) + NPROLD
+      ENDIF
+C
+#ifdef _TAU_NN_
+C                                 ANTEILE DES SPANNUNGSTENSORS
+C                                 NICHT-NEWTONSCHE ANTEILE
+C                                 ----------------------------
+C
+C                                 HIER:  U - U
+C                                 ------------
+      IF(ISELEP(1,351) .EQ. 1 .OR. ISELEP(1,351) .EQ. 2) THEN
+         NPROLD = ISAMPA(  351)
+         IF(ISAMPP(  351) .GT. 0) THEN
+            NPRRUN = ISAMPP(  351)
+            CALL STMNEW  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $                    DREAD,DCONT,NPRNEU,FPRNEU,ATAU11 ,STAU11 )
+         ENDIF
+         ISAMPA(  351) = NPROLD
+         ISAMPP(  351) = ISAMPP(  351) + NPROLD
+      ENDIF
+C                                 HIER:  U - V
+C                                 ------------
+      IF(ISELEP(1,356) .EQ. 1 .OR. ISELEP(1,356) .EQ. 2) THEN
+         NPROLD = ISAMPA(  356)
+         IF(ISAMPP(  356) .GT. 0) THEN
+            NPRRUN = ISAMPP(  356)
+            CALL STMNEW  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $                    DREAD,DCONT,NPRNEU,FPRNEU,ATAU12 ,STAU12 )
+         ENDIF
+         ISAMPA(  356) = NPROLD
+         ISAMPP(  356) = ISAMPP(  356) + NPROLD
+      ENDIF
+C                                 HIER:  U - W
+C                                 ------------
+      IF(ISELEP(1,361) .EQ. 1 .OR. ISELEP(1,361) .EQ. 2) THEN
+         NPROLD = ISAMPA(  361)
+         IF(ISAMPP(  361) .GT. 0) THEN
+            NPRRUN = ISAMPP(  361)
+            CALL STMNEW  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $                    DREAD,DCONT,NPRNEU,FPRNEU,ATAU13 ,STAU13 )
+         ENDIF
+         ISAMPA(  361) = NPROLD
+         ISAMPP(  361) = ISAMPP(  361) + NPROLD
+      ENDIF
+C                                 HIER:  V - V
+C                                 ------------
+      IF(ISELEP(1,366) .EQ. 1 .OR. ISELEP(1,366) .EQ. 2) THEN
+         NPROLD = ISAMPA(  366)
+         IF(ISAMPP(  366) .GT. 0) THEN
+            NPRRUN = ISAMPP(  366)
+            CALL STMNEW  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $                    DREAD,DCONT,NPRNEU,FPRNEU,ATAU22 ,STAU22 )
+         ENDIF
+         ISAMPA(  366) = NPROLD
+         ISAMPP(  366) = ISAMPP(  366) + NPROLD
+      ENDIF
+C                                 HIER:  V - W
+C                                 ------------
+      IF(ISELEP(1,371) .EQ. 1 .OR. ISELEP(1,371) .EQ. 2) THEN
+         NPROLD = ISAMPA(  371)
+         IF(ISAMPP(  371) .GT. 0) THEN
+            NPRRUN = ISAMPP(  371)
+            CALL STMNEW  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $                    DREAD,DCONT,NPRNEU,FPRNEU,ATAU23 ,STAU23 )
+         ENDIF
+         ISAMPA(  371) = NPROLD
+         ISAMPP(  371) = ISAMPP(  371) + NPROLD
+      ENDIF
+C                                 HIER:  W - W
+C                                 ------------
+      IF(ISELEP(1,376) .EQ. 1 .OR. ISELEP(1,376) .EQ. 2) THEN
+         NPROLD = ISAMPA(  376)
+         IF(ISAMPP(  376) .GT. 0) THEN
+            NPRRUN = ISAMPP(  376)
+            CALL STMNEW  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $                    DREAD,DCONT,NPRNEU,FPRNEU,ATAU33 ,STAU33 )
+         ENDIF
+         ISAMPA(  376) = NPROLD
+         ISAMPP(  376) = ISAMPP(  376) + NPROLD
+      ENDIF
+#endif
+C
+C                                 X-KOMPONENTE DER VORTICITY
+C                                 ------------------------
+C
+      IF(ISELEP(1,177) .EQ. 1 .OR. ISELEP(1,177) .EQ. 2) THEN
+         NPROLD = ISAMPA(  177)
+         IF(ISAMPP(  177) .GT. 0) THEN
+            NPRRUN = ISAMPP(  177)
+            CALL STMNEW  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $                    DREAD,DCONT,NPRNEU,FPRNEU,AOX    ,SOX    )
+         ENDIF
+         ISAMPA(  177) = NPROLD
+         ISAMPP(  177) = ISAMPP(  177) + NPROLD
+      ENDIF
+      IF(ISELEP(1,180) .EQ. 1 .OR. ISELEP(1,180) .EQ. 2) THEN
+         NPROLD = ISAMPA(  180)
+         IF(ISAMPP(  180) .GT. 0) THEN
+            NPRRUN = ISAMPP(  180)
+            CALL STMNRM  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $                    DREAD,DCONT,NPRNEU,FPRNEU,AOXRG  ,SOXRG  )
+         ENDIF
+         ISAMPA(  180) = NPROLD
+         ISAMPP(  180) = ISAMPP(  180) + NPROLD
+      ENDIF
+C
+C                                 Y-KOMPONENTE DER VORTICITY
+C                                 ------------------------
+C
+      IF(ISELEP(1,183) .EQ. 1 .OR. ISELEP(1,183) .EQ. 2) THEN
+         NPROLD = ISAMPA(  183)
+         IF(ISAMPP(  183) .GT. 0) THEN
+            NPRRUN = ISAMPP(  183)
+            CALL STMNEW  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $                    DREAD,DCONT,NPRNEU,FPRNEU,AOY    ,SOY    )
+         ENDIF
+         ISAMPA(  183) = NPROLD
+         ISAMPP(  183) = ISAMPP(  183) + NPROLD
+      ENDIF
+      IF(ISELEP(1,186) .EQ. 1 .OR. ISELEP(1,186) .EQ. 2) THEN
+         NPROLD = ISAMPA(  186)
+         IF(ISAMPP(  186) .GT. 0) THEN
+            NPRRUN = ISAMPP(  186)
+            CALL STMNRM  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $                    DREAD,DCONT,NPRNEU,FPRNEU,AOYRG  ,SOYRG  )
+         ENDIF
+         ISAMPA(  186) = NPROLD
+         ISAMPP(  186) = ISAMPP(  186) + NPROLD
+      ENDIF
+C
+C                                 Z-KOMPONENTE DER VORTICITY
+C                                 ------------------------
+C
+      IF(ISELEP(1,189) .EQ. 1 .OR. ISELEP(1,189) .EQ. 2) THEN
+         NPROLD = ISAMPA(  189)
+         IF(ISAMPP(  189) .GT. 0) THEN
+            NPRRUN = ISAMPP(  189)
+            CALL STMNEW  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $                    DREAD,DCONT,NPRNEU,FPRNEU,AOZ    ,SOZ    )
+         ENDIF
+         ISAMPA(  189) = NPROLD
+         ISAMPP(  189) = ISAMPP(  189) + NPROLD
+      ENDIF
+      IF(ISELEP(1,192) .EQ. 1 .OR. ISELEP(1,192) .EQ. 2) THEN
+         NPROLD = ISAMPA(  192)
+         IF(ISAMPP(  192) .GT. 0) THEN
+            NPRRUN = ISAMPP(  192)
+            CALL STMNRM  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $                    DREAD,DCONT,NPRNEU,FPRNEU,AOZRG  ,SOZRG  )
+         ENDIF
+         ISAMPA(  192) = NPROLD
+         ISAMPP(  192) = ISAMPP(  192) + NPROLD
+      ENDIF
+C
+C                                 ENSTROPHIE
+C                                 ----------
+C
+      IF(ISELEP(1,195) .EQ. 1 .OR. ISELEP(1,195) .EQ. 2) THEN
+         NPROLD = ISAMPA(  195)
+         IF(ISAMPP(  195) .GT. 0) THEN
+            NPRRUN = ISAMPP(  195)
+            CALL STMNEW  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $                    DREAD,DCONT,NPRNEU,FPRNEU,AO2    ,SO2    )
+         ENDIF
+         ISAMPA(  195) = NPROLD
+         ISAMPP(  195) = ISAMPP(  195) + NPROLD
+      ENDIF
+      IF(ISELEP(1,198) .EQ. 1 .OR. ISELEP(1,198) .EQ. 2) THEN
+         NPROLD = ISAMPA(  198)
+         IF(ISAMPP(  198) .GT. 0) THEN
+            NPRRUN = ISAMPP(  198)
+            CALL STMNRM  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $                    DREAD,DCONT,NPRNEU,FPRNEU,AO2RG  ,SO2RG  )
+         ENDIF
+         ISAMPA(  198) = NPROLD
+         ISAMPP(  198) = ISAMPP(  198) + NPROLD
+      ENDIF
+C
+C                                 HELIZITAET
+C                                 ----------
+C
+      IF(ISELEP(1,200) .EQ. 1 .OR. ISELEP(1,200) .EQ. 2) THEN
+         NPROLD = ISAMPA(  200)
+         IF(ISAMPP(  200) .GT. 0) THEN
+            NPRRUN = ISAMPP(  200)
+            CALL STMNEW  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $                    DREAD,DCONT,NPRNEU,FPRNEU,AHE    ,SHE    )
+         ENDIF
+         ISAMPA(  200) = NPROLD
+         ISAMPP(  200) = ISAMPP(  200) + NPROLD
+      ENDIF
+      IF(ISELEP(1,203) .EQ. 1 .OR. ISELEP(1,203) .EQ. 2) THEN
+         NPROLD = ISAMPA(  203)
+         IF(ISAMPP(  203) .GT. 0) THEN
+            NPRRUN = ISAMPP(  203)
+            CALL STMNRM  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $                    DREAD,DCONT,NPRNEU,FPRNEU,AHERG  ,SHERG  )
+         ENDIF
+         ISAMPA(  203) = NPROLD
+         ISAMPP(  203) = ISAMPP(  203) + NPROLD
+      ENDIF
+C
+#ifdef _TSCAL_
+C                                 STATIST. GROESSEN DER T-KOMPONENTE
+C                                 ----------------------------------
+C
+C                                 VERBESSERUNG DER ALTEN <T>-WERTE
+C
+      IF(ISELEP(1,504) .EQ. 1 .OR. ISELEP(1,504) .EQ. 2) THEN
+         NPROLD = ISAMPA(504)
+         IF(ISAMPP(504) .GT. 0) THEN
+            NPRRUN = ISAMPP(504)
+            CALL STMNEW  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $                    DREAD,DCONT,NPRNEU,FPRNEU,AT     ,ST     )
+         ENDIF
+C              WRITE(6,*)KKA,JJA,IIA
+         ISAMPA(504) = NPROLD
+         ISAMPP(504) = ISAMPP(504) + NPROLD
+      ENDIF
+C
+C                                 VERBESSERUNG DER ALTEN <T-RMS>-WERTE
+C
+      IF(ISELEP(1,507) .EQ. 1 .OR. ISELEP(1,507) .EQ. 2) THEN
+         NPROLD = ISAMPA(    7)
+         IF(ISAMPP(507) .GT. 0) THEN
+            NPRRUN = ISAMPP(507)
+            CALL STMNRM  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $                    DREAD,DCONT,NPRNEU,FPRNEU,ATRG   ,STRG   )
+         ENDIF
+         ISAMPA(507) = NPROLD
+         ISAMPP(507) = ISAMPP(507) + NPROLD
+      ENDIF
+C
+C                                 VERBESSERUNG DER ALTEN <T-SKE>-WERTE
+C
+      IF(ISELEP(1,510) .EQ. 1 .OR. ISELEP(1,510) .EQ. 2) THEN
+         NPROLD = ISAMPA(510)
+         IF(ISAMPP(510) .GT. 0) THEN
+            NPRRUN = ISAMPP(510)
+            CALL STMNEW  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $                    DREAD,DCONT,NPRNEU,FPRNEU,ATSKG  ,STSKG  )
+         ENDIF
+         ISAMPA(510) = NPROLD
+         ISAMPP(510) = ISAMPP(510) + NPROLD
+      ENDIF
+C
+C                                 VERBESSERUNG DER ALTEN <T-FLA>-WERTE
+C
+      IF(ISELEP(1,512) .EQ. 1 .OR. ISELEP(1,512) .EQ. 2) THEN
+         NPROLD = ISAMPA(512)
+         IF(ISAMPP(512) .GT. 0) THEN
+            NPRRUN = ISAMPP(512)
+            CALL STMNEW  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $                    DREAD,DCONT,NPRNEU,FPRNEU,ATFLG  ,STFLG  )
+         ENDIF
+         ISAMPA(512) = NPROLD
+         ISAMPP(512) = ISAMPP(512) + NPROLD
+      ENDIF
+C
+C                                 HEAT FLUX TENSOR
+C                                 ----------------
+C
+C                                 U - T
+C                                 -----
+C
+      IF(ISELEP(1,526) .EQ. 1 .OR. ISELEP(1,526) .EQ. 2) THEN
+         NPROLD = ISAMPA(  526)
+         IF(ISAMPP(  526) .GT. 0) THEN
+            NPRRUN = ISAMPP(  526)
+            CALL STMNEW  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $                    DREAD,DCONT,NPRNEU,FPRNEU,AUFTFG ,SUFTFG )
+         ENDIF
+         ISAMPA(  526) = NPROLD
+         ISAMPP(  526) = ISAMPP(  526) + NPROLD
+      ENDIF
+      IF(ISELEP(1,529) .EQ. 1 .OR. ISELEP(1,529) .EQ. 2) THEN
+         NPROLD = ISAMPA(  529)
+         IF(ISAMPP(  529) .GT. 0) THEN
+            NPRRUN = ISAMPP(  529)
+            CALL STMNEW  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $                    DREAD,DCONT,NPRNEU,FPRNEU,AUFTFS ,SUFTFS )
+         ENDIF
+         ISAMPA(  529) = NPROLD
+         ISAMPP(  529) = ISAMPP(  529) + NPROLD
+      ENDIF
+      IF(ISELEP(1,531) .EQ. 1 .OR. ISELEP(1,531) .EQ. 2) THEN
+         NPROLD = ISAMPA(  531)
+         IF(ISAMPP(  531) .GT. 0) THEN
+            NPRRUN = ISAMPP(  531)
+            CALL STMNEW  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $                    DREAD,DCONT,NPRNEU,FPRNEU,AUFTFM ,SUFTFM )
+         ENDIF
+         ISAMPA(  531) = NPROLD
+         ISAMPP(  531) = ISAMPP(  531) + NPROLD
+      ENDIF
+C
+C                                 V - T
+C                                 -----
+C
+      IF(ISELEP(1,551) .EQ. 1 .OR. ISELEP(1,551) .EQ. 2) THEN
+         NPROLD = ISAMPA(  551)
+         IF(ISAMPP(  551) .GT. 0) THEN
+            NPRRUN = ISAMPP(  551)
+            CALL STMNEW  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $                    DREAD,DCONT,NPRNEU,FPRNEU,AVFTFG ,SVFTFG )
+         ENDIF
+         ISAMPA(  551) = NPROLD
+         ISAMPP(  551) = ISAMPP(  551) + NPROLD
+      ENDIF
+      IF(ISELEP(1,554) .EQ. 1 .OR. ISELEP(1,554) .EQ. 2) THEN
+         NPROLD = ISAMPA(  554)
+         IF(ISAMPP(  554) .GT. 0) THEN
+            NPRRUN = ISAMPP(  554)
+            CALL STMNEW  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $                    DREAD,DCONT,NPRNEU,FPRNEU,AVFTFS ,SVFTFS )
+         ENDIF
+         ISAMPA(  554) = NPROLD
+         ISAMPP(  554) = ISAMPP(  554) + NPROLD
+      ENDIF
+      IF(ISELEP(1,556) .EQ. 1 .OR. ISELEP(1,556) .EQ. 2) THEN
+         NPROLD = ISAMPA(  556)
+         IF(ISAMPP(  556) .GT. 0) THEN
+            NPRRUN = ISAMPP(  556)
+            CALL STMNEW  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $                    DREAD,DCONT,NPRNEU,FPRNEU,AVFTFM ,SVFTFM )
+         ENDIF
+         ISAMPA(  556) = NPROLD
+         ISAMPP(  556) = ISAMPP(  556) + NPROLD
+      ENDIF
+C
+C                                 W - T
+C                                 -----
+C
+      IF(ISELEP(1,576) .EQ. 1 .OR. ISELEP(1,576) .EQ. 2) THEN
+         NPROLD = ISAMPA(  576)
+         IF(ISAMPP(  576) .GT. 0) THEN
+            NPRRUN = ISAMPP(  576)
+            CALL STMNEW  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $                    DREAD,DCONT,NPRNEU,FPRNEU,AWFTFG ,SWFTFG )
+         ENDIF
+         ISAMPA(  576) = NPROLD
+         ISAMPP(  576) = ISAMPP(  576) + NPROLD
+      ENDIF
+      IF(ISELEP(1,579) .EQ. 1 .OR. ISELEP(1,579) .EQ. 2) THEN
+         NPROLD = ISAMPA(  579)
+         IF(ISAMPP(  579) .GT. 0) THEN
+            NPRRUN = ISAMPP(  579)
+            CALL STMNEW  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $                    DREAD,DCONT,NPRNEU,FPRNEU,AWFTFS ,SWFTFS )
+         ENDIF
+         ISAMPA(  579) = NPROLD
+         ISAMPP(  579) = ISAMPP(  579) + NPROLD
+      ENDIF
+      IF(ISELEP(1,581) .EQ. 1 .OR. ISELEP(1,581) .EQ. 2) THEN
+         NPROLD = ISAMPA(  581)
+         IF(ISAMPP(  581) .GT. 0) THEN
+            NPRRUN = ISAMPP(  581)
+            CALL STMNEW  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $                    DREAD,DCONT,NPRNEU,FPRNEU,AWFTFM ,SWFTFM )
+         ENDIF
+         ISAMPA(  581) = NPROLD
+         ISAMPP(  581) = ISAMPP(  581) + NPROLD
+      ENDIF
+C
+#endif
+C
+#if defined _STAT11_
+
+      IF(ISELEP(1,400) .GE. 1 ) THEN
+         NPROLD = ISAMPA(  400)
+         IF(ISAMPP(  400) .GT. 0) THEN
+            NPRRUN = ISAMPP(  400)
+            CALL STMNEW  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $                    DREAD,DCONT,NPRNEU,FPRNEU,AUUM ,SUUM )
+         ENDIF
+         ISAMPA(  400) = NPROLD
+         ISAMPP(  400) = ISAMPP(  400) + NPROLD
+      ENDIF
+
+      IF(ISELEP(1,401) .GE. 1 ) THEN
+         NPROLD = ISAMPA(  401)
+         IF(ISAMPP(  401) .GT. 0) THEN
+            NPRRUN = ISAMPP(  401)
+            CALL STMNEW  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $                    DREAD,DCONT,NPRNEU,FPRNEU,AVVM ,SVVM )
+         ENDIF
+         ISAMPA(  401) = NPROLD
+         ISAMPP(  401) = ISAMPP(  401) + NPROLD
+      ENDIF
+
+      IF(ISELEP(1,402) .GE. 1 ) THEN
+         NPROLD = ISAMPA(  402)
+         IF(ISAMPP(  402) .GT. 0) THEN
+            NPRRUN = ISAMPP(  402)
+            CALL STMNEW  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $                    DREAD,DCONT,NPRNEU,FPRNEU,AWWM ,SWWM )
+         ENDIF
+         ISAMPA(  402) = NPROLD
+         ISAMPP(  402) = ISAMPP(  402) + NPROLD
+      ENDIF
+
+      IF(ISELEP(1,406) .GE. 1 ) THEN
+         NPROLD = ISAMPA(  406)
+         IF(ISAMPP(  406) .GT. 0) THEN
+            NPRRUN = ISAMPP(  406)
+            CALL STMNEW  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $                    DREAD,DCONT,NPRNEU,FPRNEU,APPM ,SPPM )
+         ENDIF
+         ISAMPA(  406) = NPROLD
+         ISAMPP(  406) = ISAMPP(  406) + NPROLD
+      ENDIF
+#endif
+
+#if defined _STAT12_
+
+      IF(ISELEP(1,403) .GE. 1 ) THEN
+         NPROLD = ISAMPA(  403)
+         IF(ISAMPP(  403) .GT. 0) THEN
+            NPRRUN = ISAMPP(  403)
+            CALL STMNEW  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $                    DREAD,DCONT,NPRNEU,FPRNEU,AUVM ,SUVM )
+         ENDIF
+         ISAMPA(  403) = NPROLD
+         ISAMPP(  403) = ISAMPP(  403) + NPROLD
+      ENDIF
+
+      IF(ISELEP(1,404) .GE. 1 ) THEN
+         NPROLD = ISAMPA(  404)
+         IF(ISAMPP(  404) .GT. 0) THEN
+            NPRRUN = ISAMPP(  404)
+            CALL STMNEW  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $                    DREAD,DCONT,NPRNEU,FPRNEU,AUWM ,SUWM )
+         ENDIF
+         ISAMPA(  404) = NPROLD
+         ISAMPP(  404) = ISAMPP(  404) + NPROLD
+      ENDIF
+
+      IF(ISELEP(1,405) .GE. 1 ) THEN
+         NPROLD = ISAMPA(  405)
+         IF(ISAMPP(  405) .GT. 0) THEN
+            NPRRUN = ISAMPP(  405)
+            CALL STMNEW  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $                    DREAD,DCONT,NPRNEU,FPRNEU,AVWM ,SVWM )
+         ENDIF
+         ISAMPA(  405) = NPROLD
+         ISAMPP(  405) = ISAMPP(  405) + NPROLD
+      ENDIF
+
+#endif
+
+#if defined _STAT13_
+
+C     QUADRATE DER ABLEITUNGEN VON U
+
+      IF(ISELEP(1,430) .GE. 1 ) THEN
+         NPROLD = ISAMPA(  430)
+         IF(ISAMPP(  430) .GT. 0) THEN
+            NPRRUN = ISAMPP(  430)
+            CALL STMNEW  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $           DREAD,DCONT,NPRNEU,FPRNEU,AUXUXM,SUXUXM)
+         ENDIF
+         ISAMPA(  430) = NPROLD
+         ISAMPP(  430) = ISAMPP(  430) + NPROLD
+      ENDIF
+
+      IF(ISELEP(1,431) .GE. 1 ) THEN
+         NPROLD = ISAMPA(  431)
+         IF(ISAMPP(  431) .GT. 0) THEN
+            NPRRUN = ISAMPP(  431)
+            CALL STMNEW  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $           DREAD,DCONT,NPRNEU,FPRNEU,AUYUYM,SUYUYM)
+         ENDIF
+         ISAMPA(  431) = NPROLD
+         ISAMPP(  431) = ISAMPP(  431) + NPROLD
+      ENDIF
+
+      IF(ISELEP(1,432) .GE. 1 ) THEN
+         NPROLD = ISAMPA(  432)
+         IF(ISAMPP(  432) .GT. 0) THEN
+            NPRRUN = ISAMPP(  432)
+            CALL STMNEW  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $           DREAD,DCONT,NPRNEU,FPRNEU,AUZUZM,SUZUZM)
+         ENDIF
+         ISAMPA(  432) = NPROLD
+         ISAMPP(  432) = ISAMPP(  432) + NPROLD
+      ENDIF
+
+C     QUADRATE DER ABLEITUNGEN VON V
+
+      IF(ISELEP(1,433) .GE. 1 ) THEN
+         NPROLD = ISAMPA(  433)
+         IF(ISAMPP(  433) .GT. 0) THEN
+            NPRRUN = ISAMPP(  433)
+            CALL STMNEW  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $           DREAD,DCONT,NPRNEU,FPRNEU,AVXVXM,SVXVXM)
+         ENDIF
+         ISAMPA(  433) = NPROLD
+         ISAMPP(  433) = ISAMPP(  433) + NPROLD
+      ENDIF
+
+      IF(ISELEP(1,434) .GE. 1 ) THEN
+         NPROLD = ISAMPA(  434)
+         IF(ISAMPP(  434) .GT. 0) THEN
+            NPRRUN = ISAMPP(  434)
+            CALL STMNEW  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $           DREAD,DCONT,NPRNEU,FPRNEU,AVYVYM,SVYVYM)
+         ENDIF
+         ISAMPA(  434) = NPROLD
+         ISAMPP(  434) = ISAMPP(  434) + NPROLD
+      ENDIF
+
+      IF(ISELEP(1,435) .GE. 1 ) THEN
+         NPROLD = ISAMPA(  435)
+         IF(ISAMPP(  435) .GT. 0) THEN
+            NPRRUN = ISAMPP(  435)
+            CALL STMNEW  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $           DREAD,DCONT,NPRNEU,FPRNEU,AVZVZM,SVZVZM)
+         ENDIF
+         ISAMPA(  435) = NPROLD
+         ISAMPP(  435) = ISAMPP(  435) + NPROLD
+      ENDIF
+
+C     QUADRATE DER ABLEITUNGEN VON W
+
+      IF(ISELEP(1,436) .GE. 1 ) THEN
+         NPROLD = ISAMPA(  436)
+         IF(ISAMPP(  436) .GT. 0) THEN
+            NPRRUN = ISAMPP(  436)
+            CALL STMNEW  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $           DREAD,DCONT,NPRNEU,FPRNEU,AWXWXM,SWXWXM)
+         ENDIF
+         ISAMPA(  436) = NPROLD
+         ISAMPP(  436) = ISAMPP(  436) + NPROLD
+      ENDIF
+
+      IF(ISELEP(1,437) .GE. 1 ) THEN
+         NPROLD = ISAMPA(  437)
+         IF(ISAMPP(  437) .GT. 0) THEN
+            NPRRUN = ISAMPP(  437)
+            CALL STMNEW  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $           DREAD,DCONT,NPRNEU,FPRNEU,AWYWYM,SWYWYM)
+         ENDIF
+         ISAMPA(  437) = NPROLD
+         ISAMPP(  437) = ISAMPP(  437) + NPROLD
+      ENDIF
+
+      IF(ISELEP(1,438) .GE. 1 ) THEN
+         NPROLD = ISAMPA(  438)
+         IF(ISAMPP(  438) .GT. 0) THEN
+            NPRRUN = ISAMPP(  438)
+            CALL STMNEW  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $           DREAD,DCONT,NPRNEU,FPRNEU,AWZWZM,SWZWZM)
+         ENDIF
+         ISAMPA(  438) = NPROLD
+         ISAMPP(  438) = ISAMPP(  438) + NPROLD
+      ENDIF
+
+#endif
+
+#if defined _STAT14_
+
+      IF(ISELEP(1,410) .GE. 1 ) THEN
+         NPROLD = ISAMPA(  410)
+         IF(ISAMPP(  410) .GT. 0) THEN
+            NPRRUN = ISAMPP(  410)
+            CALL STMNEW  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $                    DREAD,DCONT,NPRNEU,FPRNEU,AUUUM,SUUUM)
+         ENDIF
+         ISAMPA(  410) = NPROLD
+         ISAMPP(  410) = ISAMPP(  410) + NPROLD
+      ENDIF
+
+      IF(ISELEP(1,411) .GE. 1 ) THEN
+         NPROLD = ISAMPA(  411)
+         IF(ISAMPP(  411) .GT. 0) THEN
+            NPRRUN = ISAMPP(  411)
+            CALL STMNEW  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $                    DREAD,DCONT,NPRNEU,FPRNEU,AVVVM,SVVVM)
+         ENDIF
+         ISAMPA(  411) = NPROLD
+         ISAMPP(  411) = ISAMPP(  411) + NPROLD
+      ENDIF
+
+      IF(ISELEP(1,412) .GE. 1 ) THEN
+         NPROLD = ISAMPA(  412)
+         IF(ISAMPP(  412) .GT. 0) THEN
+            NPRRUN = ISAMPP(  412)
+            CALL STMNEW  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $                    DREAD,DCONT,NPRNEU,FPRNEU,AWWWM,SWWWM)
+         ENDIF
+         ISAMPA(  412) = NPROLD
+         ISAMPP(  412) = ISAMPP(  412) + NPROLD
+      ENDIF
+
+      IF(ISELEP(1,413) .GE. 1 ) THEN
+         NPROLD = ISAMPA(  413)
+         IF(ISAMPP(  413) .GT. 0) THEN
+            NPRRUN = ISAMPP(  413)
+            CALL STMNEW  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $                    DREAD,DCONT,NPRNEU,FPRNEU,AUUVM,SUUVM)
+         ENDIF
+         ISAMPA(  413) = NPROLD
+         ISAMPP(  413) = ISAMPP(  413) + NPROLD
+      ENDIF
+
+      IF(ISELEP(1,414) .GE. 1 ) THEN
+         NPROLD = ISAMPA(  414)
+         IF(ISAMPP(  414) .GT. 0) THEN
+            NPRRUN = ISAMPP(  414)
+            CALL STMNEW  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $                    DREAD,DCONT,NPRNEU,FPRNEU,AUUWM,SUUWM)
+         ENDIF
+         ISAMPA(  414) = NPROLD
+         ISAMPP(  414) = ISAMPP(  414) + NPROLD
+      ENDIF
+
+      IF(ISELEP(1,415) .GE. 1 ) THEN
+         NPROLD = ISAMPA(  415)
+         IF(ISAMPP(  415) .GT. 0) THEN
+            NPRRUN = ISAMPP(  415)
+            CALL STMNEW  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $                    DREAD,DCONT,NPRNEU,FPRNEU,AVVUM,SVVUM)
+         ENDIF
+         ISAMPA(  415) = NPROLD
+         ISAMPP(  415) = ISAMPP(  415) + NPROLD
+      ENDIF
+
+      IF(ISELEP(1,416) .GE. 1 ) THEN
+         NPROLD = ISAMPA(  416)
+         IF(ISAMPP(  416) .GT. 0) THEN
+            NPRRUN = ISAMPP(  416)
+            CALL STMNEW  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $                    DREAD,DCONT,NPRNEU,FPRNEU,AVVWM,SVVWM)
+         ENDIF
+         ISAMPA(  416) = NPROLD
+         ISAMPP(  416) = ISAMPP(  416) + NPROLD
+      ENDIF
+
+      IF(ISELEP(1,417) .GE. 1 ) THEN
+         NPROLD = ISAMPA(  417)
+         IF(ISAMPP(  417) .GT. 0) THEN
+            NPRRUN = ISAMPP(  417)
+            CALL STMNEW  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $                    DREAD,DCONT,NPRNEU,FPRNEU,AWWUM,SWWUM)
+         ENDIF
+         ISAMPA(  417) = NPROLD
+         ISAMPP(  417) = ISAMPP(  417) + NPROLD
+      ENDIF
+
+      IF(ISELEP(1,418) .GE. 1 ) THEN
+         NPROLD = ISAMPA(  418)
+         IF(ISAMPP(  418) .GT. 0) THEN
+            NPRRUN = ISAMPP(  418)
+            CALL STMNEW  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $                    DREAD,DCONT,NPRNEU,FPRNEU,AWWVM,SWWVM)
+         ENDIF
+         ISAMPA(  418) = NPROLD
+         ISAMPP(  418) = ISAMPP(  418) + NPROLD
+      ENDIF
+
+      IF(ISELEP(1,419) .GE. 1 ) THEN
+         NPROLD = ISAMPA(  419)
+         IF(ISAMPP(  419) .GT. 0) THEN
+            NPRRUN = ISAMPP(  419)
+            CALL STMNEW  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $                    DREAD,DCONT,NPRNEU,FPRNEU,AUVWM,SUVWM)
+         ENDIF
+         ISAMPA(  419) = NPROLD
+         ISAMPP(  419) = ISAMPP(  419) + NPROLD
+      ENDIF
+
+      IF(ISELEP(1,420) .GE. 1 ) THEN
+         NPROLD = ISAMPA(  420)
+         IF(ISAMPP(  420) .GT. 0) THEN
+            NPRRUN = ISAMPP(  420)
+            CALL STMNEW  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $                    DREAD,DCONT,NPRNEU,FPRNEU,AUPM,SUPM)
+         ENDIF
+         ISAMPA(  420) = NPROLD
+         ISAMPP(  420) = ISAMPP(  420) + NPROLD
+      ENDIF
+
+      IF(ISELEP(1,421) .GE. 1 ) THEN
+         NPROLD = ISAMPA(  421)
+         IF(ISAMPP(  421) .GT. 0) THEN
+            NPRRUN = ISAMPP(  421)
+            CALL STMNEW  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $                    DREAD,DCONT,NPRNEU,FPRNEU,AVPM,SVPM)
+         ENDIF
+         ISAMPA(  421) = NPROLD
+         ISAMPP(  421) = ISAMPP(  421) + NPROLD
+      ENDIF
+
+      IF(ISELEP(1,422) .GE. 1 ) THEN
+         NPROLD = ISAMPA(  422)
+         IF(ISAMPP(  422) .GT. 0) THEN
+            NPRRUN = ISAMPP(  422)
+            CALL STMNEW  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $                    DREAD,DCONT,NPRNEU,FPRNEU,AWPM,SWPM)
+         ENDIF
+         ISAMPA(  422) = NPROLD
+         ISAMPP(  422) = ISAMPP(  422) + NPROLD
+      ENDIF
+
+c     ***** Druck-Scher-Korrelationen *****
+
+      IF(ISELEP(1,423) .GE. 1 ) THEN
+         NPROLD = ISAMPA(  423)
+         IF(ISAMPP(  423) .GT. 0) THEN
+            NPRRUN = ISAMPP(  423)
+            CALL STMNEW  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $                    DREAD,DCONT,NPRNEU,FPRNEU,AUXPM,SUXPM)
+         ENDIF
+         ISAMPA(  423) = NPROLD
+         ISAMPP(  423) = ISAMPP(  423) + NPROLD
+      ENDIF
+
+      IF(ISELEP(1,424) .GE. 1 ) THEN
+         NPROLD = ISAMPA(  424)
+         IF(ISAMPP(  424) .GT. 0) THEN
+            NPRRUN = ISAMPP(  424)
+            CALL STMNEW  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $                    DREAD,DCONT,NPRNEU,FPRNEU,AVYPM,SVYPM)
+         ENDIF
+         ISAMPA(  424) = NPROLD
+         ISAMPP(  424) = ISAMPP(  424) + NPROLD
+      ENDIF
+
+      IF(ISELEP(1,425) .GE. 1 ) THEN
+         NPROLD = ISAMPA(  425)
+         IF(ISAMPP(  425) .GT. 0) THEN
+            NPRRUN = ISAMPP(  425)
+            CALL STMNEW  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $                    DREAD,DCONT,NPRNEU,FPRNEU,AWZPM,SWZPM)
+         ENDIF
+         ISAMPA(  425) = NPROLD
+         ISAMPP(  425) = ISAMPP(  425) + NPROLD
+      ENDIF
+
+      IF(ISELEP(1,426) .GE. 1 ) THEN
+         NPROLD = ISAMPA(  426)
+         IF(ISAMPP(  426) .GT. 0) THEN
+            NPRRUN = ISAMPP(  426)
+            CALL STMNEW  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $                    DREAD,DCONT,NPRNEU,FPRNEU,AUYVXP,SUYVXP)
+         ENDIF
+         ISAMPA(  426) = NPROLD
+         ISAMPP(  426) = ISAMPP(  426) + NPROLD
+      ENDIF
+
+      IF(ISELEP(1,427) .GE. 1 ) THEN
+         NPROLD = ISAMPA(  427)
+         IF(ISAMPP(  427) .GT. 0) THEN
+            NPRRUN = ISAMPP(  427)
+            CALL STMNEW  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $                    DREAD,DCONT,NPRNEU,FPRNEU,AUZWXP,SUZWXP)
+         ENDIF
+         ISAMPA(  427) = NPROLD
+         ISAMPP(  427) = ISAMPP(  427) + NPROLD
+      ENDIF
+
+      IF(ISELEP(1,428) .GE. 1 ) THEN
+         NPROLD = ISAMPA(  428)
+         IF(ISAMPP(  428) .GT. 0) THEN
+            NPRRUN = ISAMPP(  428)
+            CALL STMNEW  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $                    DREAD,DCONT,NPRNEU,FPRNEU,AVZWYP,SVZWYP)
+         ENDIF
+         ISAMPA(  428) = NPROLD
+         ISAMPP(  428) = ISAMPP(  428) + NPROLD
+      ENDIF
+
+c     ***** Scher-Scher-Korrelationen *****
+
+      IF(ISELEP(1,440) .GE. 1 ) THEN
+         NPROLD = ISAMPA(  440)
+         IF(ISAMPP(  440) .GT. 0) THEN
+            NPRRUN = ISAMPP(  440)
+            CALL STMNEW  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $                    DREAD,DCONT,NPRNEU,FPRNEU,AUXVXM,SUXVXM)
+         ENDIF
+         ISAMPA(  440) = NPROLD
+         ISAMPP(  440) = ISAMPP(  440) + NPROLD
+      ENDIF
+
+      IF(ISELEP(1,441) .GE. 1 ) THEN
+         NPROLD = ISAMPA(  441)
+         IF(ISAMPP(  441) .GT. 0) THEN
+            NPRRUN = ISAMPP(  441)
+            CALL STMNEW  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $                    DREAD,DCONT,NPRNEU,FPRNEU,AUYVYM,SUYVYM)
+         ENDIF
+         ISAMPA(  441) = NPROLD
+         ISAMPP(  441) = ISAMPP(  441) + NPROLD
+      ENDIF
+
+      IF(ISELEP(1,442) .GE. 1 ) THEN
+         NPROLD = ISAMPA(  442)
+         IF(ISAMPP(  442) .GT. 0) THEN
+            NPRRUN = ISAMPP(  442)
+            CALL STMNEW  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $                    DREAD,DCONT,NPRNEU,FPRNEU,AUZVZM,SUZVZM)
+         ENDIF
+         ISAMPA(  442) = NPROLD
+         ISAMPP(  442) = ISAMPP(  442) + NPROLD
+      ENDIF
+
+      IF(ISELEP(1,443) .GE. 1 ) THEN
+         NPROLD = ISAMPA(  443)
+         IF(ISAMPP(  443) .GT. 0) THEN
+            NPRRUN = ISAMPP(  443)
+            CALL STMNEW  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $                    DREAD,DCONT,NPRNEU,FPRNEU,AUXWXM,SUXWXM)
+         ENDIF
+         ISAMPA(  443) = NPROLD
+         ISAMPP(  443) = ISAMPP(  443) + NPROLD
+      ENDIF
+
+      IF(ISELEP(1,444) .GE. 1 ) THEN
+         NPROLD = ISAMPA(  444)
+         IF(ISAMPP(  444) .GT. 0) THEN
+            NPRRUN = ISAMPP(  444)
+            CALL STMNEW  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $                    DREAD,DCONT,NPRNEU,FPRNEU,AUYWYM,SUYWYM)
+         ENDIF
+         ISAMPA(  444) = NPROLD
+         ISAMPP(  444) = ISAMPP(  444) + NPROLD
+      ENDIF
+
+      IF(ISELEP(1,445) .GE. 1 ) THEN
+         NPROLD = ISAMPA(  445)
+         IF(ISAMPP(  445) .GT. 0) THEN
+            NPRRUN = ISAMPP(  445)
+            CALL STMNEW  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $                    DREAD,DCONT,NPRNEU,FPRNEU,AUZWZM,SUZWZM)
+         ENDIF
+         ISAMPA(  445) = NPROLD
+         ISAMPP(  445) = ISAMPP(  445) + NPROLD
+      ENDIF
+
+      IF(ISELEP(1,446) .GE. 1 ) THEN
+         NPROLD = ISAMPA(  446)
+         IF(ISAMPP(  446) .GT. 0) THEN
+            NPRRUN = ISAMPP(  446)
+            CALL STMNEW  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $                    DREAD,DCONT,NPRNEU,FPRNEU,AVXWXM,SVXWXM)
+         ENDIF
+         ISAMPA(  446) = NPROLD
+         ISAMPP(  446) = ISAMPP(  446) + NPROLD
+      ENDIF
+
+      IF(ISELEP(1,447) .GE. 1 ) THEN
+         NPROLD = ISAMPA(  447)
+         IF(ISAMPP(  447) .GT. 0) THEN
+            NPRRUN = ISAMPP(  447)
+            CALL STMNEW  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $                    DREAD,DCONT,NPRNEU,FPRNEU,AVYWYM,SVYWYM)
+         ENDIF
+         ISAMPA(  447) = NPROLD
+         ISAMPP(  447) = ISAMPP(  447) + NPROLD
+      ENDIF
+
+      IF(ISELEP(1,448) .GE. 1 ) THEN
+         NPROLD = ISAMPA(  448)
+         IF(ISAMPP(  448) .GT. 0) THEN
+            NPRRUN = ISAMPP(  448)
+            CALL STMNEW  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $                    DREAD,DCONT,NPRNEU,FPRNEU,AVZWZM,SVZWZM)
+         ENDIF
+         ISAMPA(  448) = NPROLD
+         ISAMPP(  448) = ISAMPP(  448) + NPROLD
+      ENDIF
+
+#endif
+
+#if defined _STAT15_
+
+      IF(ISELEP(1,601) .GE. 1 ) THEN
+         NPROLD = ISAMPA(  601)
+         IF(ISAMPP(  601) .GT. 0) THEN
+            NPRRUN = ISAMPP(  601)
+            CALL STMNEW  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $                    DREAD,DCONT,NPRNEU,FPRNEU,AUTM,SUTM)
+         ENDIF
+         ISAMPA(  601) = NPROLD
+         ISAMPP(  601) = ISAMPP(  601) + NPROLD
+      ENDIF
+      IF(ISELEP(1,602) .GE. 1 ) THEN
+         NPROLD = ISAMPA(  602)
+         IF(ISAMPP(  602) .GT. 0) THEN
+            NPRRUN = ISAMPP(  602)
+            CALL STMNEW  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $                    DREAD,DCONT,NPRNEU,FPRNEU,AVTM,SVTM)
+         ENDIF
+         ISAMPA(  602) = NPROLD
+         ISAMPP(  602) = ISAMPP(  602) + NPROLD
+      ENDIF
+      IF(ISELEP(1,603) .GE. 1 ) THEN
+         NPROLD = ISAMPA(  603)
+         IF(ISAMPP(  603) .GT. 0) THEN
+            NPRRUN = ISAMPP(  603)
+            CALL STMNEW  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $                    DREAD,DCONT,NPRNEU,FPRNEU,AWTM,SWTM)
+         ENDIF
+         ISAMPA(  603) = NPROLD
+         ISAMPP(  603) = ISAMPP(  603) + NPROLD
+      ENDIF
+      IF(ISELEP(1,604) .GE. 1 ) THEN
+         NPROLD = ISAMPA(  604)
+         IF(ISAMPP(  604) .GT. 0) THEN
+            NPRRUN = ISAMPP(  604)
+            CALL STMNEW  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $                    DREAD,DCONT,NPRNEU,FPRNEU,ATTM,STTM)
+         ENDIF
+         ISAMPA(  604) = NPROLD
+         ISAMPP(  604) = ISAMPP(  604) + NPROLD
+      ENDIF
+
+      IF(ISELEP(1,605) .GE. 1 ) THEN
+         NPROLD = ISAMPA(  605)
+         IF(ISAMPP(  605) .GT. 0) THEN
+            NPRRUN = ISAMPP(  605)
+            CALL STMNEW  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $                    DREAD,DCONT,NPRNEU,FPRNEU,ASSM,SSSM)
+         ENDIF
+         ISAMPA(  605) = NPROLD
+         ISAMPP(  605) = ISAMPP(  605) + NPROLD
+      ENDIF
+
+C      IF(ISELEP(1,606) .GE. 1 ) THEN
+C Diese Groesse wird aus den mittleren Geschwindigkeiten berechnet und
+C auf dem Hilfsfeld HILF3D
+C            CALL DPHI0   (KK,JJ,II,KMX,JMX,IMX,HILF3D2)
+C            CALL DPHI0   (KK,JJ,II,KMX,JMX,IMX,HILF3D3)
+C            CALL DISSIPG (KK,JJ,II,KMX,JMX,IMX,DDX,DDY,DDZ,
+C     $           DX,DY,DZ,X,Y,Z,AU,AV,AW,B,HILF3D2,DSUM,
+C     $           NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB,0)
+C	XHOMOG = .FALSE.
+C        YHOMOG = .FALSE.
+C	ZHOMOG = .FALSE.
+C            CALL AREAM   (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,
+C     $           KMXA,JMXA,IMXA,HILF3D2,HILF3D3,
+C     $           XHOMOG,YHOMOG,ZHOMOG)   
+C         ISAMPA(  605) = ISAMPA(4)
+C         ISAMPP(  605) = ISAMPP(4)
+C      ENDIF
+#endif
+
+#if defined _STAT17_
+
+      IF(ISELEP(1,607) .GE. 1 ) THEN
+         NPROLD = ISAMPA(  607)
+         IF(ISAMPP(  607) .GT. 0) THEN
+            NPRRUN = ISAMPP(  607)
+            CALL STMNEW  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $                    DREAD,DCONT,NPRNEU,FPRNEU,AUTTM,SUTTM)
+         ENDIF
+         ISAMPA(  607) = NPROLD
+         ISAMPP(  607) = ISAMPP(  607) + NPROLD
+      ENDIF
+      IF(ISELEP(1,608) .GE. 1 ) THEN
+         NPROLD = ISAMPA(  608)
+         IF(ISAMPP(  608) .GT. 0) THEN
+            NPRRUN = ISAMPP(  608)
+            CALL STMNEW  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $                    DREAD,DCONT,NPRNEU,FPRNEU,AVTTM,SVTTM)
+         ENDIF
+         ISAMPA(  608) = NPROLD
+         ISAMPP(  608) = ISAMPP(  608) + NPROLD
+      ENDIF
+      IF(ISELEP(1,609) .GE. 1 ) THEN
+         NPROLD = ISAMPA(  609)
+         IF(ISAMPP(  609) .GT. 0) THEN
+            NPRRUN = ISAMPP(  609)
+            CALL STMNEW  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $                    DREAD,DCONT,NPRNEU,FPRNEU,AWTTM,SWTTM)
+         ENDIF
+         ISAMPA(  609) = NPROLD
+         ISAMPP(  609) = ISAMPP(  609) + NPROLD
+      ENDIF
+      IF(ISELEP(1,610) .GE. 1 ) THEN
+         NPROLD = ISAMPA(  610)
+         IF(ISAMPP(  610) .GT. 0) THEN
+            NPRRUN = ISAMPP(  610)
+            CALL STMNEW  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $                    DREAD,DCONT,NPRNEU,FPRNEU,ATXTXM,STXTXM)
+         ENDIF
+         ISAMPA(  610) = NPROLD
+         ISAMPP(  610) = ISAMPP(  610) + NPROLD
+      ENDIF
+      IF(ISELEP(1,611) .GE. 1 ) THEN
+         NPROLD = ISAMPA(  611)
+         IF(ISAMPP(  611) .GT. 0) THEN
+            NPRRUN = ISAMPP(  611)
+            CALL STMNEW  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $                    DREAD,DCONT,NPRNEU,FPRNEU,ATYTYM,STYTYM)
+         ENDIF
+         ISAMPA(  611) = NPROLD
+         ISAMPP(  611) = ISAMPP(  611) + NPROLD
+      ENDIF
+      IF(ISELEP(1,612) .GE. 1 ) THEN
+         NPROLD = ISAMPA(  612)
+         IF(ISAMPP(  612) .GT. 0) THEN
+            NPRRUN = ISAMPP(  612)
+            CALL STMNEW  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $                    DREAD,DCONT,NPRNEU,FPRNEU,ATZTZM,STZTZM)
+         ENDIF
+         ISAMPA(  612) = NPROLD
+         ISAMPP(  612) = ISAMPP(  612) + NPROLD
+      ENDIF
+
+
+#endif
+
+#if defined _STAT20_
+
+      IF(ISELEP(1,490) .GE. 1 ) THEN
+         NPROLD = ISAMPA(  490)
+         IF(ISAMPP(  490) .GT. 0) THEN
+            NPRRUN = ISAMPP(  490)
+            CALL STMNEW  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $                    DREAD,DCONT,NPRNEU,FPRNEU,AUUUUM,SUUUUM)
+         ENDIF
+         ISAMPA(  490) = NPROLD
+         ISAMPP(  490) = ISAMPP(  490) + NPROLD
+      ENDIF
+
+      IF(ISELEP(1,491) .GE. 1 ) THEN
+         NPROLD = ISAMPA(  491)
+         IF(ISAMPP(  491) .GT. 0) THEN
+            NPRRUN = ISAMPP(  491)
+            CALL STMNEW  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $                    DREAD,DCONT,NPRNEU,FPRNEU,AVVVVM,SVVVVM)
+         ENDIF
+         ISAMPA(  491) = NPROLD
+         ISAMPP(  491) = ISAMPP(  491) + NPROLD
+      ENDIF
+
+      IF(ISELEP(1,492) .GE. 1 ) THEN
+         NPROLD = ISAMPA(  492)
+         IF(ISAMPP(  492) .GT. 0) THEN
+            NPRRUN = ISAMPP(  492)
+            CALL STMNEW  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $                    DREAD,DCONT,NPRNEU,FPRNEU,AWWWWM,SWWWWM)
+         ENDIF
+         ISAMPA(  492) = NPROLD
+         ISAMPP(  492) = ISAMPP(  492) + NPROLD
+      ENDIF
+
+      IF(ISELEP(1,493) .GE. 1 ) THEN
+         NPROLD = ISAMPA( 493)
+         IF(ISAMPP( 493) .GT. 0) THEN
+            NPRRUN = ISAMPP( 493)
+            CALL STMNEW  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $                    DREAD,DCONT,NPRNEU,FPRNEU,APPPPM,SPPPPM)
+         ENDIF
+         ISAMPA( 493) = NPROLD
+         ISAMPP( 493) = ISAMPP(  493) + NPROLD
+      ENDIF
+
+#ifdef _TSCAL_
+      IF(ISELEP(1,521) .GE. 1 ) THEN
+         NPROLD = ISAMPA( 521)
+         IF(ISAMPP( 521) .GT. 0) THEN
+            NPRRUN = ISAMPP( 521)
+            CALL STMNEW  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $                    DREAD,DCONT,NPRNEU,FPRNEU,ATTTTM,STTTTM)
+         ENDIF
+         ISAMPA( 521) = NPROLD
+         ISAMPP( 521) = ISAMPP( 521) + NPROLD
+      ENDIF
+
+      IF(ISELEP(1,518) .GE. 1 ) THEN
+         NPROLD = ISAMPA( 518)
+         IF(ISAMPP( 518) .GT. 0) THEN
+            NPRRUN = ISAMPP( 518)
+            CALL STMNEW  (KKA,JJA,IIA,KMXA,JMXA,IMXA,NPROLD,NPRRUN,
+     $                    DREAD,DCONT,NPRNEU,FPRNEU,ATTTM,STTTM)
+         ENDIF
+         ISAMPA( 518) = NPROLD
+         ISAMPP( 518) = ISAMPP( 518) + NPROLD
+      ENDIF
+#endif
+#endif
+
+      RETURN
+      END

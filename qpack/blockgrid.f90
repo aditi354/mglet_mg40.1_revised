@@ -1,0 +1,177 @@
+SUBROUTINE blockgrid(ni,nj,nk,nvirtual,&
+     x,y,z,dx,dy,dz,ddx,ddy,ddz,gridnum,&
+     NFRO,NBAC,NRGT,NLFT,NBOT,NTOP, &
+     bp,istenc)
+
+  ! **********************************************************************
+  !
+  !        programmer     Frederic Tremblay
+  !        version 1.0    date   02-05-1999
+  !
+  !   modifications:
+  !   04.09.2003  modifications N.Peller  
+  !   11. 8.2005  jk istenc eingefuehrt
+  !               istenc = -1 : Druckzellen mit Randbedingung bestimmen
+  !                             und Gebiet fuellen
+  !               istenc =  0 : Gebiet fuellen
+  !               istenc =  1 : stencils fuer alle Komponenten erzeugen 
+  ! **********************************************************************
+
+
+  IMPLICIT NONE
+  INTEGER NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,&
+       bconds(6),ni,nj,nk,maxblock,&
+       norder,ndepth, gridnum, nvirtual,&
+       mip,mjp,mkp,itermax, istenc
+  REAL x(ni+2*nvirtual),y(nj+2*nvirtual),&
+       z(nk+2*nvirtual),dx(ni+2*nvirtual),&
+       dy(nj+2*nvirtual),dz(nk+2*nvirtual),&
+       ddx(ni+2*nvirtual),ddy(nj+2*nvirtual),&
+       ddz(nk+2*nvirtual), &
+       bp(ni,nj,nk)
+
+  ! lokale Variablen
+  INTEGER ntopol,ntrimax,sump1,sump2,&
+       connect,npoints,ntri,ipoints,&
+       itri,icon,dummy,whatipol,ios,&
+       ioline,narea,iarea,redord, i
+  REAL topol,xb,yb,zb,maccur,xe,ye,ze,&
+       xx,velo,xmaxg(3,2)
+  CHARACTER (LEN=3) dummyc
+  ALLOCATABLE :: topol(:,:,:),xx(:,:),&
+       connect(:,:), velo(:,:),xb(:),yb(:),&
+       zb(:),xe(:),ye(:),ze(:)
+
+
+  bconds(1) = NFRO
+  bconds(2) = NBAC  
+  bconds(3) = NRGT 
+  bconds(4) = NLFT
+  bconds(5) = NBOT
+  bconds(6) = NTOP
+
+  
+  write(*,*) "gridnum,ni,nj,nk",gridnum,ni,nj,nk
+
+
+  IF (istenc.ne.0) THEN
+     ! Open the file body.dat, which is linked to fort.12
+     ! Here the geometry information is read
+     OPEN (unit=12,file="body.dat")
+     READ(12,*,IOSTAT=ios) npoints, ntri
+     ! If error when opening...
+     IF (ios.NE.0) THEN
+        WRITE(*,*) "ERROR IN QPACK ROUTINE: No geometry file body.dat"
+        WRITE(*,*)
+        STOP
+     END IF
+     ! Memory allocation for n-number of points and
+     ! ntri-number of velocities
+     ALLOCATE(xx(3,npoints))
+     ALLOCATE(connect(3,ntri),velo(3,ntri))
+     DO ipoints = 1, npoints
+        READ(12,*) dummy,xx(1,ipoints),&
+             xx(2,ipoints),xx(3,ipoints)
+     END DO
+     DO itri = 1,ntri
+        READ(12,*) dummy,dummy,dummyc,&
+             connect(1,itri),connect(2,itri),&
+             connect(3,itri)
+     END DO
+     DO itri = 1,ntri
+        READ(12,*) velo(1,itri),velo(2,itri),&
+             velo(3,itri)
+     END DO
+     READ(12,*) xmaxg
+     CLOSE(12)
+ 
+     WRITE(*,*) 'ALLOCATING ',3*4*ntri,&
+          ' REAL NUMBERS FOR ARRAY TOPOL '
+     ALLOCATE (topol(4,3,ntri))
+
+
+
+
+     ! Creating the topology of the triangles
+     ! Writing all triangle geometry information
+     ! in one array...
+     DO itri = 1,ntri
+        DO icon = 1,3
+           topol(icon,1,itri) =  xx(1,connect(icon,itri))
+           topol(icon,2,itri) =  xx(2,connect(icon,itri))
+           topol(icon,3,itri) =  xx(3,connect(icon,itri))
+        END DO
+        topol(4,1,itri) =  velo(1,itri)
+        topol(4,2,itri) =  velo(2,itri)
+        topol(4,3,itri) =  velo(3,itri)
+     END DO
+  ELSE
+     ntri = 1
+     ALLOCATE (topol(4,3,ntri))
+     xmaxg (1,1) = -1.e6
+     xmaxg (2,1) = -1.e6
+     xmaxg (3,1) = -1.e6
+     xmaxg (1,2) = 1.e6
+     xmaxg (2,2) = 1.e6
+     xmaxg (3,2) = 1.e6
+  END IF
+
+
+  ! Reading the first lines of QPack.dat
+  OPEN(unit=13,file="QPack.dat")
+  READ(13,*,IOSTAT=ios) maxblock
+  READ(13,*,IOSTAT=ios) narea
+  ! Speicher allokieren
+  ALLOCATE(xb(narea),yb(narea),zb(narea),&
+       xe(narea),ye(narea),ze(narea)) 
+  DO iarea = 1, narea
+     READ(13,*,IOSTAT=ios) xb(iarea),&
+          yb(iarea),zb(iarea)
+     READ(13,*,IOSTAT=ios) xe(iarea),&
+          ye(iarea),ze(iarea)
+  END DO
+  READ(13,*,IOSTAT=ios) ndepth
+  READ(13,*,IOSTAT=ios) whatipol
+  READ(13,*,IOSTAT=ios) norder
+  READ(13,*,IOSTAT=ios) redord
+  READ(13,*,IOSTAT=ios) ntrimax
+  READ(13,*,IOSTAT=ios) maccur
+  READ(13,*,IOSTAT=ios) itermax
+  CLOSE(13)
+  ! If the QPack.dat file is corrupted then create sample 
+  IF (ios.NE.0) THEN
+     WRITE(*,*) "ERROR IN QPACK ROUTINE: 2 possibilities:"
+     WRITE(*,*) "  1.) No 'QPack.dat' file linked to fort.13"
+     WRITE(*,*) "  2.) Old 'QPack.dat' file."
+     !WRITE(*,*) "      Compare your"
+     !WRITE(*,*) "      'QPack.dat' file with sample file"
+     !WRITE(*,*) "      'QPack.dat.template'"  
+     !WRITE(*,*)
+     !CALL qpackdat_create()
+     STOP
+  END IF
+  WRITE(*,*) "WHATIPOL",whatipol
+
+  sump1 = 0
+  sump2 = 0
+  ntopol = ntri
+  ! Calling the routine, which is
+  ! responsible for blocking
+  CALL blockquad(ni,nj,nk,nvirtual,&
+       x,y,z,ntopol,topol,maxblock,norder,&
+       ndepth,gridnum,dx,dy,dz,ddx,ddy,ddz,&
+       ntrimax,xb,yb,zb,maccur,itermax,sump1,&
+       sump2,xe,ye,ze,xmaxg,whatipol,&
+       bconds,narea,redord,bp,istenc)
+
+  WRITE(*,*) 'blockgrid, mean(abs(bp))', sum(abs(bp))/real(ni*nj*nk), gridnum
+  
+  ! Deallocating space after blocking and
+  ! stencil creation has been finished
+  WRITE(*,*) 'DEALLOCATING ',3*4*ntopol,&
+       ' REAL NUMBERS FOR ARRAY TOPOL '
+  DEALLOCATE (topol)
+  IF (istenc.ne.0) DEALLOCATE (xx, connect, velo)
+  DEALLOCATE(xb,yb,zb,xe,ye,ze)
+
+END SUBROUTINE blockgrid

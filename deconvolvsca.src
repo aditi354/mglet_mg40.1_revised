@@ -1,0 +1,52 @@
+      SUBROUTINE DECONVOLVSCA(KK,JJ,II,T,RHS,LLCOL,LCOL,RCOL,RRCOL,
+     $     FTI,FTJ,FTK,DZ, DX, DY,
+     $     NFROSCA,NBACSCA,NRGTSCA,NLFTSCA,NBOTSCA,NTOPSCA,IGRID,
+     $     TFX,TFY)
+
+
+#ifdef _TSCAL_
+      IMPLICIT NONE
+      INTEGER KK,JJ,II,COMP,IDIR(3),IGRID
+      INTEGER NFROSCA,NBACSCA,NRGTSCA,NLFTSCA,NBOTSCA,NTOPSCA
+
+      REAL T   (KK,JJ,II),
+     $     RHS (KK,JJ,II),LLCOL(KK,JJ,II),
+     $     LCOL(KK,JJ,II),RCOL(KK,JJ,II),RRCOL(KK,JJ,II),
+     $     FTI(KK,JJ,II),FTJ(KK,JJ,II),FTK(KK,JJ,II),
+     $     DX(II),DY(JJ),DZ(KK),TFX((II-4)/2+1),TFY((JJ-4)/2+1)
+C--- FTU ... Felder sind hier Hilfsfelder
+C--- funktioniert nur wenn 4ter Ordnung fuer Scalar definiert
+      REAL W1
+
+      LOGICAL OUTPUT 
+
+      OUTPUT=.FALSE.
+
+#if defined _INC1_
+      W1=0.8
+#elif defined _INC2_
+      W1=0.64
+#else
+      W1= 0.9
+#endif
+
+
+!!!!!!!!!!    TREATING T
+
+
+      IF ( OUTPUT ) write(6,*) 'DOING T'
+
+      IDIR(1)=2
+      IDIR(2)=2
+      IDIR(3)=2
+      CALL DECONVOLV2(KK,JJ,II,W1,IDIR,T,RHS,
+C#ifdef _FRED_BODY_
+C     $     LLCOL,LCOL,RCOL,RRCOL,BU)
+C#else
+     $     LLCOL,LCOL,RCOL,RRCOL,FTI,FTJ,FTK,DX,DY,DZ,
+     $        NFROSCA,NBACSCA,NRGTSCA,NLFTSCA,NBOTSCA,NTOPSCA,IGRID,
+     $     TFX,TFY)
+C#endif
+#endif
+      RETURN
+      END

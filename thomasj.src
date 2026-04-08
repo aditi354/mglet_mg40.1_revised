@@ -1,0 +1,112 @@
+      SUBROUTINE THOMASJ (KK,JJ,II,KL,KU,JL,JU,IL,IU,LCOL,DIAG,
+     $                    RCOL,RSGS,FAKTOR,FOUTP
+#ifdef _FRED_BODY_
+     $                    ,BP,GI,GJ,GK
+#endif
+     $                    )
+C*MGLET***************************************************************
+C        T H O M A S     DAS UNTERPROGRAMM THOMAS LOEST EIN TRIDIAGONA-
+C                        LES LINEARES GLEICHUNGSSYSTEM NACH DEM
+C                        THOMAS - ALGORITHMUS
+C*MGLET***************************************************************
+C  PARAM:  LCOL        - ENTHAELT KOEFFIZIENTEN DER "LINKEN SPALTE"
+C                        PARALLEL ZUR HAUPTDIAGONALEN
+C          DIAG        - ENTHAELT KOEFFIZIENTEN DER HAUPTDIAGONALEN
+C          RCOL        - ENTHAELT KOEFFIZIENTEN DER "RECHTEN SPALTE"
+C                        PARALLEL ZUR HAUPTDIAGONALEN
+C          RSGS        - ENTHAELT  WERTE DES KONSTANTEN VEKTORS
+C                        AUF DER RECHTEN SEITE DES GL.SYSTEMS
+C          FOUTP       - ENTHAELT  DIE LOESUNG DES GL.SYSTEMS   
+C
+C  DEFINE DIREKTIVEN   : KEINE
+C
+C  UPROG               : KEINE
+C
+C     15.10.96 (AM)    : ORIGINAL
+C     30.06.03 (FS)    : 3-DIMENSIONAL
+C
+C*MGLET***************************************************************
+
+      IMPLICIT NONE
+
+      INTEGER  KK,JJ,II,K,J,I,KL,KU,JL,JU,IL,IU,LP,N
+
+      REAL     LCOL(JJ), DIAG(JJ), RCOL(JJ),RSGS(KK,JJ,II),            
+     $         FOUTP(KK,JJ,II),
+#ifdef _FRED_BODY_
+     $         FAKTOR(KK,JJ,II),BP(KK,JJ,II),
+     $         GI(KK,JJ,II),GJ(KK,JJ,II),GK(KK,JJ,II)
+#else
+     $         FAKTOR(JJ)
+#endif
+
+C
+C                                 BILDUNG DER OBEREN DREIECKSMATRIX
+C
+
+      LP = JL+1
+
+#ifndef _FRED_BODY_
+      DO J = LP,JU
+         FAKTOR(J) = LCOL(J) / DIAG(J-1)
+         DIAG(J) = DIAG(J) - (FAKTOR(J) * RCOL(J-1))
+      ENDDO
+#else
+      DO I = IL,IU
+         DO J = LP,JU
+            DO K = KL,KU
+               FAKTOR(K,J,I) = GI(K,J,I) / GJ(K,J-1,I)
+               GJ(K,J,I)     = GJ(K,J,I) - (FAKTOR(K,J-1,I) * GK(K,J,I))
+            END DO
+         END DO
+      END DO
+#endif
+
+      DO I = IL,IU
+         DO K = KL,KU
+            FOUTP(K,JL,I) = RSGS(K,JL,I)
+         ENDDO
+      ENDDO
+
+      DO I = IL,IU
+         DO   J = JL+1,JU
+            DO   K = KL,KU
+#ifndef _FRED_BODY_
+            FOUTP(K,J,I) = RSGS(K,J,I) - FAKTOR(J) * FOUTP(K,J-1,I)
+#else
+            FOUTP(K,J,I) = RSGS(K,J,I) - FAKTOR(K,J,I) * FOUTP(K,J-1,I)
+#endif
+            ENDDO
+         ENDDO
+      ENDDO
+
+C                                 RUECKSUBSTITUTION
+
+      DO I = IL,IU
+         DO K = KL,KU
+#ifndef _FRED_BODY_
+            FOUTP(K,JU,I) = FOUTP(K,JU,I)/DIAG(JU)
+#else
+            FOUTP(K,JU,I) = FOUTP(K,JU,I)/GJ(K,JU,I)
+#endif
+         ENDDO
+      ENDDO
+
+      DO I = IL,IU
+         DO  N = LP,JU
+            J = JU-N+JL
+            DO K = KL,KU
+#ifndef _FRED_BODY_
+               FOUTP(K,J,I) = 
+     $              (FOUTP(K,J,I) - RCOL(J) * FOUTP(K,J+1,I))/DIAG(J)
+#else
+               FOUTP(K,J,I) = (FOUTP(K,J,I) - GK(K,J,I) *
+     $                         FOUTP(K,J+1,I)) / GJ(K,J,I)
+#endif
+
+            ENDDO
+         ENDDO
+      ENDDO
+
+      RETURN
+      END

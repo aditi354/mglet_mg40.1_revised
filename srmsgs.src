@@ -1,0 +1,97 @@
+      SUBROUTINE SRMSGS  (KKA,JJA,IIA,KMXA,JMXA,IMXA,
+     $                    APHIGS,APHIRG,AEFS,IVAR)
+C*STARLET***************************************************************
+C        S R M S G S      IN SRMSGS WIRD DER RMS-GESAMTWERT DER GE-
+C                         SCHWINDIGKEITSFLUKTUATIONEN GEBILDET. UNTER
+C                         GESAMTWERT WIRD DER ANTEIL AUS GROB- UND
+C                         FEINSTRUKTUR VERSTANDEN. DER ANTEIL DER
+C                         FEINSTRUKTUR AN DEN RMS-WERTEN KANN NUR
+C                         N A E H E R U N G S W E I S E  BESTIMMT
+C                         WERDEN, DA EINE ISOTROPE AUFTEILUNG DER
+C                         FEINSTRUKTURENERGIE AUF DIE EINZELNEN GE-
+C                         SCHWINDIGKEITSKOMP. VORGENOMMEN WIRD.
+C*STARLET***************************************************************
+C
+C PARAM: KKA,JJA,IIA    - ARRAYDIMENSIONEN DER AUSWERTEFELDER
+C                         BEISPIEL: FALLS J-RICHTUNG NICHT HOMOGEN IST,
+C                         GILT JJA = JJ. ANDERNFALLS IST JJA = 1.
+C        KMXA,JMXA,IMXA - GRENZEN DER AUSWERTEFELDER (MIT BOUND)
+C        APHIGS(KKA,JJA,IIA) + ENTHAELT DEN GESAMT-RMS-WERT (ENSEMBLE-
+C                              MITTELWERT)
+C        APHIRG(KKA,JJA,IIA) - ENTHAELT DEN ANTEIL DER GROBSTRUKTUR AN
+C                              DEN RMS-WERTEN (ENSEMBLE-MITTELWERT)
+C        AEFS  (KKA,JJA,IIA) - ENTHAELT DIE FEINSTRUKTURENERGIE
+C                              ENSEMBLE-MITTELWERT)
+C
+C UPROG                 : ERRR
+C
+C DEFINE-DIREKTIVEN     : KEINE
+C
+C        01.09.86 (HW)  : ORIGINAL
+C        12.02.03 (TB)  : SCALAR FIELD STATISTICS IMPLEMENTED
+C			  NO SCALAR SUBGRID SCALE ENERGY IMPLEMENTED,YET
+C                         THEREFORE <T-RMS> G+S = <T-RMS> G 
+C
+C*STARLET***************************************************************
+C
+      CHARACTER (LEN=1)  IVAR
+C
+      REAL     APHIGS(KKA,JJA,IIA),  APHIRG(KKA,JJA,IIA),
+     $         AEFS  (KKA,JJA,IIA)
+C
+      KSTAG  = 0
+      JSTAG  = 0
+      ISTAG  = 0
+      CON13  = 1.0/3.0
+C
+      IF(IVAR .EQ. 'U') THEN
+         IF(IIA .GT. 1) ISTAG = 1
+         GOTO 2000
+      ENDIF
+      IF(IVAR .EQ. 'V') THEN
+         IF(JJA .GT. 1) JSTAG = 1
+         GOTO 2000
+      ENDIF
+      IF(IVAR .EQ. 'W') THEN
+         IF(KKA .GT. 1) KSTAG = 1
+         GOTO 2000
+      ENDIF
+#ifdef _TSCAL_
+      IF(IVAR .EQ. 'T') THEN
+         GOTO 2000
+      ENDIF
+#endif
+
+C
+      CALL ERRR (501,' SRMSGS   ')
+C
+ 2000 CONTINUE
+C
+                      ISTOP = IMXA
+                      JSTOP = JMXA
+                      KSTOP = KMXA
+C
+      IF(IMXA .GT. 1) ISTOP = IMXA - 1
+      IF(JMXA .GT. 1) JSTOP = JMXA - 1
+      IF(KMXA .GT. 1) KSTOP = KMXA - 1
+C
+      DO 100 I = 1,ISTOP
+         DO 110 J = 1,JSTOP
+            DO 120 K = 1,KSTOP
+#ifdef _TSCAL_
+C	       NO SCALAR SUBGRID SCALE ENERGY IMPLEMENTED,YET
+C              THEREFORE <T-RMS> G+S = <T-RMS> G 
+               APHIGS(K,J,I) = SQRT(APHIRG(K,J,I)**2) 
+     $                         * SIGN(1.0,APHIRG(K,J,I))
+#else            
+               APHIGS(K,J,I) = SQRT(APHIRG(K,J,I)**2
+     $                       + ABS(CON13*(AEFS(K      ,J      ,I      )
+     $                       +            AEFS(K+KSTAG,J+JSTAG,I+ISTAG)
+     $                       ))) * SIGN(1.0,APHIRG(K,J,I))
+#endif     
+  120       CONTINUE
+  110    CONTINUE
+  100 CONTINUE
+C
+      RETURN
+      END

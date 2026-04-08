@@ -1,0 +1,302 @@
+      SUBROUTINE DIMLO1  (ILINT0, ILINTX, ILINTY, ILINTZ,
+#include "cstac1.h"
+C*STARLET***************************************************************
+C        D I M L O 1      IN DIMLO1 WERDEN DIE DIMENSIONSBEHAFTETEN
+C                         GROESSEN IN DIMENSIONSLOSE UMGEWANDELT.
+C                         (KORRELATIONSRADIEN, WELLENZAHLEN, LEISTUNGS-
+C                          DICHTESPEKTREN)
+C                         DIE FESTLEGUNG DER BASIS-BEZUGSGROESSEN
+C                         ERFOLGT IN SUBR. SETREF.
+C  A C H T U N G:         DIESE ROUTINE MUSS ERWEITERT WERDEN, FALLS
+C                         DIE STATIST. AUSWERTUNG ERWEITERT WIRD !
+C*STARLET***************************************************************
+C
+C PARAM: ILINT0         - ANZAHL DER AUFPUNKTE MIT RICHTUNGSINFORMATION
+C                         '0' + 1 (AUFPKT. IN DEN I-LINES 2 ... ILINT0)
+C        ILINTX         - ANZAHL DER AUFPUNKTE MIT RICHTUNGSINFORMATION
+C                         'X' + 1 (AUFPKT. IN DEN I-LINES 2 ... ILINTX)
+C        ILINTY         - ANZAHL DER AUFPUNKTE MIT RICHTUNGSINFORMATION
+C                         'Y' + 1 (AUFPKT. IN DEN I-LINES 2 ... ILINTY)
+C        ILINTZ         - ANZAHL DER AUFPUNKTE MIT RICHTUNGSINFORMATION
+C                         'Z' + 1 (AUFPKT. IN DEN I-LINES 2 ... ILINTZ)
+#include "cstap1.h"
+C
+C UPROG                 : AMULT2
+C
+C DEFINE-DIREKTIVEN     : KEINE
+C
+C        15.12.88 (HW)  : ORIGINAL AUS DIMLOS ABGELEITET
+C
+C*STARLET***************************************************************
+C
+#include "konsta.h"
+C
+#include "cstad1.h"
+#include "crefva.h"
+C
+C                                 STATIST. GROESSEN DER U-KOMPONENTE
+C                                 ----------------------------------
+C
+      IF(ISELEP(1, 14) .EQ. 1 .OR. ISELEP(1, 14) .EQ. 2) THEN
+         CALL AMULT2  (ARXUU  ,KKXL,JJ2L,ILIMXP,
+     $                 RLREF  , 1 ,KKXL-LINFB, 2 , 2 , 2 ,ILINTX )
+      ENDIF
+      IF(ISELEP(1, 16) .EQ. 1 .OR. ISELEP(1, 16) .EQ. 2) THEN
+         CALL AMULT2  (ARYUU  ,KKYL,JJ2L,ILIMXP,
+     $                 RLREF  , 1 ,KKYL-LINFB, 2 , 2 , 2 ,ILINTY )
+      ENDIF
+      IF(ISELEP(1, 18) .EQ. 1 .OR. ISELEP(1, 18) .EQ. 2) THEN
+         CALL AMULT2  (ARZUU  ,KKZL,JJ2L,ILIMXP,
+     $                 RLREF  , 1 ,KKZL-LINFB, 2 , 2 , 2 ,ILINTZ )
+      ENDIF
+      IF(ISELEP(1, 20) .EQ. 1 .OR. ISELEP(1, 20) .EQ. 2) THEN
+         CALL AMULT2  (ASXUU  ,KSXL,JJ1L,ILIMXP,
+     $                 RWAVEN , 1 ,KSXL-LINFB, 1 , 1 , 1 ,  1    )
+         CALL AMULT2  (ASXUU  ,KSXL,JJ1L,ILIMXP,
+     $                 RASDUI , 1 ,KSXL-LINFB, 1 , 1 , 2 ,ILINTX )
+      ENDIF
+      IF(ISELEP(1, 22) .EQ. 1 .OR. ISELEP(1, 22) .EQ. 2) THEN
+         CALL AMULT2  (ASYUU  ,KSYL,JJ1L,ILIMXP,
+     $                 RWAVEN , 1 ,KSYL-LINFB, 1 , 1 , 1 ,  1    )
+         CALL AMULT2  (ASYUU  ,KSYL,JJ1L,ILIMXP,
+     $                 RASDUI , 1 ,KSYL-LINFB, 1 , 1 , 2 ,ILINTY )
+      ENDIF
+      IF(ISELEP(1, 24) .EQ. 1 .OR. ISELEP(1, 24) .EQ. 2) THEN
+         CALL AMULT2  (ASZUU  ,KSZL,JJ1L,ILIMXP,
+     $                 RWAVEN , 1 ,KSZL-LINFB, 1 , 1 , 1 ,  1    )
+         CALL AMULT2  (ASZUU  ,KSZL,JJ1L,ILIMXP,
+     $                 RASDUI , 1 ,KSZL-LINFB, 1 , 1 , 2 ,ILINTZ )
+      ENDIF
+C
+C                                 STATIST. GROESSEN DER V-KOMPONENTE
+C                                 ----------------------------------
+C
+      IF(ISELEP(1, 39) .EQ. 1 .OR. ISELEP(1, 39) .EQ. 2) THEN
+         CALL AMULT2  (ARXVV  ,KKXL,JJ2L,ILIMXP,
+     $                 RLREF  , 1 ,KKXL-LINFB, 2 , 2 , 2 ,ILINTX )
+      ENDIF
+      IF(ISELEP(1, 41) .EQ. 1 .OR. ISELEP(1, 41) .EQ. 2) THEN
+         CALL AMULT2  (ARYVV  ,KKYL,JJ2L,ILIMXP,
+     $                 RLREF  , 1 ,KKYL-LINFB, 2 , 2 , 2 ,ILINTY )
+      ENDIF
+      IF(ISELEP(1, 43) .EQ. 1 .OR. ISELEP(1, 43) .EQ. 2) THEN
+         CALL AMULT2  (ARZVV  ,KKZL,JJ2L,ILIMXP,
+     $                 RLREF  , 1 ,KKZL-LINFB, 2 , 2 , 2 ,ILINTZ )
+      ENDIF
+      IF(ISELEP(1, 45) .EQ. 1 .OR. ISELEP(1, 45) .EQ. 2) THEN
+         CALL AMULT2  (ASXVV  ,KSXL,JJ1L,ILIMXP,
+     $                 RWAVEN , 1 ,KSXL-LINFB, 1 , 1 , 1 ,  1    )
+         CALL AMULT2  (ASXVV  ,KSXL,JJ1L,ILIMXP,
+     $                 RASDUI , 1 ,KSXL-LINFB, 1 , 1 , 2 ,ILINTX )
+      ENDIF
+      IF(ISELEP(1, 47) .EQ. 1 .OR. ISELEP(1, 47) .EQ. 2) THEN
+         CALL AMULT2  (ASYVV  ,KSYL,JJ1L,ILIMXP,
+     $                 RWAVEN , 1 ,KSYL-LINFB, 1 , 1 , 1 ,  1    )
+         CALL AMULT2  (ASYVV  ,KSYL,JJ1L,ILIMXP,
+     $                 RASDUI , 1 ,KSYL-LINFB, 1 , 1 , 2 ,ILINTY )
+      ENDIF
+      IF(ISELEP(1, 49) .EQ. 1 .OR. ISELEP(1, 49) .EQ. 2) THEN
+         CALL AMULT2  (ASZVV  ,KSZL,JJ1L,ILIMXP,
+     $                 RWAVEN , 1 ,KSZL-LINFB, 1 , 1 , 1 ,  1    )
+         CALL AMULT2  (ASZVV  ,KSZL,JJ1L,ILIMXP,
+     $                 RASDUI , 1 ,KSZL-LINFB, 1 , 1 , 2 ,ILINTZ )
+      ENDIF
+C
+C                                 STATIST. GROESSEN DER W-KOMPONENTE
+C                                 ----------------------------------
+C
+      IF(ISELEP(1, 64) .EQ. 1 .OR. ISELEP(1, 64) .EQ. 2) THEN
+         CALL AMULT2  (ARXWW  ,KKXL,JJ2L,ILIMXP,
+     $                 RLREF  , 1 ,KKXL-LINFB, 2 , 2 , 2 ,ILINTX )
+      ENDIF
+      IF(ISELEP(1, 66) .EQ. 1 .OR. ISELEP(1, 66) .EQ. 2) THEN
+         CALL AMULT2  (ARYWW  ,KKYL,JJ2L,ILIMXP,
+     $                 RLREF  , 1 ,KKYL-LINFB, 2 , 2 , 2 ,ILINTY )
+      ENDIF
+      IF(ISELEP(1, 68) .EQ. 1 .OR. ISELEP(1, 68) .EQ. 2) THEN
+         CALL AMULT2  (ARZWW  ,KKZL,JJ2L,ILIMXP,
+     $                 RLREF  , 1 ,KKZL-LINFB, 2 , 2 , 2 ,ILINTZ )
+      ENDIF
+      IF(ISELEP(1, 70) .EQ. 1 .OR. ISELEP(1, 70) .EQ. 2) THEN
+         CALL AMULT2  (ASXWW  ,KSXL,JJ1L,ILIMXP,
+     $                 RWAVEN , 1 ,KSXL-LINFB, 1 , 1 , 1 ,  1    )
+         CALL AMULT2  (ASXWW  ,KSXL,JJ1L,ILIMXP,
+     $                 RASDUI , 1 ,KSXL-LINFB, 1 , 1 , 2 ,ILINTX )
+      ENDIF
+      IF(ISELEP(1, 72) .EQ. 1 .OR. ISELEP(1, 72) .EQ. 2) THEN
+         CALL AMULT2  (ASYWW  ,KSYL,JJ1L,ILIMXP,
+     $                 RWAVEN , 1 ,KSYL-LINFB, 1 , 1 , 1 ,  1    )
+         CALL AMULT2  (ASYWW  ,KSYL,JJ1L,ILIMXP,
+     $                 RASDUI , 1 ,KSYL-LINFB, 1 , 1 , 2 ,ILINTY )
+      ENDIF
+      IF(ISELEP(1, 74) .EQ. 1 .OR. ISELEP(1, 74) .EQ. 2) THEN
+         CALL AMULT2  (ASZWW  ,KSZL,JJ1L,ILIMXP,
+     $                 RWAVEN , 1 ,KSZL-LINFB, 1 , 1 , 1 ,  1    )
+         CALL AMULT2  (ASZWW  ,KSZL,JJ1L,ILIMXP,
+     $                 RASDUI , 1 ,KSZL-LINFB, 1 , 1 , 2 ,ILINTZ )
+      ENDIF
+C
+C                                  HIER: KREUZKORRELATIONSFUNKTIONEN
+C                                  ---------------------------------
+C
+      IF(ISELEP(1,210) .EQ. 1 .OR. ISELEP(1,210) .EQ. 2) THEN
+         CALL AMULT2  (ARXUV  ,KKXL,JJ2L,ILIMXP,
+     $                 RLREF  , 1 ,KKXL-LINFB, 2 , 2 , 2 ,ILINTX )
+      ENDIF
+      IF(ISELEP(1,212) .EQ. 1 .OR. ISELEP(1,212) .EQ. 2) THEN
+         CALL AMULT2  (ARYUV  ,KKYL,JJ2L,ILIMXP,
+     $                 RLREF  , 1 ,KKYL-LINFB, 2 , 2 , 2 ,ILINTY )
+      ENDIF
+      IF(ISELEP(1,216) .EQ. 1 .OR. ISELEP(1,216) .EQ. 2) THEN
+         CALL AMULT2  (ARXUW  ,KKXL,JJ2L,ILIMXP,
+     $                 RLREF  , 1 ,KKXL-LINFB, 2 , 2 , 2 ,ILINTX )
+      ENDIF
+      IF(ISELEP(1,218) .EQ. 1 .OR. ISELEP(1,218) .EQ. 2) THEN
+         CALL AMULT2  (ARYUW  ,KKYL,JJ2L,ILIMXP,
+     $                 RLREF  , 1 ,KKYL-LINFB, 2 , 2 , 2 ,ILINTY )
+      ENDIF
+      IF(ISELEP(1,224) .EQ. 1 .OR. ISELEP(1,224) .EQ. 2) THEN
+         CALL AMULT2  (ARYVW  ,KKYL,JJ2L,ILIMXP,
+     $                 RLREF  , 1 ,KKYL-LINFB, 2 , 2 , 2 ,ILINTY )
+      ENDIF
+C
+C                                  HIER: KORRELATIONSKOEFFIZIENTEN
+C                                  -------------------------------
+C
+      IF(ISELEP(1,234) .EQ. 1 .OR. ISELEP(1,234) .EQ. 2) THEN
+         CALL AMULT2  (ACXUW  ,KKXL,JJ2L,ILIMXP,
+     $                 RLREF  , 1 ,KKXL-LINFB, 2 , 2 , 2 ,ILINTX )
+      ENDIF
+      IF(ISELEP(1,238) .EQ. 1 .OR. ISELEP(1,238) .EQ. 2) THEN
+         CALL AMULT2  (ACZUW  ,KKZL,JJ2L,ILIMXP,
+     $                 RLREF  , 1 ,KKZL-LINFB, 2 , 2 , 2 ,ILINTZ )
+      ENDIF
+C
+C                                  OBERE DREIECKSMATRIX DES TENSORS
+C                                  DER KORRELATIONSFUNKTIONEN DER
+C                                  FLUKTUATIONEN DER VORTICITY
+C                                  --------------------------------
+C
+      IF(ISELEP(1,246) .EQ. 1 .OR. ISELEP(1,246) .EQ. 2) THEN
+         CALL AMULT2  (ARXOXX ,KKXL,JJ2L,ILIMXP,
+     $                 RLREF  , 1 ,KKXL-LINFB, 2 , 2 , 2 ,ILINTX )
+      ENDIF
+      IF(ISELEP(1,248) .EQ. 1 .OR. ISELEP(1,248) .EQ. 2) THEN
+         CALL AMULT2  (ARXOXY ,KKXL,JJ2L,ILIMXP,
+     $                 RLREF  , 1 ,KKXL-LINFB, 2 , 2 , 2 ,ILINTX )
+      ENDIF
+      IF(ISELEP(1,250) .EQ. 1 .OR. ISELEP(1,250) .EQ. 2) THEN
+         CALL AMULT2  (ARXOXZ ,KKXL,JJ2L,ILIMXP,
+     $                 RLREF  , 1 ,KKXL-LINFB, 2 , 2 , 2 ,ILINTX )
+      ENDIF
+      IF(ISELEP(1,252) .EQ. 1 .OR. ISELEP(1,252) .EQ. 2) THEN
+         CALL AMULT2  (ARXOYY ,KKXL,JJ2L,ILIMXP,
+     $                 RLREF  , 1 ,KKXL-LINFB, 2 , 2 , 2 ,ILINTX )
+      ENDIF
+      IF(ISELEP(1,254) .EQ. 1 .OR. ISELEP(1,254) .EQ. 2) THEN
+         CALL AMULT2  (ARXOYZ ,KKXL,JJ2L,ILIMXP,
+     $                 RLREF  , 1 ,KKXL-LINFB, 2 , 2 , 2 ,ILINTX )
+      ENDIF
+      IF(ISELEP(1,256) .EQ. 1 .OR. ISELEP(1,256) .EQ. 2) THEN
+         CALL AMULT2  (ARXOZZ ,KKXL,JJ2L,ILIMXP,
+     $                 RLREF  , 1 ,KKXL-LINFB, 2 , 2 , 2 ,ILINTX )
+      ENDIF
+      IF(ISELEP(1,258) .EQ. 1 .OR. ISELEP(1,258) .EQ. 2) THEN
+         CALL AMULT2  (ARYOXX ,KKYL,JJ2L,ILIMXP,
+     $                 RLREF  , 1 ,KKYL-LINFB, 2 , 2 , 2 ,ILINTY )
+      ENDIF
+      IF(ISELEP(1,260) .EQ. 1 .OR. ISELEP(1,260) .EQ. 2) THEN
+         CALL AMULT2  (ARYOXY ,KKYL,JJ2L,ILIMXP,
+     $                 RLREF  , 1 ,KKYL-LINFB, 2 , 2 , 2 ,ILINTY )
+      ENDIF
+      IF(ISELEP(1,262) .EQ. 1 .OR. ISELEP(1,262) .EQ. 2) THEN
+         CALL AMULT2  (ARYOXZ ,KKYL,JJ2L,ILIMXP,
+     $                 RLREF  , 1 ,KKYL-LINFB, 2 , 2 , 2 ,ILINTY )
+      ENDIF
+      IF(ISELEP(1,264) .EQ. 1 .OR. ISELEP(1,264) .EQ. 2) THEN
+         CALL AMULT2  (ARYOYY ,KKYL,JJ2L,ILIMXP,
+     $                 RLREF  , 1 ,KKYL-LINFB, 2 , 2 , 2 ,ILINTY )
+      ENDIF
+      IF(ISELEP(1,266) .EQ. 1 .OR. ISELEP(1,266) .EQ. 2) THEN
+         CALL AMULT2  (ARYOYZ ,KKYL,JJ2L,ILIMXP,
+     $                 RLREF  , 1 ,KKYL-LINFB, 2 , 2 , 2 ,ILINTY )
+      ENDIF
+      IF(ISELEP(1,268) .EQ. 1 .OR. ISELEP(1,268) .EQ. 2) THEN
+         CALL AMULT2  (ARYOZZ ,KKYL,JJ2L,ILIMXP,
+     $                 RLREF  , 1 ,KKYL-LINFB, 2 , 2 , 2 ,ILINTY )
+      ENDIF
+      IF(ISELEP(1,270) .EQ. 1 .OR. ISELEP(1,270) .EQ. 2) THEN
+         CALL AMULT2  (ARZOXX ,KKZL,JJ2L,ILIMXP,
+     $                 RLREF  , 1 ,KKZL-LINFB, 2 , 2 , 2 ,ILINTZ )
+      ENDIF
+      IF(ISELEP(1,272) .EQ. 1 .OR. ISELEP(1,272) .EQ. 2) THEN
+         CALL AMULT2  (ARZOXY ,KKZL,JJ2L,ILIMXP,
+     $                 RLREF  , 1 ,KKZL-LINFB, 2 , 2 , 2 ,ILINTZ )
+      ENDIF
+      IF(ISELEP(1,274) .EQ. 1 .OR. ISELEP(1,274) .EQ. 2) THEN
+         CALL AMULT2  (ARZOXZ ,KKZL,JJ2L,ILIMXP,
+     $                 RLREF  , 1 ,KKZL-LINFB, 2 , 2 , 2 ,ILINTZ )
+      ENDIF
+      IF(ISELEP(1,276) .EQ. 1 .OR. ISELEP(1,276) .EQ. 2) THEN
+         CALL AMULT2  (ARZOYY ,KKZL,JJ2L,ILIMXP,
+     $                 RLREF  , 1 ,KKZL-LINFB, 2 , 2 , 2 ,ILINTZ )
+      ENDIF
+      IF(ISELEP(1,278) .EQ. 1 .OR. ISELEP(1,278) .EQ. 2) THEN
+         CALL AMULT2  (ARZOYZ ,KKZL,JJ2L,ILIMXP,
+     $                 RLREF  , 1 ,KKZL-LINFB, 2 , 2 , 2 ,ILINTZ )
+      ENDIF
+      IF(ISELEP(1,280) .EQ. 1 .OR. ISELEP(1,280) .EQ. 2) THEN
+         CALL AMULT2  (ARZOZZ ,KKZL,JJ2L,ILIMXP,
+     $                 RLREF  , 1 ,KKZL-LINFB, 2 , 2 , 2 ,ILINTZ )
+      ENDIF
+C
+C                                  LEISTUNGSDICHTESPEKTREN DER
+C                                  FLUKTUATIONEN DER VORTICITY
+C                                  ----------------------------
+C
+      IF(ISELEP(1,282) .EQ. 1 .OR. ISELEP(1,282) .EQ. 2) THEN
+         CALL AMULT2  (ASXOXX ,KSXL,JJ1L,ILIMXP,
+     $                 RWAVEN , 1 ,KSXL-LINFB, 1 , 1 , 1 ,  1    )
+         CALL AMULT2  (ASXOXX ,KSXL,JJ1L,ILIMXP,
+     $                 RASDOM , 1 ,KSXL-LINFB, 1 , 1 , 2 ,ILINTX )
+      ENDIF
+      IF(ISELEP(1,284) .EQ. 1 .OR. ISELEP(1,284) .EQ. 2) THEN
+         CALL AMULT2  (ASXOYY ,KSXL,JJ1L,ILIMXP,
+     $                 RWAVEN , 1 ,KSXL-LINFB, 1 , 1 , 1 ,  1    )
+         CALL AMULT2  (ASXOYY ,KSXL,JJ1L,ILIMXP,
+     $                 RASDOM , 1 ,KSXL-LINFB, 1 , 1 , 2 ,ILINTX )
+      ENDIF
+      IF(ISELEP(1,286) .EQ. 1 .OR. ISELEP(1,286) .EQ. 2) THEN
+         CALL AMULT2  (ASXOZZ ,KSXL,JJ1L,ILIMXP,
+     $                 RWAVEN , 1 ,KSXL-LINFB, 1 , 1 , 1 ,  1    )
+         CALL AMULT2  (ASXOZZ ,KSXL,JJ1L,ILIMXP,
+     $                 RASDOM , 1 ,KSXL-LINFB, 1 , 1 , 2 ,ILINTX )
+      ENDIF
+      IF(ISELEP(1,288) .EQ. 1 .OR. ISELEP(1,288) .EQ. 2) THEN
+         CALL AMULT2  (ASYOXX ,KSYL,JJ1L,ILIMXP,
+     $                 RWAVEN , 1 ,KSYL-LINFB, 1 , 1 , 1 ,  1    )
+         CALL AMULT2  (ASYOXX ,KSYL,JJ1L,ILIMXP,
+     $                 RASDOM , 1 ,KSYL-LINFB, 1 , 1 , 2 ,ILINTY )
+      ENDIF
+      IF(ISELEP(1,290) .EQ. 1 .OR. ISELEP(1,290) .EQ. 2) THEN
+         CALL AMULT2  (ASYOYY ,KSYL,JJ1L,ILIMXP,
+     $                 RWAVEN , 1 ,KSYL-LINFB, 1 , 1 , 1 ,  1    )
+         CALL AMULT2  (ASYOYY ,KSYL,JJ1L,ILIMXP,
+     $                 RASDOM , 1 ,KSYL-LINFB, 1 , 1 , 2 ,ILINTY )
+      ENDIF
+      IF(ISELEP(1,292) .EQ. 1 .OR. ISELEP(1,292) .EQ. 2) THEN
+         CALL AMULT2  (ASYOZZ ,KSYL,JJ1L,ILIMXP,
+     $                 RWAVEN , 1 ,KSYL-LINFB, 1 , 1 , 1 ,  1    )
+         CALL AMULT2  (ASYOZZ ,KSYL,JJ1L,ILIMXP,
+     $                 RASDOM , 1 ,KSYL-LINFB, 1 , 1 , 2 ,ILINTY )
+      ENDIF
+C
+C                                  HAEUFIGKEITSVERTEILUNG DER
+C                                  INKLINATIONSWINKEL DER VORTICITY-
+C                                  VEKTOREN
+C                                  ---------------------------------
+C
+C                                  NICHT NOETIG !
+C
+      RETURN
+      END

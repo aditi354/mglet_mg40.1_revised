@@ -1,0 +1,499 @@
+      SUBROUTINE ITINF(ITTOT,TIME,IPCORR,DIVGMX,IGRID,CPSEC
+     $                ,MTURB,EPSU,EPSV,EPSW,ESUMG,ESUMS
+     $                ,IPRINT_WSS,WSSX,WSSY,WSSZ
+     $                ,IPRINT_WNS,WNSX,WNSY,WNSZ
+     $                ,UBLK,GRDPX
+     $                ,WALLSSX,WALLSSY,WALLSSZ 
+     $                ,IDIVMAX,JDIVMAX,KDIVMAX
+     $                ,XDIVMAX,YDIVMAX,ZDIVMAX,GRDIVMAX    
+#ifdef _TSCAL_
+     $        ,DTMAX,ITMAX,JTMAX,KTMAX,XTMAX,YTMAX,ZTMAX,TMAX,GRD,ITSTEP
+     $    ,WALLQX
+     $    ,PRTMAX,XPRTMAX,YPRTMAX,ZPRTMAX,PRTMIN,XPRTMIN,YPRTMIN,ZPRTMIN
+#ifdef _SCALGRIDDIAGNOSE_
+     $    ,DDSMAX,SMMAX,SPMAX,ISPMAX,JSPMAX,KSPMAX,XSPMAX,YSPMAX,ZSPMAX
+     $    ,GRDSMAX         
+#endif      
+#ifdef _SCALTRANSDIAGNOSE_
+     $    ,QCE,QCW,QCN,QCS,QCT,QCB,QDE,QDW,QDN,QDS,QDT,QDB,QDC            
+#endif            
+#endif     
+     $                )
+
+#include "mgpar.h"     
+#include "cogrdpro.h"
+     
+#ifdef _DOUBLE_PRECISION_
+C      IMPLICIT DOUBLE PRECISION(A-H,O-Z)
+#endif
+
+C***********************************************************************
+C  I T I N F     ITERATIONSINFORMATION
+C*************************************************** F.BAETKE 16.10.81 *
+C                                         GEAENDERT: J.FERSTL 17.11.82
+C                                                  : F.BAETKE 04.10.84 *
+C                                                  : M.MANHART22. 4.92 *
+C                                                  : T.BRUNNER 07.05.03
+C
+C  PARAMETER  ITTOT     - DURCHGEFUEHRTER ZEITSCHRITT
+C             TIME      - ERREICHTE DIMENSIONSLOSE ZEIT
+C             IPCORR    - ZAHL DER DURCHGEFUEHRTEN PCORR-ZYKLEN
+C             DIVGMX    - MAXIMALE DIVERGENZ NACH KORREKTUR
+C             CPSEC     - CP-ZEIT BEI LETZTER ABFRAGE
+C                       + AKTUELLE CP-ZEIT
+C             MTURB     - =0 ES WIRD INFORMATION UEBER EPSU.. AUSGEG.
+C                          1 KEINE INFORMATION UEBER EPSU.. AUSGEG.
+C             EPSU      - NORMIERTE ABWEICHUNG U-U0
+C             EPSV      - NORMIERTE ABWEICHUNG V-V0
+C             EPSW      - NORMIERTE ABWEICHUNG W-W0
+C             WSSX,Y,Z- WALL-SHEAR-STRESS IN X-, Y-, Z-DIRECTION
+C             WNSX,Y,Z- WALL-NORMAL-STRESS IN X-, Y-, Z-DIRECTION
+C
+C  VERS: 04.02.86 (HW)  : FORMATE Z.T. GEAENDERT
+C        07.02.86 (FB)  : JETZT AUF GETSEC UMGESTELLT
+C        07.05.03 (TB)  : SCALAR OUTPUT IMPLEMENTED
+C
+C***********************************************************************
+C
+#ifdef _DOUBLE_PRECISION_
+      REAL*8 WALLSSX(6), WALLSSY(6), WALLSSZ(6)
+#else
+      REAL WALLSSX(6), WALLSSY(6), WALLSSZ(6)
+#endif
+C
+      INTEGER GRDIVMAX
+C      
+#ifdef _TSCAL_
+      INTEGER GRD
+#ifdef _DOUBLE_PRECISION_
+      REAL*8 WALLQX(6)
+#else
+      REAL WALLQX(6)
+#endif
+#endif
+
+      CPSECA = GETSEC(0)
+      CPDIFF = CPSECA - CPSEC
+#ifndef _LINUX_
+      CPSEC  = CPSECA
+#endif
+
+#ifdef _LINUX_
+      WRITE(6,6000) IGRID,ITTOT,TIME,IPCORR,DIVGMX,CPDIFF
+#else
+      WRITE(6,6000) IGRID,ITTOT,TIME,IPCORR,DIVGMX,CPSEC
+#endif
+C
+CTBC  140703: CHANGED FOR MORE DETAILED DIV OUTPUT
+      IF (LSLICE(IGRID)) THEN
+        WRITE(6,6014) GRDIVMAX,XDIVMAX,YDIVMAX,ZDIVMAX,
+     $                         IDIVMAX,JDIVMAX,KDIVMAX 	
+      ELSE
+        WRITE(6,6015) IGRID,XDIVMAX,YDIVMAX,ZDIVMAX,
+     $                      IDIVMAX,JDIVMAX,KDIVMAX 		
+      ENDIF            
+C
+      IF(MTURB .EQ. 0) THEN
+           WRITE(6,6001) EPSU,EPSV,EPSW
+      ELSE
+#ifdef _DNS_
+#ifdef _DOUBLE_PRECISION_
+           WRITE(6,6102) IGRID,ITTOT,TIME,ESUMG
+#else
+           WRITE(6,6002) IGRID,ITTOT,TIME,ESUMG,0.0
+#endif
+#else
+           WRITE(6,6002) IGRID,ITTOT,TIME,ESUMG,ESUMS
+#endif
+      ENDIF
+      IF (IPRINT_WSS .EQ. 1) THEN
+         WRITE (6,6003) IGRID,ITTOT,TIME,WSSX,WSSY,WSSZ
+      ENDIF
+      IF (IPRINT_WNS .EQ. 1) THEN
+         WRITE (6,6004) IGRID,ITTOT,TIME,WNSX,WNSY,WNSZ
+      ENDIF
+#ifdef _CHANNEL_DIAGNOSE_
+       WRITE (6,6005) IGRID,ITTOT,TIME,WALLSSX(6),WALLSSX(5)
+       WRITE (6,6006) IGRID,ITTOT,TIME,WALLSSY(6),WALLSSY(5)
+       WRITE (6,6007) IGRID,ITTOT,TIME,WALLSSX(3),WALLSSX(4)
+       WRITE (6,6027) IGRID,ITTOT,TIME,WALLSSZ(3),WALLSSZ(4)
+       WRITE (6,6028) IGRID,ITTOT,TIME,WALLSSZ(1),WALLSSZ(2)  
+       WRITE (6,6008) IGRID,ITTOT,TIME,UBLK,GRDPX
+#ifdef _TSCAL_
+       WRITE (6,6035) IGRID,ITTOT,TIME,WALLQX(5),WALLQX(6)
+#endif
+#endif
+
+#ifdef _TSCAL_
+      IF (ITSTEP .GT. 0) THEN
+#ifdef _SCALGRIDDIAGNOSE_
+      	WRITE(6,6024)
+        IF ( DDSMAX .LE. SMMAX ) THEN
+          WRITE(6,6020) IGRID,DDSMAX,SMMAX,SPMAX
+        ELSE
+          WRITE(6,6021) IGRID,DDSMAX,SMMAX,SPMAX 
+        ENDIF       	
+        IF (LSLICE(IGRID)) THEN
+          WRITE(6,6010) GRD,XSPMAX,YSPMAX,ZSPMAX,ISPMAX,JSPMAX,KSPMAX       	
+        ELSE
+          WRITE(6,6011) IGRID,XSPMAX,YSPMAX,ZSPMAX,ISPMAX,JSPMAX,KSPMAX 	
+        ENDIF      
+#endif       	
+      	WRITE(6,6024)
+        WRITE(6,6009) IGRID,ITTOT,TIME,TMAX,DTMAX
+        IF (LSLICE(IGRID)) THEN
+          WRITE(6,6010) GRD,XTMAX,YTMAX,ZTMAX,ITMAX,JTMAX,KTMAX       	
+        ELSE
+          WRITE(6,6011) IGRID,XTMAX,YTMAX,ZTMAX,ITMAX,JTMAX,KTMAX     	
+        ENDIF
+#ifdef _SCALTRANSDIAGNOSE_
+        QC = QCE+QCW+QCN+QCS+QCT+QCB
+        QD = QDE+QDW+QDN+QDS+QDT+QDB        
+        WRITE(6,6016) QC,QD,QDC  
+        WRITE(6,6017) QCE,QCW,QDE,QDW  
+        WRITE(6,6018) QCN,QCS,QDN,QDS
+        WRITE(6,6019) QCT,QCB,QDT,QDB        
+#endif               
+#ifdef _KAYSCRAWFORD_         
+        WRITE(6,6012) IGRID,XPRTMAX,YPRTMAX,ZPRTMAX,PRTMAX   
+        WRITE(6,6013) IGRID,XPRTMIN,YPRTMIN,ZPRTMIN,PRTMIN 
+#endif   
+      	WRITE(6,6025)                  
+      ENDIF
+#endif
+      
+ 6000 FORMAT(1X,'GRID:',I3,' IT= ',I8,' TI= ',F9.3,
+     $       ' IPC= ',I3,' DIV=',E14.6,
+     $       ' CPS= ',F8.2)
+
+ 6001 FORMAT(1X,'* EPSU = ',G13.6,' EPSV = ',G13.6,
+     $       '  EPSW = ',G13.6)
+
+ 6002 FORMAT(1X,'GRID:',I3,' IT= ',I8,' TI= ',F9.3,
+     $       ' ESUMG=',E14.6,' ESUMS=',E14.6)
+ 6102 FORMAT(1X,'GRID:',I3,' IT= ',I8,' TI= ',F9.3,
+     $       ' ESUMG=',E20.12)
+
+ 6003 FORMAT(1X,'GRID:',I3,' IT= ',I8,' TI= ',F9.3,
+     $       ' WSSX=',E12.5,' WSSY=',E12.5,' WSSZ=',E12.5)
+
+ 6004 FORMAT(1X,'GRID:',I3,' IT= ',I8,' TI= ',F9.3,
+     $       ' WNSX=',E14.6,' WNSY=',E14.6,' WNSZ=',E14.6)
+ 6005 FORMAT(1X,'GRID:',I3,' IT= ',I8,' TI= ',F9.3,
+     $       ' TOPWALLX=',E12.5,' BOTWALLX=',E12.5)
+ 6035 FORMAT(1X,'GRID:',I3,' IT= ',I8,' TI= ',F9.3,
+     $       ' QBWALLX= ',E12.5,' QTWALLX= ',E12.5)
+ 6006 FORMAT(1X,'GRID:',I3,' IT= ',I8,' TI= ',F9.3,
+     $       ' TOPWALLY=',E12.5,' BOTWALLY=',E12.5)
+ 6007 FORMAT(1X,'GRID:',I3,' IT= ',I8,' TI= ',F9.3,
+     $       ' RGTWALLX=',E12.5,' LFTWALLX=',E12.5)
+ 6027 FORMAT(1X,'GRID:',I3,' IT= ',I8,' TI= ',F9.3,
+     $       ' RGTWALLZ=',E12.5,' LFTWALLZ=',E12.5)
+ 6028 FORMAT(1X,'GRID:',I3,' IT= ',I8,' TI= ',F9.3,
+     $       ' FROWALLZ=',E12.5,' BACWALLZ=',E12.5)
+ 6008 FORMAT(1X,'GRID:',I3,' IT= ',I8,' TI= ',F9.3,
+     $       ' UBULK= ',E12.5,' GRADPX= ',E12.5)
+
+ 6009 FORMAT(1X,'GRID:',I3,' IT= ',I8,' TI= ',F9.3,
+     $       '     T=',F14.6,'    DT=',E14.6)
+ 6010 FORMAT(1X,'SGRD:',I3,'(X,Y,Z): (',F11.5,',',F11.5,',',F11.5,')'
+     $       ,' (IJK):(',I4,',',I4,',',I4,')') 
+ 6011 FORMAT(1X,'GRID:',I3,'(X,Y,Z): (',F11.5,',',F11.5,',',F11.5,')'
+     $       ,' (IJK):(',I4,',',I4,',',I4,')') 
+ 6012 FORMAT(1X,'GRID:',I3,'(X,Y,Z): (',F12.6,',',F12.6,',',F12.6,')',
+     $       'PRTMAX=',E13.6) 
+ 6013 FORMAT(1X,'GRID:',I3,'(X,Y,Z): (',F12.6,',',F12.6,',',F12.6,')',
+     $       'PRTMIN=',E13.6)                  
+C
+ 6014 FORMAT(1X,'SGRD:',I3,'(X,Y,Z): (',F11.5,',',F11.5,',',F11.5,')'
+     $       ,' (IJK):(',I4,',',I4,',',I4,')')
+ 6015 FORMAT(1X,'GRID:',I3,'(X,Y,Z): (',F11.5,',',F11.5,',',F11.5,')'
+     $       ,' (IJK):(',I4,',',I4,',',I4,')')
+ 6016 FORMAT(1X,'QC= ',E14.6,'                     QD= ',E14.6,
+     $          '  QDC=',E14.6)
+ 6017 FORMAT(1X,'QCE=',E14.6,' QCW=',E14.6,'  QDE=',E14.6,'  QDW=',
+     $                  E14.6)                     
+ 6018 FORMAT(1X,'QCN=',E14.6,' QCS=',E14.6,'  QDN=',E14.6,'  QDS=',
+     $                  E14.6)
+ 6019 FORMAT(1X,'QCT=',E14.6,' QCB=',E14.6,'  QDT=',E14.6,'  QDB=',
+     $                  E14.6)   
+ 6020 FORMAT(1X,'GRID:',I3,' DDS: ',E14.6,'  <=  SM: ',E14.6,
+     $       '     SPLUS=',F14.6)
+ 6021 FORMAT(1X,'GRID:',I3,' DDS: ',E14.6,'  >  SM: ',E14.6,
+     $       '     SPLUS=',F14.6)            
+ 6024 FORMAT(1X,'----------------------------------------------------')
+ 6025 FORMAT(1X,'====================================================')
+      RETURN
+      END
+      FUNCTION GETSEC(NULL)
+C***********************************************************************
+C   G E T S E C    GETS THE ACCUMULATED CPU-TIME IN SECONDS
+C*************************************************** F.BAETKE 21.03.85 *
+C
+C     THIS FUNCTION SHOULD CONTAIN THE ONLY NON-ANSI CALL
+C     IN THE PROGRAM  A B O X 7 7  AND HAS TO BE ADAPTED
+C     ACCORDING TO THE HOST-COMPUTER.
+C
+C  DEFINE-DIREKTIVEN    : B7800,   CRAY,    CYBER
+C
+C  VERS: 20.02.89 (HW)  : DEFINE-DIREKTIVEN B7800, CRAY, CYBER
+C                         EINGEFUEHRT.
+C***********************************************************************
+C
+#ifdef _DOUBLE_PRECISION_
+      DOUBLE PRECISION GETSEC
+#endif
+      DATA  SECINI /10000./
+C
+#ifdef _CYBER_
+C                                 CPU-TIME FOR  CYBER (NOS/VE)
+      GETSEC = SECOND()
+#endif
+#ifdef _HITACHI_
+C                                 CPU-TIME FOR  HITACHI_
+      REAL *8 DWALLTIME
+      GETSEC = DWALLTIME ()
+#endif
+#ifdef _VPP_
+C                                 CPU-TIME FOR  VPP_
+      GETSEC = SECOND()
+#endif
+#ifdef _T3E_
+C                                 CPU-TIME FOR  T3E
+      GETSEC = SECOND()
+#endif
+#if (defined _CRAYT90_)
+C                                 CPU-TIME FOR  CRAY  (UNICOS)
+      GETSEC = SECOND()
+#endif
+#if (defined _CRAY_)
+C                                 CPU-TIME FOR  CRAY  (UNICOS)
+      GETSEC = SECOND()
+#endif
+#ifdef _C3820_
+C                                 CPU-TIME FOR C3820
+      GETSEC = CPUTIME(0.0)
+#endif
+#ifdef _SP2_
+C                                 CPU-TIME FOR SP2
+      GETSEC = FLOAT(MCLOCK())/100.
+#endif
+#ifdef _IRIS_
+C                                 CPU-TIME FOR IRIS 4D
+      GETSEC = FLOAT(MCLOCK())/100.
+#endif
+#ifdef _LINUX_
+C                                 CPU-TIME FOR LINUX (G77)
+       CALL CPU_TIME(GETSEC)
+C      GETSEC = 0.0
+#endif
+#ifdef _HP_
+C                                 CPU-TIME FOR HP
+      GETSEC = 0.0
+#endif
+#ifdef _KSR_
+C                                 CPU-TIME FOR KSR_
+      GETSEC = USER_SECONDS()
+#endif
+C                                 CPU-TIME FOR  SIEMENS 7800
+*     CALL CLOCKM(ICPII)
+*     GETSEC = FLOAT(ICPII)/1000.
+C                                  CPU-TIME FOR MVS (IBM)
+*     GETSEC = SECINI - ITIME(0)/100.
+C
+      RETURN
+      END
+      FUNCTION GETDAT(NULL)
+C***********************************************************************
+C   G E T D A T    GETS THE CURRENT DATE (CHARACTER (LEN=8))
+C*************************************************** H.WERNER 17.12.86 *
+C
+C***********************************************************************
+C
+#ifdef _HITACHI_
+      CHARACTER (LEN=8)  GETDAT
+      CALL DATE_AND_TIME(DATE=GETDAT)
+#endif
+#ifdef _CYBER_
+      CHARACTER (LEN=8)  GETDAT
+      CHARACTER (LEN=10) DATE, DATUM
+#endif
+#ifdef _T3E_
+      INTEGER       GETDAT
+#endif
+#if (defined _CRAY_)
+      INTEGER       GETDAT
+#endif
+#if (defined _CRAYT90_)
+      INTEGER       GETDAT
+#endif
+C
+#ifdef _CYBER_
+C
+C                                  WHEN USING  CYBER (N O S / V E)
+C
+      DATUM  = DATE()
+      GETDAT = DATUM(3:10)
+#endif
+#ifdef _T3E_
+C
+C                                  WHEN USING  CRAY (U N I C O S)
+C
+      GETDAT = DATE()
+#endif
+C
+#if (defined _CRAY_)
+C
+C                                  WHEN USING  CRAY (U N I C O S)
+C
+      GETDAT = DATE()
+#endif
+#if (defined _CRAYT90_)
+C
+C                                  WHEN USING  CRAY (U N I C O S)
+C
+      GETDAT = DATE()
+#endif
+C
+#ifdef _C3820_
+C
+C                                  WHEN USING  CONVEX C3820
+C
+      CHARACTER (LEN=8)  GETDAT
+      CALL DATE(GETDAT)
+#endif
+C
+#ifdef _IRIS_
+C
+C                                  WHEN USING  SILICON GRAPHICS
+C
+      CHARACTER (LEN=8)  GETDAT
+      CALL DATE(GETDAT)
+#endif
+#ifdef _LINUX_
+C
+C                                  WHEN USING  LINUX (IFC)
+C
+      CHARACTER (LEN=8)  GETDAT
+      CALL DATE_AND_TIME(GETDAT)
+#endif
+#ifdef _HP_
+C
+C                                  WHEN USING  HP
+C
+      CHARACTER (LEN=8)  GETDAT
+C      CALL DATE(GETDAT)
+#endif
+#ifdef _VPP_
+C
+C                                  WHEN USING  VPP
+C
+      CHARACTER (LEN=8)  GETDAT
+      CALL DATE(GETDAT)
+#endif
+#ifdef _SP2_
+C
+C                                  WHEN USING  SILICON GRAPHICS
+C
+      CHARACTER (LEN=8)  GETDAT
+      CALL DATE(GETDAT)
+#endif
+
+C
+      RETURN
+      END
+      FUNCTION GETAET(NULL)
+C***********************************************************************
+C   G E T A E T    GETS THE A_CTUAL E_LAPSED T_IME (CHARACTER * 8)
+C***********************************************************************
+C
+C     THIS FUNCTION CONTAINS A NON-ANSI CALL
+C     IN THE PROGRAM  S T A R L E T  AND HAS TO BE ADAPTED
+C     ACCORDING TO THE HOST-COMPUTER.
+C
+C  DEFINE-DIREKTIVEN    : CRAY,    CYBER
+C
+C  VERS: 21.02.89 (HW)  : ORIGINAL
+C
+C***********************************************************************
+C
+#ifdef _HITACHI_
+      CHARACTER (LEN=8) GETAET
+      GETAET = '        '
+#endif
+#ifdef _CYBER_
+      CHARACTER (LEN=8)  GETAET
+      CHARACTER (LEN=8)  CLOCK
+#endif
+#ifdef _T3E__
+      INTEGER       GETAET
+#endif
+#if (defined _CRAY_)
+      INTEGER       GETAET
+#endif
+#if (defined _CRAYT90_)
+      INTEGER       GETAET
+#endif
+C
+#ifdef _CYBER_
+C
+C                                  WHEN USING  CYBER (N O S / V E)
+C
+      GETAET(1:8) = CLOCK()
+#endif
+#ifdef _T3E_
+C
+C                                  WHEN USING  CRAY (U N I C O S)
+C
+      GETAET = CLOCK()
+#endif
+#if (defined _CRAY_)
+C
+C                                  WHEN USING  CRAY (U N I C O S)
+C
+      GETAET = CLOCK()
+#endif
+#if (defined _CRAYT90_)
+C
+C                                  WHEN USING  CRAY (U N I C O S)
+C
+      GETAET = CLOCK()
+#endif
+#ifdef _C3820_
+C                      AUF CONVEX
+       CHARACTER (LEN=8) GETAET
+       GETAET = '        '
+
+#endif
+C
+#ifdef _IRIS_
+C                      AUF SILICON GRAPHICS
+       CHARACTER (LEN=8) GETAET
+       GETAET = '        '
+#endif
+#ifdef _LINUX_
+C                      AUF LINUX (G77)
+       CHARACTER (LEN=8) GETAET
+       GETAET = '        '
+#endif
+#ifdef _HP_
+C                      AUF HP
+       CHARACTER (LEN=8) GETAET
+       GETAET = '        '
+#endif
+C
+#ifdef _VPP_
+C                      AUF SILICON GRAPHICS
+       CHARACTER (LEN=8) GETAET
+       GETAET = '        '
+
+#endif
+#ifdef _SP2_
+C                      AUF SILICON GRAPHICS
+       CHARACTER (LEN=8) GETAET
+       GETAET = '        '
+
+#endif
+C
+      RETURN
+      END

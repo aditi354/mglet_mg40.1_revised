@@ -1,0 +1,35 @@
+      SUBROUTINE SETGEOVP   (KK,JJ,II,KMX,JMX,IMX,
+     $                        RDX,RDY,RDZ,GEOVP)
+C*STARLET***************************************************************
+C        SETGEOVP      VORBELEGUNG DER GEOMETRIEKONSTANTEN FUER 
+C                       DIE DRUCKKORREKTUR
+C*STARLET***************************************************************
+C
+C PARAM: KK,  JJ,  II   - ARRAYDIMENSIONEN
+C
+C VERS:  19.04.96 (AO)  : ORIGINAL
+C
+C
+C*STARLET***************************************************************
+C
+      REAL RDX(II),RDY(JJ),RDZ(KK)
+      REAL GEOVP(KK,JJ,II)
+
+      IM1=IMX-1 
+      JM1=JMX-1 
+      KM1=KMX-1 
+
+      DO  I=2,IMX
+         DO  J=2,JMX
+            DO  K=2,KMX
+
+
+         GEOVP(K,J,I) = 1./((RDX(I)*RDX(I-1))+(RDY(J)*RDY(J-1))+
+     $                     (RDZ(K)*RDZ(K-1)))
+
+      ENDDO
+        ENDDO
+          ENDDO
+
+      RETURN
+      END

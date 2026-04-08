@@ -1,0 +1,125 @@
+      SUBROUTINE CONTOPMG
+     $             (IDIM3D,IDIM2D,IDIM1D,
+     $              X,Y,Z,DX,DY,DZ,DDX,DDY,DDZ,
+#ifdef _TSCAL_
+     $              U,V,W,T,P,G,B,UFR,UTO,VTO,WTO,PTO,GTO,VRI,WBO,HILF,
+#else
+     $              U,V,W,P,G,B,UFR,UTO,VTO,WTO,PTO,GTO,VRI,WBO,HILF,
+#endif       
+     $              ITYP,ILEVEL,IRB,JRB,KRB,NGRIDS,LOFGRIDS)
+C*MGLET***************************************************************
+C    C O N T O P M G      KOMMUNIKATION ZWISCHEN DEN GITTERN
+C                         HIER: TOP-FLAECHE
+C*MGLET***************************************************************
+C
+C PARAM: KK, JJ, II     - ARRAYDIMENSIONEN
+C        KMX, JMX, IMX  - GRENZEN DES BERECHNUNGSGEBIETES (MIT BOUND)
+C        X, Y, Z        - KOORDINATEN DER ZELLDEFINITIONSPUNKTE
+C        DX,DY,DZ       - ABSTAND DER GITTERPUNKTE
+C        DDX,DDY,DDZ    - KANTENLAENGEN DER KONTROLLVOLUMINA
+C        U(KK,JJ,II)    + GESCHWINDIGKEITSFELD
+C        V(KK,JJ,II)    + GESCHWINDIGKEITSFELD
+C        W(KK,JJ,II)    + GESCHWINDIGKEITSFELD
+C        T(KK,JJ,II)    + SCALAR T FIELD
+C        P(KK,JJ,II)    - DRUCKFELD
+C        G(KK,JJ,II)    - EFFEKTIVE DYNAMISCHE VISKOSITAET (= MUE)
+C        TK(KK,JJ,II)   - TURBULENZENERGIE
+C        UFR(KK,JJ, 2)  - ENTHAELT DIE I=1 U. I=2 EBENEN DES U-PROFILS
+C        VRI(KK, 2,II)  -    "      "  J=1 U. J=2    "    "  V-PROFILS
+C        WBO( 2,JJ,II)  -    "      "  K=1 U. K=2    "    "  W-PROFILS
+C        GMOL           - MOLEKULARE DYNAMISCHE VISKOSITAET
+C        RHO            - DICHTE (= CONST)
+C        UGRID          - GESCHWINDIGKEIT DES KOORDINATENSYSTEMS IN
+C                         X-RICHTUNG (GALILEI-TRANSFORMATION)
+C        XTOT           - LAENGE DES BERECHNUNGSGEBIETES IN X-RICHTUNG
+C        YTOT           -    ""    "           "          IN Y-RICHTUNG
+C        ZTOT           -    ""    "           "          IN Z-RICHTUNG
+C        ITYP           - HOLLERITH-KONSTANTE:
+C                         'P'  VOR DER DRUCKKORREKTUR
+C                         'T'  VOR DEM ZEITSCHRITT
+C
+C VERS:  25.07.95 (MM)  : ORIGINAL, AUS CONFROMG ABGELEITET
+C        28.02.03 (TB)  : SCALAR TRANSPORT IMPLEMENTED
+C
+C*MGLET***************************************************************
+C
+#include "mgpar.h"
+#include "comgrid.h"
+#include "cobound.h"
+#include "colevel.h"
+#ifdef _MPI_
+#include "compi.h"
+#include "mpif.h"
+#endif
+C
+      CHARACTER (LEN=1)  ITYP
+C
+      REAL        X(IDIM1D),         Y(IDIM1D),         Z(IDIM1D),
+     $           DX(IDIM1D),        DY(IDIM1D),        DZ(IDIM1D),
+     $          DDX(IDIM1D),       DDY(IDIM1D),       DDZ(IDIM1D),
+     $          U( IDIM3D ),       V( IDIM3D ),       W( IDIM3D ),
+     $          P( IDIM3D ),       G( IDIM3D ),       B( IDIM3D ),
+     $        UFR(IDIM2D*2),     VRI(IDIM2D*2),     WBO(IDIM2D*2),
+     $        UTO(IDIM2D*2),     VTO(IDIM2D*2),     WTO(IDIM2D*2),
+     $        PTO(IDIM2D*2),     GTO(IDIM2D*2),
+     $       HILF( IDIM3D )
+C
+#ifdef _TSCAL_
+      REAL T( IDIM3D )
+#endif 
+C
+      INTEGER NGRIDS,LOFGRIDS(NGRIDS)
+C
+#ifdef _MPI_
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
+C
+C                 MPI-ROUTINEN ZUR UEBERGABE VON PARAMETERN
+C
+       TIME1 = MPI_WTIME()
+#endif
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+C
+CTEST
+        DO IST=1,2
+        DO I=IST,NGRIDS,2
+CTEST      DO I = 1,NG
+
+           IGRID = LOFGRIDS(I)
+
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+
+         CALL MGDIMS  (KK,JJ,II,IGRID)
+         CALL MGPOINT (IP3,IP2,IP1,IBB,IB3,IBU,IGRID)
+         
+         DO IBOCOND = 1,NBOCONDS( 6 , IGRID )
+
+           ISTART = LARBOCONDS( 1 , IBOCOND , 6 , IGRID )
+           ISTOP  = LARBOCONDS( 2 , IBOCOND , 6 , IGRID )
+           JSTART = LARBOCONDS( 3 , IBOCOND , 6 , IGRID )
+           JSTOP  = LARBOCONDS( 4 , IBOCOND , 6 , IGRID )
+
+
+           ITYPBC = ITYPBOCONDS( IBOCOND , 6 , IGRID )
+
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72 
+
+
+           IF ( ITYPBC .EQ. 8 ) THEN
+C
+C                             IS DONE IN PARTOPMG NOW!!!!!!!!!!!!
+C
+ 
+           ENDIF
+
+
+        ENDDO
+
+      ENDDO
+      ENDDO
+
+
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+
+      RETURN
+      END
+

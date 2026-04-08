@@ -1,0 +1,75 @@
+      SUBROUTINE BFROP1 (KMX,JMX,IMX,
+     $                    U,V,W,P,G,
+     $                    JSTART,JSTOP,KSTART,KSTOP,ITYP
+#ifdef _TSCAL_
+     $                   ,T
+#endif
+     $                   )  
+C*STARLET***************************************************************
+C        B F R O P 1   SETZEN DER RANDBEDINGUNGEN FUER DIE
+C                         GESCHWINDIGKEITSFELDER  AND SCALAR T.
+C                         (LARGE-EDDY-SIMULATION)
+C*STARLET***************************************************************
+C
+C PARAM: 
+C        KMX, JMX, IMX  - DIMENSIONEN DES GITTERS 
+C        U(KMX,JMX,IMX) + GESCHWINDIGKEITSFELD
+C        V(KMX,JMX,IMX) + GESCHWINDIGKEITSFELD
+C        W(KMX,JMX,IMX) + GESCHWINDIGKEITSFELD
+C        T(KMX,JMX,IMX) + SCALAR T FIELD
+C        P(KMX,JMX,IMX) - DRUCKFELD
+C        G(KMX,JMX,IMX) - EFFEKTIVE DYNAMISCHE VISKOSITAET (= MUE)
+C        ITYP           - HOLLERITH-KONSTANTE:
+C                         'P'  VOR DER DRUCKKORREKTUR
+C                         'T'  VOR DEM ZEITSCHRITT
+C
+C VERS:  22. 7.05 (jk)  : ORIGINAL
+C                         AUS BBOOP1 ABGELEITET
+C
+C*STARLET***************************************************************
+C
+#include "konsta.h"
+C
+      CHARACTER (LEN=1)  ITYP
+C
+      REAL
+     $            U(KMX,JMX,IMX),   V(KMX,JMX,IMX),   W(KMX,JMX,IMX),
+     $            P(KMX,JMX,IMX),   G(KMX,JMX,IMX)
+C
+#ifdef _TSCAL_
+      REAL        T(KMX,JMX,IMX)
+#endif
+C
+C
+C                                 **************************************
+C                                 REIBUNGSBEHAFTETE, UNDURCHLAESSIGE WAN
+C                                 **************************************
+C
+C
+C 
+         IF (ITYP.EQ.'P') RETURN    
+C                              FUER ZEITSCHRITT
+         DO J=JSTART,JSTOP
+         DO K=KSTART,KSTOP
+
+#ifdef _LIMIT_OUTFLOW_FRONT_
+               U(  K,J,2) = 0.0
+               V(  K,J,2) = 0.0
+               W(  K,J,1) = MIN(0.01,W(  K,J,2))
+#else
+               U(  K,J,2) = U(  K,J,3)
+               V(  K,J,2) = V(  K,J,3)
+               W(  K,J,1) = W(  K,J,2)
+#endif
+               P(  K,J,2) = 0.0
+               G(  K,J,2) = G(  K,J,3)
+#ifdef _TSCAL_
+               T(  K,J,2) = T(  K,J,3)
+#endif               
+
+         ENDDO
+         ENDDO
+
+      RETURN
+      END
+

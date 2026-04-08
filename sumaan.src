@@ -1,0 +1,190 @@
+      SUBROUTINE SUMAAN  (
+#include "cstaca.h"
+C*STARLET***************************************************************
+C        S U M A A N      IN SUMAAN WERDEN (NACH BILDUNG DER VER-
+C                         BESSERTEN ENSEMBLE-MITTELWERTE IN SUBR.
+C                         STMIMP) DIE ANTEILE BESTIMMTER GROESSEN AUS
+C                         GROB- UND FEINSTRUKTUR ADDIERT.
+C                         DIE RESULTIERENDEN WERTE SIND IN JEDEM FALL
+C                         ENSEMBLE-MITTELWERTE.
+C  A C H T U N G:         DIESE ROUTINE MUSS ERWEITERT WERDEN, FALLS
+C                         DIE STATIST. AUSWERTUNG ERWEITERT WIRD !
+C*STARLET***************************************************************
+C
+C PARAM:
+#include "cstapa.h"
+C
+C UPROG                 : DPHI0, SRMSGS, SUM2AR
+C
+C DEFINE-DIREKTIVEN     : KEINE
+C
+C        01.09.86 (HW)  : ORIGINAL
+C        12.02.03 (TB)  : SCALAR FIELD STATISTICS IMPLEMENTED
+C
+C*STARLET***************************************************************
+C
+#include "cstadi.h"
+C
+C                                 ROOT-MEAN-SQUARE - WERTE
+C                                 ------------------------
+C
+      IF(ISELEP(1,  9) .EQ. 1 .OR. ISELEP(1,  9) .EQ. 2) THEN
+C
+C                                 RMS-GESAMTWERT DER U-FLUKTUATIONEN
+C                                 ZUM GROBSTRUKTURANTEIL WIRD DER
+C                                 NAEHERUNGSWEISE BESTIMMTE FEIN-
+C                                 STRUKTURANTEIL ADDIERT.
+C
+         CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SURG   )
+         CALL SRMSGS  (KKA,JJA,IIA,KMXA,JMXA,IMXA,SURG   ,
+     $                 AURG   ,AEFS   ,'U')
+      ENDIF
+      IF(ISELEP(1, 34) .EQ. 1 .OR. ISELEP(1, 34) .EQ. 2) THEN
+         CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SVRG   )
+         CALL SRMSGS  (KKA,JJA,IIA,KMXA,JMXA,IMXA,SVRG   ,
+     $                 AVRG   ,AEFS   ,'V')
+      ENDIF
+      IF(ISELEP(1, 59) .EQ. 1 .OR. ISELEP(1, 59) .EQ. 2) THEN
+         CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SWRG   )
+         CALL SRMSGS  (KKA,JJA,IIA,KMXA,JMXA,IMXA,SWRG   ,
+     $                 AWRG   ,AEFS   ,'W')
+      ENDIF
+#ifdef _TSCAL_
+C     EXCEPTION: SCALAR FIELD SUBGRID STRESS ENERGY NOT YET IMPLEMENTED 
+      IF(ISELEP(1,509) .EQ. 1 .OR. ISELEP(1,509) .EQ. 2) THEN
+         CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,STRG   )
+         CALL SRMSGS  (KKA,JJA,IIA,KMXA,JMXA,IMXA,STRG   ,
+     $                 ATRG   ,AEFS   ,'T')
+      ENDIF
+#endif
+C
+C                                 GESAMTE KINETISCHE ENERGIE DER
+C                                 SCHWANKUNGSGESCHWINDIGKEITEN
+C                                 ------------------------------
+C
+      IF(ISELEP(1,108) .EQ. 1 .OR. ISELEP(1,108) .EQ. 2) THEN
+         CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SEFG   )
+         CALL SUM2AR  (KKA,JJA,IIA,KMXA,JMXA,IMXA,SEFG   ,
+     $                 AEFG   ,AEFS   )
+      ENDIF
+C
+C                                 SCHUBSPANNUNGEN
+C                                 ---------------
+C
+C                                 HIER: U - W
+C                                 -----------
+C
+C                                 GROBSTRUKTUR + FEINSTRUKTUR +
+C                                 MOLEKULARER ANTEIL
+C
+      IF(ISELEP(1,148) .EQ. 1 .OR. ISELEP(1,148) .EQ. 2) THEN
+         CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SUFWFG )
+         CALL SUM2AR  (KKA,JJA,IIA,KMXA,JMXA,IMXA,SUFWFG ,
+     $                 AUFWFG ,AUFWFS )
+         CALL SUM2AR  (KKA,JJA,IIA,KMXA,JMXA,IMXA,SUFWFG ,
+     $                 SUFWFG ,AUFWFM )
+      ENDIF
+      IF(ISELEP(1,153) .EQ. 1 .OR. ISELEP(1,153) .EQ. 2) THEN
+C
+C                                 GROBSTRUKTUR + FEINSTRUKTURANTEIL
+C                                 ERGIBT DEN REYNOLDSSTRESS
+C
+         CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SUFWFS )
+         CALL SUM2AR  (KKA,JJA,IIA,KMXA,JMXA,IMXA,SUFWFS ,
+     $                 AUFWFG ,AUFWFS )
+      ENDIF
+C
+C                                 HIER: V - W
+C                                 -----------
+C
+      IF(ISELEP(1,158) .EQ. 1 .OR. ISELEP(1,158) .EQ. 2) THEN
+         CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SVFWFG )
+         CALL SUM2AR  (KKA,JJA,IIA,KMXA,JMXA,IMXA,SVFWFG ,
+     $                 AVFWFG ,AVFWFS )
+         CALL SUM2AR  (KKA,JJA,IIA,KMXA,JMXA,IMXA,SVFWFG ,
+     $                 SVFWFG ,AVFWFM )
+      ENDIF
+      IF(ISELEP(1,163) .EQ. 1 .OR. ISELEP(1,163) .EQ. 2) THEN
+         CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SVFWFS )
+         CALL SUM2AR  (KKA,JJA,IIA,KMXA,JMXA,IMXA,SVFWFS ,
+     $                 AVFWFG ,AVFWFS )
+      ENDIF
+C
+C                                 HIER: U - V
+C                                 -----------
+C
+      IF(ISELEP(1,168) .EQ. 1 .OR. ISELEP(1,168) .EQ. 2) THEN
+         CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SUFVFG )
+         CALL SUM2AR  (KKA,JJA,IIA,KMXA,JMXA,IMXA,SUFVFG ,
+     $                 AUFVFG ,AUFVFS )
+         CALL SUM2AR  (KKA,JJA,IIA,KMXA,JMXA,IMXA,SUFVFG ,
+     $                 SUFVFG ,AUFVFM )
+      ENDIF
+      IF(ISELEP(1,173) .EQ. 1 .OR. ISELEP(1,173) .EQ. 2) THEN
+         CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SUFVFS )
+         CALL SUM2AR  (KKA,JJA,IIA,KMXA,JMXA,IMXA,SUFVFS ,
+     $                 AUFVFG ,AUFVFS )
+      ENDIF
+C
+#ifdef _TSCAL_
+C                                 HEAT FLUX TENSOR
+C                                 ---------------_
+C
+C                                 U - T
+C                                 -----
+C
+C                                 GROBSTRUKTUR + FEINSTRUKTUR +
+C                                 MOLEKULARER ANTEIL
+C
+      IF(ISELEP(1,528) .EQ. 1 .OR. ISELEP(1,528) .EQ. 2) THEN
+         CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SUFTFG )
+         CALL SUM2AR  (KKA,JJA,IIA,KMXA,JMXA,IMXA,SUFTFG ,
+     $                 AUFTFG ,AUFTFS )
+         CALL SUM2AR  (KKA,JJA,IIA,KMXA,JMXA,IMXA,SUFTFG ,
+     $                 SUFTFG ,AUFTFM )
+      ENDIF
+      IF(ISELEP(1,533) .EQ. 1 .OR. ISELEP(1,533) .EQ. 2) THEN
+C
+C                                 GROBSTRUKTUR + FEINSTRUKTURANTEIL
+C
+         CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SUFTFS )
+         CALL SUM2AR  (KKA,JJA,IIA,KMXA,JMXA,IMXA,SUFTFS ,
+     $                 AUFTFG ,AUFTFS )
+      ENDIF
+C
+C                                 V - T
+C                                 -----
+C
+      IF(ISELEP(1,553) .EQ. 1 .OR. ISELEP(1,553) .EQ. 2) THEN
+         CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SVFTFG )
+         CALL SUM2AR  (KKA,JJA,IIA,KMXA,JMXA,IMXA,SVFTFG ,
+     $                 AVFTFG ,AVFTFS )
+         CALL SUM2AR  (KKA,JJA,IIA,KMXA,JMXA,IMXA,SVFTFG ,
+     $                 SVFTFG ,AVFTFM )
+      ENDIF
+      IF(ISELEP(1,558) .EQ. 1 .OR. ISELEP(1,558) .EQ. 2) THEN
+         CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SVFTFS )
+         CALL SUM2AR  (KKA,JJA,IIA,KMXA,JMXA,IMXA,SVFTFS ,
+     $                 AVFTFG ,AVFTFS )
+      ENDIF
+C
+C                                 W - T
+C                                 -----
+C
+      IF(ISELEP(1,578) .EQ. 1 .OR. ISELEP(1,578) .EQ. 2) THEN
+         CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SWFTFG )
+         CALL SUM2AR  (KKA,JJA,IIA,KMXA,JMXA,IMXA,SWFTFG ,
+     $                 AWFTFG ,AWFTFS )
+         CALL SUM2AR  (KKA,JJA,IIA,KMXA,JMXA,IMXA,SWFTFG ,
+     $                 SWFTFG ,AWFTFM )
+      ENDIF
+      IF(ISELEP(1,583) .EQ. 1 .OR. ISELEP(1,583) .EQ. 2) THEN
+         CALL DPHI0   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SWFTFS )
+         CALL SUM2AR  (KKA,JJA,IIA,KMXA,JMXA,IMXA,SWFTFS ,
+     $                 AWFTFG ,AWFTFS )
+      ENDIF
+C
+#endif
+
+      RETURN
+      END

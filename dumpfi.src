@@ -1,0 +1,17 @@
+      SUBROUTINE DUMPFI(IDIM,JDIM,KDIM,FIELD)
+      INTEGER IDIM,JDIM,KDIM,K
+      REAL FIELD(KDIM,JDIM,IDIM)
+
+C     K = (KDIM + 1) / 2
+C     OUTPUT
+
+      DO 770 K=2,KDIM-1
+        WRITE (36,*)
+        WRITE (36,*) 'FIELD ***** FIELD +++++ FIELD +++++ FIELD'
+        CALL OUTPUT(IDIM,JDIM,KDIM,FIELD,K)
+  770 CONTINUE
+
+      RETURN
+      END
+
+

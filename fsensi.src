@@ -1,0 +1,21 @@
+      REAL FUNCTION FSENSI(KK,JJ,II,IMX,K,J,I,NBND,IDIR,JUMP,B)
+
+      INTEGER KK,JJ,II,K,J,I,IDIR,JUMP,NBND
+      REAL B(KK,JJ,II)
+
+      FSENSI = 1.0
+      IDO = I + IDIR*JUMP
+      IF (B(K,J,I) .LT. 0.0) GOTO 99
+
+      DO ISENSI = I,IDO,IDIR
+        IF ((ISENSI .LE. NBND) .OR. (ISENSI .GT. IMX-NBND)) GOTO 99
+        IF (B(K,J,ISENSI) .LT. 0.0) THEN
+          FSENSI = 0.0
+       	ENDIF
+      ENDDO
+
+   99    CONTINUE
+
+      RETURN
+      END
+

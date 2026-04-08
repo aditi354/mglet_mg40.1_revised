@@ -1,0 +1,530 @@
+         SUBROUTINE MGVPIT (IDIM3D,IDIM2D,IDIM1D,NBND,
+     $                      X,Y,Z,DX,DY,DZ,DDX,DDY,DDZ,
+     $                      RDX,RDY,RDZ,RDDX,RDDY,RDDZ,     
+     $                      U,V,W,P,DP,G,B,BP,BU,BV,BW,SDIV,
+     $                      DIV,UFR,VFR,WFR,
+     $                      UTO,VTO,WTO,PTO,GTO,VRI,HILF,
+     $                      OMBETA,WSOR, RHO,DIVG,
+     $                      ILEVEL,EPIT,MPIT,TIMEPH,
+     $                      UBA,VBA,WBA,PBA,GBA,GEOVP,UBO,VBO,WBO,
+     $                      PFR,GFR,IALGO
+#ifdef _TSCAL_
+     $                     ,T,TFR,TBA,TTO,TBO
+#endif
+     $                     )          
+
+C**MGLET****************************************************************
+C
+C   M G V P I T      MULTI-GRID-VELOCITY-PRESSURE-ITERATION
+C                    DRUCKKORREKTURZYKLUS FUER MULTIGRID-VARIANTE
+C                    HIER WERDEN GITTER DES LEVELS ILEVEL KORRIGIERT
+C
+C     4.10.93 (MM):  ORIGINAL
+C    23.05.95 (MM.AO:) MPI EINGEFUEHRT
+C     29.01.03 (TB)  : _KSR_ REMOVED
+C
+C**MGLET****************************************************************
+C
+#include "mgpar.h"
+#include "costrles.h"
+#include "comgrid.h"
+#include "colevel.h"
+#include "cogrdcon.h"
+#include "comgvp.h"
+#ifdef _MPI_
+C
+C               MPI-INCLUDE
+C
+#include "compi.h"
+#include "mpif.h"
+#endif
+C
+      REAL        RDDX(IDIM1D),     RDDY(IDIM1D),     RDDZ(IDIM1D),
+     $             RDX(IDIM1D),      RDY(IDIM1D),      RDZ(IDIM1D),
+     $             DDX(IDIM1D),      DDY(IDIM1D),      DDZ(IDIM1D),
+     $              DX(IDIM1D),       DY(IDIM1D),       DZ(IDIM1D),
+     $               X(IDIM1D),        Y(IDIM1D),        Z(IDIM1D)
+
+#ifdef _FASTBUTBIGMEM_
+      REAL        GEOVP(IDIM3D)
+#endif
+
+      REAL        U (   IDIM3D  ), V (   IDIM3D  ), W (   IDIM3D  ),
+     $            P (   IDIM3D  ), G (   IDIM3D  ), B (   IDIM3D  ),
+     $            DP(   IDIM3D  ), BP(   IDIM3D  ), BU(   IDIM3D  ),
+     $            BV(   IDIM3D  ), BW(   IDIM3D  ),SDIV(  IDIM3D  )
+#ifdef _TSCAL_
+      REAL        T (   IDIM3D  ),
+     $           TFR(IDIM2D*2),TBA(IDIM2D*2),TTO(IDIM2D*2),TBO(IDIM2D*2)      
+#endif
+
+      REAL        UFR(IDIM2D*2),VRI(IDIM2D*2)
+      REAL        VFR(IDIM2D*2),WFR(IDIM2D*2)
+      REAL   UBO(IDIM2D*2),VBO(IDIM2D*2),WBO(IDIM2D*2)
+      REAL   UBA(IDIM2D*2),VBA(IDIM2D*2),WBA(IDIM2D*2)
+      REAL   PBA(IDIM2D*2),GBA(IDIM2D*2)
+      REAL   PFR(IDIM2D*2),GFR(IDIM2D*2)
+
+C
+      REAL     HILF( IDIM3D ), DIV( IDIM3D ),DIVG(IDIM2D)
+C
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
+#ifdef _MPI_
+C
+C                 MPI-ROUTINEN ZUR UEBERGABE VON PARAMETERN
+C                 
+      STARTTIME = MPI_WTIME()
+
+#endif
+C
+      IF (MPIT.LE.0) RETURN
+C
+C                             RANDBEDINGUNG WIRD  EINMAL AUFGEPRAEGT
+C
+C                             NOTWENDIG  IM RED-BLACK VERFAHREN
+C
+      IF (NOFVPIT(ILEVEL) .GT. 1) THEN
+
+         DO IRB = 1,2
+         DO JRB = 1,2
+         DO KRB = 1,2
+
+C
+C                                 BEI MESSAGE-PASSING, KOMMUNIKATION
+C
+         CALL CONNECTMG
+     $             (IDIM3D,IDIM2D,IDIM1D,
+     $              X,Y,Z,DX,DY,DZ,DDX,DDY,DDZ,
+#ifdef _TSCAL_
+     $              U,V,W,T,P,G,B,UFR,VRI,WBO,HILF,UTO,VTO,WTO,PTO,GTO,
+#else     
+     $              U,V,W,P,G,B,UFR,VRI,WBO,HILF,UTO,VTO,WTO,PTO,GTO,
+#endif      
+     $              VFR,WFR,PFR,GFR,
+     $              'P',ILEVEL,IRB,JRB,KRB,
+     $              NOFVPIT(ILEVEL),IGRDOFVPIT(1,ILEVEL))
+
+#ifdef _IRIS_
+C$DOACROSS LOCAL(I,IGRID,KK,JJ,II,IP3,IP2,IP1,IBB,IBU,
+C$&              NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB)
+#endif
+        DO I = 1,NOFVPIT(ILEVEL)
+           IGRID = IGRDOFVPIT(I,ILEVEL)
+
+#ifdef _MPI_
+       IF (MYID .EQ. IDPROCOFGRD(IGRID))  THEN
+#endif
+              CALL BOUNDMG
+     $                (IDIM3D,IDIM2D,IDIM1D,
+     $                 X,Y,Z,DX,DY,DZ,DDX,DDY,DDZ,
+     $                 U,V,W,P,G,B,UFR,VFR,WFR,VRI,HILF,
+     $                 UTO,VTO,WTO,PTO,GTO,
+     $                 'P',IGRID,IRB,JRB,KRB,
+     $                 TIMEPH,UBA,VBA,WBA,PBA,GBA,UBO,VBO,WBO,
+     $                 PFR,GFR
+#ifdef _TSCAL_
+     $                ,T,TFR,TBA,TTO,TBO
+#endif
+     $                )     
+#ifdef _FRED_BODY_
+              IF (IRB*JRB*KRB.EQ.1.AND.IALGO.NE.1) THEN
+
+              CALL BOUNDMG
+     $                (IDIM3D,IDIM2D,IDIM1D,
+     $                 X,Y,Z,DX,DY,DZ,DDX,DDY,DDZ,
+     $                 U,V,W,P,G,B,UFR,VFR,WFR,VRI,HILF,
+     $                 UTO,VTO,WTO,PTO,GTO,
+     $                 'Z',IGRID,IRB,JRB,KRB,
+     $                 TIMEPH,UBA,VBA,WBA,PBA,GBA,UBO,VBO,WBO,
+     $                 PFR,GFR
+#ifdef _TSCAL_
+     $                ,T,TFR,TBA,TTO,TBO
+#endif
+     $                )     
+
+              END IF
+#endif
+#ifdef _MPI_
+       ENDIF
+#endif
+
+         ENDDO
+         ENDDO
+         ENDDO
+         ENDDO
+C
+      ENDIF
+
+      DO IPIT = 1,MPIT
+C
+C
+C                                VARIATION OF OMG THROUGH OMBETA
+C                                 VORBELEGUNG DER MAX. DIVERGENZ
+CTEST      IF(MOD(IPIT,2) .EQ. 0) THEN
+CTEST        OMBETA1=OMBETA*0.90
+CTEST      ELSE
+        OMBETA1=OMBETA
+CTEST      ENDIF
+C     WRITE(6,*) 'OMBETA=',OMBETA1
+         DO I = 1,NOFVPIT(ILEVEL)
+           IGRID = IGRDOFVPIT( I , ILEVEL )
+           DIVGMX(IGRID) = 0.0
+         ENDDO
+
+C
+C                                FALLS MEHR ALS EIN GITTER AUF DEM 
+C                                LEVEL EXISTIEREN, WERDEN ITERATIONEN
+C                                IM RED-BLACK-VERFAHREN DURCHLAUFEN
+C
+      IF (NOFVPIT(ILEVEL) .GT. 1) THEN
+
+         DO IRB = 1,2
+         DO JRB = 1,2
+         DO KRB = 1,2
+         CALL CONNECTMG
+     $             (IDIM3D,IDIM2D,IDIM1D,
+     $              X,Y,Z,DX,DY,DZ,DDX,DDY,DDZ,
+#ifdef _TSCAL_
+     $              U,V,W,T,P,G,B,UFR,VRI,WBO,HILF,UTO,VTO,WTO,PTO,GTO,
+#else     
+     $              U,V,W,P,G,B,UFR,VRI,WBO,HILF,UTO,VTO,WTO,PTO,GTO,
+#endif 
+     $              VFR,WFR,PFR,GFR,
+     $              'P',ILEVEL,IRB,JRB,KRB,
+     $              NOFVPIT(ILEVEL),IGRDOFVPIT(1,ILEVEL))
+
+#ifdef _IRIS_
+C$DOACROSS LOCAL(I,IGRID,KK,JJ,II,IP3,IP2,IP1,IBB,IBU,
+C$&              NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB)
+#endif
+           DO I = 1,NOFVPIT(ILEVEL)
+           IGRID = IGRDOFVPIT(I,ILEVEL)
+
+#ifdef _MPI_
+       IF (MYID .EQ. IDPROCOFGRD(IGRID))  THEN
+#endif
+              CALL BOUNDMG
+     $                (IDIM3D,IDIM2D,IDIM1D,
+     $                 X,Y,Z,DX,DY,DZ,DDX,DDY,DDZ,
+     $                 U,V,W,P,G,B,UFR,VFR,WFR,VRI,HILF,
+     $                 UTO,VTO,WTO,PTO,GTO,
+     $                 'P',IGRID,IRB,JRB,KRB,
+     $                 TIMEPH,UBA,VBA,WBA,PBA,GBA,UBO,VBO,WBO,
+     $                 PFR,GFR
+#ifdef _TSCAL_
+     $                ,T,TFR,TBA,TTO,TBO
+#endif
+     $                )     
+
+              CALL MGDPB (KK,JJ,II,IP3,IP2,IP1,IBB,IBU,
+     $                      NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB,IGRID)
+#ifdef _FASTBUTBIGMEM_
+              CALL VPRBC
+     $                    (KK,JJ,II,KK,JJ,II,
+     $                     DX(IP1),DY(IP1),DZ(IP1),
+     $                    DDX(IP1),DDY(IP1),DDZ(IP1),
+     $                    RDX(IP1),RDY(IP1),RDZ(IP1),
+     $                   RDDX(IP1),RDDY(IP1),RDDZ(IP1),
+     $                       IPCORR,OMBETA1,DT,
+     $                     U(IP3),V(IP3),W(IP3),P(IP3),B(IP3),
+     $                     BP(IP3),BU(IP3),BV(IP3),BW(IP3),SDIV(IP3),
+     $                     HILF(IP3),
+     $                       RHO,DIVGMX(IGRID),DIVG(IP2),WSOR,NBND,
+     $                       NFRO,NBAC,NRGT,NLFT,IRB,JRB,KRB,GEOVP(IP3)
+     $                      ,IALGO)
+#else
+              CALL VPRBC
+     $                    (KK,JJ,II,KK,JJ,II,
+     $                     DX(IP1),DY(IP1),DZ(IP1),
+     $                    DDX(IP1),DDY(IP1),DDZ(IP1),
+     $                    RDX(IP1),RDY(IP1),RDZ(IP1),
+     $                   RDDX(IP1),RDDY(IP1),RDDZ(IP1),
+     $                       IPCORR,OMBETA1,DT,
+     $                     U(IP3),V(IP3),W(IP3),P(IP3),B(IP3),
+     $                     BP(IP3),BU(IP3),BV(IP3),BW(IP3),SDIV(IP3),
+     $                     HILF(IP3),
+     $                       RHO,DIVGMX(IGRID),DIVG(IP2),WSOR,NBND,
+     $                       NFRO,NBAC,NRGT,NLFT,IRB,JRB,KRB,GEOVP
+     $                       ,IALGO)
+#endif
+#ifdef _FRED_BODY_
+              IF (IRB*JRB*KRB.eq.8.AND.IALGO.NE.1) THEN
+              CALL BOUNDMG
+     $                (IDIM3D,IDIM2D,IDIM1D,
+     $                 X,Y,Z,DX,DY,DZ,DDX,DDY,DDZ,
+     $                 U,V,W,P,G,B,UFR,VFR,WFR,VRI,HILF,
+     $                 UTO,VTO,WTO,PTO,GTO,
+     $                 'Y',IGRID,IRB,JRB,KRB,
+     $                 TIMEPH,UBA,VBA,WBA,PBA,GBA,UBO,VBO,WBO,
+     $                 PFR,GFR
+#ifdef _TSCAL_
+     $                ,T,TFR,TBA,TTO,TBO
+#endif
+     $                )     
+              END IF
+#endif
+
+#ifdef _MPI_
+       ENDIF
+#endif
+
+           ENDDO
+         ENDDO
+         ENDDO
+         ENDDO
+
+
+C
+C                                       NUR EIN GITTER AUF LEVEL
+C
+      ELSEIF (NOFVPIT(ILEVEL) .EQ. 1) THEN
+         IGRID = IGRDOFVPIT( 1 , ILEVEL )
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC  ZUM TEST FUER PARENT-RANDB.
+CTEST         CALL CONNECTMG
+CTEST     $             (IDIM3D,IDIM2D,IDIM1D,
+CTEST     $              X,Y,Z,DX,DY,DZ,DDX,DDY,DDZ,
+CTEST     $              U,V,W,P,G,B,UFR,VRI,WBO,HILF,UTO,VTO,WTO,PTO,GTO,
+CTEST     $              VFR,WFR,PFR,GFR,
+CTEST     $              'P',ILEVEL,0,0,0,
+CTEST     $              NOFVPIT(ILEVEL),IGRDOFVPIT(1,ILEVEL))
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC  ZUM TEST FUER PARENT-RANDB.
+  
+#ifdef _MPI_
+       IF (MYID .EQ. IDPROCOFGRD(IGRID))  THEN
+#endif
+
+              CALL BOUNDMG
+     $                (IDIM3D,IDIM2D,IDIM1D,
+     $                 X,Y,Z,DX,DY,DZ,DDX,DDY,DDZ,
+     $                 U,V,W,P,G,B,UFR,VFR,WFR,VRI,HILF,
+     $                 UTO,VTO,WTO,PTO,GTO,
+     $                 'P',IGRID,0,0,0,
+     $                 TIMEPH,UBA,VBA,WBA,PBA,GBA,UBO,VBO,WBO,
+     $                 PFR,GFR
+#ifdef _TSCAL_
+     $                ,T,TFR,TBA,TTO,TBO
+#endif
+     $                )     
+#ifdef _FRED_BODY_
+              IF (IALGO.NE.1) THEN
+              CALL BOUNDMG
+     $                (IDIM3D,IDIM2D,IDIM1D,
+     $                 X,Y,Z,DX,DY,DZ,DDX,DDY,DDZ,
+     $                 U,V,W,P,G,B,UFR,VFR,WFR,VRI,HILF,
+     $                 UTO,VTO,WTO,PTO,GTO,
+     $                 'Z',IGRID,IRB,JRB,KRB,
+     $                 TIMEPH,UBA,VBA,WBA,PBA,GBA,UBO,VBO,WBO,
+     $                 PFR,GFR
+#ifdef _TSCAL_
+     $                ,T,TFR,TBA,TTO,TBO
+#endif
+     $                )     
+              END IF
+
+#endif
+
+             
+              CALL MGDPB (KK,JJ,II,IP3,IP2,IP1,IBB,IBU,
+     $                      NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB,IGRID)
+#ifdef _FASTBUTBIGMEM_
+              CALL VPLESC
+     $                    (KK,JJ,II,KK,JJ,II,
+     $                     DX(IP1),DY(IP1),DZ(IP1),
+     $                    DDX(IP1),DDY(IP1),DDZ(IP1),
+     $                    RDX(IP1),RDY(IP1),RDZ(IP1),
+     $                   RDDX(IP1),RDDY(IP1),RDDZ(IP1),
+     $                       IPCORR,OMBETA1,DT,
+     $                     U(IP3),V(IP3),W(IP3),P(IP3),B(IP3),
+     $                   BP(IP3),BU(IP3),BV(IP3),BW(IP3),SDIV(IP3),
+     $                   HILF(IP3),
+     $                       RHO,DIVGMX(IGRID),DIVG(IP2),WSOR,NBND,
+     $                       NFRO,NBAC,NRGT,NLFT,GEOVP(IP3),
+     $                       IALGO)
+#else
+              CALL VPLESC
+     $                    (KK,JJ,II,KK,JJ,II,
+     $                     DX(IP1),DY(IP1),DZ(IP1),
+     $                    DDX(IP1),DDY(IP1),DDZ(IP1),
+     $                    RDX(IP1),RDY(IP1),RDZ(IP1),
+     $                   RDDX(IP1),RDDY(IP1),RDDZ(IP1),
+     $                       IPCORR,OMBETA1,DT,
+     $                     U(IP3),V(IP3),W(IP3),P(IP3),B(IP3),
+     $                     BP(IP3),BU(IP3),BV(IP3),BW(IP3),SDIV(IP3),
+     $                     HILF(IP3),
+     $                       RHO,DIVGMX(IGRID),DIVG(IP2),WSOR,NBND,
+     $                       NFRO,NBAC,NRGT,NLFT,GEOVP,
+     $                       IALGO)
+#endif
+#ifdef _FRED_BODY_
+             IF (IALGO.NE.1) THEN
+              CALL BOUNDMG
+     $                (IDIM3D,IDIM2D,IDIM1D,
+     $                 X,Y,Z,DX,DY,DZ,DDX,DDY,DDZ,
+     $                 U,V,W,P,G,B,UFR,VFR,WFR,VRI,HILF,
+     $                 UTO,VTO,WTO,PTO,GTO,
+     $                 'Y',IGRID,0,0,0,
+     $                 TIMEPH,UBA,VBA,WBA,PBA,GBA,UBO,VBO,WBO,
+     $                 PFR,GFR
+#ifdef _TSCAL_
+     $                ,T,TFR,TBA,TTO,TBO
+#endif
+     $                )     
+             ENDIF
+#endif
+
+#ifdef _MPI_
+       ENDIF
+#endif
+
+      ELSE
+
+        CALL ERRR (501,'MGVPIT')
+
+      ENDIF
+
+         DO I = 1,NOFVPIT(ILEVEL)
+
+           IGRID = IGRDOFVPIT( I , ILEVEL )
+
+#ifdef _MPI_
+       IF (MYID .EQ. IDPROCOFGRD(IGRID))  THEN
+#endif
+
+              IPCORR(IGRID) = IPCORR(IGRID) + 1
+              IPCGES(IGRID) = IPCGES(IGRID) + 1
+
+           IF (IVPINF.EQ.2) WRITE (6,1000)
+     $        'MGVPIT, GRD',IGRID,'LEVEL',ILEVEL,
+     $        'IPCORR',IPCORR(IGRID),'DIV',DIVGMX(IGRID)
+
+              IF(DIVGMX(IGRID) .LT. EPIT) THEN
+   
+                LDIVLEPS(IGRID) = 1
+                NDIVLEPS(IGRID) = NDIVLEPS(IGRID) + 1
+   
+              ENDIF
+
+#ifdef _MPI_
+       ENDIF
+#endif
+
+
+         ENDDO
+
+      ENDDO
+C                             ITERATIONEN SIND FERTIG
+C
+C                             RANDBEDINGUNG WIRD NOCH EINMAL AUFGEPRAEGT
+C
+C                             NOTWENDIG WIEDER IM RED-BLACK VERFAHREN
+C
+C     IF (NOFVPIT(ILEVEL) .GT. 1) THEN
+         DO IRB = 1,2
+         DO JRB = 1,2
+         DO KRB = 1,2
+
+C
+C                                 BEI MESSAGE-PASSING, KOMMUNIKATION
+C
+         CALL CONNECTMG
+     $             (IDIM3D,IDIM2D,IDIM1D,
+     $              X,Y,Z,DX,DY,DZ,DDX,DDY,DDZ,
+#ifdef _TSCAL_
+     $              U,V,W,T,P,G,B,UFR,VRI,WBO,HILF,UTO,VTO,WTO,PTO,GTO,
+#else     
+     $              U,V,W,P,G,B,UFR,VRI,WBO,HILF,UTO,VTO,WTO,PTO,GTO,
+#endif 
+     $              VFR,WFR,PFR,GFR,
+     $              'P',ILEVEL,IRB,JRB,KRB,
+     $              NOFVPIT(ILEVEL),IGRDOFVPIT(1,ILEVEL))
+
+
+
+#ifdef _IRIS_
+C$DOACROSS LOCAL(I,IGRID,KK,JJ,II,IP3,IP2,IP1,IBB,IBU,
+C$&              NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB)
+#endif
+        DO I = 1,NOFVPIT(ILEVEL)
+           IGRID = IGRDOFVPIT(I,ILEVEL)
+
+#ifdef _MPI_
+       IF (MYID .EQ. IDPROCOFGRD(IGRID))  THEN
+#endif
+
+              CALL BOUNDMG
+     $                (IDIM3D,IDIM2D,IDIM1D,
+     $                 X,Y,Z,DX,DY,DZ,DDX,DDY,DDZ,
+     $                 U,V,W,P,G,B,UFR,VFR,WFR,VRI,HILF,
+     $                 UTO,VTO,WTO,PTO,GTO,
+     $                 'P',IGRID,IRB,JRB,KRB,
+     $                 TIMEPH,UBA,VBA,WBA,PBA,GBA,UBO,VBO,WBO,
+     $                 PFR,GFR
+#ifdef _TSCAL_
+     $                ,T,TFR,TBA,TTO,TBO
+#endif
+     $                )     
+#ifdef _MPI_
+       ENDIF
+#endif
+
+         ENDDO
+         ENDDO
+         ENDDO
+         ENDDO
+C      ENDIF
+
+C
+C                                 BEI MESSAGE-PASSING, KOMMUNIKATION
+C                                 FUER DRUCKRANDBEDINGUNG IM
+C                                 GROBGITTER WICHTIG
+C
+         CALL CONNECTMG
+     $             (IDIM3D,IDIM2D,IDIM1D,
+     $              X,Y,Z,DX,DY,DZ,DDX,DDY,DDZ,
+#ifdef _TSCAL_
+     $              U,V,W,T,P,G,B,UFR,VRI,WBO,HILF,UTO,VTO,WTO,PTO,GTO,
+#else     
+     $              U,V,W,P,G,B,UFR,VRI,WBO,HILF,UTO,VTO,WTO,PTO,GTO,
+#endif 
+     $              VFR,WFR,PFR,GFR,
+     $              'T',ILEVEL,0,0,0,
+     $              NOFVPIT(ILEVEL),IGRDOFVPIT(1,ILEVEL))
+
+
+
+#ifdef _IRIS_
+C$DOACROSS LOCAL(I,IGRID,KK,JJ,II,IP3,IP2,IP1,IBB,IBU,
+C$&              NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB)
+#endif
+        DO I = 1,NOFVPIT(ILEVEL)
+           IGRID = IGRDOFVPIT(I,ILEVEL)
+
+#ifdef _MPI_
+       IF (MYID .EQ. IDPROCOFGRD(IGRID))  THEN
+#endif
+
+              CALL MGDPB (KK,JJ,II,IP3,IP2,IP1,IBB,IBU,
+     $                      NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB,IGRID)
+
+              CALL BOUNDMG
+     $                (IDIM3D,IDIM2D,IDIM1D,
+     $                 X,Y,Z,DX,DY,DZ,DDX,DDY,DDZ,
+     $                 U,V,W,P,G,B,UFR,VFR,WFR,VRI,HILF,
+     $                 UTO,VTO,WTO,PTO,GTO,
+     $                 'T',IGRID,0,0,0,
+     $                 TIMEPH,UBA,VBA,WBA,PBA,GBA,UBO,VBO,WBO,
+     $                 PFR,GFR
+#ifdef _TSCAL_
+     $                ,T,TFR,TBA,TTO,TBO
+#endif
+     $                )     
+#ifdef _MPI_
+       ENDIF
+#endif
+
+         ENDDO
+ 
+
+         RETURN
+ 1000    FORMAT (1X,A,I4,3X,A,I4,3X,A,2X,I4,2X,A,2X,E10.4)
+         END

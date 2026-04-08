@@ -1,0 +1,48 @@
+      SUBROUTINE REZIPD(KK,JJ,II,KMX,JMX,IMX,
+     $                  DX,DY,DZ,DDX,DDY,DDZ,
+     $                  RDX,RDY,RDZ,RDDX,RDDY,RDDZ)
+C*STARLET***************************************************************
+C  R E Z I P D    BERECHNET REZIPROKWERTE DER GEOMETRIEFAKTOREN
+C*STARLET***************************************************************
+C
+C  PARAMETER KK, JJ, II           - ARRAYGRENZEN
+C            KMX,JMX,IMX          - GRENZE D. BER.-GEB.(MIT BOUND)
+C            DX(I),DY(J),DZ(K)    - ABSTAND DER GITTERPUNKTE
+C            DDX(I),DDY(J),DDZ(K) - KANTENLAENGE DER KONTROLLVOLUMINA
+C            RDX(I),RDY(J),RDZ(K)    - REZIPROKWERTE
+C            RDDX(I),RDDY(J),RDDZ(K) - REZIPROKWERTE
+C
+C  VERS:  10. 6.92 (MM)  : ORIGINAL
+C
+C
+C*STAR******************************************************************
+C
+C
+C
+      IMPLICIT NONE
+      INTEGER II,JJ,KK,KMX,JMX,IMX,I,J,K
+      REAL    DX(II),DY(JJ),DZ(KK),DDX(II),DDY(JJ),DDZ(KK),
+     $        RDX(II),RDY(JJ),RDZ(KK),RDDX(II),RDDY(JJ),RDDZ(KK)
+
+
+       DO I=1,IMX
+          RDX(I) = 1.0/DX(I)
+          RDDX(I) = 1.0/DDX(I)
+       ENDDO
+
+       DO 200 J=1,JMX
+
+          RDY(J) = 1./DY(J)
+          RDDY(J) = 1./DDY(J)
+
+  200   CONTINUE
+
+       DO 300 K=1,KMX
+
+          RDZ(K) = 1./DZ(K)
+          RDDZ(K) = 1./DDZ(K)
+
+  300   CONTINUE
+
+       RETURN
+       END

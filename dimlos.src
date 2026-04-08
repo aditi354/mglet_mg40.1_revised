@@ -1,0 +1,321 @@
+      SUBROUTINE DIMLOS  (KPP,JPP,IPP,GMOL,RHO,MTURB,
+     $                    X,Y,Z,DX,DY,DZ,DDX,DDY,DDZ,
+#include "cstaca.h"
+C*STARLET***************************************************************
+C        D I M L O S      IN DIMLOS WERDEN DIE DIMENSIONSBEHAFTETEN
+C                         GROESSEN IN DIMENSIONSLOSE UMGEWANDELT.
+C                         DIE FESTLEGUNG DER BASIS-BEZUGSGROESSEN
+C                         ERFOLGT IN SUBR. SETREF.
+C  A C H T U N G:         DIESE ROUTINE MUSS ERWEITERT WERDEN, FALLS
+C                         DIE STATIST. AUSWERTUNG ERWEITERT WIRD !
+C*STARLET***************************************************************
+C
+C PARAM: KPP,JPP,IPP    - ORT DES BEZUGSDRUCKES
+C        GMOL           - MOLEKULARE DYNAMISCHE VISKOSITAET
+C        RHO            - DICHTE DES FLUIDS (= CONST.)
+C        MTURB          - SCHALTER: 0 = LAMINAR,  1 = TURBULENT
+C        X, Y, Z        + KOORDINATEN DER ZELLDEFINITIONSPUNKTE
+C        DX,DY,DZ       + ABSTAND DER GITTERPUNKTE
+C        DDX,DDY,DDZ    + KANTENLAENGEN DER KONTROLLVOLUMINA
+#include "cstapa.h"
+C
+C UPROG                 : PLEVEL, AMULT
+C
+C DEFINE-DIREKTIVEN     : KEINE
+C
+C        01.09.86 (HW)  : ORIGINAL
+C        30.09.86 (HW)  : BEZUGSGROESSEN WERDEN IM RIDENT-FELD UEBER-
+C                         GEBEN. UEBERGABE  G E A E N D E R T !!
+C        01.07.88 (HW)  : ERWEITERUNG: AUSWERTUNG DER DREI KOMPONENTEN
+C                         DER VORTICITY, DER ENSTROPHIE UND DER
+C                         HELIZITAET
+C        19.08.88 (HW)  : LAENGENABMESSUNGEN WERDEN EBENFALLS
+C                         DIMENSIONSLOS GEMACHT.  A C H T U N G:
+C                         UEBERGABE GEAENDERT !!
+C        15.12.88 (HW)  : BESTIMMUNG DER REFERENZGROESSEN ALS COMMON-
+C                         DECK EINGEFUEHRT (CREFVA).
+C        30.10.90 (HW)  : UEBERGABE AN PLEVEL GEAENDERT
+C        27.02.92 (MM)  : PRUEFUNG DER UNDEFINIERTEN WERTE MIT 
+C                         UNDEF AUSGESCHALTET
+C
+C*STARLET***************************************************************
+C
+#include "konsta.h"
+C
+C
+      REAL        X(II),         Y(JJ),         Z(KK),
+     $           DX(II),        DY(JJ),        DZ(KK),
+     $          DDX(II),       DDY(JJ),       DDZ(KK)
+C
+#include "cstadi.h"
+#include "crefva.h"
+C
+C                                 ZUERST WERDEN DIE LAENGENABMESSUNGEN
+C                                 DIMENSIONSLOS GEMACHT
+C
+      CALL AMULT   (II , 1 , 1 ,IMX , 1  , 1  ,X      ,RLREF  )
+      CALL AMULT   (II , 1 , 1 ,IMX , 1  , 1  ,DX     ,RLREF  )
+      CALL AMULT   (II , 1 , 1 ,IMX , 1  , 1  ,DDX    ,RLREF  )
+C
+      CALL AMULT   (JJ , 1 , 1 ,JMX , 1  , 1  ,Y      ,RLREF  )
+      CALL AMULT   (JJ , 1 , 1 ,JMX , 1  , 1  ,DY     ,RLREF  )
+      CALL AMULT   (JJ , 1 , 1 ,JMX , 1  , 1  ,DDY    ,RLREF  )
+C
+      CALL AMULT   (KK , 1 , 1 ,KMX , 1  , 1  ,Z      ,RLREF  )
+      CALL AMULT   (KK , 1 , 1 ,KMX , 1  , 1  ,DZ     ,RLREF  )
+      CALL AMULT   (KK , 1 , 1 ,KMX , 1  , 1  ,DDZ    ,RLREF  )
+C
+C                                 DIE MOMENTANEN GESCHWINDIGKEITS-,
+C                                 DRUCK- UND G-FELDER WERDEN
+C                                 DIMENSIONSLOS GEMACHT
+C
+      IF(ISELEP(1,  1) .EQ. 1 .OR. ISELEP(1,  1) .EQ. 2) THEN
+C
+C                                 UNDEFINIERTE WERTE IM FELD WERDEN
+C                                 MIT 0.0 BELEGT WEGEN SUBR. AMULT !
+C                                 SIND AB 27.02.92 IMMER MIT 0.0 BEL.
+C
+         CALL AMULT   (KK ,JJ ,II ,KMX ,JMX ,IMX ,U      ,RUREF  )
+      ENDIF
+      IF(ISELEP(1, 26) .EQ. 1 .OR. ISELEP(1, 26) .EQ. 2) THEN
+         CALL AMULT   (KK ,JJ ,II ,KMX ,JMX ,IMX ,V      ,RUREF  )
+      ENDIF
+      IF(ISELEP(1, 51) .EQ. 1 .OR. ISELEP(1, 51) .EQ. 2) THEN
+         CALL AMULT   (KK ,JJ ,II ,KMX ,JMX ,IMX ,W      ,RUREF  )
+      ENDIF
+      IF(ISELEP(1, 76) .EQ. 1 .OR. ISELEP(1, 76) .EQ. 2) THEN
+         CALL PLEVEL  (KK ,JJ ,II ,KMX ,JMX ,IMX ,KPP,JPP,IPP,P,
+     $                 DDX, DDY, DDZ )
+         CALL AMULT   (KK ,JJ ,II ,KMX ,JMX ,IMX ,P      ,RPREF  )
+      ENDIF
+      IF(ISELEP(1,101) .EQ. 1 .OR. ISELEP(1,101) .EQ. 2) THEN
+         CALL AMULT   (KK ,JJ ,II ,KMX ,JMX ,IMX ,G      ,RGREF  )
+      ENDIF
+C
+      IF(MTURB .EQ. 0) RETURN
+C
+C                                 STATIST. GROESSEN DER U-KOMPONENTE
+C                                 ----------------------------------
+C
+C                                 <U>-WERTE
+C
+      IF(ISELEP(1,  4) .EQ. 1 .OR. ISELEP(1,  4) .EQ. 2) THEN
+         CALL AMULT   (KKA,JJA,IIA,KMXA,JMXA,IMXA,AU     ,RUREF  )
+      ENDIF
+C
+C                                 UFG-WERTE
+C
+      IF(ISELEP(1,  6) .EQ. 1 .OR. ISELEP(1,  6) .EQ. 2) THEN
+         CALL AMULT   (KK ,JJ ,II ,KMX ,JMX ,IMX ,UFG    ,RUREF  )
+      ENDIF
+C
+C                                 <U-RMS>-WERTE
+C
+      IF(ISELEP(1,  7) .EQ. 1 .OR. ISELEP(1,  7) .EQ. 2) THEN
+         CALL AMULT   (KKA,JJA,IIA,KMXA,JMXA,IMXA,AURG   ,RUREF  )
+      ENDIF
+C
+C                                 <U-RMS> G+S -WERTE
+C
+      IF(ISELEP(1,  9) .EQ. 1 .OR. ISELEP(1,  9) .EQ. 2) THEN
+         CALL AMULT   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SURG   ,RUREF  )
+      ENDIF
+C
+C                                 STATIST. GROESSEN DER V-KOMPONENTE
+C                                 ----------------------------------
+C
+      IF(ISELEP(1, 29) .EQ. 1 .OR. ISELEP(1, 29) .EQ. 2) THEN
+         CALL AMULT   (KKA,JJA,IIA,KMXA,JMXA,IMXA,AV     ,RUREF  )
+      ENDIF
+      IF(ISELEP(1, 31) .EQ. 1 .OR. ISELEP(1, 31) .EQ. 2) THEN
+         CALL AMULT   (KK ,JJ ,II ,KMX ,JMX ,IMX ,VFG    ,RUREF  )
+      ENDIF
+      IF(ISELEP(1, 32) .EQ. 1 .OR. ISELEP(1, 32) .EQ. 2) THEN
+         CALL AMULT   (KKA,JJA,IIA,KMXA,JMXA,IMXA,AVRG   ,RUREF  )
+      ENDIF
+      IF(ISELEP(1, 34) .EQ. 1 .OR. ISELEP(1, 34) .EQ. 2) THEN
+         CALL AMULT   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SVRG   ,RUREF  )
+      ENDIF
+C
+C                                 STATIST. GROESSEN DER W-KOMPONENTE
+C                                 ----------------------------------
+C
+      IF(ISELEP(1, 54) .EQ. 1 .OR. ISELEP(1, 54) .EQ. 2) THEN
+         CALL AMULT   (KKA,JJA,IIA,KMXA,JMXA,IMXA,AW     ,RUREF  )
+      ENDIF
+      IF(ISELEP(1, 56) .EQ. 1 .OR. ISELEP(1, 56) .EQ. 2) THEN
+         CALL AMULT   (KK ,JJ ,II ,KMX ,JMX ,IMX ,WFG    ,RUREF  )
+      ENDIF
+      IF(ISELEP(1, 57) .EQ. 1 .OR. ISELEP(1, 57) .EQ. 2) THEN
+         CALL AMULT   (KKA,JJA,IIA,KMXA,JMXA,IMXA,AWRG   ,RUREF  )
+      ENDIF
+      IF(ISELEP(1, 59) .EQ. 1 .OR. ISELEP(1, 59) .EQ. 2) THEN
+         CALL AMULT   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SWRG   ,RUREF  )
+      ENDIF
+C
+C                                 STATIST. GROESSEN DER P-KOMPONENTE
+C                                 ----------------------------------
+C
+      IF(ISELEP(1, 79) .EQ. 1 .OR. ISELEP(1, 79) .EQ. 2) THEN
+         CALL AMULT   (KKA,JJA,IIA,KMXA,JMXA,IMXA,AP     ,RPREF  )
+      ENDIF
+      IF(ISELEP(1, 81) .EQ. 1 .OR. ISELEP(1, 81) .EQ. 2) THEN
+         CALL AMULT   (KK ,JJ ,II ,KMX ,JMX ,IMX ,PFG    ,RPREF  )
+      ENDIF
+      IF(ISELEP(1, 82) .EQ. 1 .OR. ISELEP(1, 82) .EQ. 2) THEN
+         CALL AMULT   (KKA,JJA,IIA,KMXA,JMXA,IMXA,APRG   ,RPREF  )
+      ENDIF
+*     IF(ISELEP(1, 84) .EQ. 1 .OR. ISELEP(1, 84) .EQ. 2) THEN
+*        CALL AMULT   (KKA,JJA,IIA,KMXA,JMXA,IMXA,PHI    ,CMULT  )
+*     ENDIF
+C
+C                                 KINETISCHE ENERGIE DER SCHWANKUNGS-
+C                                 GESCHWINDIGKEITEN
+C                                 -----------------------------------
+C
+      IF(ISELEP(1,106) .EQ. 1 .OR. ISELEP(1,106) .EQ. 2) THEN
+         CALL AMULT   (KKA,JJA,IIA,KMXA,JMXA,IMXA,AEFG   ,REREF  )
+      ENDIF
+      IF(ISELEP(1,108) .EQ. 1 .OR. ISELEP(1,108) .EQ. 2) THEN
+         CALL AMULT   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SEFG   ,REREF  )
+      ENDIF
+      IF(ISELEP(1,109) .EQ. 1 .OR. ISELEP(1,109) .EQ. 2) THEN
+         CALL AMULT   (KKA,JJA,IIA,KMXA,JMXA,IMXA,AEFS   ,REREF  )
+      ENDIF
+C
+C                                 KOMPONENTEN DES SPANNUNGSTENSORS
+C                                 --------------------------------
+C
+C                                 HIER: U - W
+C                                 -----------
+C
+      IF(ISELEP(1,146) .EQ. 1 .OR. ISELEP(1,146) .EQ. 2) THEN
+         CALL AMULT   (KKA,JJA,IIA,KMXA,JMXA,IMXA,AUFWFG ,RTAURE )
+      ENDIF
+      IF(ISELEP(1,148) .EQ. 1 .OR. ISELEP(1,148) .EQ. 2) THEN
+         CALL AMULT   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SUFWFG ,RTAURE )
+      ENDIF
+      IF(ISELEP(1,149) .EQ. 1 .OR. ISELEP(1,149) .EQ. 2) THEN
+         CALL AMULT   (KKA,JJA,IIA,KMXA,JMXA,IMXA,AUFWFS ,RTAURE )
+      ENDIF
+      IF(ISELEP(1,151) .EQ. 1 .OR. ISELEP(1,151) .EQ. 2) THEN
+         CALL AMULT   (KKA,JJA,IIA,KMXA,JMXA,IMXA,AUFWFM ,RTAURE )
+      ENDIF
+      IF(ISELEP(1,153) .EQ. 1 .OR. ISELEP(1,153) .EQ. 2) THEN
+         CALL AMULT   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SUFWFS ,RTAURE )
+      ENDIF
+C
+C                                 HIER: V - W
+C                                 -----------
+C
+      IF(ISELEP(1,156) .EQ. 1 .OR. ISELEP(1,156) .EQ. 2) THEN
+         CALL AMULT   (KKA,JJA,IIA,KMXA,JMXA,IMXA,AVFWFG ,RTAURE )
+      ENDIF
+      IF(ISELEP(1,158) .EQ. 1 .OR. ISELEP(1,158) .EQ. 2) THEN
+         CALL AMULT   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SVFWFG ,RTAURE )
+      ENDIF
+      IF(ISELEP(1,159) .EQ. 1 .OR. ISELEP(1,159) .EQ. 2) THEN
+         CALL AMULT   (KKA,JJA,IIA,KMXA,JMXA,IMXA,AVFWFS ,RTAURE )
+      ENDIF
+      IF(ISELEP(1,161) .EQ. 1 .OR. ISELEP(1,161) .EQ. 2) THEN
+         CALL AMULT   (KKA,JJA,IIA,KMXA,JMXA,IMXA,AVFWFM ,RTAURE )
+      ENDIF
+      IF(ISELEP(1,163) .EQ. 1 .OR. ISELEP(1,163) .EQ. 2) THEN
+         CALL AMULT   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SVFWFS ,RTAURE )
+      ENDIF
+C
+C                                 HIER: U - V
+C                                 -----------
+C
+      IF(ISELEP(1,166) .EQ. 1 .OR. ISELEP(1,166) .EQ. 2) THEN
+         CALL AMULT   (KKA,JJA,IIA,KMXA,JMXA,IMXA,AUFVFG ,RTAURE )
+      ENDIF
+      IF(ISELEP(1,168) .EQ. 1 .OR. ISELEP(1,168) .EQ. 2) THEN
+         CALL AMULT   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SUFVFG ,RTAURE )
+      ENDIF
+      IF(ISELEP(1,169) .EQ. 1 .OR. ISELEP(1,169) .EQ. 2) THEN
+         CALL AMULT   (KKA,JJA,IIA,KMXA,JMXA,IMXA,AUFVFS ,RTAURE )
+      ENDIF
+      IF(ISELEP(1,171) .EQ. 1 .OR. ISELEP(1,171) .EQ. 2) THEN
+         CALL AMULT   (KKA,JJA,IIA,KMXA,JMXA,IMXA,AUFVFM ,RTAURE )
+      ENDIF
+      IF(ISELEP(1,173) .EQ. 1 .OR. ISELEP(1,173) .EQ. 2) THEN
+         CALL AMULT   (KKA,JJA,IIA,KMXA,JMXA,IMXA,SUFVFS ,RTAURE )
+      ENDIF
+C
+C                                 HIER: OMEGA-X
+C                                 -------------
+C
+      IF(ISELEP(1,176) .EQ. 1 .OR. ISELEP(1,176) .EQ. 2) THEN
+         CALL AMULT   (KK ,JJ ,II ,KMX ,JMX ,IMX ,OX     ,ROMREF )
+      ENDIF
+      IF(ISELEP(1,177) .EQ. 1 .OR. ISELEP(1,177) .EQ. 2) THEN
+         CALL AMULT   (KKA,JJA,IIA,KMXA,JMXA,IMXA,AOX    ,ROMREF )
+      ENDIF
+      IF(ISELEP(1,179) .EQ. 1 .OR. ISELEP(1,179) .EQ. 2) THEN
+         CALL AMULT   (KK ,JJ ,II ,KMX ,JMX ,IMX ,OXFG   ,ROMREF )
+      ENDIF
+      IF(ISELEP(1,180) .EQ. 1 .OR. ISELEP(1,180) .EQ. 2) THEN
+         CALL AMULT   (KKA,JJA,IIA,KMXA,JMXA,IMXA,AOXRG  ,ROMREF )
+      ENDIF
+C
+C                                 HIER: OMEGA-Y
+C                                 -------------
+C
+      IF(ISELEP(1,182) .EQ. 1 .OR. ISELEP(1,182) .EQ. 2) THEN
+         CALL AMULT   (KK ,JJ ,II ,KMX ,JMX ,IMX ,OY     ,ROMREF )
+      ENDIF
+      IF(ISELEP(1,183) .EQ. 1 .OR. ISELEP(1,183) .EQ. 2) THEN
+         CALL AMULT   (KKA,JJA,IIA,KMXA,JMXA,IMXA,AOY    ,ROMREF )
+      ENDIF
+      IF(ISELEP(1,185) .EQ. 1 .OR. ISELEP(1,185) .EQ. 2) THEN
+         CALL AMULT   (KK ,JJ ,II ,KMX ,JMX ,IMX ,OYFG   ,ROMREF )
+      ENDIF
+      IF(ISELEP(1,186) .EQ. 1 .OR. ISELEP(1,186) .EQ. 2) THEN
+         CALL AMULT   (KKA,JJA,IIA,KMXA,JMXA,IMXA,AOYRG  ,ROMREF )
+      ENDIF
+C
+C                                 HIER: OMEGA-Z
+C                                 -------------
+C
+      IF(ISELEP(1,188) .EQ. 1 .OR. ISELEP(1,188) .EQ. 2) THEN
+         CALL AMULT   (KK ,JJ ,II ,KMX ,JMX ,IMX ,OZ     ,ROMREF )
+      ENDIF
+      IF(ISELEP(1,189) .EQ. 1 .OR. ISELEP(1,189) .EQ. 2) THEN
+         CALL AMULT   (KKA,JJA,IIA,KMXA,JMXA,IMXA,AOZ    ,ROMREF )
+      ENDIF
+      IF(ISELEP(1,191) .EQ. 1 .OR. ISELEP(1,191) .EQ. 2) THEN
+         CALL AMULT   (KK ,JJ ,II ,KMX ,JMX ,IMX ,OZFG   ,ROMREF )
+      ENDIF
+      IF(ISELEP(1,192) .EQ. 1 .OR. ISELEP(1,192) .EQ. 2) THEN
+         CALL AMULT   (KKA,JJA,IIA,KMXA,JMXA,IMXA,AOZRG  ,ROMREF )
+      ENDIF
+C
+C                                 HIER: ENSTROPHIE
+C                                 ----------------
+C
+      IF(ISELEP(1,195) .EQ. 1 .OR. ISELEP(1,195) .EQ. 2) THEN
+         CALL AMULT   (KKA,JJA,IIA,KMXA,JMXA,IMXA,AO2    ,RO2REF )
+      ENDIF
+      IF(ISELEP(1,197) .EQ. 1 .OR. ISELEP(1,197) .EQ. 2) THEN
+         CALL AMULT   (KK ,JJ ,II ,KMX ,JMX ,IMX ,O2FG   ,RO2REF )
+      ENDIF
+      IF(ISELEP(1,198) .EQ. 1 .OR. ISELEP(1,198) .EQ. 2) THEN
+         CALL AMULT   (KKA,JJA,IIA,KMXA,JMXA,IMXA,AO2RG  ,RO2REF )
+      ENDIF
+C
+C                                 HIER: HELIZITAET
+C                                 ----------------
+C
+      IF(ISELEP(1,200) .EQ. 1 .OR. ISELEP(1,200) .EQ. 2) THEN
+         CALL AMULT   (KKA,JJA,IIA,KMXA,JMXA,IMXA,AHE    ,RHEREF )
+      ENDIF
+      IF(ISELEP(1,202) .EQ. 1 .OR. ISELEP(1,202) .EQ. 2) THEN
+         CALL AMULT   (KK ,JJ ,II ,KMX ,JMX ,IMX ,HEFG   ,RHEREF )
+      ENDIF
+      IF(ISELEP(1,203) .EQ. 1 .OR. ISELEP(1,203) .EQ. 2) THEN
+         CALL AMULT   (KKA,JJA,IIA,KMXA,JMXA,IMXA,AHERG  ,RHEREF )
+      ENDIF
+C
+      RETURN
+      END

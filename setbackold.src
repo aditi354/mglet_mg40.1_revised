@@ -1,0 +1,111 @@
+      SUBROUTINE SETBACKOLD   (KK,JJ,II,KMX,JMX,IMX,
+     $                         UBA, VBA, WBA, U,V,W
+#ifdef _TSCAL_
+     $                        ,TBA,T,TSWITCH
+#endif
+     $                        )
+C*STARLET***************************************************************
+C        SETBACKOLD       VORBELEGUNG DER GESCHWINDIGKEITSFELDER 
+C                         UBA, VBA, WBA AND SCALAR TBA
+C*STARLET***************************************************************
+C
+C PARAM: KK,  JJ,  II   - ARRAYDIMENSIONEN
+C
+C VERS:  10.09.95 (AO)  : ORIGINAL
+C        04.12.02 (TB)  : SCALAR TRANSPORT IMPLEMENTED
+C        25.08.03 (FS)  : UPWARDS ERWEITERT
+C
+C          TSWITCH = 0  : APPLIED TO UBA,VBA,WBA ONLY
+C          TSWITCH = 1  : APPLIED TO TBA ONLY
+C          TSWITCH = 2  : APPLIED TO ALL UBA,VBA,WBA,TBA
+C
+C*STARLET***************************************************************
+C
+#include "mgpar.h"
+#include "cophyspar.h"
+C
+#include "konsta.h"
+#include "conles.h"
+C
+#ifndef _UPWARDS_
+      REAL
+     $           U(KK,JJ,II), V(KK,JJ,II), W(KK,JJ,II),
+     $           UBA(KK,JJ,2), VBA(KK,JJ,2), WBA(KK,JJ,2)
+#ifdef _TSCAL_
+      REAL       T(KK,JJ,II),TBA(KK,JJ,2)
+      INTEGER    TSWITCH
+#endif
+C
+C
+C
+      IM2 = IMX-2
+      IM1 = IMX-1
+C
+C
+C
+         DO 10 J=1,JMX
+            DO 10 K=1,KMX
+#ifdef _TSCAL_
+             IF (TSWITCH .NE. 1) THEN
+#endif
+               UBA(K,J,2) = U(K,J,IM2)
+               UBA(K,J,1) = U(K,J,IM1)
+
+               VBA(K,J,2) = V(K,J,IM2)
+               VBA(K,J,1) = V(K,J,IM1)
+
+               WBA(K,J,2) = W(K,J,IM2)
+               WBA(K,J,1) = W(K,J,IM1)
+#ifdef _TSCAL_
+             ENDIF
+#endif               
+#ifdef _TSCAL_
+             IF (TSWITCH .EQ. 1 .OR. TSWITCH .EQ. 2) THEN
+               TBA(K,J,2) = T(K,J,IM2)
+               TBA(K,J,1) = T(K,J,IM1)
+             ENDIF
+#endif 
+   10 CONTINUE
+#else
+      REAL
+     $           U(KK,JJ,II), V(KK,JJ,II), W(KK,JJ,II),
+     $           UBA(2,JJ,II), VBA(2,JJ,II), WBA(2,JJ,II)
+#ifdef _TSCAL_
+      REAL       T(KK,JJ,II),TBA(2,JJ,II)
+      INTEGER    TSWITCH
+#endif
+C
+C
+C
+      IM2 = KMX-2
+      IM1 = KMX-1
+C
+C
+C
+         DO 10 I=1,IMX
+            DO 10 J=1,JMX
+#ifdef _TSCAL_
+             IF (TSWITCH .NE. 1) THEN
+#endif
+               UBA(2,J,I) = U(IM2,J,I)
+               UBA(1,J,I) = U(IM1,J,I)
+
+               VBA(2,J,I) = V(IM2,J,I)
+               VBA(1,J,I) = V(IM1,J,I)
+
+               WBA(2,J,I) = W(IM2,J,I)
+               WBA(1,J,I) = W(IM1,J,I)
+#ifdef _TSCAL_
+             ENDIF
+#endif               
+#ifdef _TSCAL_
+             IF (TSWITCH .EQ. 1 .OR. TSWITCH .EQ. 2) THEN
+               TBA(2,J,2) = T(IM2,J,I)
+               TBA(1,J,1) = T(IM1,J,I)
+             ENDIF
+#endif
+   10 CONTINUE
+#endif          
+
+      RETURN
+      END

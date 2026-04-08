@@ -1,0 +1,80 @@
+      SUBROUTINE THOMASI2(KK,JJ,II,KL,KU,JL,JU,IL,IU,LCOL,DIAG,
+     &                   RCOL,RSGS,FAKTOR,FOUTP)
+C*MGLET***************************************************************
+C        T H O M A S I   DAS UNTERPROGRAMM THOMAS LOEST EIN TRIDIAGONA-
+C                        LES LINEARES GLEICHUNGSSYSTEM NACH DEM
+C                        THOMAS - ALGORITHMUS
+C*MGLET***************************************************************
+C  PARAM:  IMX         - MAXIMALE ANZAHL DER GITTERPUNKTE EINSCHLIESS-
+C                        LICH DER RANDSCHICHTEN
+C          LCOL        - ENTHAELT KOEFFIZIENTEN DER "LINKEN SPALTE"
+C                        PARALLEL ZUR HAUPTDIAGONALEN
+C          DIAG        - ENTHAELT KOEFFIZIENTEN DER HAUPTDIAGONALEN
+C          RCOL        - ENTHAELT KOEFFIZIENTEN DER "RECHTEN SPALTE"
+C                        PARALLEL ZUR HAUPTDIAGONALEN
+C          RSGS        - ENTHAELT  WERTE DES KONSTANTEN VEKTORS
+C                        AUF DER RECHTEN SEITE DES GL.SYSTEMS
+C          FOUTP       - ENTHAELT  DIE LOESUNG DES GL.SYSTEMS   
+C
+C  DEFINE DIREKTIVEN   : KEINE
+C
+C  UPROG               : KEINE
+C
+C     15.10.96 (AM)    : ORIGINAL
+C
+C*MGLET***************************************************************
+C
+      REAL     LCOL(II), DIAG(II), RCOL(II), FAKTOR(II),            
+     $         FOUTP(KK,JJ,II),RSGS(KK,JJ,II)
+C
+C                                 BILDUNG DER OBEREN DREIECKSMATRIX
+C
+
+      LP = IL+1
+
+      DO 100  I = LP,IU
+ 	 FAKTOR(I) = LCOL(I) / DIAG(I-1)
+         DIAG(I) = DIAG(I) - (FAKTOR(I) * RCOL(I-1))
+  100 CONTINUE
+
+      DO 300  J = JL,JU
+      DO 200  K = KL,KU
+	FOUTP(K,J,IL) = RSGS(K,J,IL)
+  200 CONTINUE
+  300 CONTINUE
+
+       DO 10  I = IL+1,IU
+       DO 40  J = JL,JU
+       DO 50  K = KL,KU
+
+         FOUTP(K,J,I) = RSGS(K,J,I) - FAKTOR(I) * FOUTP(K,J,I-1)
+
+   50  CONTINUE
+   40  CONTINUE
+   10  CONTINUE
+
+C
+C                                 RUECKSUBSTITUTION
+C
+      DO 500  J = JL,JU
+      DO 400  K = KL,KU
+      FOUTP(K,J,IU) = FOUTP(K,J,IU)/DIAG(IU)
+  400 CONTINUE
+  500 CONTINUE
+
+         DO 70  N = LP,IU
+         I = IU-N+IL
+C
+         DO 80  J = JL,JU
+         DO 90  K = KL,KU
+C
+      FOUTP(K,J,I) = (FOUTP(K,J,I) - RCOL(I) * FOUTP(K,J,I+1))/DIAG(I)
+
+   90    CONTINUE
+   80  CONTINUE
+   70 CONTINUE
+
+CC    WRITE (44,*) 'THOMAS ERFOLGREICH DURCHLAUFEN!!'
+
+      RETURN
+      END

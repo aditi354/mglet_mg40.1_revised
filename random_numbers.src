@@ -1,0 +1,35 @@
+      SUBROUTINE RANDOM_NUMBERS (N,RANDOM,IRANDOM, DT, FRANDOM)
+
+      REAL RANDOM(N), DT, FRANDOM
+      INTEGER IRANDOM
+ 
+      SQ12DT = SQRT(12.0*DT)
+
+      IF (IRANDOM .EQ. 1) THEN
+     
+         DO I=1,N
+            RANDOM(I) = DT*(FRANDOM * (RANF() - 0.5))
+         ENDDO
+         
+      ELSEIF (IRANDOM .EQ. 2) THEN
+         
+         DO I=1,N
+            RANDOM(I) = DT*(FRANDOM * RANGLS())
+         ENDDO
+         
+      ELSEIF (IRANDOM .EQ. 3) THEN
+         
+         DO I=1,N
+            RANDOM(I) = FRANDOM * SQ12DT * (RANF() - 0.5)
+         ENDDO
+         
+      ELSE
+         DO I=1,N
+            RANDOM(I) = 0.0
+         ENDDO
+         
+      ENDIF
+
+
+      RETURN
+      END

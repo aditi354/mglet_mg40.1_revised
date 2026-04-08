@@ -1,0 +1,320 @@
+      SUBROUTINE APFIL(KK,JJ,II,F,BU,W11,RHS,LLCOL,LCOL,RCOL,RRCOL)
+
+!     PROGRAM TO CONSTRUCT A FILTER WHICH APPROXIMATES THE NET
+!     EFFECT OF FILTERING AND DECONVOLUTION
+
+      IMPLICIT NONE
+
+      REAL ZERO,ONE,EPS,PI,FF,W1,W2,W11
+      PARAMETER(ZERO=0.,ONE=1.,EPS=0.1)
+      
+      INTEGER KK,JJ,II,SHAPE
+      REAL  F    (KK,JJ,II),BU  (KK,JJ,II),RHS (KK,JJ,II),
+     $      LLCOL(KK,JJ,II),LCOL(KK,JJ,II),RCOL(KK,JJ,II),
+     $      RRCOL(KK,JJ,II)
+
+
+!!!!!!  CHECK IF REBUILD THE MATRIX
+      
+
+
+      PI = ACOS(-1.E0)
+      W1 = W11
+!     W1 = 0.85
+      SHAPE = 3
+!     W1 = 0.8D0  !SPECIFY CUT-OFF AS FRACTION OF PI 
+!     W2 = 0.9D0
+      FF = ((W1-0.4)/(1.0-0.4)-0.5)*0.2+1
+      W2 = FF*(1.0-W1)/2.0 + W1
+
+      CALL FPADE5(KK,JJ,II,F,SHAPE,W1,W2,BU,RHS,LLCOL,LCOL,RCOL,RRCOL)
+
+      RETURN
+      END
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      SUBROUTINE FCOEFS(SHAPE,W10,W20,ALPHA,BETA,CA,CB,CC,CD)
+      IMPLICIT NONE
+      INTEGER NP,SHAPE
+      PARAMETER(NP=50)
+
+      REAL W1,W2,ALPHA,BETA,CA,CB,CC,CD
+      REAL PI,W10,W20
+      REAL T1,T2,A11,A12,A21,A22,DET,R1,R2
+!  
+      PI = ACOS(-1.)
+
+
+      IF((SHAPE .NE. 2) .AND. (SHAPE .NE. 3)) SHAPE = 1
+
+!     (C.2.10B)  DEFAULT LATE CUT-OFF W1=2./PI ,W2=2.5/PI
+
+      IF(SHAPE .EQ. 1) THEN
+         ALPHA = 0.6522474E0
+         BETA  = 0.1702929E0
+      ENDIF
+
+!     (C.2.10A)  EARLY CUT-OFF W1=1.5/PI ,W2=2.0/PI
+      IF(SHAPE .EQ. 2) THEN
+         ALPHA = 0.4627507E0
+         BETA  = 0.2265509E0
+      ENDIF
+
+      IF(SHAPE .EQ. 3) THEN
+!       FIND ALPHA AND BETA
+
+        W1 = W10*PI
+        W2 = W20*PI
+
+        T1 = 0.95E0 * 16.E0
+        T2 = 0.50E0 * 16.E0
+
+        A11 = 12.E0 +(16.E0 -2.E0 * T1)*COS(W1) +4.E0*COS(2.E0*W1)
+        A12 = 10.E0*COS(W1) +(16.E0 -2.E0 * T1)*COS(2.E0*W1)
+     $                      +6.E0*COS(3.E0*W1)
+
+        A21 = 12.E0 +(16.E0 -2.E0 * T2)*COS(W2) +4.E0*COS(2.E0*W2)
+        A22 = 10.E0*COS(W2) +(16.E0 -2.E0 * T2)*COS(2.E0*W2) 
+     $                       +6.E0*COS(3.E0*W2)
+        DET = A11*A22 - A21*A12
+
+        R1  = T1 - 8.E0 - 9.E0*COS(W1) + COS(3.E0*W1)
+        R2  = T2 - 8.E0 - 9.E0*COS(W2) + COS(3.E0*W2)
+
+        ALPHA = (R1*A22 - R2*A12)/DET
+        BETA  = (A11*R2 - A21*R1)/DET
+      ENDIF
+
+      CA = ( 2.E0 +  3.E0 * ALPHA               )/ 4.E0
+      CB = ( 9.E0 + 16.E0 * ALPHA + 10.E0 * BETA)/16.E0
+      CC = (                ALPHA +  4.E0 * BETA)/ 4.E0
+      CD = (-1.E0                  + 6.E0 * BETA)/16.E0
+
+      RETURN
+      END
+
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+      SUBROUTINE FPADE5(KK,JJ,II,F,SHAPE,W1,W2,BU,RHS,
+     $                  LLCOL,LCOL,RCOL,RRCOL)
+      IMPLICIT NONE
+
+!     F CONTAINS FIELD VALUES ON ENTRY
+!     FBAR CONTAIN FILTERED VALUES ON RETURN
+                                
+!     N IS THE VECTOR LENGTH
+!     SHAPE = 1 : C.2.10.B LATE CUT-OFF 
+!           = 2 : C.2.10.A EARLY CUT-OFF 
+!             3 : FILTER CONSTRUCTED FROM W1 AND W2
+!             DEFAULT IS 1
+
+      INTEGER NMAX
+      PARAMETER(NMAX=5000)
+
+      INTEGER KK,JJ,II,K,J,I,L,SHAPE,KM1,KM2,KM3,KM4,KM5
+      REAL ZERO,ONE
+      PARAMETER(ZERO=0.0,ONE=1.0)
+
+      REAL W1,W2,ALPHA,BETA,CA,CB,CC,CD,ALPHA1,ALPHA15
+      REAL F    (KK,JJ,II),BU  (KK,JJ,II),RHS (KK,JJ,II),
+     $     LLCOL(KK,JJ,II),LCOL(KK,JJ,II),RCOL(KK,JJ,II),
+     $     RRCOL(KK,JJ,II)
+
+
+!     SAVE ALPHA,BETA,CA,CB,CC,CD
+!     DATA FIRSTCALL /.TRUE./
+
+      ALPHA1 = 0.49
+      ALPHA15 = ALPHA1 + 0.5
+
+      KM2 = KK - 2  
+	KM3 = KK -3  
+	KM4 = KK - 4  
+	KM5 = KK - 5
+
+      CALL FCOEFS(SHAPE,W1,W2,ALPHA,BETA,CA,CB,CC,CD)
+
+!     BUILD LOW-STORAGE LHS PENTADIAGONAL MATRIX
+!     ENDPOINTS I=2,N-1 WILL NOT BE ALTERED BY FILTERING
+
+      DO I=4,II-3
+         DO J=3,JJ-2
+
+            DO K=6,KK-5
+               LLCOL(K,J,I) = BETA
+               LCOL (K,J,I) = ALPHA
+               RCOL (K,J,I) = ALPHA
+               RRCOL(K,J,I) = BETA
+            ENDDO
+
+            LLCOL(KM2,J,I) = ZERO
+            LCOL (KM2,J,I) = ZERO
+            RCOL (KM2,J,I) = ZERO
+            RRCOL(KM2,J,I) = ZERO
+
+            LLCOL(4  ,J,I) = ZERO
+            LCOL (4  ,J,I) = ALPHA1
+            RCOL (4  ,J,I) = ALPHA1
+            RRCOL(4  ,J,I) = ZERO
+
+            LLCOL(KM3,J,I) = ZERO
+            LCOL (KM3,J,I) = ALPHA1
+            RCOL (KM3,J,I) = ALPHA1
+            RRCOL(KM3,J,I) = ZERO
+
+            LLCOL(5  ,J,I) = ZERO
+            LCOL (5  ,J,I) = ALPHA1
+            RCOL (5  ,J,I) = ALPHA1
+            RRCOL(5  ,J,I) = ZERO
+
+            LLCOL(KM4,J,I) = ZERO
+            LCOL (KM4,J,I) = ALPHA1
+            RCOL (KM4,J,I) = ALPHA1
+            RRCOL(KM4,J,I) = ZERO
+         ENDDO
+      ENDDO
+
+#ifdef _FRED_BODY_
+!     ALSO MODIFY POINTS DUE TO BLOCKING
+      STOP 'IN APFIL.SRC'
+#endif
+
+!     BUILD LOW-STORAGE MATRIX FOR RHS
+!     EXCEPT 4 SPECIAL POINTS (I=2,3,KK-3,KK-2
+
+      DO I = 4,II-3
+         DO J = 4,JJ-3
+            DO K = 6,KM5
+        RHS(K,J,I)=          CA *  F(K  ,J,I)
+     $               + 0.5 * CB * (F(K-1,J,I) + F(K+1,J,I))
+     $               + 0.5 * CC * (F(K-2,J,I) + F(K+2,J,I))
+     $               + 0.5 * CD * (F(K-3,J,I) + F(K+3,J,I))
+             END DO
+          END DO
+       END DO
+
+!     SPECIAL POINTS.  
+!     ASSUME NO CHANGE FOR ENDPOINTS
+
+!     RESET RHS FOR SPECIAL POINTS
+
+       DO I=4,II-3
+       DO J=4,JJ-3
+       RHS(3  ,J,I)=         F(3  ,J,I)
+       RHS(4  ,J,I)=ALPHA15*(F(4  ,J,I)+0.5*(F(3  ,J,I)+F(5  ,J,I)))
+       RHS(5  ,J,I)=ALPHA15*(F(5  ,J,I)+0.5*(F(4  ,J,I)+F(6  ,J,I)))
+       RHS(KM4,J,I)=ALPHA15*(F(KM4,J,I)+0.5*(F(KM3,J,I)+F(KM5,J,I)))
+       RHS(KM3,J,I)=ALPHA15*(F(KM3,J,I)+0.5*(F(KM2,J,I)+F(KM4,J,I)))
+       RHS(KM2,J,I)=         F(KM2,J,I)
+       END DO
+       ENDDO
+
+
+#ifdef _FRED_BODY_
+!    ALSO RESET IN CASE OF BLOCKED CELLS
+#endif
+
+      CALL GAUSEID(KK,JJ,II,F,RHS,LLCOL,LCOL,RCOL,RRCOL)
+
+      RETURN
+      END
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      SUBROUTINE GAUSEID(KK,JJ,II,FBAR,RHS,LLCOL,LCOL,RCOL,RRCOL)
+
+      IMPLICIT NONE
+
+      INTEGER KK,JJ,II,K,J,I,N,NITER,NOUTER,MAXOUTER,EI,EJ,
+     $        KM2,KM3,KM4,KM5
+
+      REAL FBAR(KK,JJ,II),RHS (KK,JJ,II),LLCOL(KK,JJ,II),
+     $     LCOL(KK,JJ,II),RCOL(KK,JJ,II),RRCOL(KK,JJ,II),EPS(JJ,II)
+
+      REAL EPSMAX,MAXERR,REL
+
+      KM2 = KK - 2 
+	 KM3 = KK -3 
+	 KM4 = KK - 4 
+	 KM5 = KK - 5
+      REL=1.0
+      MAXOUTER= 8
+      MAXERR= 5.0E-05
+      NOUTER = 0
+      NITER= 4
+
+      EPSMAX = 999.0
+
+      DO WHILE ( EPSMAX .GT. MAXERR .AND. NOUTER .LE. MAXOUTER ) 
+         
+      NOUTER = NOUTER + 1
+
+       DO I=4,II-3
+          DO J=4,JJ-3
+
+             DO N=1,NITER
+                
+                EPSMAX = 0.0
+                FBAR(4,J,I) = FBAR(4,J,I)+REL * (RHS(4,J,I)
+     $                           -LCOL(4,J,I) * FBAR(3,J,I)
+     $                           -RCOL(4,J,I) * FBAR(5,J,I)
+     $                                         -FBAR(4,J,I))
+             DO K = 5,KM4
+
+                FBAR(K,J,I)   = FBAR(K,J,I)+REL *(RHS(K  ,J,I)
+     $                             -LLCOL(K,J,I)*FBAR(K-2,J,I)
+     $                             -LCOL (K,J,I)*FBAR(K-1,J,I)
+     $                             -RCOL (K,J,I)*FBAR(K+1,J,I)
+     $                             -RRCOL(K,J,I)*FBAR(K+2,J,I)
+     $                                          -FBAR(K  ,J,I))
+
+             END DO
+
+                FBAR(KM3,J,I) = FBAR(KM3,J,I)+REL *(RHS(KM3,J,I)
+     $                              -LCOL(KM3,J,I)*FBAR(KM4,J,I)
+     $                              -RCOL(KM3,J,I)*FBAR(KM2,J,I)
+     $                                            -FBAR(KM3,J,I))
+               END DO
+            END DO
+
+         END DO
+
+
+      DO I=4,II-3
+         DO J=4,JJ-3
+
+               EPS(J,I)=0.0
+               EPS(J,I) = EPS(J,I) + (RHS(4,J,I)
+     $                -LCOL(4,J,I) * FBAR(3,J,I)
+     $                -RCOL(4,J,I) * FBAR(5,J,I)
+     $                             - FBAR(4,J,I))**2
+
+               DO K=5,KM4
+                  EPS(J,I) = EPS(J,I) +(RHS(K,  J,I)
+     $                   -LLCOL(K,J,I)*FBAR(K-2,J,I)
+     $                   -LCOL (K,J,I)*FBAR(K-1,J,I)
+     $                   -RCOL (K,J,I)*FBAR(K+1,J,I)
+     $                   -RRCOL(K,J,I)*FBAR(K+2,J,I)
+     $                                -FBAR(K,  J,I))**2
+               END DO
+
+               EPS(J,I) = EPS(J,I)  +(RHS(KM3,J,I)
+     $               -LCOL(KM3,J,I)*FBAR(KM4,J,I)
+     $               -RCOL(KM3,J,I)*FBAR(KM2,J,I)
+     $                              -FBAR(KM3,J,I))**2
+
+               EPSMAX=MAX(EPSMAX,EPS(J,I))
+
+         END DO
+      END DO
+
+      END DO
+
+      if (nouter .eq. maxouter ) then 
+         write(6,*)'GAUSSEIDEL NO CONVERGENCE',NOUTER,EPSMAX
+         stop'error in apfil.src'
+      endif
+
+      RETURN
+     
+      END

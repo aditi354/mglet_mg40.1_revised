@@ -1,0 +1,50 @@
+C#ifdef _TSCAL_
+      SUBROUTINE BFRSCA  (KMX,JMX,IMX,
+     $                    T,TSCAFR,
+     $                    JSTART,JSTOP,KSTART,KSTOP,ITYP)
+C*STARLET***************************************************************
+C        B F R S C A   SETTING SCALAR BOUNDARY CONDITION FIXED-SCALAR
+C                         (LARGE-EDDY-SIMULATION)
+C*STARLET***************************************************************
+C
+C PARAM: 
+C        KMX, JMX, IMX  - DIMENSIONEN DES GITTERS 
+C        T(KMX,JMX,IMX) + SCALAR T FIELD
+C        ITYP           - HOLLERITH-KONSTANTE:
+C                         'P'  VOR DER DRUCKKORREKTUR
+C                         'T'  VOR DEM ZEITSCHRITT
+C
+C VERS:  28.02.03 (TB)  : ORIGINAL
+C
+C
+C*STARLET***************************************************************
+C
+#include "konsta.h"
+C
+      CHARACTER (LEN=1)  ITYP
+C
+      REAL T(KMX,JMX,IMX)
+C
+C
+C
+C                                 **************************************
+C                                 FIXED SCALAR-CONDITION AT FRONT
+C                                 **************************************
+C
+C
+C
+      IF ( ITYP .EQ. 'T' ) THEN
+       
+         DO J=JSTART,JSTOP
+         DO K=KSTART,KSTOP
+
+            T(K,J,  2) = TSCAFR
+
+         ENDDO
+         ENDDO
+
+      ENDIF
+
+      RETURN
+      END
+C#endif

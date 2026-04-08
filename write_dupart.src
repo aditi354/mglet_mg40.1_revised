@@ -1,0 +1,26 @@
+       SUBROUTINE WRITE_DUPART(CHANNEL,NPART,NPART_MAX,IPART,DUPART)
+	implicit none
+C----------------------------------------------------------
+C
+C	WRITES VELOCITY GRADIENT TENSOR OF PARTICLES
+C
+C	17. 9. 1999 (MM): ORIGINAL
+C
+C----------------------------------------------------------
+
+	integer NPART,i,j,NPART_MAX
+	INTEGER IPART(NPART), CHANNEL
+	REAL     DUPART( NPART_MAX, 9 )
+
+	DO I=1,NPART
+          WRITE (CHANNEL, 1000, ERR=2000) IPART(I), (DUPART(I,J),J=1,9)
+C	   WRITE (CHANNEL,  ERR=2000) IPART(I), (DUPART(I,J),J=1,9	)
+	ENDDO
+
+	RETURN
+
+ 1000	FORMAT (I8, 9(1X,E12.5E3))
+
+ 2000	CALL ERRR (501,' WRITE_DUPA')
+
+	END

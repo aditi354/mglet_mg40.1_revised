@@ -1,0 +1,137 @@
+      SUBROUTINE SETTHREADS ()
+C*MGLET*****************************************************
+C    S E T T H R E A D S   ORDNET DEN ZUR VERFUEGUNG STEHENDEN
+C                          THREADS DIE ZU BERECHNENDEN GITTER ZU
+C
+C    IDTHROFGRD:           ID_THREAD_OF_GRID
+C     NVPOFTHR :           ANZAHL DER GITTER, DIE JEDER THREAD 
+C     NTSOFTHR :           AUF DEM JEWEILIGEN LEVEL ZU
+C                          BEARBEITEN HAT (VP: DRUCKKORREKTUR,
+C                                          TS: ZEITSCHRITT)
+C     IVPOFTHR :           LISTE DER GITTER, DIE JEDER THREAD 
+C     ITSOFTHR :           AUF DEM JEWEILIGEN LEVEL ZU
+C                          BEARBEITEN HAT
+C    
+C
+C    14.01.94  (MM,RK):    ORIGINAL
+C
+C****************************************************************
+C
+#include "mgpar.h"
+#include "cogrdpro.h"
+#include "colevel.h"
+#ifdef _KSR_
+#include "coksr.h"
+#endif
+
+      CHARACTER*4                 CNUMTH
+
+#ifdef _KSR_
+C                                 MAXIMALE ANZAHL DER GITTER PRO LEVEL
+      NGRDSOFVPMAX = 0
+      NGRDSOFTSMAX = 0
+      NGRDSOFLVLMAX = 0
+
+      DO ILEVEL=MINLEVEL,MAXLEVEL
+         NGRDSOFVPMAX = MAX(NOFVPIT(ILEVEL),NGRDSOFVPMAX)
+         NGRDSOFTSMAX = MAX(NOFTST(ILEVEL),NGRDSOFTSMAX)
+      ENDDO
+
+      IF (NGRDSOFVPMAX .EQ. 0) CALL ERRR (521,' SETTHREADS ')
+      IF (NGRDSOFTSMAX .EQ. 0) CALL ERRR (522,' SETTHREADS ')
+C     IF (NGRDSOFTSMAX .NE. NGRDSOFVPMAX) CALL ERRR (523,' SETTHREADS ')
+
+      NGRDSOFLVLMAX = MAX(NGRDSOFVPMAX,NGRDSOFTSMAX)
+
+
+C                                 FESTLEGUNG DER ANZAHL AN PROZESSOREN
+C                                 DABEI WIRD UEBERPRUEFT, OB DIE ENVIRON-
+C                                 MENT VARIABLE 'PL_NUM_THREADS' GESETZT IST.
+C
+      CALL   GETENV ('PL_NUM_THREADS',CNUMTH)
+      READ          (CNUMTH,'(I4)') INUMTH
+
+      IF ((INUMTH.LT.1) .OR. (INUMTH.GT.MAXTHREADS)) 
+     $                               CALL ERRR (521,' SETTHREADS ')
+
+C                                 JEDEM GITTER WIRD EIN THREAD
+C                                 ZUGEORDNET
+
+         CALL IPR_CREATE_TEAM (INUMTH, ITEAM)
+
+         DO ILEVEL=MINLEVEL,MAXLEVEL
+            DO ITHR = 1,INUMTH
+               NVPOFTHR(ITHR,ILEVEL) = 0
+               NTSOFTHR(ITHR,ILEVEL) = 0
+            ENDDO
+C
+C                                 GITTER, DIE ZEITSCHRITT DURCHLAUFEN
+C
+            ITHR = 0
+            DO I = 1,NOFTST(ILEVEL)
+               IGRID = IGRDOFTST( I , ILEVEL )
+               ITHR = ITHR + 1
+               IF (ITHR .GT. INUMTH) ITHR = 1
+               NT = NTSOFTHR(ITHR,ILEVEL) + 1
+               ITSOFTHR(NT,ITHR,ILEVEL) = IGRID
+               NTSOFTHR(ITHR,ILEVEL) = NT
+            ENDDO
+C
+C                                 GITTER, DIE DRUCKKORR. DURCHLAUFEN
+C
+            ITHR = 0
+            DO I = 1,NOFVPIT(ILEVEL)
+               IGRID = IGRDOFVPIT( I , ILEVEL )
+               ITHR = ITHR + 1
+               IF (ITHR .GT. INUMTH) ITHR = 1
+               NVP = NVPOFTHR(ITHR,ILEVEL) + 1
+               IVPOFTHR(NVP,ITHR,ILEVEL) = IGRID
+               NVPOFTHR(ITHR,ILEVEL) = NVP
+            ENDDO
+
+         ENDDO
+
+
+
+#ifdef _KSR_
+C*KSR* PARALLEL REGION( TEAMID=ITEAM, PRIVATE=(/THREADID/) )
+       ITHREAD = IPR_MID()+1
+C*KSR* END PARALLEL REGION
+#endif
+
+C
+C                                 AUSGABE
+C
+       WRITE (6,*) 
+     $'***************************  INFORMATION AUS SETTHREADS'
+       WRITE (6,*) 
+     $'ANZAHL DER THREADS:  ',INUMTH
+       WRITE (6,*) '*'
+       WRITE (6,*) '*'
+         DO ILEVEL=MINLEVEL,MAXLEVEL
+       WRITE (6,*) '*',' LEVEL: ',ILEVEL
+       WRITE (6,*) '*'
+            DO ITHR = 1,INUMTH
+       WRITE (6,*) '*',' LEVEL: ',ILEVEL,
+     $                 ' THREAD: ',ITHR,
+     $                 '    NVP: ',NVPOFTHR(  ITHR,ILEVEL),
+     $                 '    NTS: ',NTSOFTHR(  ITHR,ILEVEL)
+            DO IGRD = 1,NVPOFTHR(  ITHR,ILEVEL)
+       WRITE (6,*) '*',' LEVEL: ',ILEVEL,
+     $                 ' THREAD: ',ITHR,
+     $                 '    IVP: ',IVPOFTHR(IGRD,ITHR,ILEVEL)
+            ENDDO
+            DO IGRD = 1,NTSOFTHR(  ITHR,ILEVEL)
+       WRITE (6,*) '*',' LEVEL: ',ILEVEL,
+     $                 ' THREAD: ',ITHR,
+     $                 '    ITS: ',ITSOFTHR(IGRD,ITHR,ILEVEL)
+            ENDDO
+       WRITE (6,*) '*'
+       WRITE (6,*) '*'
+            ENDDO
+         ENDDO
+
+#endif
+
+       RETURN
+       END

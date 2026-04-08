@@ -1,0 +1,527 @@
+      SUBROUTINE OMEGA   (KK,JJ,II,KMX,JMX,IMX,IC1,IC2,JC1,JC2,KC1,KC2,
+     $                    G,GMOL,RHO,UGRID,OMEGAK,
+     $                    UI,XI,DXI,DDXI,NNI,UJ,XJ,DXJ,DDXJ,NNJ,IVAR,
+     $                    NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB)
+C*STARLET***************************************************************
+C        O M E G A        IN OMEGA WERDEN DIE EINZELNEN KOMPONENTEN
+C                         DER VORTICITY:
+C                           OMEGA_K = EPSILON_I,J,K * D(U_I) /D(X_J)
+C                         BERECHNET.
+C                         DA DIE VORTICITY AN FESTEN WAENDEN MITTELS
+C                         WANDGESETZ BESTIMMT WIRD, IST EINE SONDER-
+C                         BEHANDLUNG ALLER NOSLIP-SEITENFLAECHEN ER-
+C                         FORDERLICH. KUBUSFOERMIGE EINBAUTEN WERDEN
+C                         BERUECKSICHTIGT
+C*STARLET***************************************************************
+C
+C PARAM: KK, JJ, II     - ARRAYDIMENSIONEN
+C        KMX, JMX, IMX  - GRENZEN DES BERECHNUNGSGEBIETES (MIT BOUND)
+C        IC1, IC2       - GRENZE DES KUBUSSES IN X-RI.
+C        JC1, JC2       -   ""     "     "     IN Y-RI.
+C        KC1, KC2       -   ""     "     "     IN Z-RI. 
+C        G(KK,JJ,II)    - EFFEKTIVE DYNAMISCHE VISKOSITAET (= MUE)
+C        GMOL           - MOLEKULARE DYNAMISCHE VISKOSITAET
+C        RHO            - DICHTE DES FLUIDS (= CONST)
+C        UGRID          - GESCHWINDIGKEIT DES KOORDINATENSYSTEMS IN
+C                         X-RICHTUNG (GALILEI-TRANSFORMATION)
+C        OMEGAK(KK,JJ,II)+ K-KOMPONENTE DER VORTICITY
+C        UI   (KK,JJ,II)- GESCHWINDIGKEITSKOMPONENTE U_I
+C        XI   (NNI)     - KOORDINATEN DER ZELLMITTELPUNKTE IN 'I'-RI.
+C        DXI  (NNI)     - ABSTAND DER BASISZELMITTELPUNKTE IN 'I'-RI.
+C        DDXI (NNI)     - ABMESSUNGEN DER BASISZELLEN      IN 'I'-RI.
+C        NNI            - ARRAYDIMENSION                   IN 'I'-RI.
+C        UJ   (KK,JJ,II)- GESCHWINDIGKEITSKOMPONENTE U_J
+C        XJ   (NNJ)     - KOORDINATEN DER ZELLMITTELPUNKTE IN 'J'-RI.
+C        DXJ  (NNJ)     - ABSTAND DER BASISZELMITTELPUNKTE IN 'J'-RI.
+C        DDXJ (NNJ)     - ABMESSUNGEN DER BASISZELLEN      IN 'J'-RI.
+C        NNJ            - ARRAYDIMENSION                   IN 'J'-RI.
+C        IVAR           - CHARACTER-VARIABLE DER FORM 'OX', 'OY'
+C                         ODER 'OZ'. BEISPIELSWEISE BEDEUTET 'OX', DASS
+C                              OMEGA_X = DW/DY - DV/DZ
+C                         AUSGEWERTET WIRD.
+C
+C UPROG                 : ERRR
+C
+C DEFINE-DIREKTIVEN     : BANOS, BONOS, CUNOS, FRNOS, LENOS, RINOS,
+C                         TONOS, FRFIX, RIFIX
+C
+C        18.08.88 (HW)  : ORIGINAL
+C        30.12.88 (HW)  : GEPS  WIRD MASCHINEN"UN"ABHAENGIG BELEGT,
+C                         UEBERPRUEFUNGEN WURDEN VERBESSERT
+C         6.11.92 (MM)  : EINFUEHRUNG VON LENOS UND RINOS
+C                         VORSICHT!!!!   NICHT ABGECHECKT!!!!
+C
+C*STARLET***************************************************************
+C
+#include "konsta.h"
+C
+      CHARACTER (LEN=2)  IVAR
+C
+C
+      REAL     UI (KK,JJ,II),     UJ (KK,JJ,II),     G (KK,JJ,II),
+     $         OMEGAK (KK,JJ,II)
+      REAL     XI (NNI),          DXI (NNI),         DDXI (NNI),
+     $         XJ (NNJ),          DXJ (NNJ),         DDXJ (NNJ)
+C
+      IM2    = IMX - 2
+      JM2    = JMX - 2
+      KM2    = KMX - 2
+      IFRFIX = 0
+      JRIFIX = 0
+      GEPS   = AMAX1 ((GMOL/10000.0) , (10.0 * SMAONE))
+      IF(((    GMOL   - GEPS) .LE. 0.0)  .OR.
+     $   ((ABS(SMALL) - GEPS) .GE. 0.0)       ) THEN
+         CALL ERRR (501,' OMEGA    ')
+      END IF
+C
+C                                 BESTIMMUNG DER VERSCHIEBUNGSKOEFFI-
+C                                 ZIENTEN (DIE KOMPONENTEN DER VORTICITY
+C                                 SIND ZWEIFACH 'GESTAGGERT' !)
+C
+      IF(IVAR .EQ. 'OX') THEN
+C                                 BERUECKSICHTIGUNG VON 'W'
+         K1     = 1
+         J1     = 0
+         I1     = 0
+C                                 BERUECKSICHTIGUNG VON 'V'
+         K2     = 0
+         J2     = 1
+         I2     = 0
+         GOTO 2100
+      ENDIF
+C
+      IF(IVAR .EQ. 'OY') THEN
+C                                 BERUECKSICHTIGUNG VON 'U'
+         K1     = 0
+         J1     = 0
+         I1     = 1
+C                                 BERUECKSICHTIGUNG VON 'W'
+         K2     = 1
+         J2     = 0
+         I2     = 0
+         GOTO 2100
+      ENDIF
+C
+      IF(IVAR .EQ. 'OZ') THEN
+C                                 BERUECKSICHTIGUNG VON 'V'
+         K1     = 0
+         J1     = 1
+         I1     = 0
+C                                 BERUECKSICHTIGUNG VON 'U'
+         K2     = 0
+         J2     = 0
+         I2     = 1
+         GOTO 2100
+      ENDIF
+C
+      CALL ERRR (510,' OMEGA    ')
+C
+ 2100 CONTINUE
+C
+      IF (NFRO.EQ.2) THEN
+         IF(I1+I2 .EQ. 0) IFRFIX = 1
+      ENDIF
+
+      IF (NRGT.EQ.2) THEN
+         IF(J1+J2 .EQ. 0) JRIFIX = 1
+      ENDIF
+C
+C                                 **********************************
+C                                 ZUNAECHST WERDEN DIE WANDSCHUB-
+C                                 SPANNUNGEN AN ALLEN NOSLIP-SEITEN-
+C                                 FLAECHEN (EINSCHL. KUBUSSEITEN)
+C                                 BESTIMMT.
+C                                 **********************************
+C
+      IF (NBOT.EQ.5) THEN
+C
+C                                 BOTTOM-FLAECHE IST UNDURCHLAESSIG
+C                                 UND REIBUNGSBEHAFTET (NOSLIP)
+C
+      IF(IVAR .EQ. 'OX') THEN
+         DO 100 I = 3-IFRFIX,IM2
+            DO 100 J = 2,JM2
+C
+               K             = 3
+C
+               FUJ  = SIGN(0.25,(G(K      ,J      ,I      )-GEPS)
+     $              *           (G(K+K1   ,J+J1   ,I+I1   )-GEPS))+0.25
+C
+               FUJP = SIGN(0.25,(G(K   +K2,J   +J2,I   +I2)-GEPS)
+     $              *           (G(K+K1+K2,J+J1+J2,I+I1+I2)-GEPS))+0.25
+C
+               OMEGAK(K,J,I) = OMEGAK(K,J,I)
+     $                       - TAUWP(UJ(K+1,J  ,I  )      ,DDXI(K+1))
+     $                       / GMOL * (1.0 - FUJ - FUJP)
+  100    CONTINUE
+      ENDIF
+      IF(IVAR .EQ. 'OY') THEN
+         DO 120 I = 2,IM2
+            DO 120 J = 3-JRIFIX,JM2
+C
+               K             = 3
+C
+               FUI  = SIGN(0.25,(G(K      ,J      ,I      )-GEPS)
+     $              *           (G(K   +K2,J   +J2,I   +I2)-GEPS))+0.25
+C
+               FUIP = SIGN(0.25,(G(K+K1   ,J+J1   ,I+I1   )-GEPS)
+     $              *           (G(K+K1+K2,J+J1+J2,I+I1+I2)-GEPS))+0.25
+C
+               OMEGAK(K,J,I) = OMEGAK(K,J,I)
+     $                       + TAUWP(UI(K+1,J  ,I  )+UGRID,DDXJ(K+1))
+     $                       / GMOL  * (1.0 - FUI - FUIP)
+  120    CONTINUE
+      ENDIF
+      ENDIF
+
+      IF (NTOP.EQ.5) THEN
+C
+C                                 TOP-FLAECHE IST UNDURCHLAESSIG
+C                                 UND REIBUNGSBEHAFTET (NOSLIP)
+C
+      IF(IVAR .EQ. 'OX') THEN
+         K        = KM2
+         DO 140 I = 3-IFRFIX,IM2
+            DO 140 J = 2,JM2
+               FUJ  = SIGN(0.25,(G(K      ,J      ,I      )-GEPS)
+     $              *           (G(K+K1   ,J+J1   ,I+I1   )-GEPS))+0.25
+C
+               FUJP = SIGN(0.25,(G(K   +K2,J   +J2,I   +I2)-GEPS)
+     $              *           (G(K+K1+K2,J+J1+J2,I+I1+I2)-GEPS))+0.25
+C
+               OMEGAK(K,J,I) = OMEGAK(K,J,I)
+     $                       + TAUWP(UJ(K  ,J  ,I  )      ,DDXI(K  ))
+     $                       / GMOL * (1.0 - FUJ - FUJP)
+  140    CONTINUE
+      ENDIF
+      IF(IVAR .EQ. 'OY') THEN
+         K        = KM2
+         DO 160 I = 2,IM2
+            DO 160 J = 3-JRIFIX,JM2
+               FUI  = SIGN(0.25,(G(K      ,J      ,I      )-GEPS)
+     $              *           (G(K   +K2,J   +J2,I   +I2)-GEPS))+0.25
+C
+               FUIP = SIGN(0.25,(G(K+K1   ,J+J1   ,I+I1   )-GEPS)
+     $              *           (G(K+K1+K2,J+J1+J2,I+I1+I2)-GEPS))+0.25
+C
+               OMEGAK(K,J,I) = OMEGAK(K,J,I)
+     $                       - TAUWP(UI(K  ,J  ,I  )+UGRID,DDXJ(K  ))
+     $                       / GMOL * (1.0 - FUI - FUIP)
+  160    CONTINUE
+      ENDIF
+      ENDIF
+
+      IF (NFRO.EQ.5) THEN
+C
+C                                 FRONT-FLAECHE IST UNDURCHLAESSIG
+C                                 UND REIBUNGSBEHAFTET (NOSLIP)
+C
+      WRITE (6,*) '     WARNUNG!!!!!!!!!!!'
+      WRITE (6,*) 'FRONT-NOSLIP NICHT IMPLEMENTIERT IN DECK OMEGA'
+      IF(IVAR .EQ. 'OY') THEN
+      ENDIF
+      ENDIF
+
+      IF (NBAC.EQ.5) THEN
+C
+C                                 BACK-FLAECHE IST UNDURCHLAESSIG
+C                                 UND REIBUNGSBEHAFTET (NOSLIP)
+C
+      WRITE (6,*) '     WARNUNG!!!!!!!!!!!'
+      WRITE (6,*) 'BACK-NOSLIP NICHT IMPLEMENTIERT IN DECK OMEGA'
+      ENDIF
+
+      IF (NRGT.EQ.5) THEN
+C
+C                                 RIGHT-FLAECHE IST UNDURCHLAESSIG
+C                                 UND REIBUNGSBEHAFTET (NOSLIP)
+         IF(IVAR .EQ. 'OX') THEN
+               J        = 3
+               DO 300 I = 3-IFRFIX,IM2
+                  DO 300 K = 2,KM2
+                     FUI  = SIGN(0.25,(G(K      ,J      ,I      )-GEPS)
+     $                    *           (G(K   +K2,J   +J2,I   +I2)-GEPS))
+     $                    +      0.25
+C
+                     FUIP = SIGN(0.25,(G(K+K1   ,J+J1   ,I+I1   )-GEPS)
+     $                    *           (G(K+K1+K2,J+J1+J2,I+I1+I2)-GEPS))
+     $                    +      0.25
+C
+                     OMEGAK(K,J,I) = OMEGAK(K,J,I)
+     $                             + TAUWP(UI(K,J+1,I  ),DDXJ(J+1))
+     $                             / GMOL * (1.0 - FUI - FUIP)
+  300          CONTINUE
+         ENDIF
+         IF(IVAR .EQ. 'OZ') THEN
+               J        = 3
+               DO 310 I = 3-IFRFIX,IM2
+                  DO 310 K = 3,KM2
+                     FUJ  = SIGN(0.25,(G(K      ,J      ,I      )-GEPS)
+     $                    *           (G(K+K1   ,J+J1   ,I+I1   )-GEPS))
+     $                    +      0.25
+C
+                     FUJP = SIGN(0.25,(G(K   +K2,J   +J2,I   +I2)-GEPS)
+     $                    *           (G(K+K1+K2,J+J1+J2,I+I1+I2)-GEPS))
+     $                    +      0.25
+C
+                     OMEGAK(K,J,I) = OMEGAK(K,J,I)
+     $                             - TAUWP(UJ(K,J+1,I )+UGRID,DDXI(J+1))
+     $                             / GMOL * (1.0 - FUJ - FUJP)
+  310          CONTINUE
+         ENDIF
+C
+      ENDIF
+
+      IF (NLFT.EQ.5) THEN
+C
+C                                 LEFT-FLAECHE IST UNDURCHLAESSIG
+C                                 UND REIBUNGSBEHAFTET (NOSLIP)
+C
+      IF(IVAR .EQ. 'OX') THEN
+           J        = JM2-1
+           DO 330 I = 3-IFRFIX,IM2
+           DO 330 K = 2,KM2
+                     FUI  = SIGN(0.25,(G(K      ,J      ,I      )-GEPS)
+     $                    *           (G(K   +K2,J   +J2,I   +I2)-GEPS))
+     $                    +      0.25
+C
+                     FUIP = SIGN(0.25,(G(K+K1   ,J+J1   ,I+I1   )-GEPS)
+     $                    *           (G(K+K1+K2,J+J1+J2,I+I1+I2)-GEPS))
+     $                    +      0.25
+C
+                     OMEGAK(K,J,I) = OMEGAK(K,J,I)
+     $                             - TAUWP(UI(K,J  ,I  ),DDXJ(J  ))
+     $                             / GMOL * (1.0 - FUI - FUIP)
+  330          CONTINUE
+         ENDIF
+         IF(IVAR .EQ. 'OZ') THEN
+               J        = JM2 - 1
+               DO 340 I = 3-IFRFIX,IM2
+                  DO 340 K = 3,KM2
+                     FUJ  = SIGN(0.25,(G(K      ,J      ,I      )-GEPS)
+     $                    *           (G(K+K1   ,J+J1   ,I+I1   )-GEPS))
+     $                    +      0.25
+C
+                     FUJP = SIGN(0.25,(G(K   +K2,J   +J2,I   +I2)-GEPS)
+     $                    *           (G(K+K1+K2,J+J1+J2,I+I1+I2)-GEPS))
+     $                    +      0.25
+C
+                     OMEGAK(K,J,I) = OMEGAK(K,J,I)
+     $                             + TAUWP(UJ(K,J  ,I  )+UGRID,DDXI(J ))
+     $                             / GMOL * (1.0 - FUJ - FUJP)
+  340          CONTINUE
+         ENDIF
+C
+      ENDIF
+
+      IF (NCUB.EQ.5) THEN
+      WRITE (6,*) '     WARNUNG!!!!!!!!!!!'
+      WRITE (6,*) 'CUBE-NOSLIP NICHT GEPRUEFT IN DECK OMEGA'
+C
+C                                 KUBUSWAENDE SIND UNDURCH-
+C                                 LAESSIG UND REIBUNGSBEHAFTET
+C                                 --------------------------------
+C
+C
+         IF(ABS(UGRID) .GT. SMALL) CALL ERRR (520,' OMEGA    ')
+C
+C
+C                                 FRONT-FLAECHEN
+C
+         IF(IVAR .EQ. 'OY') THEN
+               DO 600 I = IC1,IC2
+               DO 600 J = JC1,JC2
+               DO 600 K = KC1,KC2
+                     FUJ  = SIGN(0.25,(G(K      ,J      ,I      )-GEPS)
+     $                    *           (G(K+K1   ,J+J1   ,I+I1   )-GEPS))
+     $                    +      0.25
+C
+                     FUJP = SIGN(0.25,(G(K   +K2,J   +J2,I   +I2)-GEPS)
+     $                    *           (G(K+K1+K2,J+J1+J2,I+I1+I2)-GEPS))
+     $                    +      0.25
+C
+                     OMEGAK(K,J,I) = OMEGAK(K,J,I)
+     $                             + TAUWP(UJ(K,J  ,I  ),DDXI(I  ))
+     $                             / GMOL * (1.0 - FUJ - FUJP)
+  600          CONTINUE
+         ENDIF
+         IF(IVAR .EQ. 'OZ') THEN
+               DO 620 I = IC1,IC2
+               DO 620 J = JC1,JC2
+               DO 620 K = KC1,KC2
+	       
+                     FUI  = SIGN(0.25,(G(K      ,J      ,I      )-GEPS)
+     $                    *           (G(K   +K2,J   +J2,I   +I2)-GEPS))
+     $                    +      0.25
+C
+                     FUIP = SIGN(0.25,(G(K+K1   ,J+J1   ,I+I1   )-GEPS)
+     $                    *           (G(K+K1+K2,J+J1+J2,I+I1+I2)-GEPS))
+     $                    +      0.25
+C
+                     OMEGAK(K,J,I) = OMEGAK(K,J,I)
+     $                             - TAUWP(UI(K,J  ,I  ),DDXJ(I  ))
+     $                             / GMOL * (1.0 - FUI - FUIP)
+  620          CONTINUE
+            ENDIF
+C
+C                                 BACK-FLAECHE DES KUBUSSES
+C
+         IF(IVAR .EQ. 'OY') THEN
+               DO 640 I = IC1,IC2
+               DO 640 J = JC1,JC2
+               DO 640 K = KC1,KC2
+                     FUJ  = SIGN(0.25,(G(K      ,J      ,I      )-GEPS)
+     $                    *           (G(K+K1   ,J+J1   ,I+I1   )-GEPS))
+     $                    +      0.25
+C
+                     FUJP = SIGN(0.25,(G(K   +K2,J   +J2,I   +I2)-GEPS)
+     $                    *           (G(K+K1+K2,J+J1+J2,I+I1+I2)-GEPS))
+     $                    +      0.25
+C
+                     OMEGAK(K,J,I) = OMEGAK(K,J,I)
+     $                             - TAUWP(UJ(K,J  ,I+1),DDXI(I+1))
+     $                             / GMOL * (1.0 - FUJ - FUJP)
+  640          CONTINUE
+            ENDIF
+         IF(IVAR .EQ. 'OZ') THEN
+               DO 660 I = IC1,IC2
+               DO 660 J = JC1,JC2
+               DO 660 K = KC1,KC2
+                     FUI  = SIGN(0.25,(G(K      ,J      ,I      )-GEPS)
+     $                    *           (G(K   +K2,J   +J2,I   +I2)-GEPS))
+     $                    +      0.25
+C
+                     FUIP = SIGN(0.25,(G(K+K1   ,J+J1   ,I+I1   )-GEPS)
+     $                    *           (G(K+K1+K2,J+J1+J2,I+I1+I2)-GEPS))
+     $                    +      0.25
+C
+                     OMEGAK(K,J,I) = OMEGAK(K,J,I)
+     $                             + TAUWP(UI(K,J  ,I+1),DDXJ(I+1))
+     $                             / GMOL * (1.0 - FUI - FUIP)
+  660          CONTINUE
+         ENDIF
+C
+C                                 RIGHT-FLAECHE DES KUBUSSES
+C
+         IF(IVAR .EQ. 'OX') THEN
+               DO 700 I = IC1,IC2
+               DO 700 J = JC1,JC2
+               DO 700 K = KC1,KC2
+                     FUI  = SIGN(0.25,(G(K      ,J      ,I      )-GEPS)
+     $                    *           (G(K   +K2,J   +J2,I   +I2)-GEPS))
+     $                    +      0.25
+C
+                     FUIP = SIGN(0.25,(G(K+K1   ,J+J1   ,I+I1   )-GEPS)
+     $                    *           (G(K+K1+K2,J+J1+J2,I+I1+I2)-GEPS))
+     $                    +      0.25
+C
+                     OMEGAK(K,J,I) = OMEGAK(K,J,I)
+     $                             - TAUWP(UI(K,J  ,I  ),DDXJ(J  ))
+     $                             / GMOL * (1.0 - FUI - FUIP)
+  700          CONTINUE
+         ENDIF
+         IF(IVAR .EQ. 'OZ') THEN
+               DO 720 I = IC1,IC2
+               DO 720 J = JC1,JC2
+               DO 720 K = KC1,KC2
+                     FUJ  = SIGN(0.25,(G(K      ,J      ,I      )-GEPS)
+     $                    *           (G(K+K1   ,J+J1   ,I+I1   )-GEPS))
+     $                    +      0.25
+C
+                     FUJP = SIGN(0.25,(G(K   +K2,J   +J2,I   +I2)-GEPS)
+     $                    *           (G(K+K1+K2,J+J1+J2,I+I1+I2)-GEPS))
+     $                    +      0.25
+C
+                     OMEGAK(K,J,I) = OMEGAK(K,J,I)
+     $                             + TAUWP(UJ(K,J  ,I  )+UGRID,DDXI(J ))
+     $                             / GMOL * (1.0 - FUJ - FUJP)
+  720          CONTINUE
+         ENDIF
+C
+C                                 LEFT-FLAECHE DES KUBUSSES
+C
+         IF(IVAR .EQ. 'OX') THEN
+               DO 740 I = IC1,IC2
+               DO 740 J = JC1,JC2
+               DO 740 K = KC1,KC2
+                     FUI  = SIGN(0.25,(G(K      ,J      ,I      )-GEPS)
+     $                    *           (G(K   +K2,J   +J2,I   +I2)-GEPS))
+     $                    +      0.25
+C
+                     FUIP = SIGN(0.25,(G(K+K1   ,J+J1   ,I+I1   )-GEPS)
+     $                    *           (G(K+K1+K2,J+J1+J2,I+I1+I2)-GEPS))
+     $                    +      0.25
+C
+                     OMEGAK(K,J,I) = OMEGAK(K,J,I)
+     $                             + TAUWP(UI(K,J+1,I  ),DDXJ(J+1))
+     $                             / GMOL * (1.0 - FUI - FUIP)
+  740          CONTINUE
+         ENDIF
+         IF(IVAR .EQ. 'OZ') THEN
+               DO 760 I = IC1,IC2
+               DO 760 J = JC1,JC2
+               DO 760 K = KC1,KC2
+                     FUJ  = SIGN(0.25,(G(K      ,J      ,I      )-GEPS)
+     $                    *           (G(K+K1   ,J+J1   ,I+I1   )-GEPS))
+     $                    +      0.25
+C
+                     FUJP = SIGN(0.25,(G(K   +K2,J   +J2,I   +I2)-GEPS)
+     $                    *           (G(K+K1+K2,J+J1+J2,I+I1+I2)-GEPS))
+     $                    +      0.25
+C
+                     OMEGAK(K,J,I) = OMEGAK(K,J,I)
+     $                             - TAUWP(UJ(K,J+1,I )+UGRID,DDXI(J+1))
+     $                             / GMOL * (1.0 - FUJ - FUJP)
+  760          CONTINUE
+         ENDIF
+C
+ 2999 CONTINUE
+      ENDIF
+C
+C                                 ***********************************
+C                                 BERECHNUNG DER KOMPONENTEN DER
+C                                 VORTICITY IM UEBRIGEN FELD. DIE
+C                                 VORTICITY-KOMPONENTEN AN DEN SLIP-
+C                                 UND NOSLIP-RAENDERN WERDEN DURCH
+C                                 FAKTOREN ZU NULL GESETZT, SO DASS
+C                                 DIE IM VORIGEN SCHRITT BESTIMMTEN
+C                                 VORTICITY-KOMPONENTEN UNVERFAELSCHT
+C                                 BLEIBEN.
+C                                 ***********************************
+C
+      ISTART = 3 - I1 - I2 - IFRFIX
+      DO 900 I = ISTART,IM2
+         IKST   =      MAX0(I      ,3)
+         IKSTPS = MIN0(MAX0(I+I1+I2,3),IM2)
+         JSTART = 3 - J1 - J2 - JRIFIX
+         DO 900 J = JSTART,JM2
+            JKST   =      MAX0(J      ,3)
+            JKSTPS = MIN0(MAX0(J+J1+J2,3),JM2)
+C
+            KSTART = 3-K1-K2
+C
+            DO 900 K = KSTART,KM2
+C
+               FUI  = SIGN(0.25,(G(K      ,J      ,I      )-GEPS)
+     $              *           (G(K   +K2,J   +J2,I   +I2)-GEPS))+0.25
+C
+               FUIP = SIGN(0.25,(G(K+K1   ,J+J1   ,I+I1   )-GEPS)
+     $              *           (G(K+K1+K2,J+J1+J2,I+I1+I2)-GEPS))+0.25
+C
+               FUJ  = SIGN(0.25,(G(K      ,J      ,I      )-GEPS)
+     $              *           (G(K+K1   ,J+J1   ,I+I1   )-GEPS))+0.25
+C
+               FUJP = SIGN(0.25,(G(K   +K2,J   +J2,I   +I2)-GEPS)
+     $              *           (G(K+K1+K2,J+J1+J2,I+I1+I2)-GEPS))+0.25
+C
+               OMEGAK(K,J,I) = OMEGAK(K,J,I)
+     $                       + (UI(K+K2,J+J2,I+I2) - UI(K,J,I))
+     $                       / DXJ(K*K2+J*J2+I*I2)
+     $                       * (FUI+FUIP)
+     $                       - (UJ(K+K1,J+J1,I+I1) - UJ(K,J,I))
+     $                       / DXI(K*K1+J*J1+I*I1)
+     $                       * (FUJ+FUJP)
+  900 CONTINUE
+C
+      RETURN
+      END

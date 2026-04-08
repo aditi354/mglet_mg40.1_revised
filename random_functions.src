@@ -1,0 +1,24 @@
+      FUNCTION RANGLS()
+      SAVE IFLAG,GAUSS2
+      DATA IFLAG /0/
+      IF (IFLAG. EQ. 0) THEN
+   10 CONTINUE
+C     PAIR OF UNIFORM RANDOM NUMBERS IN [-1,1]X[-1,1]
+         X1 = 2.0*(RANF()-0.5)
+         X2 = 2.0*(RANF()-0.5)
+C     IF NOT IN UNIT CIRLCE, TRY AGAIN
+         XSQ = X1*X1 + X2*X2
+         IF ((XSQ .GE. 1) .OR. (XSQ .EQ. 0)) GOTO 10
+C     PAIR OF GAUSSIAN RANDOM NUMBERS; 
+C     RETURN ONE AND SAVE THE ITHER FOR NEXT TIME
+         AUX = SQRT(-2.0*LOG(XSQ)/XSQ)
+         RANGLS = X1*AUX
+         GAUSS2 = X2*AUX
+         IFLAG = 1
+      ELSE
+         RANGLS = GAUSS2
+         IFLAG = 0
+      ENDIF
+      RETURN
+      END
+

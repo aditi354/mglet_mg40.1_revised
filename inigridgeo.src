@@ -1,0 +1,136 @@
+      SUBROUTINE INIGRIDGEO
+     $     (CIDENT,IIDENT,RIDENT,
+     $     DDX,DDY,DDZ,DX,DY,DZ,X,Y,Z,
+#ifdef _TSCAL_
+     $     U,V,W,T,P,G,B,BP,BU,BV,BW,BT,
+#else
+     $     U,V,W,P,G,B,BP,BU,BV,BW,
+#endif
+     $     ITSTEP,ITTOT,TIMEPH,
+     $     IDIMF,NGRP1, NGRP3, IGRHF, GRX0, GRX1, HILF,
+     $     IDIM3D,IDIM2D,IDIM1D,NBUF,NBND,IDIMA,IDIM1L,IDIM2L,
+     $     IGRID,CONV1S)
+C--   MGLET----------------------------------------------------------------
+C     
+C     SETZEN EINES GITTERS
+C     
+C     
+C     17. 6.93 (MM)  : DUMMYGITTER EINGEFUEHRT
+C     24. 6.93 (MM)  :     ""       WIEDER AUSGEFUEHRT
+C     22. 5.95 (MM.AO): MPI
+C     11.09.1996 (A.O.): SUBGRIDSCALE CONSTANT DEPENDENT OF X
+C     11.03.03 (TB): SCALAR FIELD T AND BOUNDARY FIELD BT IMPLEMENTED
+C     27. 7.05 (jk): Aufteilung in INIGRIDGEO und INIGRIDVAR
+C     
+C--   MGLET----------------------------------------------------------------
+
+
+#include "mgpar.h"
+#include "comgrid.h"
+#include "colevel.h"
+#include "cogrdpro.h"
+#include "cobound.h"
+#include "costrles.h"
+#include "cophyspar.h"
+#include "cobody.h"
+#include "cogrdcon.h"
+#ifdef _MPI_
+C     
+C     MPI-INCLUDE
+C     
+#include "compi.h"
+#include "mpif.h"
+#endif
+
+C     
+      CHARACTER (LEN=8)    CIDENT(10)
+C     
+      INTEGER IIDENT(100),
+     $     IGRHF(IDIMF,NGRP1)
+C     
+C     
+C     
+C     
+      REAL    RIDENT(100),
+     $     X(IDIM1D),     Y(IDIM1D),     Z(IDIM1D),
+     $     DX(IDIM1D),    DY(IDIM1D),    DZ(IDIM1D),
+     $     DDX(IDIM1D),   DDY(IDIM1D),   DDZ(IDIM1D),
+#ifdef _TSCAL_
+     $     U( IDIM3D ), V( IDIM3D ), W( IDIM3D ),T( IDIM3D ),
+     $     P( IDIM3D ), G( IDIM3D ), B( IDIM3D ), HILF( IDIM3D ),
+     $     BP( IDIM3D ),BU( IDIM3D ),BV( IDIM3D ),BW( IDIM3D ),
+     $     BT( IDIM3D )    
+#else
+     $     U( IDIM3D ), V( IDIM3D ), W( IDIM3D ),
+     $     P( IDIM3D ), G( IDIM3D ), B( IDIM3D ), HILF( IDIM3D ),
+     $     BP( IDIM3D ),BU( IDIM3D ),BV( IDIM3D ),BW( IDIM3D )
+#endif
+C     
+C     SUBGRIDSCALE CONSTANT CONV1S DEPENDENT OF X
+      REAL    CONV1S(IDIM1D)
+#ifdef _MPI_
+C     
+C     MPI-VARIABLEN
+C     
+      INTEGER ISTATUS(MPI_STATUS_SIZE)
+C     
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
+C     
+C     MPI-ROUTINEN ZUR UEBERGABE VON PARAMETERN
+C     
+C     CALL MPI_COMM_RANK (MPI_COMM_WORLD,MYID,IERR)
+C     CALL MPI_COMM_SIZE (MPI_COMM_WORLD,NUMPROCS,IERR)
+C     
+#endif
+C     
+
+C     
+C     
+C     
+C     EINSTROEMBUFFER EXISTIEREN NUR
+C     EINMAL
+C     
+      IPI =   1 
+C     
+C     
+
+C     
+C     GITTERGENERIERUNG UND VORBELEGUNG VON
+C     U,V,W,(T),P UND G.
+C     
+      WRITE (6,*) 'GRID GENERATING:',IGRID
+
+      CALL MGGRDGEN (DDX,DDY,DDZ,DX,DY,DZ,X,Y,Z,
+     $     IDIMF,NGRP1, NGRP3, IGRHF, GRX0, GRX1, HILF,
+     $     IDIM3D,IDIM2D,IDIM1D,NBND,
+     $     IGRID,0)
+
+C     
+C     VERSENDEN DER GEOMETRIEINFORMATION AN DIE
+C     SUB-GITTER DER GEBIETSZERLEGUNG
+C     
+      IF (LSLICE(IGRID)) THEN
+         DO ISUB = 1,NOFSLCHILDS(IGRID)
+            I = IGRDOFSLCHILD(ISUB,IGRID)
+C     
+            CALL SLICEGEO (DDX,DDY,DDZ,DX,DY,DZ,X,Y,Z,B,HILF,
+     $           IDIM3D,IDIM2D,IDIM1D,NBUF,NBND,IDIMA,IDIM1L,IDIM2L,
+     $           I)
+
+
+C     SUCHEN DER PARENTGITTER
+C     
+            CALL PARSET (DDX,DDY,DDZ,DX,DY,DZ,X,Y,Z,HILF,
+     $           IDIM1D,IDIMF,NBND,I)
+
+         ENDDO
+      ENDIF
+
+C     
+
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+C     
+      RETURN
+      END
+
+

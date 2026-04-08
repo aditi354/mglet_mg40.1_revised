@@ -1,0 +1,251 @@
+
+
+
+
+
+
+
+
+
+
+
+CCCCC        DEFINITIONEN FUER C-PREPROZESSOR
+C            MASCHINE
+
+C              MESSAGE PASSING INTERFACE
+
+C            RAEUMLICHE DISKRETISIERUNG
+C
+***********************************************************************
+C                       KOMPAKT-UPWIND in X-RICHTUNG (3-TER ORDNUNG) fuer
+C                       die U-Komponente (V und W bleiben Kompakt 4ter ordnung)
+C                       falls im Stroemungsfeld eine Koerper vorhanden ist
+C
+***********************************************************************
+C                       KOMPAKTVERF. in XYZ-RICHTUNG (4-TER ORDNUNG)
+
+
+**********************************************************************
+C                      Preprocessing with ADM for 2nd Order Central
+***********************************************************************
+CCC                     Bei periodischen Randbedingungen in X-Richtung
+CCC                     ist eine hoehere O
+C
+CCC                     Bei periodischen Randbedingungen in Y-Richtung
+CCC                     ist eine hoehere Ordnung moeglich
+C
+CCC                     Bei periodischen Randbedingungen in Y-Richtung:
+CCC                     Zentraldiff. 4-ter Ordnung (Parallelisieung moeglich)
+C
+***********************************************************************
+C
+C
+C            INTERPOLATION AN GITTER-GRENZEN
+
+C            BEHANDLUNG DER TOPAR-RANDBEDINGUNG
+
+C            ZEITLICHE DISKRETISIERUNG
+
+C            FEINSTRUKTURMODELL
+
+C            NICHT-NEWTONSCHE SPANNUNGEN
+
+
+C            TRANSPORT UND ORIENTIERUNG VON PARTIKELN
+
+
+C            SCALAR HEAT/TEMPERATURE TRANSPORT
+C            APROXIMATE DECONVOLUTION FOR SCALAR
+C            TURBULENT PRANDTL NUMBER 
+C            PLOT LOCAL SCALAR CONVECTION DIFFUSION EXTREMES 
+C            ANALYZE AND PLOT NEAR WALL GRID RESLOLUTION 
+C            WRITE SPECIAL 1D LINE FOR TMIX FOR SPECTRA AND PDF
+C            SCALAR TIME ADVANCEMENT/DISCRETISATION METHOD
+
+C            STROEMUNG NACH OBEN?
+
+
+C            BEHANDLUNG DER FLUKTUATIONS-RANDBEDINGUNG
+
+C            BEHANDLUNG VON PPHYS ALS QUELLTERM IN TSTLE2
+
+C            POSITIONIERUNG DER EINSTROEMPROFILE
+
+C           STATISTIK
+
+
+C                 GEMISCHTES
+
+C                GRDFMI WIRD NICHT VERWENDET, DAHER EINSPARUNG DER FELDER
+C                IGRHF UND GRHF
+
+C                VERGROESSERN DER KJI-RICHTUNG BEI FORTSETZUNGSLAUF ERLAUBT!
+
+C                RAUSSCHREIBEN VON ZEITRECORDS
+
+C                FUER KORRELATIONEN UND HAEFIGKEITSVERTEILUNGEN
+      SUBROUTINE TRIZYK (KK,JJ,KL,KU,JL,JU,UD,HD,OD,UZ,RSP,
+     $                   RS,X)
+C***********************************************************************
+C
+C LOESUNG EINES LINEAREN GLEICHUNGSSYSTEMS MIT ZYKLISCH
+C TRIDIAGONALER MATRIX (2-D FALL)
+C
+C  10. 05. 97 (AM):   - ORIGINAL                      
+C***********************************************************************
+C
+      REAL    UD(JJ), HD(JJ), OD(JJ), RS(KK,JJ),  X(KK,JJ)
+      REAL    UZ(JJ), RSP(JJ)
+C
+C                                 LOESUNG DES GLEICHUNGSSYSTEMS
+C
+      CALL FZYKTR (KK,JJ,KL,KU,JL,JU,UD,HD,OD,UZ,RSP,RS,X,IFEHL)
+C
+      IF(IFEHL .NE. 0) THEN
+         WRITE (6,*) 'FEHLER AUFGETRETEN, trizyk.src '
+         STOP ' TRIZYK ERROR'
+      END IF
+C
+       RETURN
+       END
+C
+      SUBROUTINE FZYKTR (KK,JJ,KL,KU,JL,JU,UD,HD,OD,UZ,RSP,RS,X,IFEHL)
+C***********************************************************************
+C
+C***********************************************************************
+C
+      REAL    UD(JJ),   HD(JJ),   OD(JJ),   UZ(JJ),   RSP(JJ),
+     $        RS(KK,JJ),   X (KK,JJ)
+C
+      N = JU - JL +1
+      IFEHL  = -1
+      IF(N .LT. 3) RETURN
+C
+C                                 ZERLEGUNG DER MATRIX  A
+C
+      CALL FZYKTZ (JJ,JL,JU,UD,HD,OD,UZ,RSP,IFEHL)
+C
+C                                 FALLS IFEHL=0: VORWAERTS- UND
+C                                 RUECKWAERTSELIMINATION
+C
+      IF(IFEHL .EQ. 0) THEN
+         CALL FZYKTL (KK,JJ,KL,KU,JL,JU,UD,HD,OD,UZ,RSP,RS,X)
+      END IF
+C
+      RETURN
+      END
+C$
+      SUBROUTINE FZYKTZ (JJ,JL,JU,UD,HD,OD,UZ,RSP,IFEHL)
+C***********************************************************************
+C
+C***********************************************************************
+C
+      REAL    UD(JJ),   HD(JJ),   OD(JJ),   UZ(JJ),   RSP(JJ)
+C
+      N = JU - JL +1
+      IFEHL  = -1
+      IF(N .LT. 3) RETURN
+C
+      UD (JL)   = 0.0
+      OD (JU)   = 0.0
+      UZ (JU-1) = 0.0
+      UZ (JU)   = 0.0
+      RSP(JU-1) = 0.0
+      RSP(JU)   = 0.0
+      IF(HD(JL) .EQ. 0.0) THEN
+         IFEHL = 1
+         RETURN
+      END IF
+      HILF   = 1.0 / HD(JL)
+      OD(JL)  = OD(JL) * HILF
+      RSP(JL) = RSP(JL) * HILF
+C
+      DO 10 I = JL+1,JU-2
+         HD(I) = HD(I)-UD(I)*OD(I-1)
+         IF(HD(I) .EQ. 0.0) THEN
+            IFEHL = I
+            RETURN
+         END IF
+         HILF  = 1.0 / HD(I)
+         OD(I)  = OD(I) * HILF
+         RSP(I) = -UD(I)*RSP(I-1)*HILF
+   10 CONTINUE
+      HD(JU-1) = HD(JU-1) - UD(JU-1)*OD(JU-2)
+      IF(HD(JU-1) .EQ. 0.0) THEN
+         IFEHL  = JU-1
+         RETURN
+      END IF
+C
+      DO 20 K = JL+1,JU-2
+         UZ(K) = -UZ(K-1)*OD(K-1)
+   20 CONTINUE
+C
+      UD(JU)    = UD(JU) - UZ(JU-2)*OD(JU-2)
+      OD(JU-1)  = (OD(JU-1) - UD(JU-1)*RSP(JU-2)) / HD(JU-1)
+      S        = 0.0
+C
+      DO 30 J = JL,JU-2
+         S = S - UZ(J)*RSP(J)
+   30 CONTINUE
+C
+      HD(JU)   = HD(JU) + S - UD(JU)*OD(JU-1)
+      IF(HD(JU) .EQ. 0.0) THEN
+         IFEHL  = N
+         RETURN
+      END IF
+      IFEHL = 0
+      RETURN
+      END
+C$ 
+      SUBROUTINE FZYKTL (KK,JJ,KL,KU,JL,JU,UD,HD,OD,UZ,RSP,RS,X)
+C***********************************************************************
+C
+C***********************************************************************
+C
+      REAL    UD(JJ),   HD(JJ),   OD(JJ),   UZ(JJ),   RSP(JJ),
+     $        RS(KK,JJ),   X (KK,JJ)
+C
+C                                  K K K K K K K K K K K K K K K K K K
+C                                 VORWAERTSELIMINATION
+C
+      DO K = KL, KU
+         RS(K,JL)   = RS(K,JL) / HD(JL)
+      ENDDO
+C
+      DO I = JL+1,JU-1
+         DO K = KL, KU
+            RS(K,I) = (RS(K,I) - RS(K,I-1) * UD(I)) / HD(I)
+         ENDDO
+      ENDDO
+      DO K = KL, KU
+C
+         S       = 0.0
+C
+         DO I = JL,JU-2
+            S     = S - UZ(I) * RS(K,I)
+         ENDDO
+C
+         RS(K,JU)   = (RS(K,JU) + S - UD(JU) * RS(K,JU-1)) / HD(JU)
+         
+      ENDDO
+C
+C                                 BERECHNUNG DER LOESUNGEN DURCH
+C                                 RUECKWAERTSELIMINATION
+C
+      DO K = KL, KU
+
+         X(K,JU)    = RS(K,JU)
+         X(K,JU-1)  = RS(K,JU-1) - X(K,JU) * OD(JU-1)
+
+      ENDDO
+C
+      DO I = JU-1,JL,-1
+         DO K = KL, KU
+            X(K,I)  = RS(K,I) - OD(I) * X(K,I+1) - RSP(I) * X(K,JU)
+         ENDDO
+C     
+      ENDDO
+C
+C                                  K K K K K K K K K K K K K K K K K K
+      RETURN
+      END

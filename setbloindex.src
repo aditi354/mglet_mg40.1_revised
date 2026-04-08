@@ -1,0 +1,63 @@
+      SUBROUTINE SETBLOINDEX  (IIJJ,XY,PHYANF,PHYEND,
+     $                         IJSTART,IJSTOP)
+C*MGLET***************************************************************
+C        SETBLOINDEX
+C                         BERECHNUNG DER SCHLEIFENINDIZES FUER SCHLEIFE
+C                         IN SUBROUTINE BBOBLO ZUR STROEMUNGS-
+C                         MANIPULATION. UMSETZUNG DER GEBIETSGRENZEN
+C                         IN SCHLEIFENINDIZES.
+C
+C*MGLET***************************************************************
+C
+C PARAM:  II     - ARRAYDIMENSIONEN
+C         IMX  - GRENZEN DES BERECHNUNGSGEBIETES (MIT BOUND)
+C        X, Y, Z        - KOORDINATEN DER ZELLDEFINITIONSPUNKTE
+C
+C VERS:  25.02.94 (RK)  : ORIGINAL
+C VERS:  29.09.95 (AO)  : EACH JET IS DEFINED SEPARATELY
+C                         EACH DIRECTION IS TREATED WITH THE SAME SUBROUTINE
+C   
+C*MGLET***************************************************************
+C
+#include "konsta.h"
+
+      REAL        XY(IIJJ)
+
+C                       	VORBELEGUNG DER VARIABLEN ZUR BILDUNG
+C 				VON MINIMALWERTEN
+
+      XMINISTART = 99999999.99
+      XMINISTOP  = 99999999.99
+C     ADDED FOR CORRECT INITIALISATION
+      ISTAMEMO = 1
+      ISTOMEMO = IIJJ
+C				SUCHE NACH DEN PUNKTEN, DIE XBANF, XBEND
+C				YBANF UND YBEND AM MAECHSTEN LIEGEN
+
+      DO I = 1,IIJJ
+
+         DIFF   = XY(I)-PHYANF
+         STOREA = ABS(DIFF)
+         IF(STOREA.LT.XMINISTART) THEN
+            ISTAMEMO    =      I 
+            XMINISTART = STOREA
+         ENDIF
+
+         DIFF   = XY(I)-PHYEND
+         STOREE = ABS(DIFF)
+         IF(STOREE.LT.XMINISTOP ) THEN
+            ISTOMEMO     =      I 
+            XMINISTOP  = STOREE
+         ENDIF
+
+      ENDDO
+
+
+C				FESTLEGUNG DER SCHLEIFENINDIZES
+C                               FUER EINEN EINZELNEN JET
+       IJSTART = ISTAMEMO
+       IJSTOP  = ISTOMEMO
+
+
+      RETURN
+      END

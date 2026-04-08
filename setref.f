@@ -1,0 +1,324 @@
+
+
+
+
+
+
+
+
+
+
+
+CCCCC        DEFINITIONEN FUER C-PREPROZESSOR
+C            MASCHINE
+
+C              MESSAGE PASSING INTERFACE
+
+C            RAEUMLICHE DISKRETISIERUNG
+C
+***********************************************************************
+C                       KOMPAKT-UPWIND in X-RICHTUNG (3-TER ORDNUNG) fuer
+C                       die U-Komponente (V und W bleiben Kompakt 4ter ordnung)
+C                       falls im Stroemungsfeld eine Koerper vorhanden ist
+C
+***********************************************************************
+C                       KOMPAKTVERF. in XYZ-RICHTUNG (4-TER ORDNUNG)
+
+
+**********************************************************************
+C                      Preprocessing with ADM for 2nd Order Central
+***********************************************************************
+CCC                     Bei periodischen Randbedingungen in X-Richtung
+CCC                     ist eine hoehere O
+C
+CCC                     Bei periodischen Randbedingungen in Y-Richtung
+CCC                     ist eine hoehere Ordnung moeglich
+C
+CCC                     Bei periodischen Randbedingungen in Y-Richtung:
+CCC                     Zentraldiff. 4-ter Ordnung (Parallelisieung moeglich)
+C
+***********************************************************************
+C
+C
+C            INTERPOLATION AN GITTER-GRENZEN
+
+C            BEHANDLUNG DER TOPAR-RANDBEDINGUNG
+
+C            ZEITLICHE DISKRETISIERUNG
+
+C            FEINSTRUKTURMODELL
+
+C            NICHT-NEWTONSCHE SPANNUNGEN
+
+
+C            TRANSPORT UND ORIENTIERUNG VON PARTIKELN
+
+
+C            SCALAR HEAT/TEMPERATURE TRANSPORT
+C            APROXIMATE DECONVOLUTION FOR SCALAR
+C            TURBULENT PRANDTL NUMBER 
+C            PLOT LOCAL SCALAR CONVECTION DIFFUSION EXTREMES 
+C            ANALYZE AND PLOT NEAR WALL GRID RESLOLUTION 
+C            WRITE SPECIAL 1D LINE FOR TMIX FOR SPECTRA AND PDF
+C            SCALAR TIME ADVANCEMENT/DISCRETISATION METHOD
+
+C            STROEMUNG NACH OBEN?
+
+
+C            BEHANDLUNG DER FLUKTUATIONS-RANDBEDINGUNG
+
+C            BEHANDLUNG VON PPHYS ALS QUELLTERM IN TSTLE2
+
+C            POSITIONIERUNG DER EINSTROEMPROFILE
+
+C           STATISTIK
+
+
+C                 GEMISCHTES
+
+C                GRDFMI WIRD NICHT VERWENDET, DAHER EINSPARUNG DER FELDER
+C                IGRHF UND GRHF
+
+C                VERGROESSERN DER KJI-RICHTUNG BEI FORTSETZUNGSLAUF ERLAUBT!
+
+C                RAUSSCHREIBEN VON ZEITRECORDS
+
+C                FUER KORRELATIONEN UND HAEFIGKEITSVERTEILUNGEN
+      SUBROUTINE SETREF (KK,JJ,II,KKA,JJA,IIA,KMX,JMX,IMX,KMXA,JMXA,
+     $                   IMXA,KPP,JPP,IPP,DDX,DDY,DDZ,ZTOT,YTOT,XTOT,
+     $                   XREF,RHO,GMOL,GRADPX,IIDENT,RIDENT,AU,
+     $                   ALREF,UREF,TRF,IWAEHL,XHOMOG,YHOMOG,ZHOMOG,
+     $                   IGRID)
+C*STARLET**************************************************************
+C        S E T R E F     GIBT FOLGENDE BEZUGSGROESSEN AUS:
+C                        BEZUGSLAENGE           : ALREF
+C                        BEZUGSGESCHWINDIGKEIT  : UREF
+C                        BEZUGSZEIT             : TRF
+C                        REYNOLDSZAHL           : RE
+C                        DIE BELEGUNG DER .IDENT-FELDER IST IN SUBR.
+C                        "SETID" AUSFUEHRLICH DARGESTELLT.
+C*STARLET**************************************************************
+C
+C PARAM: KK, JJ, II     - ARRAYDIMENSIONEN
+C        KKA,JJA,IIA    - ARRAYDIMENSIONEN DER AUSWERTEFELDER
+C                         BEISPIEL: FALLS J-RICHTUNG NICHT HOMOGEN IST,
+C                         GILT JJA = JJ. ANDERNFALLS IST JJA = 1.
+C        KMX, JMX, IMX  - GRENZEN DES BERECHNUNGSGEBIETES (MIT BOUND)
+C        KMXA,JMXA,IMXA - GRENZEN DER AUSWERTEFELDER (MIT BOUND)
+C        KPP,JPP,IPP    - ORT DES BEZUGSDRUCKES
+C        DDX,DDY,DDZ    - ABMESSUNGEN DER BASISZELLEN
+C        ZTOT,YTOT,XTOT - AEUSSERE ABMESSUNGEN DES BERECHNUNGSGEBIETES
+C        XREF           - REFERENZLAENGE
+C        RHO            - DICHTE DES FLUIDS (= CONST.)
+C        GMOL           - MOLEKULARE DYNAMISCHE VISKOSITAET
+C        GRADPX         - DRUCKGRADIENT IN X-RICHTUNG (F. KANALSTROEMUNG
+C        IIDENT         + ENTHAELT INTEGER-KONSTANTEN
+C        RIDENT         + ENTHAELT REAL-KONSTANTEN
+C        AU(KKA,JJA,IIA) - ENTHAELT DEN STATIST. MITTELWERT <U-MEAN>
+C        ALREF          + BEZUGSLAENGE
+C        UREF           + BEZUGSGESCHWINDIGKEIT
+C        TRF            + BEZUGSZEIT
+C        IWAEHL         - INTEGER-KONSTANTE:
+C                         IWAEHL = 1: BEZ.-GESCHW./-LAENGE F. KANAL
+C                         IWAEHL = 2:  ""      "        "   F. KUBUS
+C                         IWAEHL = 3:  ""      "        "   F. RIPPE
+C                         IWAEHL = 4: BEZ.-GESCHW./-LAENGE F. STUFE
+C
+C UPROG                 : ERRR
+C
+C DEFINE-DIREKTIVEN     : YHOMOG
+C
+C        19.06.86 (HW)  : ORIGINAL
+C        02.09.86 (HW)  : UMSTELLUNG AUF VERSCHOBENE U-KOMPONENTE
+C                         (<U> WAR ZU TESTZWECKEN IN ZELLMITTE
+C                          DEFINIERT WORDEN)
+C        30.09.86 (HW)  : ABSPEICHERN DER BEZUGSGROESSEN IM RIDENT-FELD
+C        23. 3.93 (MM)  : REFERENZLAENGE WIRD VOM BENUTZER IM DATEN-
+C                         FILE ANGEGEBEN (IN $PHYSPAR)
+C         4. 6.93 (MM)  : REFERENZGROESSEN WERDEN ALLGEMEIN
+C                         VOM BENUTZER IM DATENFILE ANGEGEBEN
+C                         IN SETREF WERDEN SIE LEDIGLICH
+C                         BERECHNET UND AUSGEGEBEN
+C        03.04.03 (TB)  : IWAEHL=2: YHOMOG ALLOWED FOR FLOW AROUND CUBE
+C
+C*STARLET***************************************************************
+C
+      DIMENSION AU(KKA,JJA,IIA), IIDENT(100), RIDENT(100)
+      REAL      DDX(II),  DDY(JJ),  DDZ(KK)
+      LOGICAL  XHOMOG,YHOMOG,ZHOMOG
+C
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
+C
+C                                   VERSIONSNUMMER, DAMIT FORTSETZUNGSLAUF
+C                                  RICHTIG EINLESEN KANN
+      IIDENT(5) = IIDENT(6)
+C
+
+      WRITE (6,*) '  '
+      WRITE (6,*) '  '
+      WRITE (6,*) ' ************************************************'
+      WRITE (6,*) '  '
+      WRITE (6,*) '       BEZUGSGROESSEN FUER GITTER:',IGRID
+      WRITE (6,*) '  '
+
+
+      IIDENT( 7) = KK
+      IIDENT( 8) = JJ
+      IIDENT( 9) = II
+C
+      IIDENT(15) = KKA
+      IIDENT(16) = JJA
+      IIDENT(17) = IIA
+      IIDENT(20) = KPP
+      IIDENT(21) = JPP
+      IIDENT(22) = IPP
+      IIDENT(23) = KMXA
+      IIDENT(24) = JMXA
+      IIDENT(25) = IMXA
+      IIDENT(26) = KMX
+      IIDENT(27) = JMX
+      IIDENT(28) = IMX
+C
+      RIDENT(20) = RHO
+C
+
+        ALREF=1.0
+        UREF=1.0
+
+      IF(IWAEHL .EQ. 1) THEN
+C
+C                                 BEZUGSGESCHW. FUER DIE KANAL-
+C                                 STROEMUNG. UREF IST DIE SCHUB-
+C                                 SPANNUNGSGESCHWINDIGKEIT
+C
+         ALREF = XREF
+         UREF  = SQRT(ABS(-ALREF*GRADPX)/RHO) * SIGN(1.0,-GRADPX)
+         GOTO 2100
+      END IF
+      IF(IWAEHL .EQ. 2) THEN
+
+         IF (XHOMOG) CALL ERRR(502,' SETREF   ')
+CTBC1 YHOMOG ALLOWED FOR FLOW AROUND CUBE
+C         IF (YHOMOG) CALL ERRR(503,' SETREF   ')
+C
+C                                 BEZUGSGESCHW. FUER DIE KUBUSSTROEM.
+C                                 UREF IST DIE MAXIMALGESCHWINDIGKEIT
+C                                 IM EINSTROEMQUERSCHNITT
+C
+         UREF = 0.0
+C
+         DO 10 J = 1,JMXA
+            DO 20 K = 1,KMXA
+               UREF = AMAX1(ABS(UREF),ABS(AU(K,J,2)))
+     $              *       SIGN(1.0,AU(K,J,2))
+   20       CONTINUE
+   10    CONTINUE
+C
+         ALREF = XREF
+         GOTO 2100
+      END IF
+      IF(IWAEHL .EQ. 3) THEN
+
+         IF (XHOMOG) CALL ERRR(504,' SETREF   ')
+C
+C                                 BEZUGSGESCHW. FUER DIE RIPPEN-
+C                                 STROEMUNG. UREF IST DIE UEBER
+C                                 DEN EINSTROEMQUERSCHNITT GEMITTELTE
+C                                 GESCHWINDIGKEIT
+C
+         IF (.NOT.YHOMOG) THEN
+            JSTART = 3
+            JSTOP  = JMX - 2
+            AREA   = YTOT*ZTOT
+         ELSE
+            JSTART = 1
+            JSTOP  = 1
+            AREA   = ZTOT*DDY(1)
+         ENDIF
+C
+         KSTART = 3
+         KSTOP  = KMX - 2
+C
+         USUM   = 0.0
+C
+         DO 110 J = JSTART,JSTOP
+            DO 120 K = KSTART,KSTOP
+               USUM  = USUM + AU(K,J,2)*DDY(J)*DDZ(K)
+  120       CONTINUE
+  110    CONTINUE
+C
+         UREF  = USUM / AREA
+         ALREF = XREF
+         GOTO 2100
+      END IF
+      IF(IWAEHL .EQ. 4) THEN
+C
+C                                 BEZUGSGESCHW. FUER DIE ZURUECK-
+C                                 SPRINGENDE STUFE. UREF IST DIE
+C                                 SCHUBSPANNUNGSGESCHW. DER KANAL-
+C                                 STROEMUNG  V O R  DER STUFE.
+C
+         IF(ZTOT .NE. 2.0 .OR. 
+     $      GMOL .NE. 6.71244E-06) CALL ERRR (499,' SETREF   ')
+         UREF  = 0.043497126
+         ALREF = XREF
+         GOTO 2100
+      END IF
+C
+      CALL ERRR (501,' SETREF   ')
+C
+ 2100 CONTINUE
+        IF(UREF.EQ.0.0) THEN
+        WRITE(6,*)'UREF AUF 1.0 GESETZT IN SETREF'
+        UREF=1.0
+        ENDIF
+        IF(ALREF.EQ.0.0) THEN
+        WRITE(6,*)'ALREF AUF 1.0 GESETZT IN SETREF'
+        ALREF=1.0
+        ENDIF
+C
+C                                 HIER: BEZUGSGESCHW. UND BEZUGS-
+C                                 LAENGE SIND FESTGELEGT.
+C
+      TRF   = ALREF/UREF
+      RE    = RHO*UREF*ALREF/GMOL
+C
+      RIDENT(1)  = RE
+      RIDENT(21) = UREF
+*     RIDENT(22) = BEZUGSDRUCK (NUR FUER K-EPS)
+      RIDENT(23) = ALREF
+      RIDENT(24) = TRF
+C                                 DAMIT DIE BEZUGSGROESSEN BEIM EIN-
+C                                 LESEN (FOLGELAUF !) ZUR VERFUEGUNG
+C                                 STEHEN, MUESSEN SIE IN DEN -IDENT -
+C                                 FELDERN AUF DEN PLAETZEN 75...100
+C                                 GESPEICHERT WERDEN
+C
+C                                 BEZUGSGESCHWINDIGKEIT
+      RIDENT(75) = UREF
+C                                 BEZUGSLAENGE
+      RIDENT(76) = ALREF
+C                                 BEZUGSZEIT
+      RIDENT(77) = TRF
+C                                 BEZUGSENERGIE
+      RIDENT(78) = UREF**2
+C                                 BEZUGSVISKOSITAET (DYNAMISCHE)
+      RIDENT(79) =     RHO*UREF*ALREF
+C                                 BEZUGSDRUCK
+      RIDENT(80) = 0.5*RHO*UREF**2
+C                                 BEZUGSSCHUBSPANNUNG
+      RIDENT(81) =     RHO*UREF**2
+C
+      WRITE (6,6010) ALREF, UREF, TRF, RE
+C
+      RETURN
+C
+ 6010 FORMAT (/,1X,130(1H*),/,1X,'*',/,1X,'*',38X,
+     $        'WERTE DER BEZUGSGROESSEN (SUBR. SETREF)',/,
+     $        1X,'*',/,1X,'*',8X,'BEZUGSLAENGE',13X,
+     $        'LREF = ',1PE12.5,/,1X,'*',8X,'BEZUGSGESCH',
+     $        'WINDIGKEIT    UREF = ',1PE12.5,/,1X,'*',8X,
+     $        'BEZUGSZEIT',15X,'TRF = ',1PE12.5,/,1X,'*',8X,
+     $        'REYNOLDSZAHL',13X,'RE   = ',1PE12.5,/,1X,'*',
+     $        /,1X,130(1H*),/)
+      END

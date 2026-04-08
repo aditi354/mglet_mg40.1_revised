@@ -1,0 +1,280 @@
+
+
+
+
+
+
+
+
+
+
+
+CCCCC        DEFINITIONEN FUER C-PREPROZESSOR
+C            MASCHINE
+
+C              MESSAGE PASSING INTERFACE
+
+C            RAEUMLICHE DISKRETISIERUNG
+C
+***********************************************************************
+C                       KOMPAKT-UPWIND in X-RICHTUNG (3-TER ORDNUNG) fuer
+C                       die U-Komponente (V und W bleiben Kompakt 4ter ordnung)
+C                       falls im Stroemungsfeld eine Koerper vorhanden ist
+C
+***********************************************************************
+C                       KOMPAKTVERF. in XYZ-RICHTUNG (4-TER ORDNUNG)
+
+
+**********************************************************************
+C                      Preprocessing with ADM for 2nd Order Central
+***********************************************************************
+CCC                     Bei periodischen Randbedingungen in X-Richtung
+CCC                     ist eine hoehere O
+C
+CCC                     Bei periodischen Randbedingungen in Y-Richtung
+CCC                     ist eine hoehere Ordnung moeglich
+C
+CCC                     Bei periodischen Randbedingungen in Y-Richtung:
+CCC                     Zentraldiff. 4-ter Ordnung (Parallelisieung moeglich)
+C
+***********************************************************************
+C
+C
+C            INTERPOLATION AN GITTER-GRENZEN
+
+C            BEHANDLUNG DER TOPAR-RANDBEDINGUNG
+
+C            ZEITLICHE DISKRETISIERUNG
+
+C            FEINSTRUKTURMODELL
+
+C            NICHT-NEWTONSCHE SPANNUNGEN
+
+
+C            TRANSPORT UND ORIENTIERUNG VON PARTIKELN
+
+
+C            SCALAR HEAT/TEMPERATURE TRANSPORT
+C            APROXIMATE DECONVOLUTION FOR SCALAR
+C            TURBULENT PRANDTL NUMBER 
+C            PLOT LOCAL SCALAR CONVECTION DIFFUSION EXTREMES 
+C            ANALYZE AND PLOT NEAR WALL GRID RESLOLUTION 
+C            WRITE SPECIAL 1D LINE FOR TMIX FOR SPECTRA AND PDF
+C            SCALAR TIME ADVANCEMENT/DISCRETISATION METHOD
+
+C            STROEMUNG NACH OBEN?
+
+
+C            BEHANDLUNG DER FLUKTUATIONS-RANDBEDINGUNG
+
+C            BEHANDLUNG VON PPHYS ALS QUELLTERM IN TSTLE2
+
+C            POSITIONIERUNG DER EINSTROEMPROFILE
+
+C           STATISTIK
+
+
+C                 GEMISCHTES
+
+C                GRDFMI WIRD NICHT VERWENDET, DAHER EINSPARUNG DER FELDER
+C                IGRHF UND GRHF
+
+C                VERGROESSERN DER KJI-RICHTUNG BEI FORTSETZUNGSLAUF ERLAUBT!
+
+C                RAUSSCHREIBEN VON ZEITRECORDS
+
+C                FUER KORRELATIONEN UND HAEFIGKEITSVERTEILUNGEN
+CCCCCCC writing unformatted history files; Maximum value of MTSTEP allowed is 500000 CCCCCCCCC
+CCCCCC 10000*req_xloc*numzloc*numvar*II must be < 2.14E+09 to avoid error in writing the binary files CCCCC
+
+      SUBROUTINE PRINTDATA (MYID,KK,JJ,II,NBND,PHI1,PHI2,
+     $  PHI3, PHI4, ISTEP, NXSLICE, MTSTEP, req_xloc, 
+     $  numzloc, numvar, x_loc, z_loc, MYID_loc, ITTOT,
+     $  yloc_stream, zloc_stream, numzloc_stream)
+
+      IMPLICIT NONE 
+
+      REAL  PHI1(KK,JJ,II), PHI2(KK,JJ,II), PHI3(KK,JJ,II),
+     $      PHI4(KK,JJ,II)
+
+      INTEGER  ISTEP,KK,JJ,II,NBND,ITTOT
+
+      INTEGER  I,J,NXSLICE,MTSTEP,IO57,TSTOP
+
+      INTEGER  OUTUNIT,req_xloc,numvar,numzloc,numcells,numzloc_stream
+
+      INTEGER  MYID,MYID_loc(req_xloc),x_loc(req_xloc),
+     $         z_loc(numzloc), zloc_stream(numzloc_stream)
+
+      INTEGER temp1,temp2,temp3,temp4,temp5,x,z,his,fc
+
+      INTEGER yloc_stream
+
+      character*4 file_num
+
+      PARAMETER (OUTUNIT = 5000)	 	
+
+6000  format(I3,5000(F12.6))
+
+C************** READ FORT.57 FILE ***********
+      OPEN(57,file="fort.57")
+        READ(57,*,iostat=IO57) TSTOP
+      CLOSE(57)
+
+C************** PRINT DATA AT CERTAIN LOCATIONS ****************
+      do fc = 0, 9
+        if (istep .EQ. fc*50000 + 1) then
+          write(file_num,'(I0)')(fc+1)*50
+          CLOSE(OUTUNIT)
+          open (OUTUNIT,FILE ='history_'//trim(file_num)//'k',
+     $      access='DIRECT',recl = 4)
+          his = fc
+          exit
+        end if
+      end do
+
+      temp1 = (ISTEP-1-his*50000)*
+     $          (1 + req_xloc*numvar*(numzloc*(JJ - 2*NBND)
+     $                                   + 1*(KK - 2*NBND)) 
+     $             + numvar*numzloc_stream*(II - (2*NBND))*NXSLICE) + 1
+
+      WRITE (OUTUNIT,REC=temp1)ITTOT
+
+      DO I = 1,req_xloc
+	 temp2 = temp1 + (I-1)*numvar*numzloc*(JJ-(2*NBND))
+	 IF (MYID .EQ. MYID_loc(I)) THEN
+
+	    DO J = NBND+1,JJ-NBND
+		temp3 = temp2 + (J-NBND-1)*numzloc
+		do z = 1, numzloc
+	   WRITE (OUTUNIT, REC = (temp3+z)) PHI1(z_loc(z),J,x_loc(I))
+		end do
+            END DO
+
+            if (numvar .LT. 2) cycle
+
+            temp2 = temp2 + numzloc*(JJ - 2*NBND)
+	    DO J = NBND+1,JJ-NBND
+		temp3 = temp2 + (J-NBND-1)*numzloc
+		do z = 1, numzloc
+	   WRITE (OUTUNIT, REC = (temp3+z)) PHI2(z_loc(z),J,x_loc(I))
+		end do
+            END DO
+
+            if (numvar .LT. 3) cycle
+
+            temp2 = temp2 + numzloc*(JJ - 2*NBND)
+	    DO J = NBND+1,JJ-NBND
+		temp3 = temp2 + (J-NBND-1)*numzloc
+		do z = 1, numzloc
+	   WRITE (OUTUNIT, REC = (temp3+z)) PHI3(z_loc(z),J,x_loc(I))
+		end do
+            END DO
+
+            if (numvar .LT. 4) cycle
+
+            temp2 = temp2 + numzloc*(JJ - 2*NBND)
+	    DO J = NBND+1,JJ-NBND
+		temp3 = temp2 + (J-NBND-1)*numzloc
+		do z = 1, numzloc
+	   WRITE (OUTUNIT, REC = (temp3+z)) PHI4(z_loc(z),J,x_loc(I))
+		end do
+            END DO
+
+	  ENDIF
+	ENDDO
+
+C Writing continuous data along the streamwise direction at (yloc_stream, zloc_stream)
+
+      temp2 = temp1 + req_xloc*numvar*numzloc*(JJ-2*NBND)
+
+      DO z = 1, numzloc_stream
+
+        temp3 = temp2 + (z-1)*numvar*NXSLICE*(II-2*NBND)
+
+        temp4 = temp3 + MYID*(II-2*NBND)
+
+        do i = 1, II-2*NBND 
+          write (OUTUNIT, REC = (temp4 + i)) 
+     $          PHI1(zloc_stream(z),yloc_stream,i + NBND)
+        end do
+
+        if (numvar .LT. 2) cycle
+
+        temp3 = temp3 + NXSLICE*(II-2*NBND)
+        temp4 = temp3 + MYID*(II-2*NBND)
+
+        do i = 1, II-2*NBND 
+          write (OUTUNIT, REC = (temp4 + i)) 
+     $          PHI2(zloc_stream(z),yloc_stream,i + NBND)
+        end do
+
+        if (numvar .LT. 3) cycle
+
+        temp3 = temp3 + NXSLICE*(II-2*NBND)
+        temp4 = temp3 + MYID*(II-2*NBND)
+
+        do i = 1, II-2*NBND 
+          write (OUTUNIT, REC = (temp4 + i)) 
+     $          PHI3(zloc_stream(z),yloc_stream,i + NBND)
+        end do
+
+        if (numvar .LT. 4) cycle
+
+        temp3 = temp3 + NXSLICE*(II-2*NBND)
+        temp4 = temp3 + MYID*(II-2*NBND)
+
+        do i = 1, II-2*NBND 
+          write (OUTUNIT, REC = (temp4 + i)) 
+     $          PHI4(zloc_stream(z),yloc_stream,i + NBND)
+        end do
+
+      END DO
+
+C Writing continuous data along the wall-normal direction at (x_loc(i),yloc_stream)
+      temp3 = temp2 + numzloc_stream*numvar*NXSLICE*(II-2*NBND)
+
+      DO i = 1, req_xloc
+
+	IF (MYID .EQ. MYID_loc(I)) THEN
+        temp4 = temp3 + (i-1)*numvar*1*(KK - 2*NBND)
+
+        do j = 1, KK - 2*NBND
+          write (OUTUNIT, REC = (temp4 + j))
+     $          PHI1(j+NBND,yloc_stream,x_loc(i))
+        end do
+
+        if (numvar .LT. 2) cycle
+        temp4 = temp4 + (KK - 2*NBND)
+
+        do j = 1, KK - 2*NBND
+          write (OUTUNIT, REC = (temp4 + j))
+     $          PHI2(j+NBND,yloc_stream,x_loc(i))
+        end do
+
+        if (numvar .LT. 3) cycle
+        temp4 = temp4 + (KK - 2*NBND)
+
+        do j = 1, KK - 2*NBND
+          write (OUTUNIT, REC = (temp4 + j))
+     $          PHI3(j+NBND,yloc_stream,x_loc(i))
+        end do
+
+        if (numvar .LT. 4) cycle
+        temp4 = temp4 + (KK - 2*NBND)
+
+        do j = 1, KK - 2*NBND
+          write (OUTUNIT, REC = (temp4 + j))
+     $          PHI4(j+NBND,yloc_stream,x_loc(i))
+        end do
+
+        END IF
+
+      END DO
+
+      IF ((ISTEP .EQ. MTSTEP) .OR. (IO57 .EQ. 0)) THEN
+        CLOSE(OUTUNIT)
+      ENDIF
+
+      RETURN
+      END

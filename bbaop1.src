@@ -1,0 +1,172 @@
+      SUBROUTINE BBAOP1 (i1,i2,i3,i4,KMX,JMX,IMX,Z,
+     $                    V,U,W,P,G,
+     $                    JSTART,JSTOP,KSTART,KSTOP,ITYP
+#ifdef _TSCAL_
+     $                   ,T
+#endif
+     $                   )      
+C*STARLET***************************************************************
+C        B B A O P 1    SETZEN DER RANDBEDINGUNGEN FUER DIE
+C                         GESCHWINDIGKEITSFELDER AND SCALAR T.
+C                         (LARGE-EDDY-SIMULATION)
+C*STARLET***************************************************************
+C
+C PARAM: 
+C        KMX, JMX, IMX  - DIMENSIONEN DES GITTERS 
+C        U(KMX,JMX,IMX) + GESCHWINDIGKEITSFELD
+C        V(KMX,JMX,IMX) + GESCHWINDIGKEITSFELD
+C        W(KMX,JMX,IMX) + GESCHWINDIGKEITSFELD
+C        T(KMX,JMX,IMX) + SCALAR T FIELD
+C        P(KMX,JMX,IMX) - DRUCKFELD
+C        G(KMX,JMX,IMX) - EFFEKTIVE DYNAMISCHE VISKOSITAET (= MUE)
+C        ITYP           - HOLLERITH-KONSTANTE:
+C                         'P'  VOR DER DRUCKKORREKTUR
+C                         'T'  VOR DEM ZEITSCHRITT
+C
+C VERS:   8. 3.93 (MM)  : ORIGINAL
+C                         AUS BBACLE (BBAC) ABGELEITET
+C        28.02.03 (TB)  : SCALAR BOUNDARY TREATMENT IMPLEMENTED
+C
+C DEFINE-DIREKTIVEN     : QUD 
+C
+C*STARLET***************************************************************
+C
+#include "cophyspar.h"
+C
+C
+      CHARACTER (LEN=1)  ITYP
+C
+      REAL
+     $            U(KMX,JMX,IMX),   V(KMX,JMX,IMX),   W(KMX,JMX,IMX),
+     $            P(KMX,JMX,IMX),   G(KMX,JMX,IMX)
+      REAL        Z( KMX )
+C
+#ifdef _TSCAL_
+      REAL        T(KMX,JMX,IMX)
+#endif
+C
+      IM1 = IMX-1
+      IM2 = IMX-2
+      IM3 = IMX-3
+C
+#ifndef _PPHYS_SOURCE_TERM_
+#ifdef _UPWARDS_
+C
+C      do i=1,npphys
+C	write(6,*)'PPHYS:',PPHYS(i),XPPHYS(i)
+C      enddo
+C
+C                                 START- AND STOP-INDICES FOR PRESSURE
+C                                 ON TOP
+      IZ_START = 1
+      DO I=1,NPPHYS
+         IF ( Z(1)   .LE. XPPHYS(I) ) THEN
+            IZ_START = I
+            GOTO 30
+         ENDIF
+      ENDDO
+   30 CONTINUE
+
+      IZ_STOP = NPPHYS
+      DO I=NPPHYS-1,1,-1
+         IF ( Z(KMX) .GE. XPPHYS(I) ) THEN
+            IZ_STOP  = I
+            GOTO 31
+         ENDIF
+      ENDDO
+   31 CONTINUE
+C
+#endif
+#endif
+C
+C                                 **************************************
+C                                 OPEN-WALL, GRADIENT = 0
+C                                 **************************************
+C
+C
+C
+C                                 VOR DER DRUCKKORREKTUR
+C                                 ----------------------
+      IF(ITYP .EQ. 'P') RETURN
+
+         DO K=KSTART,KSTOP
+
+#ifdef _PPHYS_SOURCE_TERM_
+       PINFTY = 0.0
+#else
+#ifndef _UPWARDS_
+       PINFTY = 0.0
+#else
+C                                  CALCULATION OF PINFTY
+
+          IF ( Z(K) .LE. XPPHYS(1)) THEN
+             PINFTY = PPHYS(1)
+          ELSEIF ( Z(K) .GE. XPPHYS(NPPHYS)) THEN
+             PINFTY = PPHYS(NPPHYS)
+          ELSE
+
+             DO IZ=1,NPPHYS-1
+                IF ((Z(K)-XPPHYS(IZ))*(Z(K)-XPPHYS(IZ+1)) 
+     $               .LE. 0.0) THEN
+                   PINFTY = PPHYS(IZ) + 
+     $                  (PPHYS(IZ+1)-PPHYS(IZ))*
+     $                  (Z(K)       -XPPHYS(IZ))/
+     $                  (XPPHYS(IZ+1)-XPPHYS(IZ))
+                  GOTO 1000
+                ENDIF
+             ENDDO
+          ENDIF
+
+ 1000     CONTINUE
+
+#endif
+#endif
+
+
+         DO J=JSTART,JSTOP
+
+C
+C               U(K,J,IM2) = U(K,J,IM3)
+#ifdef _LIMIT_OUTFLOW_BACK_
+               U(K,J,IM1) = MAX(-0.01,U(K,J,IM2))
+               V(K,J,IM1) = 0.0
+               W(K,J,IM1) = 0.0
+#else
+               U(K,J,IM1) = U(K,J,IM2)
+               V(K,J,IM1) = V(K,J,IM2)
+               W(K,J,IM1) = W(K,J,IM2)
+#endif
+C_250895       P(K,J,IM1) = P(K,J,IM2)
+               P(K,J,IM1) = PINFTY
+               G(K,J,IM1) = G(K,J,IM2)
+#ifdef _TSCAL_
+               T(K,J,IM1) = T(K,J,IM2)
+#endif  
+
+         ENDDO
+         ENDDO
+
+
+
+#ifdef _QUD_
+
+        DO J=JSTART,JSTOP
+        DO K=KSTART,KSTOP
+
+               U(K,J,IMX) = U(K,J,IM2)
+               V(K,J,IMX) = V(K,J,IM2)
+               W(K,J,IMX) = W(K,J,IM2)
+               P(K,J,IMX) = PINFTY
+               G(K,J,IMX) = G(K,J,IM2)
+#ifdef _TSCAL_
+               T(K,J,IMX) = T(K,J,IM2)
+#endif               
+
+         ENDDO
+         ENDDO
+
+#endif
+
+      RETURN
+      END
+

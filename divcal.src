@@ -1,0 +1,166 @@
+      SUBROUTINE DIVCAL(KK,JJ,II,KMX,JMX,IMX,DDX,DDY,DDZ,
+     $                  U,V,W,B,DIV,FAK,IREZIP,DIVMAX,
+     $                  BU,BV,BW,SDIV)
+C*MGLET***************************************************
+C  D I V C A L     BERECHNET DIE DIVERGENZ
+C
+C      FAK:        FALLS NICHT NULL, WIRD DIVERGENZ DAMIT NORMIERT
+C   IREZIP:         +1:    DDX,DDY,DDZ SIND ABSTAENDE DER GITTERP.
+C                   -1:    DDX,...    SIND SCHON REZIPROKWERTE
+C
+C    11. 3.94  (MM):   ERWEITERT UM FAK UND IREZIP
+C
+C*MGLET***************************************************
+C
+      IMPLICIT NONE
+
+      INTEGER KK,JJ,II,K,J,I,KMX,JMX,IMX,KDM,JDM,IDM,IREZIP
+      REAL U(KK,JJ,II), V(KK,JJ,II), W(KK,JJ,II), DIV(KK,JJ,II),
+     &     B(KK,JJ,II),BU(KK,JJ,II),BV(KK,JJ,II),BW(KK,JJ,II),
+     $     SDIV(KK,JJ,II),
+     &     DDX(II),     DDY(JJ),     DDZ(KK)
+
+      REAL FAK,FACTOR,DIVMAX
+
+C
+C      DO K=1,KK
+C	WRITE(6,*)'U: ',U(K,20,20),K
+C      ENDDO
+      IF (FAK .EQ. 0.0) FAK = 1.0
+C
+C---- --------------------------------------------------------
+C
+      IF (IREZIP .GE. 0) THEN
+
+        DO I=3,IMX-2
+        DO J=3,JMX-2
+        DO K=3,KMX-2
+#ifdef _FRED_BODY_
+               FACTOR = B(K,J,I)
+#else
+               FACTOR = SIGN(0.5,B(K,J,I))+0.5
+#endif
+          DIV(K,J,I) =  FACTOR*
+     &             (( U(K,J,I) - U(K,J,I-1) )/DDX(I) 
+     &          +   ( V(K,J,I) - V(K,J-1,I) )/DDY(J) 
+     &          +   ( W(K,J,I) - W(K-1,J,I) )/DDZ(K) )*FAK
+
+        ENDDO
+        ENDDO
+        ENDDO
+
+C
+C---- --------------------------------------------------------
+C
+      ELSEIF (IREZIP .LT. 0) THEN
+#ifdef _FRED_BODY_
+        IF (ABS(IREZIP).GT.3) THEN
+        DO I=3,IMX-2
+        DO J=3,JMX-2
+        DO K=3,KMX-2
+#ifdef _FRED_BODY_
+               FACTOR = B(K,J,I)
+#else
+               FACTOR = SIGN(0.5,B(K,J,I))+0.5
+#endif
+          DIV(K,J,I) =  FACTOR*
+     &          (( U(K,J,I)*BU(K,J,I)
+     &           - U(K,J,I-1)*BU(K,J,I-1) )*DDX(I)
+     &        +   ( V(K,J,I)*BV(K,J,I)
+     &           - V(K,J-1,I)*BV(K,J-1,I) )*DDY(J)
+     &       +   ( W(K,J,I)*BW(K,J,I)
+     &           - W(K-1,J,I)*BW(K-1,J,I) )*DDZ(K)+
+     &             SDIV(K,J,I) )*FAK
+
+        ENDDO
+        ENDDO
+        ENDDO
+        ELSE
+#endif
+
+        DO I=3,IMX-2
+        DO J=3,JMX-2
+        DO K=3,KMX-2
+#ifdef _FRED_BODY_
+               FACTOR = B(K,J,I)
+#else
+               FACTOR = SIGN(0.5,B(K,J,I))+0.5
+#endif
+          DIV(K,J,I) =  FACTOR*
+     &             (( U(K,J,I) - U(K,J,I-1) )*DDX(I) 
+     &          +   ( V(K,J,I) - V(K,J-1,I) )*DDY(J) 
+     &          +   ( W(K,J,I) - W(K-1,J,I) )*DDZ(K) )*FAK
+
+        ENDDO
+        ENDDO
+        ENDDO
+#ifdef _FRED_BODY_ 
+        END IF
+#endif
+
+C
+C---- --------------------------------------------------------
+C
+      ELSE
+         CALL ERRR (501,'DIVCAL')
+      ENDIF
+
+C
+C---- --------------------------------------------------------
+C
+C
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC FOR INFORMATION
+C
+
+      DIVMAX = 0.0
+#ifndef _FRED_BODY_
+      IF (ABS(IREZIP) .EQ. 2) THEN
+#else
+      IF (ABS(IREZIP) .EQ. 2 .OR.
+     $    ABS(IREZIP) .EQ. 20 ) THEN
+#endif
+
+      DO I=3,IMX-2
+      DO J=3,JMX-2
+      DO K=3,KMX-2
+         IF (ABS(DIV(K,J,I)) .GT. ABS(DIVMAX)) THEN
+                 DIVMAX=ABS(DIV(K,J,I))
+         ENDIF
+      ENDDO
+      ENDDO
+      ENDDO
+
+C      WRITE (6,*) 'MAX. DIVERGENZ:',DIVMAX/FAK,IREZIP
+
+      ENDIF
+C
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC FOR DETAILED INFORMATION
+C
+#ifndef _FRED_BODY_
+      IF (ABS(IREZIP) .EQ. 3) THEN
+#else
+      IF (ABS(IREZIP) .EQ. 3 .OR.
+     $    ABS(IREZIP) .EQ. 30 ) THEN
+#endif
+
+      DO I=3,IMX-2
+      DO J=3,JMX-2
+      DO K=3,KMX-2
+
+         IF (ABS(DIV(K,J,I)) .GT. ABS(DIVMAX)) THEN
+
+           KDM = K
+           JDM = J
+           IDM = I
+           DIVMAX = ABS(DIV(K,J,I))
+
+         ENDIF
+      ENDDO
+      ENDDO
+      ENDDO
+
+C      WRITE (6,*) 'MAX. DIVERGENZ:',DIVMAX/FAK,KDM,JDM,IDM,IREZIP
+
+      ENDIF
+      RETURN
+      END

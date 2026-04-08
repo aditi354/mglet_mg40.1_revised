@@ -1,0 +1,84 @@
+      SUBROUTINE DOGRID (CIDENT,IIDENT,RIDENT,
+     $                   DDX,DDY,DDZ,DX,DY,DZ,X,Y,Z,
+#ifdef _TSCAL_
+     $              U,V,W,T,P,G,B,HILF,
+#else
+     $              U,V,W,P,G,B,HILF,	
+#endif	
+     $              IDIM3D,IDIM2D,IDIM1D,NBUF,NBND,IDIMA,IDIM1L,IDIM2L,
+     $              IGRID)
+C**** MGLET ************************************************************
+C           D O G R I D
+C                           SCHREIBT EIN GITTER RAUS
+C
+C         7. 6.93 (MM) :   ORIGINAL  (AUS DIGRID ABGELEITET)
+C        26. 5.95 (MM) :   KOPF UM HILFSFELD ERWEITERT, FUER MPI
+C        04.02.03 (TB) :   SCALAR TRANSPORT VARIABLE T ADDED
+C
+C**** MGLET ************************************************************
+
+#include "mgpar.h"
+#include "comgrid.h"
+#include "costrles.h"
+#include "clinou.h"
+
+      CHARACTER (LEN=8)    CIDENT(10)
+C
+      INTEGER IIDENT(100)
+
+      REAL    RIDENT(100),
+     $            X(IDIM1D),     Y(IDIM1D),     Z(IDIM1D),
+     $           DX(IDIM1D),    DY(IDIM1D),    DZ(IDIM1D),
+     $          DDX(IDIM1D),   DDY(IDIM1D),   DDZ(IDIM1D),
+#ifdef _TSCAL_
+     $        U( IDIM3D ), V( IDIM3D ), W( IDIM3D ),T( IDIM3D ),
+     $        P( IDIM3D ), G( IDIM3D ), B( IDIM3D ), HILF( IDIM3D )
+#else
+     $        U( IDIM3D ), V( IDIM3D ), W( IDIM3D ),
+     $        P( IDIM3D ), G( IDIM3D ), B( IDIM3D ), HILF( IDIM3D )	
+#endif
+
+
+C
+C                                 BEREITSTELLUNG DER POINTER
+C                                 BASIS-RANDBEDINGUNGEN
+C                                 DIMENSIONIERUNGEN
+C
+       CALL MGDIMS  (KK,JJ,II,IGRID)
+       CALL MGPOINT (IP3,IP2,IP1,IBB,IB3,IBU,IGRID)
+       CALL MGBASB  (NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB,IGRID)
+
+
+
+
+         IF(LDOB  ) THEN
+         CALL DOB    (CIDENT,IIDENT,RIDENT,KK,JJ,II,KK,JJ,II,NBND,
+     $              DDX(IP1),DDY(IP1),DDZ(IP1),
+     $              DX(IP1),DY(IP1),DZ(IP1),X(IP1),Y(IP1),Z(IP1),
+#ifdef _TSCAL_
+     $              5,U,V,W,T,
+#else
+     $              5,U,V,W,
+#endif
+     $              P,G,B,B,B,HILF,IGRID,IDIM3D)
+         END IF
+         IF(LDOC  ) THEN
+         CALL DOC    (CIDENT,IIDENT,RIDENT,KK,JJ,II,KK,JJ,II,NBND,
+     $              DDX(IP1),DDY(IP1),DDZ(IP1),
+     $              DX(IP1),DY(IP1),DZ(IP1),X(IP1),Y(IP1),Z(IP1),
+#ifdef _TSCAL_
+     $              5,U,V,W,T,
+#else
+     $              5,U,V,W,
+#endif
+     $              P,G,B,TK,TE,HILF,IGRID,IDIM3D)
+         END IF
+
+C
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+C
+
+      RETURN
+      END
+
+

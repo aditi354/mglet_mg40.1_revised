@@ -1,0 +1,150 @@
+      SUBROUTINE RANDWERTDW (KK,K,DX,DDX,STAG,LCOL,DIAG,RCOL,RSIDE1,
+     $                        RSIDE2,RSIDE3)
+C*MGLET***************************************************************
+C     R A N D W E R T D W
+C     UNTERPROGRAMM ZU BERECHNUNG DER KOEFFIZIENTEN AM RAND
+C     HIER DIE WERTE FUER DEN     A U S S T R O E M R A N D FALLS
+C     DORT EINE WAND IST
+C     BERECHNUNG DER E R S T E N  A B L E I T U N G ! ! ! ! !
+C
+C*MGLET***************************************************************
+C
+C
+C DEFINE DIREKTIVEN     : KEINE
+C
+C UPROG                 : KEINE                                      
+C                                                            
+C 21.10.1996            : ADNAN MERI (ORIGINAL)
+C 21.01.2003            : FLORIAN SCHWERTFIRM
+C
+C*MGLET***************************************************************
+C
+      LOGICAL STAG
+      REAL LCOL,RCOL,DIAG,RSIDE1, RSIDE2,RSIDE3,
+     $     alpha,beta,gamma,phi,h1,h2,h3,h4
+       
+
+      REAL a,b,c,d,e,f,g, h,q,l,DX(KK),DDX(KK),
+     $     a1,a2,a3,a4,b1,b2,b3,b4,c1,c2,c3,c4 
+     
+C
+
+CCCCCC Falls Rand gleich Noslip bestimmung mit cramers. regel
+C  Fi+alpha*f(i+1/2)[h1]+beta*f(i-1/2)[h2]+gamma*F(i-1)[h3]+phi*f(i-3/2)[h4] = O**3
+C  F unbekannt f bekannt. Taylorreihe -> Koeffizientenvergleich. 
+C  Gleichungssystem mit Koeff. als Unbekannte. Loesung mit Cramerscher 
+C  Regel
+
+#if !defined _4TH_KOBAYASHI_ 
+
+      IF (STAG) THEN
+         h1 = DX(K)/2.0
+         h2 = DX(K-1)/2.0
+         h3 = DX(K-1)
+         h4 = DX(K-1)+DX(K-2)/2.0
+      ELSE
+         h1 =  DX(K-1)/2.0
+         h2 =  DX(K-1)/2.0
+         h3 = (DX(K-1)+DX(K-2))/2.0
+         h4 =  DX(K-1)/2.0 + DX(K-2)
+      ENDIF
+
+        a1 = h1 
+	a2 = -h2 
+	a3 = 1 
+	a4 = -h4
+        b1 = 0.5*h1**2 
+        b2= 0.5*h2**2 
+	b3 = -h3 
+	b4 = 0.5*h4**2
+        c1 = h1**3/6.0 
+	c2 = -h2**3/6.0 
+	c3 = 0.5*h3**2 
+	c4 = -h4**3/6.0
+
+
+      a = a1*b3*c2-a1*b2*c3+a2*b1*c3-a2*c1*b3-b1*a3*c2+a3*b2*c1 -
+     $ a1*b3*c4+a1*b4*c3+b1*a3*c4-b1*a4*c3-a3*c1*b4+c1*a4*b3 +
+     $ a2*b3*c4-a2*b4*c3-a3*b2*c4+a3*c2*b4+b2*a4*c3-a4*b3*c2
+      b = b2*c3 - b3*c2 + b3*c4 - b4*c3
+      c = c1*b3 - b1*c3 - b3*c4 + b4*c3
+      d = b1*c2 - b2*c1 - b1*c4 + c1*b4 + b2*c4 - c2*b4
+      e = b1*c3 - c1*b3 - b2*c3 + b3*c2
+    
+      alpha = -b/a
+      beta = -c/a
+      gamma = d/a
+      phi  = -e/a
+c
+c*******************************************************************
+c
+      LCOL = gamma        
+      DIAG = 1.0
+      RCOL = 0.0  
+      RSIDE1 = alpha 
+      RSIDE2 = beta
+      RSIDE3 = phi 
+c
+c*******************************************************************
+c
+
+#else
+
+      IF (STAG) THEN
+
+      a = -DX(K-1)
+      b = -DX(K-2)+a 
+      c = -DDX(K)/2.0 
+
+      ELSE
+      
+      a = -DDX(K-1)
+      b = -DDX(K-2)+a 
+      c = -DX(K)/2.0
+      
+      
+      ENDIF
+            
+C      LCOL = -b/c
+C      DIAG = 1.0
+C      RCOL = 0.0
+C      RSIDE1 = (-6.0*(a*a+a*b-b*b))/(a*b*c) 
+C      RSIDE2 = (6.0*(a**3.0+a*a*b+a*b*b-b**3.0))/(a*b*b*c)
+C      RSIDE3 = -(RSIDE1+RSIDE2)
+      
+
+      
+      d = ((-3.0*a**2.0*c**2.0-4.0*c**3.0*a+a**2.0*b**2.0-
+     $      4.0*c**3.0*b-3.0*a*b*c**2.0-3.0*b**2.0*c**2.0)*b)/144.0
+      e = ((a**3-6*a*c**2-4*c**3)*a)/24.0
+      f = ((a**2+a*b-b**2)*a*b)/24.0
+      h = -(b/144.0)*
+     $	(3.0*a**3.0*b+8.0*c**3.0*a-4.0*c**3.0*b+6.0*a**3.0*c+
+     $ 6.0*a**2.0*c*b+15.0*a**2.0*c**2.0-3.0*a*b*c**2.0-
+     $ 2.0*a**2.0*b**2.0-3.0*b**2.0*c**2.0-6.0*b**2.0*c*a)		
+      LCOL = d/h 
+      DIAG = 1.0
+      RCOL = 0.0
+      RSIDE1 = f/h
+      RSIDE3 = e/h 
+      RSIDE2 = -(RSIDE1+RSIDE3)
+
+C      LCOL = 0.0 
+C      DIAG = 1.0
+C      RCOL = 0.0
+C      RSIDE3 = 0.0 
+C      RSIDE2 = 1/a
+C      RSIDE1 = -1/a
+
+C      LCOL = -0.478261 
+C      DIAG = 1.0
+C      RCOL = 0.0
+C      RSIDE1 = 69.565231
+C      RSIDE3 = 34.782623
+C      RSIDE2 = -104.347855
+
+
+#endif
+
+      RETURN
+      END

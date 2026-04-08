@@ -1,0 +1,109 @@
+      SUBROUTINE BBAOP2 (KMX,JMX,IMX,
+     $                    DX,DDX,
+     $                    U,V,W,P,G,
+     $                    JSTART,JSTOP,KSTART,KSTOP,ITYP
+#ifdef _TSCAL_
+     $                   ,T
+#endif
+     $                   )     
+C*STARLET***************************************************************
+C        B B A O P 2    SETZEN DER RANDBEDINGUNGEN FUER DIE
+C                         GESCHWINDIGKEITSFELDER AND SCALAR T.
+C                         (LARGE-EDDY-SIMULATION)
+C*STARLET***************************************************************
+C
+C PARAM: 
+C        KMX, JMX, IMX  - DIMENSIONEN DES GITTERS 
+C        DX,DY,DZ       - ABSTAND DER GITTERPUNKTE
+C        DDX,DDY,DDZ    - KANTENLAENGEN DER KONTROLLVOLUMINA
+C        U(KMX,JMX,IMX) + GESCHWINDIGKEITSFELD
+C        V(KMX,JMX,IMX) + GESCHWINDIGKEITSFELD
+C        W(KMX,JMX,IMX) + GESCHWINDIGKEITSFELD
+C        T(KMX,JMX,IMX) + SCALAR T FIELD
+C        P(KMX,JMX,IMX) - DRUCKFELD
+C        G(KMX,JMX,IMX) - EFFEKTIVE DYNAMISCHE VISKOSITAET (= MUE)
+C        ITYP           - HOLLERITH-KONSTANTE:
+C                         'P'  VOR DER DRUCKKORREKTUR
+C                         'T'  VOR DEM ZEITSCHRITT
+C
+C VERS:   8. 3.93 (MM)  : ORIGINAL
+C                         AUS BBACLE (BBAC) ABGELEITET
+C        28.02.03 (TB)  : SCALAR BOUNDARY TREATMENT IMPLEMENTED
+C
+C DEFINE-DIREKTIVEN     : QUD 
+C
+C*STARLET***************************************************************
+C
+      CHARACTER (LEN=1)  ITYP
+C
+      REAL
+     $              DX(  IMX   ),    DDX(  IMX   ),
+     $            U(KMX,JMX,IMX),   V(KMX,JMX,IMX),   W(KMX,JMX,IMX),
+     $            P(KMX,JMX,IMX),   G(KMX,JMX,IMX)
+C
+#ifdef _TSCAL_
+      REAL        T(KMX,JMX,IMX)
+#endif
+C
+      IM1 = IMX-1
+      IM2 = IMX-2
+      IM3 = IMX-3
+      IM4 = IMX-4
+C
+C
+C
+C                                 **************************************
+C                                 OPEN-WALL, 2. ABLEITUNG = 0
+C                                 **************************************
+C
+C
+C
+C                                 VOR DER DRUCKKORREKTUR
+C                                 ----------------------
+      IF(ITYP .EQ. 'P') RETURN
+
+         DO J=JSTART,JSTOP
+         DO K=KSTART,KSTOP
+
+               U(K,J,IM2) = U(K,J,IM3) + (U(K,J,IM3)-U(K,J,IM4))
+     $                    *  DDX(IM2)            /DDX(IM3)
+               V(K,J,IM1) = V(K,J,IM2) + (V(K,J,IM2)-V(K,J,IM3))
+     $                    *   DX(IM2)            / DX(IM3)
+               W(K,J,IM1) = W(K,J,IM2) + (W(K,J,IM2)-W(K,J,IM3))
+     $                    *   DX(IM2)            / DX(IM3)
+               G(K,J,IM1) = G(K,J,IM2) + (G(K,J,IM2)-G(K,J,IM3))
+     $                    *   DX(IM2)            / DX(IM3)
+#ifdef _TSCAL_
+               T(K,J,IM1) = T(K,J,IM2) + (T(K,J,IM2)-T(K,J,IM3))
+     $                    *   DX(IM2)            / DX(IM3)
+#endif     
+
+         ENDDO
+         ENDDO
+
+#ifdef _QUD_
+
+        DO J=JSTART,JSTOP
+        DO K=KSTART,KSTOP
+
+               U(K,J,IM1) = U(K,J,IM3) + (U(K,J,IM3)-U(K,J,IM4))
+     $                    * (DDX(IM2)+DDX(IM1))/DDX(IM3)
+               V(K,J,IMX) = V(K,J,IM2) + (V(K,J,IM2)-V(K,J,IM3))
+     $                    * ( DX(IM2)+ DX(IM1))/ DX(IM3)
+               W(K,J,IMX) = W(K,J,IM2) + (W(K,J,IM2)-W(K,J,IM3))
+     $                    * ( DX(IM2)+ DX(IM1))/ DX(IM3)
+               G(K,J,IMX) = G(K,J,IM2) + (G(K,J,IM2)-G(K,J,IM3))
+     $                    * ( DX(IM2)+ DX(IM1))/ DX(IM3)
+#ifdef _TSCAL_
+               T(K,J,IMX) = T(K,J,IM2) + (T(K,J,IM2)-T(K,J,IM3))
+     $                    * ( DX(IM2)+ DX(IM1))/ DX(IM3)
+#endif
+
+         ENDDO
+         ENDDO
+
+#endif
+
+      RETURN
+      END
+

@@ -1,0 +1,1490 @@
+      SUBROUTINE TSTLE2  (KK,JJ,II,KMX,JMX,IMX,
+     $                    X,Y,Z,DX,DY,DZ,DDX,DDY,DDZ,
+     $                    RDX,RDY,RDZ,RDDX,RDDY,RDDZ,
+     $                    U,V,W,UO,VO,WO,
+     $                    UP,VP,WP,WCU,WCV,WCW,P,G,
+     $                    B,GRADP,DT,
+     $                    GRADPX,ZTOT,NBUF,ITSTEP,WPHI,WKON,WDIF,
+     $                    WSOR,IDUZ,IC1,IC2,JC1,JC2,KC1,KC2,
+     $                    NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB,
+     $                   RSGS3,RSGS2,FAKTOR,
+     $                   UINI,VINI,WINI,FDUI,FDVI,FDWI,
+     $                   UINJ,VINJ,WINJ,FDUJ,FDVJ,FDWJ,
+     $                   UINK,VINK,WINK,FDUK,FDVK,FDWK,
+     $                   COEFFX,COEFFY,COEFFZ,COEFDX,COEFDY,COEFDZ,
+     $                   LCL,DIL,RCL,UZ,RSP,LCR,DIR,RCR,LCOL,DIAG,RCOL,
+     $                   FAKTOR2
+#ifdef _TAU_NN_
+     $        ,TAU11,TAU12,TAU13
+     $        ,TAU21,TAU22,TAU23
+     $        ,TAU31,TAU32,TAU33
+#endif
+     $                    )
+C*STARLET***************************************************************
+C        T S T L E 2      TIMESTEP - TURBULENT - ALLE VERFAHREN - LES
+C*STARLET***************************************************************
+C
+C PARAM: KK, JJ, II     - ARRAYDIMENSIONEN
+C        KMX, JMX, IMX  - GRENZEN DES BERECHNUNGSGEBIETES (MIT BOUND)
+C        DX,DY,DZ       - ABSTAND DER GITTERPUNKTE
+C        DDX,DDY,DDZ    - KANTENLAENGEN DER KONTROLLVOLUMINA
+C        U(KK,JJ,II)    - NEUES GESCHWINDIGKEITSFELD
+C        V(KK,JJ,II)    - NEUES GESCHWINDIGKEITSFELD
+C        W(KK,JJ,II)    - NEUES GESCHWINDIGKEITSFELD
+C        UO(KK,JJ,II)   + ALTES GESCHWINDIGKEITSFELD (FELD WIRD F.
+C                         IDUZ = 1 UND IDUZ = 2 VERAENDERT !!)
+C        VO(KK,JJ,II)   + ALTES GESCHWINDIGKEITSFELD (  "    "  "    "
+C        WO(KK,JJ,II)   + ALTES GESCHWINDIGKEITSFELD (  "    "  "    "
+C        UP(KK,JJ,NBUF) + PUFFERARRAYS
+C        VP(KK,JJ,NBUF) + PUFFERARRAYS
+C        WP(KK,JJ,NBUF) + PUFFERARRAYS
+C        P(KK,JJ,II)    - ALTES DRUCKFELD
+C        G(KK,JJ,II)    - EFFEKTIVE DYNAMISCHE VISKOSITAET (= MUE)
+C        GMOL           - MOLEKULARE DYNAMISCHE VISKOSITAET
+C        DT             - ZEITSCHRITT
+C        RHO            - DICHTE (= CONST)
+C        UGRID          - GESCHWINDIGKEIT DES KOORDINATENSYSTEMS IN
+C                         X-RICHTUNG (GALILEI-TRANSFORMATION)
+C        WCU(KK,JJ)     + WANDKORREKTUR F. U-KOMP. (DIFFUSIVER IMPULSVER
+C                                                   LUST INFOLGE REIBUNG
+C        WCV(KK,JJ)     + WANDKORREKTUR F. V-KOMP.           ""
+C        WCW(KK,JJ)     + WANDKORREKTUR F. W-KOMP.           ""
+C        GRADPX         - DRUCKGRADIENT IN X-RICHTUNG
+C        ZTOT           - SENKRECHTER ABSTAND DER KANALWAENDE
+C        MTURB          - SCHALTER: 0 = LAMINAR,  1 = TURBULENT
+C        NBUF           - ANZAHL DER PUFFERSCHICHTEN (F. QUICK: NBUF=3)
+C        ITSTEP         - ZEITSCHRITTZAEHLER
+C        WPHI           - WICHTUNGSFAKTOR FUER DEN PUNKTWERT
+C        WKON           -         "        "   DIE KONVEKTIVEN TERME
+C        WDIF           -         "        "   DIE DIFFUSIVEN TERME
+C        WSOR           -         "        "   DEN QUELLTERM
+C        IDUZ           - FUER DEN ZEITSCHRITT 2. ORDNUNG MUSS DER ZEIT-
+C                         SCHRITT ZWEIMAL DURCHLAUFEN WERDEN. FUER IDUZ
+C                         = 1 WERDEN GESCHW.KOMP VOM AELTESTEN ZEIT-
+C                         NIVEAU UEBERGEBEN; FUER IDUZ = 2 DIE DES
+C                         AKTUELLEREN ZEITNIVEAUS
+C        IC1,JC1,KC1    - LINKE  RAENDER DER BOUNDING BOX
+C        IC2,JC2,KC2    - RECHTE RAENDER DER BOUNDING BOX
+C
+C     UINI,VINI,WINI    - INTERPOLIERTE GESCHW. IN I-RICHTUNG
+C     UINJ,VINJ,WINJ    - INTERPOLIERTE GESCHW. IN J-RICHTUNG
+C     UINK,VINK,WINK    - INTERPOLIERTE GESCHW. IN K-RICHTUNG
+C
+C     FDUI,FDVI,FDWI    - ERSTE ABLEITUNGEN     IN I-RICHTUNG           
+C     FDUJ,FDVJ,FDWJ    - ERSTE ABLEITUNGEN     IN J-RICHTUNG           
+C     FDUK,FDVK,FDWK    - ERSTE ABLEITUNGEN     IN K-RICHTUNG           
+C
+C                  X    - X-KOORDINATE DES ZELLMITTELPUNKTES            
+C
+C DEFINE DIREKTIVEN     : ZEN, UPW, QUD, EULER, LEAPF, ADBA,
+C                         FRPER, RIPER
+C UPROG                 : SWCLE1
+C
+C        23.08.85 (HW)  : TSTLE2 : ZEITSCHRITT WAHLWEISE MITTELS EULER-,
+C                                  LEAPFROG- ODER ADAMS/BASHFORTH-VER-
+C                                  FAHREN
+C                         U-SCHLEIFE LAEUFT BIS I=IM2 EINSCHLIESSLICH !
+C                         V-   "       "     "  J=JM2        "        !
+C                         DER DRUCK  P  IST ALS EFFEKTIVER DRUCK ZU BE-
+C                         TRACHTEN.  P = P + 1/3UI*UI
+C                         IN X-RI. WIRD DER DRUCKGRADIENT EXPLIZIT VOR-
+C                         GEGEBEN.
+C        26.03.86 (HW)  : LAUFLAENGE DER SCHLEIFEN DURCH DEFINE-
+C                         DIREKTIVEN GESTEUERT
+C        02.04.92 (MM)  : SCHLEIFEN LAUFEN UEBER GANZES GEBIET
+C         4. 4.92 (MM)  : SCHLEIFEN ZUR WANDKORREKTUR AM KOERPER
+C                         LAUFEN NUR INNERHALB DER
+C                         BOUNDING BOX (IC1,IC2,JC1,JC2,KC1,KC2)
+C
+C        10.10.96 (AM)  : KOMPAKTVERFAHREN VIERTER ORDNUNG    
+C                         BERECHNUNG DER INTERPOLATIONEN UND ABLEITUNGEN
+C*STARLET***************************************************************
+C
+#include "konsta.h"
+#include "cophyspar.h"
+C
+      REAL        X(II),         Y(JJ),         Z(KK),
+     &           DX(II),        DY(JJ),        DZ(KK),
+     &          DDX(II),       DDY(JJ),       DDZ(KK),
+     $        RDX(II),RDY(JJ),RDZ(KK),RDDX(II),RDDY(JJ),RDDZ(KK)
+C
+      REAL        U(KK,JJ,II),   V(KK,JJ,II),   W(KK,JJ,II),
+     $           UO(KK,JJ,II),  VO(KK,JJ,II),  WO(KK,JJ,II),
+     &           UP(KK,JJ,NBUF),VP(KK,JJ,NBUF),WP(KK,JJ,NBUF)
+C
+      REAL        P(KK,JJ,II),   G(KK,JJ,II)
+      REAL        B(KK,JJ,II) 
+
+#ifdef _UPWARDS_
+      REAL        GRADP(KK)
+#else
+      REAL        GRADP(II)
+#endif
+
+#ifdef _TAU_NN_
+      REAL 	TAU11(KK,JJ,II), TAU12(KK,JJ,II), TAU13(KK,JJ,II),
+     $          TAU21(KK,JJ,II), TAU22(KK,JJ,II), TAU23(KK,JJ,II),
+     $          TAU31(KK,JJ,II), TAU32(KK,JJ,II), TAU33(KK,JJ,II)
+#endif
+
+C
+      REAL      WCU(KK,JJ),    WCV(KK,JJ),    WCW(KK,JJ)
+C 
+      REAL      RSGS3(KK,JJ,II), RSGS2(KK,JJ)
+C
+      REAL      COEFFX(II,12),COEFFY(JJ,12),COEFFZ(KK,12),
+     $          COEFDX(II,12),COEFDY(JJ,12),COEFDZ(KK,12)
+C
+      REAL      LCOL(II),DIAG(II),RCOL(II),UZ(II),RSP(II),
+     $          FAKTOR(KK,JJ,II),FAKTOR2(II)
+C
+      REAL      LCL(KK,JJ,II),DIL(KK,JJ,II),RCL(KK,JJ,II)
+      REAL      LCR(KK,JJ,II),DIR(KK,JJ,II),RCR(KK,JJ,II)
+
+C
+      REAL      UINI(KK,JJ,II),VINI(KK,JJ,II),WINI(KK,JJ,II)
+      REAL      UINJ(KK,JJ),VINJ(KK,JJ),WINJ(KK,JJ)
+      REAL      UINK(KK,JJ),VINK(KK,JJ),WINK(KK,JJ)
+
+      REAL      FDUI(KK,JJ,II),FDVI(KK,JJ,II),FDWI(KK,JJ,II)
+      REAL      FDUJ(KK,JJ),FDVJ(KK,JJ),FDWJ(KK,JJ)
+      REAL      FDUK(KK,JJ),FDVK(KK,JJ),FDWK(KK,JJ)
+C
+#ifdef _ZEN_
+C                                  *************************************
+C                                  ZEN ZEN ZEN ZEN ZEN ZEN ZEN ZEN ZEN
+C                                  *************************************
+C
+              WF(FFF)  = 0.5*ABS(FFF)+AMIN1(FFF,0.0)
+#endif
+#ifdef _UPW_
+C                                  *************************************
+C                                  UPW UPW UPW UPW UPW UPW UPW UPW UPW
+C                                  *************************************
+C
+              WF(FFF)  = AMIN1(FFF,0.0)
+#endif
+#ifdef _QUD_
+C                                  *************************************
+C                                  QUD QUD QUD QUD QUD QUD QUD QUD QUD
+C                                  *************************************
+C
+      QIN(V1,V2,V3,S2S1,S3S2,SS2) = (V1*(SS2*(SS2-S3S2)*S3S2)
+     $                          -V2*((SS2+S2S1)*(SS2-S3S2)*(S2S1+S3S2))
+     $                          +V3*((SS2+S2S1)*SS2*S2S1)) * 0.5
+     $                          /(S2S1*S3S2*(S2S1+S3S2))
+#endif
+C
+C
+C
+              KSTART = 3
+              JSTART = 2
+              ISTART = 2
+              KSTOP = KMX - 2
+              JSTOP = JMX - 2
+              ISTOP = IMX - 2
+C
+      HP    =  0.5
+      HN    = -0.5
+#ifdef _EULER_
+      ZERONE = 0.0
+#endif
+#ifdef _LEAPF_
+      ZERONE = FLOAT(IDUZ) - 1.0
+      IF(ITSTEP .EQ. 0) ZERONE = 0.0
+#endif
+#ifdef _ADBA_
+      ZERONE = FLOAT(IDUZ) - 1.0
+      IF(ITSTEP .EQ. 0) ZERONE = 0.0
+#endif
+C
+C
+C                                 BEI PERIODISCHEN RANDBEDINGUNGEN
+C                                 UND BEI GITTERKOPPLUNG
+C                                 SOWIE BEI AUSFLUSSBEDINGUNG
+C                                 WIRD DIE NORMALKOMPONENTE DER LETZTEN
+C                                 ZELLE BERECHNET, ANSONSTEN WIRD SIE IN
+C                                 BOUNDMG GESETZT
+
+      NBU = 0
+      IF ((NBAC.EQ.1).OR.(NBAC.EQ.7))  NBU = 1
+      IF ((NBAC.EQ.3).OR.(NBAC.EQ.4))  NBU = 1
+#ifndef _BAPAR_FIXED_
+      IF (NBAC.EQ.8)  NBU = 1
+#endif
+      NLV = 0
+      IF ((NLFT.EQ.1).OR.(NLFT.EQ.7).OR.(NLFT.EQ.8))  NLV = 1
+      IF ((NLFT.EQ.3).OR.(NLFT.EQ.4))  NLV = 1
+      NTW = 0
+      IF ((NTOP.EQ.1).OR.(NTOP.EQ.7).OR.(NTOP.EQ.3))  NTW = 1
+#ifndef _TOPAR_FIXED_
+      IF (NTOP.EQ.8)  NTW = 1
+#endif
+C
+C                                 BEI LOKAL VERFEINERTEM GITTER
+C                                 WIRD DIE NORMALKOMPONENTE DER ERSTEN
+C                                 ZELLE BERECHNET, ANSONSTEN WIRD SIE IN
+C                                 BOUNDMG GESETZT
+
+      NFU = 0
+      IF ( NFRO .EQ. 8 .OR. NFRO .EQ. 3 ) NFU = 1
+      NRV = 0
+      IF ( NRGT .EQ. 8 .OR. NRGT .EQ. 3 ) NRV = 1
+      NBW = 0
+      IF ( NBOT .EQ. 8 .OR. NBOT .EQ. 3 ) NBW = 1
+
+C
+C***********************************************************************
+C           HIER KOMPAKTVERFAHREN VIERTER ORDNUNG IN X-RICHTUNG        *
+C***********************************************************************
+CC                                PERIODISCHE RANDBEDINGUNGEN 
+CC                                NUR AEQUIDISTANTE GITTER !! 
+      IF (NFRO .EQ.1) THEN
+C
+#if defined _KOMXK_ | defined _KOMXK6O_ | defined _KOMXK8O_
+C
+        CALL INTERUX_PER (KK,JJ,II,KSTART,JSTART,ISTART,KSTOP,JSTOP,
+     $                    ISTOP,RSGS3,U,UINI,LCOL,DIAG,RCOL,UZ,RSP)
+C
+        CALL INTERUX_PER (KK,JJ,II,KSTART,JSTART,ISTART,KSTOP,JSTOP,
+     $                    ISTOP,RSGS3,V,VINI,LCOL,DIAG,RCOL,UZ,RSP)
+C
+        CALL INTERUX_PER (KK,JJ,II,KSTART,JSTART,ISTART,KSTOP,JSTOP,
+     $                    ISTOP,RSGS3,W,WINI,LCOL,DIAG,RCOL,UZ,RSP)
+C
+#endif
+C
+C
+#if defined _KOMXD_ | defined _KOMXD6O_ | defined _KOMXD8O_
+C
+        CALL FDERFOUX_PER (KK,JJ,II,KSTART,JSTART,ISTART,KSTOP,JSTOP,
+     $                     ISTOP,RSGS3,RDX,RDDX,U,FDUI,
+     $                     LCOL,DIAG,RCOL,UZ,RSP)                      
+C 
+        CALL FDERFOUX_PER (KK,JJ,II,KSTART,JSTART,ISTART,KSTOP,JSTOP,
+     $                     ISTOP,RSGS3,RDX,RDDX,V,FDVI,
+     $                     LCOL,DIAG,RCOL,UZ,RSP)                      
+C 
+        CALL FDERFOUX_PER (KK,JJ,II,KSTART,JSTART,ISTART,KSTOP,JSTOP,
+     $                     ISTOP,RSGS3,RDX,RDDX,W,FDWI,
+     $                     LCOL,DIAG,RCOL,UZ,RSP)                      
+C 
+#endif
+C
+C
+CC                                NICHT-PERIODISCHE RANDBED.
+      ELSE
+C
+C                                 BERECHNUNG DER INTERPOLIERTEN GESCH.
+#ifdef _KOU3K_
+      CALL INTERPOLATEUX3 (KK,JJ,II,KSTART,JSTART,ISTART,KSTOP,JSTOP,
+     $                    ISTOP,COEFFX,RSGS3,FAKTOR,U,UINI,
+     $                    NFRO,NBAC,LCL,DIL,RCL,DX,DDX,B,
+     $                    LCR,DIR,RCR)
+#endif
+C
+#ifdef _KOMXK_
+C
+      CALL INTERPOLATEUX  (KK,JJ,II,KSTART,JSTART,ISTART,KSTOP,JSTOP,
+     $                    ISTOP,COEFFX,RSGS3,FAKTOR,U,UINI,
+     $                    NFRO,NBAC,LCL,DIL,RCL,DX,DDX,B,
+     $                    LCR,DIR,RCR)
+#endif
+C
+#if defined _KOMXK_ | defined _KOU3K_
+      CALL INTERPOLATEVWX  (KK,JJ,II,KSTART,JSTART,ISTART,KSTOP,JSTOP,
+     $                    ISTOP,COEFFX,RSGS3,FAKTOR,V,VINI,
+     $                    NFRO,NBAC,LCL,DIL,RCL,DX,DDX,B,
+     $                    LCR,DIR,RCR)
+C
+      CALL INTERPOLATEVWX  (KK,JJ,II,KSTART,JSTART,ISTART,KSTOP,JSTOP,
+     $                    ISTOP,COEFFX,RSGS3,FAKTOR,W,WINI,
+     $                    NFRO,NBAC,LCL,DIL,RCL,DX,DDX,B,
+     $                    LCR,DIR,RCR)
+C
+#endif
+C                                 BERECHNUNG DER ERSTEN ABLEITUNG       
+#ifdef _KOMXD_
+C
+      CALL FDERFOUX (KK,JJ,II,KSTART,JSTART,ISTART,KSTOP,JSTOP,
+     $               ISTOP,RDX,RDDX,COEFDX,RSGS3,FAKTOR2,
+     $               U,UINI,FDUI,NFRO,NBAC,LCOL,DIAG,RCOL)
+C 
+      CALL FDERFOVWX(KK,JJ,II,KSTART,JSTART,ISTART,KSTOP,JSTOP,
+     $               ISTOP,RDX,RDDX,COEFDX,RSGS3,FAKTOR2,
+     $               V,VINI,FDVI,NFRO,NBAC,LCOL,DIAG,RCOL)
+C
+      CALL FDERFOVWX(KK,JJ,II,KSTART,JSTART,ISTART,KSTOP,JSTOP,
+     $               ISTOP,RDX,RDDX,COEFDX,RSGS3,FAKTOR2,
+     $               W,WINI,FDWI,NFRO,NBAC,LCOL,DIAG,RCOL)
+C
+#endif
+C
+      ENDIF
+C
+C
+C***********************************************************************
+C                                 10 10 10 10 10 10 10 10 10 10 10 10 10
+      DO  10  I = ISTART, ISTOP
+C
+C***********************************************************************
+C           HIER KOMPAKTVERFAHREN VIERTER ORDNUNG IN Y-RICHTUNG        *
+C***********************************************************************
+C
+CC                                PERIODISCHE RANDBEDINGUNGEN 
+CC                                NUR AEQUIDISTANTE GITTER !! 
+C     IF (NRGT .EQ.1) THEN
+C
+#if defined _KOMYK_ | defined _KOMYK6O_  | defined _KOMYK8O_ | defined _ZENK4O_
+C
+        CALL INTERVY_PER  (KK,JJ,KSTART,JSTART,KSTOP,JSTOP,
+     $              RSGS2,U(1,1,I),UINJ,LCOL,DIAG,RCOL,UZ,RSP,
+     $              I)
+C
+        CALL INTERVY_PER  (KK,JJ,KSTART,JSTART,KSTOP,JSTOP,
+     $              RSGS2,V(1,1,I),VINJ,LCOL,DIAG,RCOL,UZ,RSP,
+     $              I)
+C
+        CALL INTERVY_PER  (KK,JJ,KSTART,JSTART,KSTOP,JSTOP,
+     $              RSGS2,W(1,1,I),WINJ,LCOL,DIAG,RCOL,UZ,RSP,
+     $              I)
+C
+#endif
+C
+C
+#if defined _KOMYD_ | defined _KOMYD6O_ | defined _KOMYD8O_ | defined _ZEND4O_
+C
+        CALL FDERFOVY_PER  (KK,JJ,KSTART,JSTART,KSTOP,JSTOP,
+     $      RSGS2,RDY,RDDY,U(1,1,I),FDUJ,LCOL,DIAG,RCOL,UZ,RSP,
+     $              I)
+C
+        CALL FDERFOVY_PER  (KK,JJ,KSTART,JSTART,KSTOP,JSTOP,
+     $      RSGS2,RDY,RDDY,V(1,1,I),FDVJ,LCOL,DIAG,RCOL,UZ,RSP,
+     $              I)
+C
+        CALL FDERFOVY_PER  (KK,JJ,KSTART,JSTART,KSTOP,JSTOP,
+     $      RSGS2,RDY,RDDY,W(1,1,I),FDWJ,LCOL,DIAG,RCOL,UZ,RSP,
+     $              I)
+C
+#endif
+C
+CC                                NICHT-PERIODISCHE RANDBED.
+C     ELSE
+C                                 BERECHNUNG DER INTERPOLIERTEN GESCH.
+C#ifdef _KOMYK_
+C   
+C      CALL INTERPOLATEUWY(KK,JJ,II,KSTART,JSTART,ISTART,KSTOP,JSTOP,
+C     $                    ISTOP,DY,DDY,COEFFY,RSGS2,FAKTOR,U(1,1,I),
+C     $                    UINJ,NRGT,NLFT,LCOL,DIAG,RCOL)
+CC
+C      CALL INTERPOLATEVY (KK,JJ,II,KSTART,JSTART,ISTART,KSTOP,JSTOP,
+C    $                    ISTOP,DY,DDY,COEFFY,RSGS2,FAKTOR,V(1,1,I),
+C    $                    VINJ,NRGT,NLFT,LCOL,DIAG,RCOL)
+C    
+C     CALL INTERPOLATEUWY(KK,JJ,II,KSTART,JSTART,ISTART,KSTOP,JSTOP,
+C    $                    ISTOP,DY,DDY,COEFFY,RSGS2,FAKTOR,W(1,1,I),
+C    $                    WINJ,NRGT,NLFT,LCOL,DIAG,RCOL)
+C
+C#endif
+C
+C                                 BERECHNUNG DER ERSTEN ABLEITUNG       
+C
+C#ifdef _KOMYD_
+C
+C     CALL FDERFOUWY(KK,JJ,II,KSTART,JSTART,ISTART,KSTOP,JSTOP,
+C    $               ISTOP,RDY,RDDY,COEFDY,RSGS2,FAKTOR,
+C    $               U(1,1,I),UINJ,FDUJ,NRGT,NLFT,LCOL,DIAG,RCOL)
+C
+C     CALL FDERFOVY (KK,JJ,II,KSTART,JSTART,ISTART,KSTOP,JSTOP,
+C    $               ISTOP,RDY,RDDY,COEFDY,RSGS2,FAKTOR,
+C    $               V(1,1,I),VINJ,FDVJ,NRGT,NLFT,LCOL,DIAG,RCOL)
+C
+C     CALL FDERFOUWY(KK,JJ,II,KSTART,JSTART,ISTART,KSTOP,JSTOP,
+C    $               ISTOP,RDY,RDDY,COEFDY,RSGS2,FAKTOR,
+C    $               W(1,1,I),WINJ,FDWJ,NRGT,NLFT,LCOL,DIAG,RCOL)
+C
+C#endif
+C
+C     ENDIF
+C
+C
+C***********************************************************************
+C           HIER KOMPAKTVERFAHREN VIERTER ORDNUNG IN Z-RICHTUNG        *
+C***********************************************************************
+C
+#ifdef _KOMZK_
+C                                 BERECHNUNG DER INTERPOLIERTEN GESCH.
+C     
+      CALL INTERPOLATEUVZ(KK,JJ,II,KSTART,JSTART,ISTART,KSTOP,JSTOP,
+     $                    ISTOP,DZ,DDZ,COEFFZ,RSGS2,FAKTOR,U(1,1,I),
+     $                    UINK,NBOT,NTOP,LCOL,DIAG,RCOL)
+C
+      CALL INTERPOLATEUVZ(KK,JJ,II,KSTART,JSTART,ISTART,KSTOP,JSTOP,
+     $                    ISTOP,DZ,DDZ,COEFFZ,RSGS2,FAKTOR,V(1,1,I),
+     $                    VINK,NBOT,NTOP,LCOL,DIAG,RCOL)
+C
+      CALL INTERPOLATEWZ (KK,JJ,II,KSTART,JSTART,ISTART,KSTOP,JSTOP,
+     $                    ISTOP,DZ,DDZ,COEFFZ,RSGS2,FAKTOR,W(1,1,I),
+     $                    WINK,NBOT,NTOP,LCOL,DIAG,RCOL)
+C
+#endif
+C                                 BERECHNUNG DER ERSTEN ABLEITUNG       
+C
+#ifdef _KOMZD_
+C
+      CALL FDERFOUVZ (KK,JJ,II,KSTART,JSTART,ISTART,KSTOP,JSTOP,
+     $                ISTOP,RDZ,RDDZ,COEFDZ,RSGS2,FAKTOR,
+     $                U(1,1,I),UINK,FDUK,NBOT,NTOP,LCOL,DIAG,RCOL)
+C
+      CALL FDERFOUVZ (KK,JJ,II,KSTART,JSTART,ISTART,KSTOP,JSTOP,
+     $                ISTOP,RDZ,RDDZ,COEFDZ,RSGS2,FAKTOR,
+     $                V(1,1,I),VINK,FDVK,NBOT,NTOP,LCOL,DIAG,RCOL)
+C
+      CALL FDERFOWZ  (KK,JJ,II,KSTART,JSTART,ISTART,KSTOP,JSTOP,
+     $                ISTOP,RDZ,RDDZ,COEFDZ,RSGS2,FAKTOR,
+     $                W(1,1,I),WINK,FDWK,NBOT,NTOP,LCOL,DIAG,RCOL)
+C
+#endif
+C
+C***********************************************************************
+C 
+      ICOM = 1 + MOD(I,NBUF)
+C
+C                                  WALL KORRECTION FUER U,V,W
+C
+      IF(ABS(WDIF) .GT. SMALL) THEN
+C     $   CALL SWCLE1  (KK,JJ,II,KMX,JMX,IMX,DX,DY,DZ,DDX,DDY,DDZ,
+C     $                 U,V,W,P,G,TK,
+C     $                 B,
+C     $                 WCU,WCV,WCW,GMOL,RHO,UGRID,MTURB,ZTOT,GRADPX,I,
+C     $                              IC1,IC2,JC1,JC2,KC1,KC2,
+C     $                    NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB,
+C     $                 RDDX,RDDY,RDDZ)
+      ENDIF
+C
+C                            BERECHNUNG DER DRUCKGRADIENTEN IN Z-RICHTUNG
+C
+#ifdef _PPHYS_SOURCE_TERM_
+#ifdef _UPWARDS_
+      CALL CALDPDX (KK,GRADP,Z,NPPHYS,PPHYS,XPPHYS)
+#else
+      CALL ERRR (501,' TSTLE2 ')
+#endif
+#endif
+C
+C                                  GEOMETRISCHE KONSTANTEN (I)
+                DXI   =  DX(I)
+                DXIM  =  DX(I-1)
+#ifdef _QUD_
+                DXIMM =  DX(I-2)
+               DDXIPP = DDX(I+2)
+#endif
+                DXIP  =  DX(I+1)
+               DDXI   = DDX(I)
+               DDXIM  = DDX(I-1)
+               DDXIP  = DDX(I+1)
+
+               RDXI   =  RDX(I)
+               RDXIM  =  RDX(I-1)
+               RDXIP  =  RDX(I+1)
+              RDDXI   = RDDX(I)
+              RDDXIM  = RDDX(I-1)
+              RDDXIP  = RDDX(I+1)
+C
+C                                 20 20 20 20 20 20 20 20 20 20 20 20 20
+      DO  20  J = JSTART, JSTOP
+C                                  GEOMETRISCHE KONTANTEN (J)
+                DYJ   =  DY(J)
+                DYJM  =  DY(J-1)
+#ifdef _QUD_
+                DYJMM =  DY(J-2)
+               DDYJPP = DDY(J+2)
+#endif
+                DYJP  =  DY(J+1)
+               DDYJ   = DDY(J)
+               DDYJM  = DDY(J-1)
+               DDYJP  = DDY(J+1)
+C
+               RDYJ   =  RDY(J)
+               RDYJM  =  RDY(J-1)
+               RDYJP  =  RDY(J+1)
+              RDDYJ   = RDDY(J)
+              RDDYJM  = RDDY(J-1)
+              RDDYJP  = RDDY(J+1)
+C
+                AUZ   =  DXI*DDYJ
+                AVZ   = DDXI* DYJ
+                AWZ   = DDXI*DDYJ
+
+C
+C                                 PUFFERFELDER WERDEN MIT NULL BELEGT
+C
+      DO  30 K = 1, KMX
+          UP(K,J,ICOM) = 0.0
+          VP(K,J,ICOM) = 0.0
+   30     WP(K,J,ICOM) = 0.0
+C
+      IF(ABS(WKON) .LE. SMALL) GOTO 2200
+C
+C                                 **************************************
+C                                 KONVEKTIVE TERME   KONVEKTIVE TERME
+C                                 **************************************
+C
+C                             KOEFFIZIENTEN BEIM KONVEKTIVEN ZEITSCHRITT
+C
+		FKDTU = -1.0*DT*RDDY(J)* RDX(I)*WKON
+		FKDTV = -1.0*DT*RDDX(I)* RDY(J)*WKON
+		FKDTW = -1.0*DT*RDDX(I)*RDDY(J)*WKON
+C
+C                                 UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU
+C                                 --------------------------------------
+C
+C                                 NUR BEI PERIODISCHEN RANDBEDINGUNGEN
+C                                 UND BEI GITTERKOPPLUNG
+C                                 WIRD DIE NORMALKOMPONENTE DER LETZTEN
+C                                 ZELLE BERECHNET, ANSONSTEN WIRD SIE IN
+C                                 BOUNDMG GESETZT
+
+      IF ((NBU.EQ.0).AND.(I .EQ. ISTOP))  GOTO 2110
+      IF ((NFU.EQ.0).AND.(I .EQ. ISTART)) GOTO 2110
+      IF ( J .EQ. JSTART ) GOTO 2110
+
+C
+C
+      DO 100  K = KSTART, KSTOP
+C                                  GEOMETRISCHE KONSTANTEN (K)
+                DZK   =  DZ(K)
+                DZKM  =  DZ(K-1)
+                DZKMM =  DZ(K-2)
+                DZKP  =  DZ(K+1)
+               DDZK   =  DDZ(K)
+              RDDZK   = RDDZ(K)
+C
+                AUX   = DDYJ*DDZK
+                AUY   =  DXI*DDZK
+C                                 KONVEKTIVE TERME
+C
+C#if defined _KOMXK_ | defined _KOMXK6O_ | defined _KOMXK8O_ | defined _KOU3K_
+CC
+CC
+C      FUE  =     AUX* UINI(K,J,I+1)
+C      FUW  =     AUX* UINI(K,J,I)
+C      FUN  =     AUY* VINI(K,J,I+1)
+C      FUS  =     AUY* VINI(K,J-1,I+1)
+C      FUT  =     AUZ* WINI(K,J,I+1)
+C      FUB  =     AUZ* WINI(K-1,J,I+1)
+CC                                 
+C#else
+C
+      FUE  =     AUX*(U(K,J,I)  +(U(K,J,I+1)-U(K,J,I)  )*0.5*DXI /DDXIP)
+      FUW  =     AUX*(U(K,J,I-1)+(U(K,J,I)  -U(K,J,I-1))*0.5*DXIM/DDXI)
+      FUN  =     AUY*(V(K,J,I)  + V(K,J,I+1)  )         *0.5
+      FUS  =     AUY*(V(K,J-1,I)+ V(K,J-1,I+1))         *0.5
+      FUT  =     AUZ*(W(K,J,I)  + W(K,J,I+1)  )         *0.5
+      FUB  =     AUZ*(W(K-1,J,I)+ W(K-1,J,I+1))         *0.5
+C
+C#endif
+C
+C
+C#ifdef _ZEN_
+C                                 JETZT ZENTRALE INTERPOLATION
+C
+C     QKUE = 0.5*FUE*(U(K,J,I)   + U(K,J,I+1))
+C     QKUW = 0.5*FUW*(U(K,J,I-1) + U(K,J,I)  )
+C     QKUN = 0.5*FUN*(U(K,J,I)   + U(K,J+1,I))
+C     QKUS = 0.5*FUS*(U(K,J-1,I) + U(K,J,I)  )
+C     QKUT = 0.5*FUT*(U(K,J,I)   + U(K+1,J,I))
+C     QKUB = 0.5*FUB*(U(K-1,J,I) + U(K,J,I)  )
+C
+C#endif
+C                                 JETZT KOMPAKTE INTERPOLATION
+C                                 U IN I,J UND K-RICHTUNG
+#if defined _KOMXK_ | defined _KOMXK6O_ | defined _KOMXK8O_ | defined _KOU3K_
+      QKUE = FUE*UINI(K,J,I+1)
+      QKUW = FUW*UINI(K,J,I)
+#else
+      QKUE = 0.5*FUE*(U(K,J,I)   + U(K,J,I+1))
+      QKUW = 0.5*FUW*(U(K,J,I-1) + U(K,J,I)  )
+#endif
+#if defined _KOMYK_ | defined _KOMYK6O_  | defined _KOMYK8O_ | defined _ZENK4O_
+      QKUN = FUN*UINJ(K,J+1)
+      QKUS = FUS*UINJ(K,J)
+#else
+      QKUN = 0.5*FUN*(U(K,J,I)   + U(K,J+1,I))
+      QKUS = 0.5*FUS*(U(K,J-1,I) + U(K,J,I)  )
+#endif
+#ifdef _KOMZK_
+      QKUT = FUT*UINK(K+1,J)
+      QKUB = FUB*UINK(K,J)
+#else
+      QKUT = 0.5*FUT*(U(K,J,I)   + U(K+1,J,I)) 
+      QKUB = 0.5*FUB*(U(K-1,J,I) + U(K,J,I)  )
+#endif
+C
+#ifdef _UPW_
+C                                 JETZT STANDARDINTERPOLATION
+C
+      QKUE = FUE*U(K,J,I)   + (U(K,J,I+1)-U(K,J,I)  )*WF(FUE)
+      QKUW = FUW*U(K,J,I-1) + (U(K,J,I)  -U(K,J,I-1))*WF(FUW)
+      QKUN = FUN*U(K,J,I)   + (U(K,J+1,I)-U(K,J,I)  )*WF(FUN)
+      QKUS = FUS*U(K,J-1,I) + (U(K,J,I)  -U(K,J-1,I))*WF(FUS)
+      QKUT = FUT*U(K,J,I)   + (U(K+1,J,I)-U(K,J,I)  )*WF(FUT)
+      QKUB = FUB*U(K-1,J,I) + (U(K,J,I)  -U(K-1,J,I))*WF(FUB)
+C
+#endif
+#ifdef _QUD_
+C                                  JETZT QUADRATISCH INTERPOLIEREN
+C
+      UWP  = QIN(U(K,J,I-2),U(K,J,I-1),U(K,J,I)  ,DDXIM ,DDXI  ,DXIM*HP)
+      UWN  = QIN(U(K,J,I-1),U(K,J,I)  ,U(K,J,I+1),DDXI  ,DDXIP ,DXI *HN)
+      UEP  = QIN(U(K,J,I-1),U(K,J,I)  ,U(K,J,I+1),DDXI  ,DDXIP ,DXI *HP)
+      UEN  = QIN(U(K,J,I)  ,U(K,J,I+1),U(K,J,I+2),DDXIP ,DDXIPP,DXIP*HN)
+      USP  = QIN(U(K,J-2,I),U(K,J-1,I),U(K,J,I)  , DYJMM, DYJM ,DYJM*HP)
+      USN  = QIN(U(K,J-1,I),U(K,J,I)  ,U(K,J+1,I), DYJM , DYJ  ,DYJM*HN)
+      UNP  = QIN(U(K,J-1,I),U(K,J,I)  ,U(K,J+1,I), DYJM , DYJ  ,DYJ *HP)
+      UNN  = QIN(U(K,J,I)  ,U(K,J+1,I),U(K,J+2,I), DYJ  , DYJP ,DYJ *HN)
+      UBP  = QIN(U(K-2,J,I),U(K-1,J,I),U(K,J,I)  , DZKMM, DZKM ,DZKM*HP)
+      UBN  = QIN(U(K-1,J,I),U(K,J,I)  ,U(K+1,J,I), DZKM , DZK  ,DZKM*HN)
+      UTP  = QIN(U(K-1,J,I),U(K,J,I)  ,U(K+1,J,I), DZKM , DZK  ,DZK *HP)
+      UTN  = QIN(U(K,J,I)  ,U(K+1,J,I),U(K+2,J,I), DZK  , DZKP ,DZK *HN)
+C
+      QKUE = FUE*(UEP+UEN)+ABS(FUE)*(UEP-UEN)
+      QKUW = FUW*(UWP+UWN)+ABS(FUW)*(UWP-UWN)
+      QKUN = FUN*(UNP+UNN)+ABS(FUN)*(UNP-UNN)
+      QKUS = FUS*(USP+USN)+ABS(FUS)*(USP-USN)
+      QKUT = FUT*(UTP+UTN)+ABS(FUT)*(UTP-UTN)
+      QKUB = FUB*(UBP+UBN)+ABS(FUB)*(UBP-UBN)
+#endif
+C
+C                                 ZEITSCHRITT
+C
+C     UP(K,J,ICOM) = UP(K,J,ICOM) - DT/(    AUX*DXI)
+C    $             * WKON         * (QKUE-QKUW+QKUN-QKUS+QKUT-QKUB)
+      UP(K,J,ICOM) =
+     $                FKDTU * RDDZK * (QKUE-QKUW+QKUN-QKUS+QKUT-QKUB)   
+C
+  100 CONTINUE
+C
+ 2110 CONTINUE
+C
+C                                 VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV
+C                                 --------------------------------------
+C
+C                                 NUR BEI PERIODISCHEN RANDBEDINGUNGEN
+C                                 WIRD DIE NORMALKOMPONENTE DER LETZTEN
+C                                 ZELLE BERECHNET, ANSONSTEN WIRD SIE IN
+C                                 BOUNDMG GESETZT
+
+      IF ((NLV.EQ.0).AND.(J .EQ. JSTOP))  GOTO 2120
+      IF ((NRV.EQ.0).AND.(J .EQ. JSTART)) GOTO 2120
+      IF ( I .EQ. ISTART ) GOTO 2120
+
+C
+C
+      DO 110  K = KSTART, KSTOP
+C                                  GEOMETRISCHE KONSTANTEN (K)
+                DZK   =  DZ(K)
+                DZKM  =  DZ(K-1)
+                DZKMM =  DZ(K-2)
+                DZKP  =  DZ(K+1)
+               DDZK   =  DDZ(K)
+              RDDZK   = RDDZ(K)
+C
+                AVX   =  DYJ*DDZK
+                AVY   = DDXI*DDZK
+C
+C                                 KONVEKTIVE F-TERME
+C
+#if defined _KOMYK_ | defined _KOMYK6O_  | defined _KOMYK8O_ | defined _ZENK4O_
+C
+      FVE  =     AVX*(U(K,J,I)  + U(K,J+1,I)  )         *0.5
+      FVW  =     AVX*(U(K,J,I-1)+ U(K,J+1,I-1))         *0.5
+      FVN  =     AVY * VINJ(K,J+1)
+      FVS  =     AVY * VINJ(K,J)
+      FVT  =     AVZ * WINJ(K,J+1)
+      FVB  =     AVZ * WINJ(K-1,J+1)
+C
+#else
+C
+      FVE  =     AVX*(U(K,J,I)  + U(K,J+1,I)  )         *0.5
+      FVW  =     AVX*(U(K,J,I-1)+ U(K,J+1,I-1))         *0.5
+      FVN  =     AVY*(V(K,J,I)  +(V(K,J+1,I)-V(K,J,I) ) *0.5*DYJ /DDYJP)
+      FVS  =     AVY*(V(K,J-1,I)+(V(K,J,I)  -V(K,J-1,I))*0.5*DYJM/DDYJ )
+      FVT  =     AVZ*(W(K,J,I)  + W(K,J+1,I)  )         *0.5
+      FVB  =     AVZ*(W(K-1,J,I)+ W(K-1,J+1,I))         *0.5
+C
+#endif
+C
+C
+C#ifdef _ZEN_
+C                                 JETZT ZENTRALE INTERPOLATION
+C
+C     QKVE = 0.5*FVE*(V(K,J,I)   + V(K,J,I+1))
+C     QKVW = 0.5*FVW*(V(K,J,I-1) + V(K,J,I)  )
+C     QKVN = 0.5*FVN*(V(K,J,I)   + V(K,J+1,I))
+C     QKVS = 0.5*FVS*(V(K,J-1,I) + V(K,J,I)  )
+C     QKVT = 0.5*FVT*(V(K,J,I)   + V(K+1,J,I))
+C     QKVB = 0.5*FVB*(V(K-1,J,I) + V(K,J,I)  )
+C
+C#endif
+C                                 JETZT KOMPAKTE INTERPOLATION
+C                                 V IN I,J UND K-RICHTUNG
+C
+#if defined _KOMXK_ | defined _KOMXK6O_ | defined _KOMXK8O_ | defined _KOU3K_
+      QKVE = FVE*VINI(K,J,I+1)                  
+      QKVW = FVW*VINI(K,J,I)                  
+#else
+      QKVE = 0.5*FVE*(V(K,J,I)   + V(K,J,I+1))
+      QKVW = 0.5*FVW*(V(K,J,I-1) + V(K,J,I)  )
+#endif
+#if defined _KOMYK_ | defined _KOMYK6O_  | defined _KOMYK8O_ | defined _ZENK4O_
+      QKVN = FVN*VINJ(K,J+1)
+      QKVS = FVS*VINJ(K,J)
+#else
+      QKVN = 0.5*FVN*(V(K,J,I)   + V(K,J+1,I))
+      QKVS = 0.5*FVS*(V(K,J-1,I) + V(K,J,I)  )
+#endif
+#ifdef _KOMZK_
+      QKVT = FVT*VINK(K+1,J)
+      QKVB = FVB*VINK(K,J)
+#else
+      QKVT = 0.5*FVT*(V(K,J,I)   + V(K+1,J,I))
+      QKVB = 0.5*FVB*(V(K-1,J,I) + V(K,J,I)  )
+#endif
+C
+#ifdef _UPW_
+C                                 JETZT STANDARDINTERPOLATION
+C
+      QKVE = FVE*V(K,J,I)   + (V(K,J,I+1)-V(K,J,I)  )*WF(FVE)
+      QKVW = FVW*V(K,J,I-1) + (V(K,J,I)  -V(K,J,I-1))*WF(FVW)
+      QKVN = FVN*V(K,J,I)   + (V(K,J+1,I)-V(K,J,I)  )*WF(FVN)
+      QKVS = FVS*V(K,J-1,I) + (V(K,J,I)  -V(K,J-1,I))*WF(FVS)
+      QKVT = FVT*V(K,J,I)   + (V(K+1,J,I)-V(K,J,I)  )*WF(FVT)
+      QKVB = FVB*V(K-1,J,I) + (V(K,J,I)  -V(K-1,J,I))*WF(FVB)
+C
+#endif
+#ifdef _QUD_
+C                                 JETZT QUADRATISCH INTERPOLIEREN
+C
+      VWP  = QIN(V(K,J,I-2),V(K,J,I-1),V(K,J,I)  , DXIMM, DXIM ,DXIM*HP)
+      VWN  = QIN(V(K,J,I-1),V(K,J,I)  ,V(K,J,I+1), DXIM , DXI  ,DXIM*HN)
+      VEP  = QIN(V(K,J,I-1),V(K,J,I)  ,V(K,J,I+1), DXIM , DXI  ,DXI *HP)
+      VEN  = QIN(V(K,J,I)  ,V(K,J,I+1),V(K,J,I+2), DXI  , DXIP ,DXI *HN)
+      VSP  = QIN(V(K,J-2,I),V(K,J-1,I),V(K,J,I)  ,DDYJM ,DDYJ  ,DYJM*HP)
+      VSN  = QIN(V(K,J-1,I),V(K,J,I)  ,V(K,J+1,I),DDYJ  ,DDYJP ,DYJ *HN)
+      VNP  = QIN(V(K,J-1,I),V(K,J,I)  ,V(K,J+1,I),DDYJ  ,DDYJP ,DYJ *HP)
+      VNN  = QIN(V(K,J,I)  ,V(K,J+1,I),V(K,J+2,I),DDYJP ,DDYJPP,DYJP*HN)
+      VBP  = QIN(V(K-2,J,I),V(K-1,J,I),V(K,J,I)  , DZKMM, DZKM ,DZKM*HP)
+      VBN  = QIN(V(K-1,J,I),V(K,J,I)  ,V(K+1,J,I), DZKM , DZK  ,DZKM*HN)
+      VTP  = QIN(V(K-1,J,I),V(K,J,I)  ,V(K+1,J,I), DZKM , DZK  ,DZK *HP)
+      VTN  = QIN(V(K,J,I)  ,V(K+1,J,I),V(K+2,J,I), DZK  , DZKP ,DZK *HN)
+C
+      QKVE = FVE*(VEP+VEN)+ABS(FVE)*(VEP-VEN)
+      QKVW = FVW*(VWP+VWN)+ABS(FVW)*(VWP-VWN)
+      QKVN = FVN*(VNP+VNN)+ABS(FVN)*(VNP-VNN)
+      QKVS = FVS*(VSP+VSN)+ABS(FVS)*(VSP-VSN)
+      QKVT = FVT*(VTP+VTN)+ABS(FVT)*(VTP-VTN)
+      QKVB = FVB*(VBP+VBN)+ABS(FVB)*(VBP-VBN)
+#endif
+C
+C                                 ZEITSCHRITT
+C
+C     VP(K,J,ICOM) = VP(K,J,ICOM) - DT/(    AVY*DYJ)
+C    $             * WKON         * (QKVE-QKVW+QKVN-QKVS+QKVT-QKVB)
+      VP(K,J,ICOM) =
+     $               FKDTV * RDDZK * (QKVE-QKVW+QKVN-QKVS+QKVT-QKVB)
+C
+  110 CONTINUE
+C
+ 2120 CONTINUE
+C
+C                                 WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW
+C                                 --------------------------------------
+C
+      IF ( I .EQ. ISTART ) GOTO 2130
+      IF ( J .EQ. JSTART ) GOTO 2130
+
+      KSTOPM = KSTOP - 1 + NTW
+      KSTARTM= KSTART - NBW
+C
+      DO 120  K = KSTARTM, KSTOPM
+C                                  GEOMETRISCHE KONSTANTEN (K)
+                DZK   =  DZ(K)
+               RDZK   = RDZ(K)
+                DZKM  =  DZ(K-1)
+                DZKMM =  DZ(K-2)
+                DZKP  =  DZ(K+1)
+               DDZK   = DDZ(K)
+               DDZKM  = DDZ(K-1)
+               DDZKP  = DDZ(K+1)
+               DDZKPP = DDZ(K+2)
+C
+                AWX   = DDYJ*DZK
+                AWY   = DDXI*DZK
+C
+C                                 KONVEKTIVE F-TERME
+C
+#ifdef _KOMZK_
+C
+      FWE  =     AWX*(U(K,J,I)  + U(K+1,J,I)  )         *0.5
+      FWW  =     AWX*(U(K,J,I-1)+ U(K+1,J,I-1))         *0.5
+      FWN  =     AWY* VINK(K+1,J)
+      FWS  =     AWY* VINK(K+1,J-1)
+      FWT  =     AWZ* WINK(K+1,J)
+      FWB  =     AWZ* WINK(K,J)
+C
+#else
+C
+      FWE  =     AWX*(U(K,J,I)  + U(K+1,J,I)  )         *0.5
+      FWW  =     AWX*(U(K,J,I-1)+ U(K+1,J,I-1))         *0.5
+      FWN  =     AWY*(V(K,J,I)  + V(K+1,J,I)  )         *0.5
+      FWS  =     AWY*(V(K,J-1,I)+ V(K+1,J-1,I))         *0.5
+      FWT  =     AWZ*(W(K,J,I)  +(W(K+1,J,I)-W(K,J,I)  )*0.5*DZK /DDZKP)
+      FWB  =     AWZ*(W(K-1,J,I)+(W(K,J,I)  -W(K-1,J,I))*0.5*DZKM/DDZK )
+C
+#endif
+C
+C
+C#ifdef _ZEN_
+C                                 JETZT ZENTRALE INTERPOLATION
+C 
+C     QKWE = 0.5*FWE*(W(K,J,I)   + W(K,J,I+1))
+C     QKWW = 0.5*FWW*(W(K,J,I-1) + W(K,J,I)  )
+C     QKWN = 0.5*FWN*(W(K,J,I)   + W(K,J+1,I))
+C     QKWS = 0.5*FWS*(W(K,J-1,I) + W(K,J,I)  )
+C     QKWT = 0.5*FWT*(W(K,J,I)   + W(K+1,J,I))
+C     QKWB = 0.5*FWB*(W(K-1,J,I) + W(K,J,I)  )
+C
+C#endif
+C                                 JETZT KOMPAKTE INTERPOLATION
+C                                 W IN I,J UND K-RICHTUNG
+#if defined _KOMXK_ | defined _KOMXK6O_ | defined _KOMXK8O_ | defined _KOU3K_
+      QKWE = FWE*WINI(K,J,I+1)
+      QKWW = FWW*WINI(K,J,I)
+#else
+      QKWE = 0.5*FWE*(W(K,J,I)   + W(K,J,I+1))
+      QKWW = 0.5*FWW*(W(K,J,I-1) + W(K,J,I)  )
+#endif
+#if defined _KOMYK_ | defined _KOMYK6O_  | defined _KOMYK8O_ | defined _ZENK4O_
+      QKWN = FWN*WINJ(K,J+1)
+      QKWS = FWS*WINJ(K,J)
+#else
+      QKWN = 0.5*FWN*(W(K,J,I)   + W(K,J+1,I))
+      QKWS = 0.5*FWS*(W(K,J-1,I) + W(K,J,I)  )
+#endif
+#ifdef _KOMZK_
+      QKWT = FWT*WINK(K+1,J)
+      QKWB = FWB*WINK(K,J)
+#else
+      QKWT = 0.5*FWT*(W(K,J,I)   + W(K+1,J,I))
+      QKWB = 0.5*FWB*(W(K-1,J,I) + W(K,J,I)  )
+#endif
+C
+#ifdef _UPW_
+C                                 JETZT STANDARDINTERPOLATION
+C
+      QKWE = FWE*W(K,J,I)   + (W(K,J,I+1)-W(K,J,I)  )*WF(FWE)
+      QKWW = FWW*W(K,J,I-1) + (W(K,J,I)  -W(K,J,I-1))*WF(FWW)
+      QKWN = FWN*W(K,J,I)   + (W(K,J+1,I)-W(K,J,I)  )*WF(FWN)
+      QKWS = FWS*W(K,J-1,I) + (W(K,J,I)  -W(K,J-1,I))*WF(FWS)
+      QKWT = FWT*W(K,J,I)   + (W(K+1,J,I)-W(K,J,I)  )*WF(FWT)
+      QKWB = FWB*W(K-1,J,I) + (W(K,J,I)  -W(K-1,J,I))*WF(FWB)
+C
+
+#endif
+#ifdef _QUD_
+C                                 JETZT QUADRATISCH INTERPOLIEREN
+C
+      WWP  = QIN(W(K,J,I-2),W(K,J,I-1),W(K,J,I)  , DXIMM, DXIM ,DXIM*HP)
+      WWN  = QIN(W(K,J,I-1),W(K,J,I)  ,W(K,J,I+1), DXIM , DXI  ,DXIM*HN)
+      WEP  = QIN(W(K,J,I-1),W(K,J,I)  ,W(K,J,I+1), DXIM , DXI  ,DXI *HP)
+      WEN  = QIN(W(K,J,I)  ,W(K,J,I+1),W(K,J,I+2), DXI  , DXIP ,DXI *HN)
+      WSP  = QIN(W(K,J-2,I),W(K,J-1,I),W(K,J,I)  , DYJMM, DYJM ,DYJM*HP)
+      WSN  = QIN(W(K,J-1,I),W(K,J,I)  ,W(K,J+1,I), DYJM , DYJ  ,DYJM*HN)
+      WNP  = QIN(W(K,J-1,I),W(K,J,I)  ,W(K,J+1,I), DYJM , DYJ  ,DYJ *HP)
+      WNN  = QIN(W(K,J,I)  ,W(K,J+1,I),W(K,J+2,I), DYJ  , DYJP ,DYJ *HN)
+      WBP  = QIN(W(K-2,J,I),W(K-1,J,I),W(K,J,I)  ,DDZKM ,DDZK  ,DZKM*HP)
+      WBN  = QIN(W(K-1,J,I),W(K,J,I)  ,W(K+1,J,I),DDZK  ,DDZKP ,DZK *HN)
+      WTP  = QIN(W(K-1,J,I),W(K,J,I)  ,W(K+1,J,I),DDZK  ,DDZKP ,DZK *HP)
+      WTN  = QIN(W(K,J,I)  ,W(K+1,J,I),W(K+2,J,I),DDZKP ,DDZKPP,DZKP*HN)
+C
+C
+      QKWE = FWE*(WEP+WEN)+ABS(FWE)*(WEP-WEN)
+      QKWW = FWW*(WWP+WWN)+ABS(FWW)*(WWP-WWN)
+      QKWN = FWN*(WNP+WNN)+ABS(FWN)*(WNP-WNN)
+      QKWS = FWS*(WSP+WSN)+ABS(FWS)*(WSP-WSN)
+      QKWT = FWT*(WTP+WTN)+ABS(FWT)*(WTP-WTN)
+      QKWB = FWB*(WBP+WBN)+ABS(FWB)*(WBP-WBN)
+#endif
+C
+C                                 ZEITSCHRITT
+C     WP(K,J,ICOM) = WP(K,J,ICOM) - DT/(    AWZ*DZK)
+C    &             * WKON         * (QKWE-QKWW+QKWN-QKWS+QKWT-QKWB)
+      WP(K,J,ICOM) =
+     $               FKDTW * RDZK  * (QKWE-QKWW+QKWN-QKWS+QKWT-QKWB)
+C
+  120 CONTINUE
+C
+ 2130 CONTINUE
+ 2200 IF(ABS(WDIF) .LE. SMALL) GOTO 2300
+C
+C                                 **************************************
+C                                 DIFFUSIVE TERME   DIFFUSIVE TERME   DI
+C                                 **************************************
+C
+C                             KOEFFIZIENTEN BEIM DIFFUSIVEN ZEITSCHRITT
+C
+		FDDTU = -1.0*DT/RHO*RDDY(J)* RDX(I)*WDIF
+		FDDTV = -1.0*DT/RHO*RDDX(I)* RDY(J)*WDIF
+		FDDTW = -1.0*DT/RHO*RDDX(I)*RDDY(J)*WDIF
+C
+C                                 UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU
+C                                 --------------------------------------
+C
+C
+C                                 NUR BEI PERIODISCHEN RANDBEDINGUNGEN
+C                                 WIRD DIE NORMALKOMPONENTE DER LETZTEN
+C                                 ZELLE BERECHNET, ANSONSTEN WIRD SIE IN
+C                                 BOUNDMG GESETZT
+
+      IF ((NBU.EQ.0).AND.(I .EQ. ISTOP))  GOTO 2210
+      IF ((NFU.EQ.0).AND.(I .EQ. ISTART)) GOTO 2210
+      IF ( J .EQ. JSTART ) GOTO 2210
+C
+C
+      DO 200  K = KSTART, KSTOP
+C                                  GEOMETRISCHE KONSTANTEN (K)
+               RDZK   =  RDZ(K)
+               RDZKM  =  RDZ(K-1)
+               DDZK   =  DDZ(K)
+              RDDZK   = RDDZ(K)
+C
+                AUX   = DDYJ*DDZK
+                AUY   =  DXI*DDZK
+C
+C                                 DIFFUSIVE D-TERME MIT
+C                                 TRANSPORTKOEFFIZIENTEN
+      GUE  = G(K,J,I+1)
+      GUW  = G(K,J,I)
+      GUN  = G(K,J,I)  *G(K,J+1,I)   / (G(K,J,I)  +G(K,J+1,I)  )
+     $     + G(K,J,I+1)*G(K,J+1,I+1) / (G(K,J,I+1)+G(K,J+1,I+1))
+      GUS  = G(K,J,I)  *G(K,J-1,I)   / (G(K,J,I)  +G(K,J-1,I)  )
+     $     + G(K,J,I+1)*G(K,J-1,I+1) / (G(K,J,I+1)+G(K,J-1,I+1))
+      GUT  = G(K,J,I)  *G(K+1,J,I)   / (G(K,J,I)  +G(K+1,J,I)  )
+     $     + G(K,J,I+1)*G(K+1,J,I+1) / (G(K,J,I+1)+G(K+1,J,I+1))
+      GUB  = G(K,J,I)  *G(K-1,J,I)   / (G(K,J,I)  +G(K-1,J,I)  )
+     $     + G(K,J,I+1)*G(K-1,J,I+1) / (G(K,J,I+1)+G(K-1,J,I+1))
+C
+C                                     HIER KOMPAKTE BERECHNUNG
+C                                     DER ERSTEN ABLEITUNG U
+#if defined _KOMXD_ | defined _KOMXD6O_ | defined _KOMXD8O_
+      QDUE = -GUE * AUX*FDUI(K,J,I+1)
+      QDUW = -GUW * AUX*FDUI(K,J,I)
+#else
+      QDUE = -GUE * AUX*RDDXIP * (U(K,J,I+1) - U(K,J,I))
+      QDUW = -GUW * AUX*RDDXI  * (U(K,J,I)   - U(K,J,I-1))
+#endif
+#if defined _KOMYD_ | defined _KOMYD6O_ | defined _KOMYD8O_ | defined _ZEND4O_
+      QDUN = -GUN * AUY*FDUJ(K,J+1)
+      QDUS = -GUS * AUY*FDUJ(K,J)
+#else
+      QDUN = -GUN * AUY*RDYJ   * (U(K,J+1,I) - U(K,J,I))
+      QDUS = -GUS * AUY*RDYJM  * (U(K,J,I)   - U(K,J-1,I))
+#endif
+#ifdef _KOMZD_
+      QDUT = -GUT * AUZ*FDUK(K+1,J)
+      QDUB = -GUB * AUZ*FDUK(K,J)
+#else
+      QDUT = -GUT * AUZ*RDZK   * (U(K+1,J,I) - U(K,J,I))
+      QDUB = -GUB * AUZ*RDZKM  * (U(K,J,I)   - U(K-1,J,I))
+#endif
+C
+C     QDUE = -GUE * AUX*RDDXIP * (U(K,J,I+1) - U(K,J,I))
+C     QDUW = -GUW * AUX*RDDXI  * (U(K,J,I)   - U(K,J,I-1))
+C     QDUN = -GUN * AUY*RDYJ   * (U(K,J+1,I) - U(K,J,I))
+C     QDUS = -GUS * AUY*RDYJM  * (U(K,J,I)   - U(K,J-1,I))
+C     QDUT = -GUT * AUZ*RDZK   * (U(K+1,J,I) - U(K,J,I))
+C     QDUB = -GUB * AUZ*RDZKM  * (U(K,J,I)   - U(K-1,J,I))
+C
+#ifdef _DNS_
+C
+      QDUC = WCU(K,J)
+C
+#else
+C
+      STU  = ((GUE*(U(K,J,I+1)  -U(K,J,I)  )*RDDXIP  )
+     $     -  (GUW*(U(K,J,I)    -U(K,J,I-1))*RDDXI   ))*AUX
+     $     + ((GUN*(V(K,J,I+1)  -V(K,J,I)  )         )
+     $     -  (GUS*(V(K,J-1,I+1)-V(K,J-1,I))         ))*DDZK
+     $     + ((GUT*(W(K,J,I+1)  -W(K,J,I)  )         )
+     $     -  (GUB*(W(K-1,J,I+1)-W(K-1,J,I))         ))*DDYJ
+C
+      QDUC = WCU(K,J) + STU*FLOAT(MTURB)
+#endif
+#ifdef _TAU_NN_
+C                              ADDITTION DER NICHT-NEWTON''SCHEN SPANNUNGEN
+
+      QDUE = QDUE - AUX*TAU11(K,J,I+1)
+      QDUW = QDUW - AUX*TAU11(K,J,I)
+      QDUN = QDUN - (
+     $       AUY*0.25*(TAU12(K,J  ,I)+TAU12(K,J  ,I+1)
+     $     +       TAU12(K,J+1,I)+TAU12(K,J+1,I+1))   )
+      QDUS = QDUS - (
+     $       AUY*0.25*(TAU12(K,J  ,I)+TAU12(K,J  ,I+1)
+     $     +       TAU12(K,J-1,I)+TAU12(K,J-1,I+1))   )
+      QDUT = QDUT - (
+     $       AUZ*0.25*(TAU13(K  ,J,I)+TAU13(K  ,J,I+1)
+     $     +       TAU13(K+1,J,I)+TAU13(K+1,J,I+1))   )
+      QDUB = QDUB - (
+     $       AUZ*0.25*(TAU13(K  ,J,I)+TAU13(K  ,J,I+1)
+     $     +       TAU13(K-1,J,I)+TAU13(K-1,J,I+1))   )
+
+
+#endif
+C
+C                                 ZEITSCHRITT
+C
+C     UP(K,J,ICOM) = UP(K,J,ICOM) - DT/(RHO*AUX*DXI)
+C    $             * WDIF         * (QDUE-QDUW+QDUN-QDUS+QDUT-QDUB-QDUC)
+      UP(K,J,ICOM) = UP(K,J,ICOM) 
+     $            + FDDTU * RDDZK * (QDUE-QDUW+QDUN-QDUS+QDUT-QDUB-QDUC) 
+C
+  200 CONTINUE
+C
+ 2210 CONTINUE
+C
+C                                 VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV
+C                                 --------------------------------------
+C
+C                                 NUR BEI PERIODISCHEN RANDBEDINGUNGEN
+C                                 WIRD DIE NORMALKOMPONENTE DER LETZTEN
+C                                 ZELLE BERECHNET, ANSONSTEN WIRD SIE IN
+C                                 BOUNDMG GESETZT
+
+      IF ((NLV.EQ.0).AND.(J .EQ. JSTOP))  GOTO 2220
+      IF ((NRV.EQ.0).AND.(J .EQ. JSTART)) GOTO 2220
+      IF ( I .EQ. ISTART ) GOTO 2220
+C
+C
+      DO 210  K = KSTART, KSTOP
+C                                  GEOMETRISCHE KONSTANTEN (K)
+                RDZK   =  RDZ(K)
+                RDZKM  =  RDZ(K-1)
+               DDZK   = DDZ(K)
+              RDDZK   =RDDZ(K)
+C
+                AVX   =  DYJ*DDZK
+                AVY   = DDXI*DDZK
+C
+C                                 DIFFUSIVE D-TERME MIT
+C                                 TRANSPORTKOEFFIZIENTEN
+C
+      GVE  = G(K,J,I)  *G(K,J,I+1)   / (G(K,J,I)+  G(K,J,I+1)  )
+     $     + G(K,J+1,I)*G(K,J+1,I+1) / (G(K,J+1,I)+G(K,J+1,I+1))
+      GVW  = G(K,J,I)  *G(K,J,I-1)   / (G(K,J,I)  +G(K,J,I-1)  )
+     $     + G(K,J+1,I)*G(K,J+1,I-1) / (G(K,J+1,I)+G(K,J+1,I-1))
+      GVN  = G(K,J+1,I)
+      GVS  = G(K,J,I)
+      GVT  = G(K,J,I)  *G(K+1,J,I)   / (G(K,J,I)  +G(K+1,J,I)  )
+     $     + G(K,J+1,I)*G(K+1,J+1,I) / (G(K,J+1,I)+G(K+1,J+1,I))
+      GVB  = G(K,J,I)  *G(K-1,J,I)   / (G(K,J,I)  +G(K-1,J,I)  )
+     $     + G(K,J+1,I)*G(K-1,J+1,I) / (G(K,J+1,I)+G(K-1,J+1,I))
+C
+C                                     HIER KOMPAKTE BERECHNUNG
+C                                     DER ERSTEN ABLEITUNG V
+#if defined _KOMXD_ | defined _KOMXD6O_ | defined _KOMXD8O_
+      QDVE = -GVE * AVX*FDVI(K,J,I+1)
+      QDVW = -GVW * AVX*FDVI(K,J,I)
+#else
+      QDVE = -GVE * AVX*RDXI   * (V(K,J,I+1) - V(K,J,I))
+      QDVW = -GVW * AVX*RDXIM  * (V(K,J,I)   - V(K,J,I-1))
+#endif
+#if defined _KOMYD_ | defined _KOMYD6O_ | defined _KOMYD8O_ | defined _ZEND4O_
+      QDVN = -GVN * AVY*FDVJ(K,J+1)
+      QDVS = -GVS * AVY*FDVJ(K,J)
+#else
+      QDVN = -GVN * AVY*RDDYJP * (V(K,J+1,I) - V(K,J,I))
+      QDVS = -GVS * AVY*RDDYJ  * (V(K,J,I)   - V(K,J-1,I))
+#endif
+#ifdef _KOMZD_
+      QDVT = -GVT * AVZ*FDVK(K+1,J)
+      QDVB = -GVB * AVZ*FDVK(K,J)
+#else
+      QDVT = -GVT * AVZ*RDZK   * (V(K+1,J,I) - V(K,J,I))
+      QDVB = -GVB * AVZ*RDZKM  * (V(K,J,I)   - V(K-1,J,I))
+#endif
+
+C     QDVE = -GVE * AVX*RDXI   * (V(K,J,I+1) - V(K,J,I))
+C     QDVW = -GVW * AVX*RDXIM  * (V(K,J,I)   - V(K,J,I-1))
+C     QDVN = -GVN * AVY*RDDYJP * (V(K,J+1,I) - V(K,J,I))
+C     QDVS = -GVS * AVY*RDDYJ  * (V(K,J,I)   - V(K,J-1,I))
+C     QDVT = -GVT * AVZ*RDZK   * (V(K+1,J,I) - V(K,J,I))
+C     QDVB = -GVB * AVZ*RDZKM  * (V(K,J,I)   - V(K-1,J,I))
+C
+#ifdef _DNS_
+C
+      QDVC =  WCV(K,J)
+C
+#else
+      STV  = ((GVE*(U(K,J+1,I)  -U(K,J,I)  )          )
+     $     -  (GVW*(U(K,J+1,I-1)-U(K,J,I-1))          ))*DDZK
+     $     + ((GVN*(V(K,J+1,I)  -V(K,J,I)  )*RDDYJP   )
+     $     -  (GVS*(V(K,J,I)    -V(K,J-1,I))*RDDYJ    ))*AVY
+     $     + ((GVT*(W(K,J+1,I)  -W(K,J,I)  )          )
+     $     -  (GVB*(W(K-1,J+1,I)-W(K-1,J,I))          ))*DDXI
+C
+      QDVC =  WCV(K,J) + STV*FLOAT(MTURB)
+C
+#endif
+#ifdef _TAU_NN_
+C                              ADDITTION DER NICHT-NEWTON''SCHEN SPANNUNGEN
+
+      QDVE = QDVE - (
+     $       AVX*0.25*(TAU12(K,J  ,I)+TAU12(K,J  ,I+1)
+     $     +       TAU12(K,J+1,I)+TAU12(K,J+1,I+1))   )
+      QDVW = QDVW - (
+     $       AVX*0.25*(TAU12(K,J  ,I)+TAU12(K,J  ,I-1)
+     $     +       TAU12(K,J+1,I)+TAU12(K,J+1,I-1))   )
+
+      QDVN = QDVN - AVY*TAU22(K,J+1,I)
+      QDVS = QDVS - AVY*TAU22(K,J  ,I)
+
+      QDVT = QDVT - (
+     $       AVZ*0.25*(TAU23(K  ,J,I)+TAU23(K  ,J+1,I)
+     $     +       TAU23(K+1,J,I)+TAU23(K+1,J+1,I))   )
+      QDVB = QDVB - (
+     $       AVZ*0.25*(TAU23(K  ,J,I)+TAU23(K  ,J+1,I)
+     $     +       TAU23(K-1,J,I)+TAU23(K-1,J+1,I))   )
+
+#endif
+C
+C                                  ZEITSCHRITT
+C
+C     VP(K,J,ICOM) = VP(K,J,ICOM) - DT/(RHO*AVY*DYJ)
+C    $             * WDIF         * (QDVE-QDVW+QDVN-QDVS+QDVT-QDVB-QDVC)
+      VP(K,J,ICOM) = VP(K,J,ICOM) 
+     $            + FDDTV * RDDZK * (QDVE-QDVW+QDVN-QDVS+QDVT-QDVB-QDVC)
+C
+  210 CONTINUE
+C
+ 2220 CONTINUE
+C
+C                                 WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW
+C                                 --------------------------------------
+C
+      IF ( I .EQ. ISTART ) GOTO 2230
+      IF ( J .EQ. JSTART ) GOTO 2230
+C
+      KSTOPM = KSTOP - 1 + NTW
+      KSTARTM= KSTART - NBW
+C
+      DO 220  K = KSTARTM, KSTOPM
+C                                  GEOMETRISCHE KONSTANTEN (K)
+                DZK   =   DZ(K)
+               RDZK   =  RDZ(K)
+              RDDZK   = RDDZ(K)
+              RDDZKP  = RDDZ(K+1)
+C
+                AWX   = DDYJ*DZK
+                AWY   = DDXI*DZK
+C
+C                                 DIFFUSIVE D-TERME MIT
+C                                 TRANSPORTKOEFFIZIENTEN
+C
+      GWE  = G(K,J,I)  *G(K,J,I+1)   / (G(K,J,I)  +G(K,J,I+1)  )
+     $     + G(K+1,J,I)*G(K+1,J,I+1) / (G(K+1,J,I)+G(K+1,J,I+1))
+      GWW  = G(K,J,I)  *G(K,J,I-1)   / (G(K,J,I)  +G(K,J,I-1)  )
+     $     + G(K+1,J,I)*G(K+1,J,I-1) / (G(K+1,J,I)+G(K+1,J,I-1))
+      GWN  = G(K,J,I)  *G(K,J+1,I)   / (G(K,J,I)  +G(K,J+1,I)  )
+     $     + G(K+1,J,I)*G(K+1,J+1,I) / (G(K+1,J,I)+G(K+1,J+1,I))
+      GWS  = G(K,J,I)  *G(K,J-1,I)   / (G(K,J,I)  +G(K,J-1,I)  )
+     $     + G(K+1,J,I)*G(K+1,J-1,I) / (G(K+1,J,I)+G(K+1,J-1,I))
+      GWT  = G(K+1,J,I)
+      GWB  = G(K,J,I)
+C
+C                                     HIER KOMPAKTE BERECHNUNG
+C                                     DER ERSTEN ABLEITUNG W
+#if defined _KOMXD_ | defined _KOMXD6O_ | defined _KOMXD8O_
+      QDWE = -GWE * AWX*FDWI(K,J,I+1)
+      QDWW = -GWW * AWX*FDWI(K,J,I)
+#else
+      QDWE = -GWE * AWX*RDXI   * (W(K,J,I+1) - W(K,J,I))
+      QDWW = -GWW * AWX*RDXIM  * (W(K,J,I)   - W(K,J,I-1))
+#endif
+#if defined _KOMYD_ | defined _KOMYD6O_ | defined _KOMYD8O_ | defined _ZEND4O_
+      QDWN = -GWN * AWY*FDWJ(K,J+1)
+      QDWS = -GWS * AWY*FDWJ(K,J)
+#else
+      QDWN = -GWN * AWY*RDYJ   * (W(K,J+1,I) - W(K,J,I))
+      QDWS = -GWS * AWY*RDYJM  * (W(K,J,I)   - W(K,J-1,I))
+#endif
+#ifdef _KOMZD_
+      QDWT = -GWT * AWZ*FDWK(K+1,J)
+      QDWB = -GWB * AWZ*FDWK(K,J)
+#else
+      QDWT = -GWT * AWZ*RDDZKP * (W(K+1,J,I) - W(K,J,I))
+      QDWB = -GWB * AWZ*RDDZK  * (W(K,J,I)   - W(K-1,J,I))
+#endif
+C
+C     QDWE = -GWE * AWX*RDXI   * (W(K,J,I+1) - W(K,J,I))
+C     QDWW = -GWW * AWX*RDXIM  * (W(K,J,I)   - W(K,J,I-1))
+C     QDWN = -GWN * AWY*RDYJ   * (W(K,J+1,I) - W(K,J,I))
+C     QDWS = -GWS * AWY*RDYJM  * (W(K,J,I)   - W(K,J-1,I))
+C     QDWT = -GWT * AWZ*RDDZKP * (W(K+1,J,I) - W(K,J,I))
+C     QDWB = -GWB * AWZ*RDDZK  * (W(K,J,I)   - W(K-1,J,I))
+C
+#ifdef _DNS_
+C
+      QDWC = WCW(K,J)
+C
+#else
+      STW  = ((GWE*(U(K+1,J,I)  -U(K,J,I)  )          )
+     $     - ( GWW*(U(K+1,J,I-1)-U(K,J,I-1))          ))*DDYJ
+     $     + ((GWN*(V(K+1,J,I)  -V(K,J,I)  )          )
+     $     -  (GWS*(V(K+1,J-1,I)-V(K,J-1,I))          ))*DDXI
+     $     + ((GWT*(W(K+1,J,I)  -W(K,J,I)  )*RDDZKP   )
+     $     -  (GWB*(W(K,J,I)    -W(K-1,J,I))*RDDZK    ))*AWZ
+C
+      QDWC = WCW(K,J) + STW*FLOAT(MTURB)
+#endif
+#ifdef _TAU_NN_
+C                              ADDITTION DER NICHT-NEWTON''SCHEN SPANNUNGEN
+
+      QDWE = QDWE - (
+     $       AWX*0.25*(TAU13(K  ,J,I)+TAU13(K  ,J,I+1)
+     $     +       TAU13(K+1,J,I)+TAU13(K+1,J,I+1))   )
+      QDWW = QDWW - (
+     $       AWX*0.25*(TAU13(K  ,J,I)+TAU13(K  ,J,I-1)
+     $     +       TAU13(K+1,J,I)+TAU13(K+1,J,I-1))   )
+
+      QDWN = QDWN - (
+     $       AWY*0.25*(TAU23(K  ,J,I)+TAU23(K  ,J+1,I)
+     $     +       TAU23(K+1,J,I)+TAU23(K+1,J+1,I))   )
+      QDWS = QDWS - (
+     $       AWY*0.25*(TAU23(K  ,J,I)+TAU23(K  ,J-1,I)
+     $     +       TAU23(K+1,J,I)+TAU23(K+1,J-1,I))   )
+
+      QDWT = QDWT - AWZ*TAU33(K+1,J,I)
+      QDWB = QDWB - AWZ*TAU33(K  ,J,I)
+
+#endif
+C
+C                                 ZEITSCHRITT
+C     WP(K,J,ICOM) = WP(K,J,ICOM) - DT/(RHO*AWZ*DZK)
+C    $             * WDIF         * (QDWE-QDWW+QDWN-QDWS+QDWT-QDWB-QDWC)
+      WP(K,J,ICOM) = WP(K,J,ICOM) 
+     $            + FDDTW * RDZK  * (QDWE-QDWW+QDWN-QDWS+QDWT-QDWB-QDWC)
+C
+  220 CONTINUE
+C
+ 2230 CONTINUE
+C
+ 2300 IF(IDUZ .EQ. 1) GOTO 2400
+C
+C                                 **************************************
+C                                 QUELL-TERME   QUELL-TERME   QUELL-TERM
+C                                 **************************************
+C
+C                                 UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU
+C                                 --------------------------------------
+C
+C
+C                                 NUR BEI PERIODISCHEN RANDBEDINGUNGEN
+C                                 WIRD DIE NORMALKOMPONENTE DER LETZTEN
+C                                 ZELLE BERECHNET, ANSONSTEN WIRD SIE IN
+C                                 BOUNDMG GESETZT
+
+      IF ((NBU.EQ.0).AND.(I .EQ. ISTOP))  GOTO 2310
+      IF ((NFU.EQ.0).AND.(I .EQ. ISTART)) GOTO 2310
+      IF ( J .EQ. JSTART ) GOTO 2310
+
+C
+C
+      DO 300  K = KSTART, KSTOP
+C
+C                                 ACHTUNG: IN X-RICHTUNG KANN EIN
+C                                 MITTLERER DRUCKGRADIENT VORGEGEBEN
+C                                 WERDEN
+C
+C                                 ZEITSCHRITT
+C
+      UP(K,J,ICOM) = UP(K,J,ICOM) - DT/(RHO*DXI) * WSOR
+     $             * (P(K,J,I+1)-P(K,J,I) + GRADPX*DXI)  
+C
+  300 CONTINUE
+C
+ 2310 CONTINUE
+C
+C                                 VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV
+C                                 --------------------------------------
+C                                 NUR BEI PERIODISCHEN RANDBEDINGUNGEN
+C                                 WIRD DIE NORMALKOMPONENTE DER LETZTEN
+C                                 ZELLE BERECHNET, ANSONSTEN WIRD SIE IN
+C                                 BOUNDMG GESETZT
+
+      IF ((NLV.EQ.0).AND.(J .EQ. JSTOP))  GOTO 2320
+      IF ((NRV.EQ.0).AND.(J .EQ. JSTART)) GOTO 2320
+      IF (I .EQ. ISTART) GOTO 2320
+
+C
+C
+      DO 310  K = KSTART, KSTOP
+C
+C                                  ZEITSCHRITT
+C
+      VP(K,J,ICOM) = VP(K,J,ICOM) - DT/(RHO*DYJ) * WSOR
+     $             * (P(K,J+1,I)-P(K,J,I))
+C
+  310 CONTINUE
+C
+ 2320 CONTINUE
+C
+C                                 WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW
+C                                 --------------------------------------
+
+      IF (I .EQ. ISTART) GOTO 2400
+      IF (J .EQ. JSTART) GOTO 2400
+
+      KSTOPM = KSTOP - 1 + NTW
+      KSTARTM= KSTART - NBW
+C
+      DO 320  K = KSTARTM, KSTOPM
+C
+C                                 ZEITSCHRITT
+C
+      WP(K,J,ICOM) = WP(K,J,ICOM) - DT/(RHO*DZ(K)) * WSOR
+#if (defined  _UPWARDS_ && defined _PPHYS_SOURCE_TERM_)
+     $             * (P(K+1,J,I)-P(K,J,I) + GRADP(K)*DZ(K))
+#else
+     $             * (P(K+1,J,I)-P(K,J,I))
+#endif
+C
+  320 CONTINUE
+C
+ 2400 IF(ABS(WPHI) .LE. SMALL) GOTO 2500
+C
+C                                 **************************************
+C                                 ANTEIL DER PUNKTWERTE   ANTEIL DER PUN
+C                                 **************************************
+C
+C                                 UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU
+C                                 --------------------------------------
+C
+C                                 NUR BEI PERIODISCHEN RANDBEDINGUNGEN
+C                                 WIRD DIE NORMALKOMPONENTE DER LETZTEN
+C                                 ZELLE BERECHNET, ANSONSTEN WIRD SIE IN
+C                                 BOUNDMG GESETZT
+
+      IF ((NBU.EQ.0).AND.(I .EQ. ISTOP))  GOTO 2410
+      IF ((NFU.EQ.0).AND.(I .EQ. ISTART)) GOTO 2410
+      IF ( J .EQ. JSTART ) GOTO 2410
+C
+C
+      DO 400  K = KSTART, KSTOP
+C
+C                                 ZEITSCHRITT
+C
+      UP(K,J,ICOM) = UP(K,J,ICOM) + WPHI * U(K,J,I) 
+  400 CONTINUE
+C
+ 2410 CONTINUE
+C
+C                                 VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV
+C                                 --------------------------------------
+C                                 NUR BEI PERIODISCHEN RANDBEDINGUNGEN
+C                                 WIRD DIE NORMALKOMPONENTE DER LETZTEN
+C                                 ZELLE BERECHNET, ANSONSTEN WIRD SIE IN
+C                                 BOUNDMG GESETZT
+
+      IF ((NLV.EQ.0).AND.(J .EQ. JSTOP))  GOTO 2420
+      IF ((NRV.EQ.0).AND.(J .EQ. JSTART)) GOTO 2420
+      IF (I .EQ. ISTART) GOTO 2420
+
+C
+C
+      DO 410  K = KSTART, KSTOP
+C
+C                                  ZEITSCHRITT
+C
+  410 VP(K,J,ICOM) = VP(K,J,ICOM) + WPHI * V(K,J,I)
+C
+ 2420 CONTINUE
+C
+C                                 WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW
+C                                 --------------------------------------
+      IF (I .EQ. ISTART) GOTO 2500
+      IF (J .EQ. JSTART) GOTO 2500
+      KSTOPM = KSTOP - 1 + NTW
+      KSTARTM= KSTART - NBW
+C
+      DO 420  K = KSTARTM, KSTOPM
+C
+C                                 ZEITSCHRITT
+C
+  420 WP(K,J,ICOM) = WP(K,J,ICOM) + WPHI * W(K,J,I)
+C
+ 2500 CONTINUE
+C
+   20 CONTINUE
+C                                 20 20 20 20 20 20 20 20 20 20 20 20 20
+C
+C
+C                                 JETZT ZURUECKSPEICHERN DER TEMPORAEREN
+C                                 PUFFER. NUR TATSAECHLICH BERECHNETE
+C                                 PUFFERWERTE WERDEN ZURUECKGESPEICHERT
+      IF(I .LT. (ISTART+NBUF-1)) GOTO 3010
+
+      INEW   = I
+      IREPMX = 1
+      IF(I .EQ. ISTOP) IREPMX = NBUF
+C
+      DO 810 IREP=1,IREPMX
+         IF(I .LT. ISTOP) GOTO 3020
+            INEW = ISTOP + IREP - 1
+ 3020    IBUFF = 1 + MOD(INEW+1,NBUF)
+         IBACK = INEW - NBUF + 1
+C
+
+         DO 820 J=JSTART,JSTOP
+C
+C                                 NUR BEI PERIODISCHEN RANDBEDINGUNGEN
+C                                 WIRD DIE NORMALKOMPONENTE DER LETZTEN
+C                                 ZELLE BERECHNET, ANSONSTEN WIRD SIE IN
+C                                 BOUNDMG GESETZT
+
+      IF ((NBU.EQ.0).AND.(INEW .EQ. (ISTOP+NBUF-1)))  GOTO 3030
+      IF ((NFU.EQ.0).AND.(I .EQ. ISTART)) GOTO 3030
+      IF (J .EQ. JSTART) GOTO 3030
+
+            DO 830 K=KSTART,KSTOP              
+               UO(K,J,IBACK) = UO(K,J,IBACK)*ZERONE + UP(K,J,IBUFF)
+  830       CONTINUE
+ 3030       CONTINUE
+
+C                                 NUR BEI PERIODISCHEN RANDBEDINGUNGEN
+C                                 WIRD DIE NORMALKOMPONENTE DER LETZTEN
+C                                 ZELLE BERECHNET, ANSONSTEN WIRD SIE IN
+C                                 BOUNDMG GESETZT
+
+      IF ((NLV.EQ.0).AND.(J .EQ. JSTOP))  GOTO 3040
+      IF ((NRV.EQ.0).AND.(J .EQ. JSTART)) GOTO 3040
+      IF (I .EQ. ISTART) GOTO 3040
+
+            DO 840 K=KSTART,KSTOP
+  840          VO(K,J,IBACK) = VO(K,J,IBACK)*ZERONE + VP(K,J,IBUFF)
+ 3040               CONTINUE
+      IF (I .EQ. ISTART) GOTO 3050
+      IF (J .EQ. JSTART) GOTO 3050
+            DO 850 K=KSTARTM,KSTOPM
+  850          WO(K,J,IBACK) = WO(K,J,IBACK)*ZERONE + WP(K,J,IBUFF)
+C
+ 3050               CONTINUE
+  820    CONTINUE
+  810 CONTINUE
+ 3010 CONTINUE
+C
+   10 CONTINUE
+C                                 10 10 10 10 10 10 10 10 10 10 10 10 10
+C
+      RETURN
+      END

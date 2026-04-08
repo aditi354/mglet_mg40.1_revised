@@ -1,0 +1,14 @@
+      SUBROUTINE SETRANDOM  
+     $ (KK,JJ,II,PHI,IANF,IEND,JANF,JEND,KANF,KEND,ANIV)
+
+      REAL PHI(KK,JJ,II)
+
+      DO I=IANF,IEND
+         DO J=JANF,JEND
+            DO K=KANF,KEND
+               PHI(K,J,I) = PHI(K,J,I) + ANIV * (RANF() - 0.5)
+            ENDDO
+         ENDDO
+      ENDDO
+      RETURN
+      END

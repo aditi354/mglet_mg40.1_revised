@@ -1,0 +1,200 @@
+      SUBROUTINE IBFIELD (KK,JJ,II,KMX,JMX,IMX,NBND,
+     $                   DDX,DDY,DDZ,DX,DY,DZ,X,Y,Z,
+     $                   B,BP,BU,BV,BW,IDIMF,NGRP3,HILF	
+     $                   ,ZCUB,NCUB,IGRID
+#ifdef _TSCAL_
+     $                  ,BT
+#endif 
+     $                   )
+
+C*MGLET*****************************************************************
+C   I B F I E L D    BELEGT DAS KOERPERERKENNUNGSFELD (B-FELD)
+C                    IN DEN DEFINIERTEN KOERPERN MIT -1 ODER -2
+C                    AUSSERHALB WIRD ES MIT EINER SEHR GROSSEN 
+C                    ZAHL BELEGT
+C*MGLET********************************************* M.MANHART 08.04.92
+C                                         GEAENDERT:           18. 3.93
+C                                                AUS INILET:    8. 4.93
+C
+C  PARAMETER
+C             KK, JJ, II     - ARRAYGRENZEN
+C             KMX, JMX, IMX  - ANZAHL DER GITTERPKTE. IN Z-,Y-,X-DIR.
+C             X(II)          - KOORDINATEN IN X-RICHTUNG
+C             Y(JJ)          - KOORDINATEN IN Y-RICHTUNG
+C             Z(KK)          - KOORDINATEN IN Z-RICHTUNG
+C             DDX(II)        - X-KANTENLAENGE DER KONTROLLVOLUMINA
+C             DDY(JJ)        - Y-KANTENLAENGE DER KONTROLLVOLUMINA
+C             DDZ(KK)        - Z-KANTENLAENGE DER KONTROLLVOLUMINA
+C             DX(II)         - X-ABSTAND DER GITTERPUNKTE
+C             DY(JJ)         - Y-ABSTAND DER GITTERPUNKTE
+C             DZ(KK)         - Z-ABSTAND DER GITTERPUNKTE
+C             B(KK,JJ,II)    - WANDERKENNUNGSFELD
+C
+C           10.02.03 (TB):   BT FIELD INCLUDED, BUT FRED_BODY TREAT-
+C                            MENT NOT YET IMPLEMENTED
+C
+C*STAR******************************************************************
+C
+#include "mgpar.h"
+#include "cophyspar.h"
+#include "cobody.h"
+#include "cogrdpro.h"
+#include "konsta.h"
+#include "conles.h"
+C
+C
+      INTEGER KK, JJ, II, KMX, JMX, IMX
+     $        NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB,IGRID
+      INTEGER I,J,K
+C
+C
+C
+C
+      REAL     X(II), Y(JJ), Z(KK),
+     $        DX(II), DY(JJ), DZ(KK), DDX(II), DDY(JJ), DDZ(KK),
+     $        B(KK,JJ,II),BP(KK,JJ,II),BU(KK,JJ,II),
+     $        BV(KK,JJ,II),BW(KK,JJ,II) 
+#ifdef _TSCAL_
+      REAL    BT(KK,JJ,II) 
+#endif         
+C
+C
+C
+C
+      REAL        HILF(IDIMF,NGRP3)
+C
+
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+C
+C
+C                                WERT DES B-FELDES IM KOERPERINNEREN
+C                                      SLIP:   -2.0
+C                                    NOSLIP:   -1.0
+C
+      IF( NCUB .EQ. 5) BPAR = -1.0
+      IF( NCUB .EQ. 6) BPAR = -2.0
+
+
+      ZCUB = 0.0
+
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+C
+C
+C                                 BELEGUNG DES WANDERKENNUNGSFELDES
+C
+         CALL SETS   (KK,JJ,II,KMX,JMX,IMX,B,GREAT)
+C
+      DO 40 IBODY=1,NBODY
+      IF (CTYP(IBODY)(1:8).EQ.'COUNINGH') THEN
+          ZCUB = HEIGHT(IBODY)
+          CALL SBCOUN
+     $            (KK,JJ,II,KMX,JMX,IMX,
+     $             NCOUN(IBODY),XMIT(IBODY),HEIGHT(IBODY),ALPHA(IBODY),
+     $             B,HILF,X,Y,Z,DX,DY,DZ,DDX,DDY,DDZ,
+     $             XTOT(IGRID),YTOT(IGRID),ZTOT(IGRID),BPAR)
+
+      ELSEIF (CTYP(IBODY)(1:8).EQ.'ZYLINDER') THEN
+
+          ZCUB = MIN(XB2(IBODY),YB2(IBODY),ZB2(IBODY))
+          CALL SBZYL 
+     $            (KK,JJ,II,KMX,JMX,IMX,
+     $             XB1(IBODY),XB2(IBODY),YB1(IBODY),YB2(IBODY),
+     $             ZB1(IBODY),ZB2(IBODY),CDIR(IBODY),
+     $             B,HILF,X,Y,Z,DX,DY,DZ,DDX,DDY,DDZ,BPAR)
+
+      ELSEIF (CTYP(IBODY)(1:7).EQ.'HEMISPH') THEN
+
+          ZCUB = MIN(XB2(IBODY),YB2(IBODY),ZB2(IBODY))
+          CALL SBHEMI
+     $            (KK,JJ,II,KMX,JMX,IMX,
+     $             XB1(IBODY),XB2(IBODY),YB1(IBODY),YB2(IBODY),
+     $             ZB1(IBODY),ZB2(IBODY),
+     $             B,HILF,X,Y,Z,DX,DY,DZ,DDX,DDY,DDZ,BPAR)
+
+      ELSEIF (CTYP(IBODY)(1:5).EQ.'KUBUS') THEN
+
+          IF (IB1(IBODY).EQ.0) THEN
+             ZCUB = MIN((XB2(IBODY)-XB1(IBODY)),
+     $                  (YB2(IBODY)-YB1(IBODY)),
+     $                  (ZB2(IBODY)-ZB1(IBODY)))
+          ELSE
+             ZCUB = MIN((X(IB2(IBODY))-X(IB1(IBODY))),
+     $                  (Y(JB2(IBODY))-Y(JB1(IBODY))),
+     $                  (Z(KB2(IBODY))-Z(KB1(IBODY))))
+          ENDIF
+          CALL SBCUB 
+     $            (KK,JJ,II,KMX,JMX,IMX,
+     $             IB1(IBODY),IB2(IBODY),JB1(IBODY),JB2(IBODY),
+     $             KB1(IBODY),KB2(IBODY),
+     $             XB1(IBODY),XB2(IBODY),YB1(IBODY),YB2(IBODY),
+     $             ZB1(IBODY),ZB2(IBODY),
+     $             B,HILF,X,Y,Z,DX,DY,DZ,DDX,DDY,DDZ,BPAR)
+#ifdef _FRED_BODY_
+CTBC  100203: FRED_BODY of Scalar Transport not yet implented
+#ifdef _TSCAL_
+      STOP ' FRED_BODY treatment of Scalar B-Field not yet implemented' 
+#endif
+      ELSEIF (CTYP(IBODY)(1:8).EQ.'NEWBLOCK') THEN
+         CALL MGBASB(NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB,IGRID)
+         write(*,*) 'PERFORMING BLOCKING'
+C        BU wird als temporaeres FEld verwendet, 
+C        da es glich gesetzt wird
+         DO I = 1,II
+         DO J = 1,JJ
+         DO K = 1,KK 
+            BU(I + II*(J-1) + II*JJ*(K-1), 1, 1) = BP(K,J,I)
+         ENDDO
+         ENDDO
+         ENDDO
+         CALL BLOCKGRID(II,JJ,KK,0,X,Y,Z,DX,DY,DZ,DDX,DDY,DDZ,
+     $                 IGRID,NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,
+     $        BU,1)
+         WRITE(*,*) 'BLOCKING COMPLETED'
+         CALL GETQUAD(KK,JJ,II,0,BP,IGRID,4)
+         CALL BUBVBW(KK,JJ,II,BU,BV,BW,BP)
+         WRITE(*,*) 'FILLING OF THE BLOCKING ARRAYS SUCCESSFUL'
+      ELSEIF (CTYP(IBODY)(1:8).EQ.'USEBLOCK') THEN
+         CALL GETQUAD(KK,JJ,II,0,BP,IGRID,4)
+         CALL BUBVBW(KK,JJ,II,BU,BV,BW,BP)
+         WRITE(*,*) 'FILLING OF THE BLOCKING ARRAYS SUCCESSFUL'
+#endif
+      ENDIF
+#ifndef _FRED_BODY_
+CTBC  ADDED FOR SIP PRESSURE CORRECTION WITH OLD BODY TYPE CCCCCCCCCCCCC
+      DO I = 1,II
+      DO J = 1,JJ
+      DO K = 1,KK 
+        BP(K,J,I) = 1.0
+        BU(K,J,I) = 1.0
+        BV(K,J,I) = 1.0
+        BW(K,J,I) = 1.0   
+#ifdef _TSCAL_
+        BT(K,J,I) = 1.0
+#endif                                 
+      ENDDO
+      ENDDO
+      ENDDO
+
+      II1 = II-1
+      JJ1 = JJ-1
+      KK1 = KK-1
+      DO I = 2,II-1
+      DO J = 2,JJ-1
+      DO K = 2,KK-1 
+        BP(K,J,I) = SIGN(0.5,B(K,J,I))+0.5
+        IF (I .LT. II1) BU(K,J,I)=BP(K,J,I)*BP(K,J,I+1)
+        IF (J .LT. JJ1) BV(K,J,I)=BP(K,J,I)*BP(K,J+1,I) 
+        IF (K .LT. KK1) BW(K,J,I)=BP(K,J,I)*BP(K+1,J,I)    
+#ifdef _TSCAL_
+        BT(K,J,I) = BP(K,J,I)
+#endif                                 
+      ENDDO
+      ENDDO
+      ENDDO
+#endif
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
+   40 CONTINUE
+C
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+        RETURN
+        END

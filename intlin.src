@@ -1,0 +1,37 @@
+      SUBROUTINE INTLIN  (PHI,KKNL,JJNL,ILIMXP,IBEG,IEND)
+C*STARLET***************************************************************
+C        I N T L I N      ZUR BESTIMMUNG DES INTEGRALEN LAENGENMASSES
+C                         WIRD UEBER EINE "LINIE" MIT HILFE DER TRAPEZ-
+C                         REGEL INTEGRIERT.
+C*STARLET***************************************************************
+C
+C PARAM: PHI (KKNL,     + BELIEBIGES "LINIEN"-FELD
+C        JJNL,ILIMXP)
+C        KKNL,JJNL,     - ARRAYDIMENSIONEN
+C        ILIMXP
+C        IBEG,IEND      - GRENZEN D. DO-SCHLEIFEN F. I-RICHTUNG
+C
+C DEFINE DIREKTIVEN     : KEINE
+C
+C UPROG                 : KEINE
+C
+C        19.12.88 (HW)  : ORIGINAL
+C        27.01.89 (HW)  : KORREKTUR
+C
+C*STARLET***************************************************************
+C
+      REAL            PHI (KKNL,JJNL,ILIMXP)
+C
+      DO 100 IL = IBEG,IEND
+         KEND   = IFIX (PHI (KKNL-12, 1, IL)) - 1
+         ALINT  = 0.0
+         IF(KEND .GE. 1) THEN
+            DO 200 K = 1,KEND
+               ALINT   = ALINT + 0.5 * (PHI(K  ,1,IL) + PHI(K+1,1,IL))
+     $                 *               (PHI(K+1,2,IL) - PHI(K  ,2,IL))
+  200       CONTINUE
+         END IF
+  100 PHI(KKNL-22, 1, IL) = ALINT
+C
+      RETURN
+      END

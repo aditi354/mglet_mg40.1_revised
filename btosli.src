@@ -1,0 +1,140 @@
+      SUBROUTINE BTOSLI (KMX,JMX,IMX,
+     $                    U,V,W,P,G,
+     $                   ISTA,ISTO,JSTA,JSTO,
+     $                   ITYP,IRB,JRB,KRB
+#ifdef _TSCAL_
+     $                   ,T
+#endif
+     $                   )     
+C*STARLET***************************************************************
+C        B T O S L I   SETZEN DER RANDBEDINGUNGEN FUER DIE
+C                         GESCHWINDIGKEITSFELDER AND SCALAR T.
+C                         (LARGE-EDDY-SIMULATION)
+C*STARLET***************************************************************
+C
+C PARAM: 
+C        KMX, JMX, IMX  - DIMENSIONEN DES GITTERS 
+C        U(KMX,JMX,IMX) + GESCHWINDIGKEITSFELD
+C        V(KMX,JMX,IMX) + GESCHWINDIGKEITSFELD
+C        W(KMX,JMX,IMX) + GESCHWINDIGKEITSFELD
+C        T(KMX,JMX,IMX) + SCALAR T FIELD
+C        P(KMX,JMX,IMX) - DRUCKFELD
+C        G(KMX,JMX,IMX) - EFFEKTIVE DYNAMISCHE VISKOSITAET (= MUE)
+C        ITYP           - HOLLERITH-KONSTANTE:
+C                         'P'  VOR DER DRUCKKORREKTUR
+C                         'T'  VOR DEM ZEITSCHRITT
+C
+C VERS:   8. 3.93 (MM)  : ORIGINAL
+C                         AUS BTOPLE (BTOPL) ABGELEITET
+C        28.02.03 (TB)  : SCALAR BOUNDARY TREATMENT IMPLEMENTED
+C
+C DEFINE-DIREKTIVEN     : QUD 
+C
+C*STARLET***************************************************************
+C
+#include "konsta.h"
+C
+      CHARACTER (LEN=1)  ITYP
+C
+      REAL
+     $            U(KMX,JMX,IMX),   V(KMX,JMX,IMX),   W(KMX,JMX,IMX),
+     $            P(KMX,JMX,IMX),   G(KMX,JMX,IMX)
+C
+#ifdef _TSCAL_
+      REAL        T(KMX,JMX,IMX)
+#endif
+C
+      KM1 = KMX-1
+      KM2 = KMX-2
+      KM3 = KMX-3
+      KM4 = KMX-4
+C
+      NBND = 2
+      IF (IRB .EQ. 0) THEN
+         ISTART = 1
+         ISTOP  = IMX
+      ELSEIF (IRB .EQ. 1) THEN
+         ISTART = NBND + 1
+         ISTOP  = IMX/2
+      ELSEIF (IRB .EQ. 2) THEN
+         ISTART = IMX/2 + 1
+         ISTOP  = IMX - NBND
+      ELSE
+         CALL ERRR (504,'IRB BTOSLI')
+      ENDIF   
+C
+      IF (JRB .EQ. 0) THEN
+         JSTART = 1
+         JSTOP  = JMX
+      ELSEIF (JRB .EQ. 1) THEN
+         JSTART =   2  + 1
+         JSTOP  = JMX/2
+      ELSEIF (JRB .EQ. 2) THEN
+         JSTART = JMX/2 + 1
+         JSTOP  = JMX -   2 
+      ELSE
+         CALL ERRR (504,'JRB BBACON')
+      ENDIF   
+C
+C                                 **************************************
+C                                 REIBUNGSLOSE, UNDURCHLAESSIGE WAND
+C                                 **************************************
+C
+C
+C
+C                                 FUER ZEITSCHRITT
+      IF (ITYP.EQ.'T') THEN
+
+         DO I=ISTA,ISTO
+         DO J=JSTA,JSTO
+
+               U(KM1,J,I) = 0.0
+               V(KM1,J,I) = 0.0
+               W(KM2,J,I) = 0.0
+               P(KM1,J,I) = P(KM2,J,I)
+               G(KM1,J,I) = 2.0*SMALL
+#ifdef _TSCAL_
+               T(KM1,J,I) = T(KM2,J,I)
+#endif               
+
+         ENDDO
+         ENDDO
+
+#ifdef _QUD_
+
+         DO I=ISTA,ISTO
+         DO J=JSTA,JSTO
+
+               U(KMX,J,I) = 0.0
+               V(KMX,J,I) = 0.0
+               W(KM1,J,I) = 0.0
+#ifdef _TSCAL_
+               T(KMX,J,I) = T(KM2,J,I)
+#endif               
+
+         ENDDO
+         ENDDO
+
+#endif
+
+C                                 FUER DRUCKKORREKTUR
+C                                 NUR NORMALKOMPONENTE MUSS 
+C                                 GESETZT WERDEN
+       ELSEIF (ITYP.EQ.'P') THEN
+
+         DO I=ISTART,ISTOP
+         DO J=JSTART,JSTOP
+
+               W(KM2,J,I) = 0.0
+
+         ENDDO
+         ENDDO
+
+ 
+       ELSE
+                CALL ERRR (501,' BTOSLI')
+       ENDIF
+
+      RETURN
+      END
+

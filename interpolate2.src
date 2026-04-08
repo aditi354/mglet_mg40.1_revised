@@ -1,0 +1,50 @@
+      SUBROUTINE INTERPOLATE2(KK,JJ,II,KSTART,JSTART,ISTART,
+     $                        KSTOP,JSTOP,ISTOP,DX,DY,DZ,DDX,
+     $                        DDY,DDZ,F,FINI,FINJ,FINK)
+C*MGLET***************************************************************
+C        I N T E R P O L A T E 2                               
+C*MGLET***************************************************************
+C
+C PARAM: F(K,J,I)       - ZU INTERPOLIERENDE GROESSE
+C      : FINI(K,J,I)    - INTERPOLIERTE GROESSE IN I-RICHTUNG
+C      : FINJ(K,J,I)    - INTERPOLIERTE GROESSE IN J-RICHTUNG
+C      : FINK(K,J,I)    - INTERPOLIERTE GROESSE IN K-RICHTUNG
+C
+C DEFINE DIREKTIVEN     : 
+C
+C UPROG                 :
+C
+C VERS:  10.10.96 (AM)  : ORIGINAL (ZENTRAL 2. ORDNUNG
+C                                  +KOMPAKT 4. ORDNUNG)
+C
+C*MGLET***************************************************************
+C
+
+      REAL       DX(II),        DY(JJ),        DZ(KK),
+     $          DDX(II),       DDY(JJ),       DDZ(KK)
+
+      REAL F(KK,JJ,II),FINJ(KK,JJ,II),FINK(KK,JJ,II),
+     $     FINI(KK,JJ,II)
+
+CCC                                    HIER ZENTRALE INTERPOLATION !!!
+
+       DO I = ISTART, ISTOP
+	 DO J = JSTART, JSTOP
+	    DO K = KSTART, KSTOP
+
+
+       FINJ(K,J,I) = 0.5*(F(K,J,I)   + F(K,J,I+1))
+       FINI(K,J,I) = 0.5*(F(K,J,I)*(DY(J+1)/DDY(J+1)) 
+     $                  + F(K,J+1,I)*(DY(J)/DDY(J+1)))
+       FINK(K,J,I) = 0.5*(F(K,J,I)   + F(K+1,J,I))
+
+
+	    ENDDO                   
+	 ENDDO                   
+       ENDDO                   
+
+CCC                                    HIER KOMPAKTE INTERPOLATION !!!
+
+       RETURN
+       END
+

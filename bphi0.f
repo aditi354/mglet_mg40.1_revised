@@ -1,0 +1,203 @@
+
+
+
+
+
+
+
+
+
+
+
+CCCCC        DEFINITIONEN FUER C-PREPROZESSOR
+C            MASCHINE
+
+C              MESSAGE PASSING INTERFACE
+
+C            RAEUMLICHE DISKRETISIERUNG
+C
+***********************************************************************
+C                       KOMPAKT-UPWIND in X-RICHTUNG (3-TER ORDNUNG) fuer
+C                       die U-Komponente (V und W bleiben Kompakt 4ter ordnung)
+C                       falls im Stroemungsfeld eine Koerper vorhanden ist
+C
+***********************************************************************
+C                       KOMPAKTVERF. in XYZ-RICHTUNG (4-TER ORDNUNG)
+
+
+**********************************************************************
+C                      Preprocessing with ADM for 2nd Order Central
+***********************************************************************
+CCC                     Bei periodischen Randbedingungen in X-Richtung
+CCC                     ist eine hoehere O
+C
+CCC                     Bei periodischen Randbedingungen in Y-Richtung
+CCC                     ist eine hoehere Ordnung moeglich
+C
+CCC                     Bei periodischen Randbedingungen in Y-Richtung:
+CCC                     Zentraldiff. 4-ter Ordnung (Parallelisieung moeglich)
+C
+***********************************************************************
+C
+C
+C            INTERPOLATION AN GITTER-GRENZEN
+
+C            BEHANDLUNG DER TOPAR-RANDBEDINGUNG
+
+C            ZEITLICHE DISKRETISIERUNG
+
+C            FEINSTRUKTURMODELL
+
+C            NICHT-NEWTONSCHE SPANNUNGEN
+
+
+C            TRANSPORT UND ORIENTIERUNG VON PARTIKELN
+
+
+C            SCALAR HEAT/TEMPERATURE TRANSPORT
+C            APROXIMATE DECONVOLUTION FOR SCALAR
+C            TURBULENT PRANDTL NUMBER 
+C            PLOT LOCAL SCALAR CONVECTION DIFFUSION EXTREMES 
+C            ANALYZE AND PLOT NEAR WALL GRID RESLOLUTION 
+C            WRITE SPECIAL 1D LINE FOR TMIX FOR SPECTRA AND PDF
+C            SCALAR TIME ADVANCEMENT/DISCRETISATION METHOD
+
+C            STROEMUNG NACH OBEN?
+
+
+C            BEHANDLUNG DER FLUKTUATIONS-RANDBEDINGUNG
+
+C            BEHANDLUNG VON PPHYS ALS QUELLTERM IN TSTLE2
+
+C            POSITIONIERUNG DER EINSTROEMPROFILE
+
+C           STATISTIK
+
+
+C                 GEMISCHTES
+
+C                GRDFMI WIRD NICHT VERWENDET, DAHER EINSPARUNG DER FELDER
+C                IGRHF UND GRHF
+
+C                VERGROESSERN DER KJI-RICHTUNG BEI FORTSETZUNGSLAUF ERLAUBT!
+
+C                RAUSSCHREIBEN VON ZEITRECORDS
+
+C                FUER KORRELATIONEN UND HAEFIGKEITSVERTEILUNGEN
+      SUBROUTINE BPHI0   (KK,JJ,II,KMX,JMX,IMX,PHI,
+     $                    IB1,IB2,JB1,JB2,KB)
+C*STARLET***************************************************************
+C        B P H I 0        BPHI0 SETZT DIE RANDSCHICHTEN DES BERECH-
+C                         NUNGSGEBIETES UND EINE SCHICHT INNERHALB DES
+C                         KUBUSSES AUF DEN WERT  PHICON (NORMALERWEISE
+C                         IST PHICON = 0.0).
+C*STARLET***************************************************************
+C
+C PARAM: KK, JJ, II     - ARRAYDIMENSIONEN
+C        KMX, JMX, IMX  - GRENZEN DES BERECHNUNGSGEBIETES (MIT BOUND)
+C        PHI(KK,JJ,II)  + ALLGEMEINE VARIABLE
+C        IB1, IB2       - GRENZE DES KUBUSSES IN X-RI.
+C        JB1, JB2       -   "     "     ""     IN Y-RI.
+C        KB             -   "     "     ""     IN Z-RI. (TOP-FLAECHE)
+C
+C UPROG                 : KEINE
+C
+C DEFINE-DIREKTIVEN     : KEINE
+C
+C        29.07.86 (HW)  : ORIGINAL
+C         3. 4.93 (MM)  : RANDBEDINGUNGEN WERDEN FUER STATISTISCHE
+C                         GROESSEN BIS AUF WEITERES NICHT MEHR GESETZT
+C
+C*STARLET***************************************************************
+C
+      REAL     PHI(KK,JJ,II)
+C
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
+C
+C                     3. 4.93    RETURN EINGEBAUT!!!!!
+      RETURN
+C
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
+
+      KM1    = KMX - 1
+      KM2    = KMX - 2
+      JM1    = JMX - 1
+      JM2    = JMX - 2
+      JM3    = JMX - 3
+      IM1    = IMX - 1
+      IM2    = IMX - 2
+      IM3    = IMX - 3
+      PHICON = 0.0
+C
+C                                  RANDFLAECHEN DES BERECHNUNGSGEBIETES
+C
+C                                  HIER: FRONT UND BACK
+C
+      DO 10 J = 3,JM3
+         DO 20 K = 1,KMX
+            PHI(K  ,J  ,  1) = PHICON
+            PHI(K  ,J  ,  2) = PHICON
+            PHI(K  ,J  ,IM2) = PHICON
+            PHI(K  ,J  ,IM1) = PHICON
+            PHI(K  ,J  ,IMX) = PHICON
+   20    CONTINUE
+   10 CONTINUE
+C
+C                                  HIER: LEFT UND RIGHT
+C
+      DO 110 I = 1,IMX
+         DO 120 K = 1,KMX
+            PHI(K  ,  1,I  ) = PHICON
+            PHI(K  ,  2,I  ) = PHICON
+            PHI(K  ,JM2,I  ) = PHICON
+            PHI(K  ,JM1,I  ) = PHICON
+            PHI(K  ,JMX,I  ) = PHICON
+  120    CONTINUE
+  110 CONTINUE
+C
+C                                  HIER: TOP UND BOTTOM
+C
+      DO 210 I = 3,IM3
+         DO 220 J = 3,JM3
+            PHI(  1,J  ,I  ) = PHICON
+            PHI(  2,J  ,I  ) = PHICON
+            PHI(KM2,J  ,I  ) = PHICON
+            PHI(KM1,J  ,I  ) = PHICON
+            PHI(KMX,J  ,I  ) = PHICON
+  220    CONTINUE
+  210 CONTINUE
+C
+C                                  INNENFLAECHEN DES KUBUSSES
+C
+C                                  HIER: FRONT UND BACK
+C
+      IF(KB  .GT. 2) THEN
+C
+         DO 310 J = JB1,JB2
+            DO 320 K = 3,KB
+               PHI(K  ,J  ,IB1) = PHICON
+  320          PHI(K  ,J  ,IB2) = PHICON
+  310    CONTINUE
+C
+C                                  HIER: LEFT UND RIGHT
+C
+         IF(IB2-IB1 .GE. 2) THEN
+            DO 410 I = IB1+1,IB2-1
+               DO 420 K = 3,KB
+                  PHI(K  ,JB1,I  ) = PHICON
+  420             PHI(K  ,JB2,I  ) = PHICON
+  410       CONTINUE
+C
+C                                     HIER: TOP
+C
+            IF((JB2-JB1 .GE. 2) .AND. KB .GT. 3) THEN
+               DO 510 I = IB1+1,IB2-1
+                  DO 520 J = JB1+1,JB2-1
+  520                PHI(KB ,J  ,I  ) = PHICON
+  510          CONTINUE
+            ENDIF
+         ENDIF
+      ENDIF
+C
+      RETURN
+      END

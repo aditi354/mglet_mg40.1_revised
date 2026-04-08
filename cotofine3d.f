@@ -1,0 +1,658 @@
+
+
+
+
+
+
+
+
+
+
+
+CCCCC        DEFINITIONEN FUER C-PREPROZESSOR
+C            MASCHINE
+
+C              MESSAGE PASSING INTERFACE
+
+C            RAEUMLICHE DISKRETISIERUNG
+C
+***********************************************************************
+C                       KOMPAKT-UPWIND in X-RICHTUNG (3-TER ORDNUNG) fuer
+C                       die U-Komponente (V und W bleiben Kompakt 4ter ordnung)
+C                       falls im Stroemungsfeld eine Koerper vorhanden ist
+C
+***********************************************************************
+C                       KOMPAKTVERF. in XYZ-RICHTUNG (4-TER ORDNUNG)
+
+
+**********************************************************************
+C                      Preprocessing with ADM for 2nd Order Central
+***********************************************************************
+CCC                     Bei periodischen Randbedingungen in X-Richtung
+CCC                     ist eine hoehere O
+C
+CCC                     Bei periodischen Randbedingungen in Y-Richtung
+CCC                     ist eine hoehere Ordnung moeglich
+C
+CCC                     Bei periodischen Randbedingungen in Y-Richtung:
+CCC                     Zentraldiff. 4-ter Ordnung (Parallelisieung moeglich)
+C
+***********************************************************************
+C
+C
+C            INTERPOLATION AN GITTER-GRENZEN
+
+C            BEHANDLUNG DER TOPAR-RANDBEDINGUNG
+
+C            ZEITLICHE DISKRETISIERUNG
+
+C            FEINSTRUKTURMODELL
+
+C            NICHT-NEWTONSCHE SPANNUNGEN
+
+
+C            TRANSPORT UND ORIENTIERUNG VON PARTIKELN
+
+
+C            SCALAR HEAT/TEMPERATURE TRANSPORT
+C            APROXIMATE DECONVOLUTION FOR SCALAR
+C            TURBULENT PRANDTL NUMBER 
+C            PLOT LOCAL SCALAR CONVECTION DIFFUSION EXTREMES 
+C            ANALYZE AND PLOT NEAR WALL GRID RESLOLUTION 
+C            WRITE SPECIAL 1D LINE FOR TMIX FOR SPECTRA AND PDF
+C            SCALAR TIME ADVANCEMENT/DISCRETISATION METHOD
+
+C            STROEMUNG NACH OBEN?
+
+
+C            BEHANDLUNG DER FLUKTUATIONS-RANDBEDINGUNG
+
+C            BEHANDLUNG VON PPHYS ALS QUELLTERM IN TSTLE2
+
+C            POSITIONIERUNG DER EINSTROEMPROFILE
+
+C           STATISTIK
+
+
+C                 GEMISCHTES
+
+C                GRDFMI WIRD NICHT VERWENDET, DAHER EINSPARUNG DER FELDER
+C                IGRHF UND GRHF
+
+C                VERGROESSERN DER KJI-RICHTUNG BEI FORTSETZUNGSLAUF ERLAUBT!
+
+C                RAUSSCHREIBEN VON ZEITRECORDS
+
+C                FUER KORRELATIONEN UND HAEFIGKEITSVERTEILUNGEN
+      SUBROUTINE COTOFINE3D(KKF,JJF,IIF,KKC,JJC,IIC,
+     $           DXF,DYF,DZF,DXC,DYC,DZC,FF,FC,HELPF,
+     $           XF,YF,ZF,XC,YC,ZC,CID)
+
+      implicit none
+
+      integer fi,fj,fk,ci,cj,ck
+      integer kkf,jjf,iif,kkc,jjc,iic
+      
+      real    dxf(iif),dyf(jjf),dzf(kkf)
+      real    dxc(iic),dyc(jjc),dzc(kkc)
+      real    xc(iic),yc(jjc),zc(kkc)
+      real    xf(iif),yf(jjf),zf(kkf)
+      real    zfi(kkf),zco(kkc)
+   
+      real    ff(kkf,jjf,iif),helpf(kkf,jjf,iif)
+      real    fc(kkc,jjc,iic) 
+
+      real    d1y0,d1y1,d1y2,d2y0,d2y1,d2y2
+      real    d1x0,d1x1,d1x2,d2x0,d2x1,d2x2
+      real    d1z0,d1z1,d1z2,d2z0,d2z1,d2z2
+      real    R1_0,R1_1,R1_2,R2_0,R2_1,R2_2
+      real    diff
+      real    ipol1,ipol2,ipol3,ipol4
+
+      CHARACTER (LEN=1) CID
+
+      if(CID.EQ.'W') THEN
+
+      do ck=3,kkc-3
+          fk = 2+(ck-2)*2
+c---- interpolation in j-direction; w-velocity
+       do ci=2,iic-1
+        do fj=3,jjf-2,2
+          cj = 2+(fj-1)/2
+
+          d1y1 =  yf(fj) - yc(cj-1)
+          d1y2 =  yc(cj) - yf(fj)
+          d1y0 =  yc(cj) - yc(cj-1)
+
+          d2y0 = yc(cj) - yc(cj-1)
+          d2y1 = yf(fj+1) - yc(cj-1)
+          d2y2 = yf(fj+1) -yc(cj) 
+
+          ipol1 = fc(ck,cj-1,ci)*(d1y2/d1y0) 
+     $           + fc(ck,cj  ,ci)*(d1y1/d1y0)
+
+          ipol2 = fc(ck,cj-1,ci)*(-d2y2/d2y0)
+     $           + fc(ck,cj  ,ci)*(d2y1/d2y0)
+
+          d1y0 = yc(cj+1)-yc(cj)
+          d1y1 = yf(fj+1) - yc(cj)
+          d1y2 = yc(cj+1) - yf(fj+1)
+      
+          d2y0 = yc(cj+1)-yc(cj)
+          d2y1 = yc(cj  )-yf(fj)
+          d2y2 = yc(cj+1)-yf(fj) 
+     
+          ipol3 = fc(ck,cj  ,ci)*d1y2/d1y0
+     $           + fc(ck,cj+1,ci)*d1y1/d1y0
+
+          ipol4 = fc(ck,cj ,ci)*d2y2/d2y0
+     $           - fc(ck,cj+1,ci)*d2y1/d2y0
+
+          helpf(ck,fj,ci) = 0.5*(ipol1+ipol4)
+          helpf(ck,fj+1,ci) = 0.5*(ipol3+ipol2) 
+
+        enddo
+       enddo
+c---- interpolation in i-direction; w-velocity
+       do fj=2,jjf-2
+        do fi=3,iif-2,2
+
+          ci=2+(fi-1)/2 
+          d1x1 =  xf(fi) - xc(ci-1)
+          d1x2 =  xc(ci) - xf(fi)
+          d1x0 =  xc(ci) - xc(ci-1)
+
+          d2x0 = xc(ci) - xc(ci-1)
+          d2x1 = xf(fi+1) - xc(ci-1)
+          d2x2 = xf(fi+1) -xc(ci) 
+
+          ipol1 = helpf(ck,fj,ci-1)*(d1x2/d1x0) 
+     $           + helpf(ck,fj  ,ci)*(d1x1/d1x0)
+
+          ipol2 = helpf(ck,fj,ci-1)*(-d2x2/d2x0)
+     $           + helpf(ck,fj,ci)*(d2x1/d2x0)
+
+          d1x0 = xc(ci+1)-xc(ci)
+          d1x1 = xf(fi+1) - xc(ci)
+          d1x2 = xc(ci+1) - xf(fi+1)
+      
+          d2x0 = xc(ci+1)-xc(ci)
+          d2x1 = xc(ci  )-xf(fi)
+          d2x2 = xc(ci+1)-xf(fi) 
+     
+          ipol3 = helpf(ck,fj  ,ci)*d1x2/d1x0
+     $           + helpf(ck,fj,ci+1)*d1x1/d1x0
+
+          ipol4 = helpf(ck,fj ,ci)*d2x2/d2x0
+     $           - helpf(ck,fj,ci+1)*d2x1/d2x0
+
+          ff(fk,fj,fi) = 0.5*(ipol1+ipol4)
+          ff(fk,fj,fi+1) = 0.5*(ipol3+ipol2) 
+
+         enddo
+        enddo
+      enddo
+      do fi=3,iif-2
+       do fj=3,jjf-2
+        do fk=3,kkf-3,2
+
+         ff(fk,fj,fi) = 0.5*(ff(fk-1,fj,fi)+ff(fk+1,fj,fi))
+        
+        enddo
+       enddo
+      enddo
+c---- Periodic boundary conditions
+       do fk=3,kkf-3
+        do fj=3,jjf-2
+         ff(fk,fj,2) = ff(fk,fj,iif-2)
+         ff(fk,fj,iif-1) = ff(fk,fj,3)
+        enddo
+       enddo
+       do fk=3,kkf-3
+        do fi=2,iif-1
+         ff(fk,2,fi) = ff(fk,jjf-2,fi)
+         ff(fk,jjf-1,fi) = ff(fk,3,fi)
+        enddo
+       enddo
+       
+
+      elseif(CID.EQ.'U') THEN
+
+C      do ck=1,kkc-1
+C       write(10,*)zc(ck),fc(ck,3,3)
+C      enddo
+
+
+c-----------------------------------------------------------------
+      do ci=2,iic-2
+          fi = 2+(ci-2)*2
+C          write(6,*)ci,fi
+c---- interpolation in j-direction; u-velocity
+       do ck=3,kkc-2
+        do fj=3,jjf-2,2
+
+          cj = 2+(fj-1)/2
+
+           d1y1 =  yf(fj) - yc(cj-1)
+           d1y2 =  yc(cj) - yf(fj)
+           d1y0 =  yc(cj) - yc(cj-1)
+
+           d2y0 = yc(cj) - yc(cj-1)
+           d2y1 = yf(fj+1) - yc(cj-1)
+           d2y2 = yf(fj+1) -yc(cj) 
+
+           ipol1 = fc(ck,cj-1,ci)*(d1y2/d1y0) 
+     $           + fc(ck,cj  ,ci)*(d1y1/d1y0)
+
+           ipol2 = fc(ck,cj-1,ci)*(-d2y2/d2y0)
+     $           + fc(ck,cj  ,ci)*(d2y1/d2y0)
+
+           d1y0 = yc(cj+1)-yc(cj)
+           d1y1 = yf(fj+1) - yc(cj)
+           d1y2 = yc(cj+1) - yf(fj+1)
+      
+           d2y0 = yc(cj+1)-yc(cj)
+           d2y1 = yc(cj  )-yf(fj)
+           d2y2 = yc(cj+1)-yf(fj) 
+     
+           ipol3 = fc(ck,cj  ,ci)*d1y2/d1y0
+     $           + fc(ck,cj+1,ci)*d1y1/d1y0
+
+           ipol4 = fc(ck,cj ,ci)*d2y2/d2y0
+     $           - fc(ck,cj+1,ci)*d2y1/d2y0
+
+           helpf(ck,fj,ci) = 0.5*(ipol1+ipol4)
+           helpf(ck,fj+1,ci) = 0.5*(ipol3+ipol2) 
+
+
+        enddo
+       enddo
+c---- interpolation in k-direction; u-velocity
+       do fj=3,jjf-2
+c---- lower boundary
+        fk = 3  
+        ck = 3
+
+           d1z1 =  zf(fk) - zc(ck-1)
+           d1z2 =  zc(ck) - zf(fk)
+           d1z0 =  zc(ck) - zc(ck-1)
+
+           d2z0 = zc(ck) - zc(ck-1)
+           d2z1 = zf(fk+1) - zc(ck-1)
+           d2z2 = zf(fk+1) -zc(ck)
+
+           ipol1 = -helpf(ck,fj,ci)*(d1z2/d1z0)
+     $           + helpf(ck,fj,ci)*(d1z1/d1z0)
+
+           ipol2 = -helpf(ck,fj,ci)*(-d2z2/d2z0)
+     $           + helpf(ck,fj,ci)*(d2z1/d2z0)
+
+           d1z0 = zc(ck+1)-zc(ck)
+           d1z1 = zf(fk+1) - zc(ck)
+           d1z2 = zc(ck+1) - zf(fk+1)
+
+           d2z0 = zc(ck+1)-zc(ck)
+           d2z1 = zc(ck  )-zf(fk)
+           d2z2 = zc(ck+1)-zf(fk)
+
+           ipol3 = helpf(ck,fj  ,ci)*d1z2/d1z0
+     $           + helpf(ck+1,fj,ci)*d1z1/d1z0
+
+           ipol4 = helpf(ck,fj ,ci)*d2z2/d2z0
+     $           - helpf(ck+1,fj,ci)*d2z1/d2z0
+
+           ff(fk,fj,fi) = 0.5*(ipol1+ipol4)
+           ff(fk+1,fj,fi) = 0.5*(ipol3+ipol2)
+
+
+
+        do fk=5,kkf-5,2
+         ck = 2+(fk-1)/2
+
+           d1z1 =  zf(fk) - zc(ck-1)
+           d1z2 =  zc(ck) - zf(fk)
+           d1z0 =  zc(ck) - zc(ck-1)
+
+           d2z0 = zc(ck) - zc(ck-1)
+           d2z1 = zf(fk+1) - zc(ck-1)
+           d2z2 = zf(fk+1) -zc(ck)
+
+           ipol1 = helpf(ck-1,fj,ci)*(d1z2/d1z0)
+     $           + helpf(ck,fj,ci)*(d1z1/d1z0)
+
+           ipol2 = helpf(ck-1,fj,ci)*(-d2z2/d2z0)
+     $           + helpf(ck,fj,ci)*(d2z1/d2z0)
+
+           d1z0 = zc(ck+1)-zc(ck)
+           d1z1 = zf(fk+1) - zc(ck)
+           d1z2 = zc(ck+1) - zf(fk+1)
+
+           d2z0 = zc(ck+1)-zc(ck)
+           d2z1 = zc(ck  )-zf(fk)
+           d2z2 = zc(ck+1)-zf(fk)
+
+           ipol3 = helpf(ck,fj  ,ci)*d1z2/d1z0
+     $           + helpf(ck+1,fj,ci)*d1z1/d1z0
+
+           ipol4 = helpf(ck,fj ,ci)*d2z2/d2z0
+     $           - helpf(ck+1,fj,ci)*d2z1/d2z0
+
+           ff(fk,fj,fi) = 0.5*(ipol1+ipol4)
+           ff(fk+1,fj,fi) = 0.5*(ipol3+ipol2)
+
+
+        enddo
+c----- top boundary
+        fk = kkf-3
+        ck = 2+(fk-1)/2
+
+           d1z1 =  zf(fk) - zc(ck-1)
+           d1z2 =  zc(ck) - zf(fk)
+           d1z0 =  zc(ck) - zc(ck-1)
+
+           d2z0 = zc(ck) - zc(ck-1)
+           d2z1 = zf(fk+1) - zc(ck-1)
+           d2z2 = zf(fk+1) -zc(ck)
+
+           ipol1 = helpf(ck-1,fj,ci)*(d1z2/d1z0)
+     $           + helpf(ck,fj,ci)*(d1z1/d1z0)
+
+           ipol2 = helpf(ck-1,fj,ci)*(-d2z2/d2z0)
+     $           + helpf(ck,fj,ci)*(d2z1/d2z0)
+
+           d1z0 = zc(ck+1)-zc(ck)
+           d1z1 = zf(fk+1) - zc(ck)
+           d1z2 = zc(ck+1) - zf(fk+1)
+
+           d2z0 = zc(ck+1)-zc(ck)
+           d2z1 = zc(ck  )-zf(fk)
+           d2z2 = zc(ck+1)-zf(fk)
+
+           ipol3 = helpf(ck,fj  ,ci)*d1z2/d1z0
+     $           - helpf(ck,fj,ci)*d1z1/d1z0
+
+           ipol4 = helpf(ck,fj ,ci)*d2z2/d2z0
+     $           + helpf(ck,fj,ci)*d2z1/d2z0
+
+           ff(fk,fj,fi) = 0.5*(ipol1+ipol4)
+           ff(fk+1,fj,fi) = 0.5*(ipol3+ipol2)
+
+        enddo
+       enddo
+      do fi=3,iif-3,2
+       do fj=3,jjf-2
+        do fk=3,kkf-2
+
+         ff(fk,fj,fi) = 0.5*(ff(fk,fj,fi-1)+ff(fk,fj,fi+1))
+
+        enddo
+       enddo
+      enddo
+c---- Periodic boundary conditions
+       do fk=3,kkf-3
+        do fj=3,jjf-2
+         ff(fk,fj,2) = ff(fk,fj,iif-2)
+         ff(fk,fj,iif-1) = ff(fk,fj,3)
+        enddo
+       enddo
+       do fk=3,kkf-3
+        do fi=2,iif-1
+         ff(fk,2,fi) = ff(fk,jjf-2,fi)
+         ff(fk,jjf-1,fi) = ff(fk,3,fi)
+        enddo
+       enddo
+ 
+      elseif(CID.EQ.'V') THEN
+     
+       do cj=2,jjc-2
+        fj=2+(cj-2)*2
+c---- interpolation in x-direction; v-velocity
+        
+        do ck=3,kkc-2
+         do fi=3,iif-2,2
+
+          ci=2+(fi-1)/2 
+          d1x1 =  xf(fi) - xc(ci-1)
+          d1x2 =  xc(ci) - xf(fi)
+          d1x0 =  xc(ci) - xc(ci-1)
+
+          d2x0 = xc(ci) - xc(ci-1)
+          d2x1 = xf(fi+1) - xc(ci-1)
+          d2x2 = xf(fi+1) -xc(ci) 
+
+          ipol1 = fc(ck,cj,ci-1)*(d1x2/d1x0) 
+     $           + fc(ck,cj  ,ci)*(d1x1/d1x0)
+
+          ipol2 = fc(ck,cj,ci-1)*(-d2x2/d2x0)
+     $           + fc(ck,cj,ci)*(d2x1/d2x0)
+
+          d1x0 = xc(ci+1)-xc(ci)
+          d1x1 = xf(fi+1) - xc(ci)
+          d1x2 = xc(ci+1) - xf(fi+1)
+      
+          d2x0 = xc(ci+1)-xc(ci)
+          d2x1 = xc(ci  )-xf(fi)
+          d2x2 = xc(ci+1)-xf(fi) 
+     
+          ipol3 = fc(ck,cj  ,ci)*d1x2/d1x0
+     $           + fc(ck,cj,ci+1)*d1x1/d1x0
+
+          ipol4 = fc(ck,cj ,ci)*d2x2/d2x0
+     $           - fc(ck,cj,ci+1)*d2x1/d2x0
+
+          helpf(ck,cj,fi) = 0.5*(ipol1+ipol4)
+          helpf(ck,cj,fi+1) = 0.5*(ipol3+ipol2)
+
+        enddo
+       enddo
+c---- interpolation in z-direction; v-velocity
+       do fi=3,iif-2
+c---- lower boundary
+        fk = 3
+        ck = 3
+        d1z1 =  zf(fk) - zc(ck-1)
+        d1z2 =  zc(ck) - zf(fk)
+        d1z0 =  zc(ck) - zc(ck-1)
+        d2z0 = zc(ck) - zc(ck-1)
+        d2z1 = zf(fk+1) - zc(ck-1)
+        d2z2 = zf(fk+1) -zc(ck)
+
+        ipol1 = -helpf(ck,cj,fi)*(d1z2/d1z0)
+     $         + helpf(ck,cj,fi)*(d1z1/d1z0)
+
+        ipol2 = -helpf(ck,cj,fi)*(-d2z2/d2z0)
+     $         + helpf(ck,cj,fi)*(d2z1/d2z0)
+
+        d1z0 = zc(ck+1)-zc(ck)
+        d1z1 = zf(fk+1) - zc(ck)
+        d1z2 = zc(ck+1) - zf(fk+1)
+
+        d2z0 = zc(ck+1)-zc(ck)
+        d2z1 = zc(ck  )-zf(fk)
+        d2z2 = zc(ck+1)-zf(fk)
+
+        ipol3 = helpf(ck,cj  ,fi)*d1z2/d1z0
+     $        + helpf(ck+1,cj,fi)*d1z1/d1z0
+
+        ipol4 = helpf(ck,cj ,fi)*d2z2/d2z0
+     $        - helpf(ck+1,cj,fi)*d2z1/d2z0
+
+        ff(fk,fj,fi) = 0.5*(ipol1+ipol4)
+        ff(fk+1,fj,fi) = 0.5*(ipol3+ipol2)
+
+C        d1z0 =   0.75*dzc(ck-1)
+c        d1z1 = - 0.25*dzc(ck-1)
+c        d1z2 = -(0.25*dzc(ck-1)+dzc(ck))c
+
+c        d2z0 =  (0.25*dzc(ck)+dzc(ck-1))
+c        d2z1 =   0.25*dzc(ck)
+c        d2z2 = - 0.75*dzc(ck)
+
+c        R1_0 = D1z1*D1z2 / (DzC(ck-1)*(DzC(ck-1)+DzC(ck)))
+c        R1_1 = D1z0*D1z2 / (DzC(ck-1)*( - DzC(ck)))
+c        R1_2 = D1z0*D1z1 / (DzC(ck  )*(DzC(ck-1)+DzC(ck)))
+
+c        R2_0 = D2z1*D2z2 / (DzC(ck-1)*(DzC(ck-1)+DzC(ck)))
+c        R2_1 = D2z0*D2z2 / (DzC(ck-1)*( - DzC(ck)))
+c        R2_2 = D2z0*D2z1 / (DzC(ck  )*(DzC(ck-1)+DzC(ck)))
+
+c        ff(fk  ,fj,fi) = -helpf(ck  ,cj,fi)*R1_0+
+c     $                    helpf(ck  ,cj,fi)*R1_1+
+c     $                    helpf(ck+1,cj,fi)*R1_2
+c        ff(fk+1,fj,fi) = -helpf(ck  ,cj,fi)*R2_0+
+c     $                    helpf(ck  ,cj,fi)*R2_1+
+c     $                    helpf(ck+1,cj,fi)*R2_2
+
+c         diff = helpf(ck,cj,fi)-0.5*(ff(fk,fj,fi)+ff(fk+1,fj,fi))
+c         ff(fk  ,fj,fi) = ff(fk,fj,fi  ) + diff
+c         ff(fk+1,fj,fi) = ff(fk+1,fj,fi) + diff
+         do fk=5,kkf-5,2
+          ck = 2+(fk-1)/2
+
+          d1z1 =  zf(fk) - zc(ck-1)
+          d1z2 =  zc(ck) - zf(fk)
+          d1z0 =  zc(ck) - zc(ck-1)
+
+          d2z0 = zc(ck) - zc(ck-1)
+          d2z1 = zf(fk+1) - zc(ck-1)
+          d2z2 = zf(fk+1) -zc(ck)
+
+          ipol1 = helpf(ck-1,cj,fi)*(d1z2/d1z0)
+     $          + helpf(ck,cj,fi)*(d1z1/d1z0)
+
+          ipol2 = helpf(ck-1,cj,fi)*(-d2z2/d2z0)
+     $          + helpf(ck,cj,fi)*(d2z1/d2z0)
+
+          d1z0 = zc(ck+1)-zc(ck)
+          d1z1 = zf(fk+1) - zc(ck)
+          d1z2 = zc(ck+1) - zf(fk+1)
+          d2z0 = zc(ck+1)-zc(ck)
+          d2z1 = zc(ck  )-zf(fk)
+          d2z2 = zc(ck+1)-zf(fk)
+
+          ipol3 = helpf(ck,cj  ,fi)*d1z2/d1z0
+     $          + helpf(ck+1,cj,fi)*d1z1/d1z0
+
+          ipol4 = helpf(ck,cj ,fi)*d2z2/d2z0
+     $          - helpf(ck+1,cj,fi)*d2z1/d2z0
+
+          ff(fk,fj,fi) = 0.5*(ipol1+ipol4)
+          ff(fk+1,fj,fi) = 0.5*(ipol3+ipol2)
+
+
+C          d1z0 =   0.75*dzc(ck-1)
+C          d1z1 = - 0.25*dzc(ck-1)
+c          d1z2 = -(0.25*dzc(ck-1)+dzc(ck))
+
+c          d2z0 =  (0.25*dzc(ck)+dzc(ck-1))
+c          d2z1 =   0.25*dzc(ck)
+c          d2z2 = - 0.75*dzc(ck)
+
+c          R1_0 = D1z1*D1z2 / (DzC(ck-1)*(DzC(ck-1)+DzC(ck)))
+c          R1_1 = D1z0*D1z2 / (DzC(ck-1)*( - DzC(ck)))
+c          R1_2 = D1z0*D1z1 / (DzC(ck  )*(DzC(ck-1)+DzC(ck)))
+
+c          R2_0 = D2z1*D2z2 / (DzC(ck-1)*(DzC(ck-1)+DzC(ck)))
+c          R2_1 = D2z0*D2z2 / (DzC(ck-1)*( - DzC(ck)))
+c          R2_2 = D2z0*D2z1 / (DzC(ck  )*(DzC(ck-1)+DzC(ck)))
+
+c          ff(fk  ,fj,fi) = helpf(ck-1,cj,fi)*R1_0+
+c     $                     helpf(ck  ,cj,fi)*R1_1+
+c     $                     helpf(ck+1,cj,fi)*R1_2
+c          ff(fk+1,fj,fi) = helpf(ck-1,cj,fi)*R2_0+
+c     $                     helpf(ck  ,cj,fi)*R2_1+
+c     $                     helpf(ck+1,cj,fi)*R2_2
+c          diff = helpf(ck,cj,fi)-0.5*(ff(fk,fj,fi)+ff(fk+1,fj,fi))
+c          ff(fk  ,fj,fi) = ff(fk,fj,fi  ) + diff
+c          ff(fk+1,fj,fi) = ff(fk+1,fj,fi) + diff
+         enddo
+c----- top boundary
+         fk = kkf-3
+         ck = 2+(fk-1)/2
+ 
+          d1z1 =  zf(fk) - zc(ck-1)
+          d1z2 =  zc(ck) - zf(fk)
+          d1z0 =  zc(ck) - zc(ck-1)
+          d2z0 = zc(ck) - zc(ck-1)
+          d2z1 = zf(fk+1) - zc(ck-1)
+          d2z2 = zf(fk+1) -zc(ck)
+
+           ipol1 = helpf(ck-1,cj,fi)*(d1z2/d1z0)
+     $           + helpf(ck,cj,fi)*(d1z1/d1z0)
+
+           ipol2 = helpf(ck-1,cj,fi)*(-d2z2/d2z0)
+     $           + helpf(ck,cj,fi)*(d2z1/d2z0)
+
+           d1z0 = zc(ck+1)-zc(ck)
+           d1z1 = zf(fk+1) - zc(ck)
+           d1z2 = zc(ck+1) - zf(fk+1)
+
+           d2z0 = zc(ck+1)-zc(ck)
+           d2z1 = zc(ck  )-zf(fk)
+           d2z2 = zc(ck+1)-zf(fk)
+
+           ipol3 = helpf(ck,cj  ,fi)*d1z2/d1z0
+     $           - helpf(ck,cj,fi)*d1z1/d1z0
+
+           ipol4 = helpf(ck,cj ,fi)*d2z2/d2z0
+     $           + helpf(ck,cj,fi)*d2z1/d2z0
+
+           ff(fk,fj,fi) = 0.5*(ipol1+ipol4)
+           ff(fk+1,fj,fi) = 0.5*(ipol3+ipol2)
+
+c         d1z0 =   0.75*dzc(ck-1)
+c         d1z1 = - 0.25*dzc(ck-1)
+c         d1z2 = -(0.25*dzc(ck-1)+dzc(ck))
+
+c         d2z0 =  (0.25*dzc(ck)+dzc(ck-1))
+c         d2z1 =   0.25*dzc(ck)
+c         d2z2 = - 0.75*dzc(ck)
+
+c         R1_0 = D1z1*D1z2 / (DzC(ck-1)*(DzC(ck-1)+DzC(ck)))
+c         R1_1 = D1z0*D1z2 / (DzC(ck-1)*( - DzC(ck)))
+c         R1_2 = D1z0*D1z1 / (DzC(ck  )*(DzC(ck-1)+DzC(ck)))
+
+c         R2_0 = D2z1*D2z2 / (DzC(ck-1)*(DzC(ck-1)+DzC(ck)))
+c         R2_1 = D2z0*D2z2 / (DzC(ck-1)*( - DzC(ck)))
+c         R2_2 = D2z0*D2z1 / (DzC(ck  )*(DzC(ck-1)+DzC(ck)))
+
+c         ff(fk  ,fj,fi) =  helpf(ck-1,cj,fi)*R1_0+
+c     $                     helpf(ck  ,cj,fi)*R1_1-
+c     $                    helpf(ck  ,cj,fi)*R1_2
+c         ff(fk+1,fj,fi) =  helpf(ck-1,cj,fi)*R2_0+
+c     $                     helpf(ck  ,cj,fi)*R2_1-
+c     $                    helpf(ck  ,cj,fi)*R2_2
+
+c          diff = helpf(ck,cj,fi)-0.5*(ff(fk,fj,fi)+ff(fk+1,fj,fi))
+c          ff(fk  ,fj,fi) = ff(fk,fj,fi  ) + diff
+c          ff(fk+1,fj,fi) = ff(fk+1,fj,fi) + diff
+         enddo
+        enddo
+      do fi=3,iif-2
+       do fj=3,jjf-3,2
+        do fk=3,kkf-2
+
+         ff(fk,fj,fi) = 0.5*(ff(fk,fj+1,fi)+ff(fk,fj-1,fi))
+
+        enddo
+       enddo
+      enddo
+c---- Periodic boundary conditions
+       do fk=3,kkf-3
+        do fj=3,jjf-2
+         ff(fk,fj,2) = ff(fk,fj,iif-2)
+         ff(fk,fj,iif-1) = ff(fk,fj,3)
+        enddo
+       enddo
+       do fk=3,kkf-3
+        do fi=2,iif-1
+         ff(fk,2,fi) = ff(fk,jjf-2,fi)
+         ff(fk,jjf-1,fi) = ff(fk,3,fi)
+        enddo
+       enddo
+
+
+
+      ENDIF
+      return
+      end

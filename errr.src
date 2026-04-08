@@ -1,0 +1,137 @@
+      SUBROUTINE ERRR(NRRR,MRRR)
+C***********************************************************************
+C  E R R R  FEHLERBEHANDLUNG
+C*************************************************** F.BAETKE 05.10.84 *
+C
+C     NRRR      - FEHLERPARAMETER = 100-499 MELDUNG
+C                                 = 500-999 FEHLER ( MIT STOP )
+C     MRRR      - MODULNAME ( MAXIMAL 10 ZEICHEN ALS STRING )
+C
+C***********************************************************************
+#ifdef _MPI_
+#include "mpif.h"
+#endif
+C
+      CHARACTER (LEN=10) MRRR
+C                                 TEST OB MELDUNG ODER FEHLER
+      IF(NRRR.GT.499)GOTO 2010
+C                                 AUSGABE EINER MELDUNG MIT
+C                                 PARAMETER UND MODULNAMEN
+#ifdef _HITACHI_
+      WRITE(6,6000)NRRR,MRRR
+ 6000 FORMAT(/1X,'  ++++++++++ MELDUNG  ',I3,'  IN MODUL' ,A8/)
+#endif
+#ifdef _VPP_
+      WRITE(6,6000)NRRR,MRRR
+ 6000 FORMAT(/1X,'  ++++++++++ MELDUNG  ',I3,'  IN MODUL' ,A8/)
+#endif
+#ifdef _T3E_
+      WRITE(6,6000)NRRR,MRRR
+ 6000 FORMAT(/1X,'  ++++++++++ MELDUNG  ',I3,'  IN MODUL' ,A8/)
+#endif
+#if (defined _CRAY_)
+      WRITE(6,6000)NRRR,MRRR
+ 6000 FORMAT(/1X,'  ++++++++++ MELDUNG  ',I3,'  IN MODUL' ,A8/)
+#endif
+#if (defined _CRAYT90_)
+      WRITE(6,6000)NRRR,MRRR
+ 6000 FORMAT(/1X,'  ++++++++++ MELDUNG  ',I3,'  IN MODUL' ,A8/)
+#endif
+#ifdef _CYBER_
+       CALL DISPLA(MRRR,NRRR)
+#endif
+#ifdef _B7800_
+      WRITE(6,6000)NRRR,MRRR
+ 6000 FORMAT(/,1X,'  ++++++++++ MELDUNG  ',I3,'  IN MODUL',A8,/)
+#endif
+#ifdef _C3820_
+      WRITE(6,6000)NRRR,MRRR
+ 6000 FORMAT(/,1X,'  ++++++++++ MELDUNG  ',I3,'  IN MODUL',A8,/)
+#endif
+#ifdef _IRIS_
+      WRITE(6,6000)NRRR,MRRR
+ 6000 FORMAT(/,1X,'  ++++++++++ MELDUNG  ',I3,'  IN MODUL',A8,/)
+#endif
+#ifdef _LINUX_
+      WRITE(6,6000)NRRR,MRRR
+ 6000 FORMAT(/,1X,'  ++++++++++ MELDUNG  ',I3,'  IN MODUL',A8,/)
+#endif
+#ifdef _HP_
+      WRITE(6,6000)NRRR,MRRR
+ 6000 FORMAT(/,1X,'  ++++++++++ MELDUNG  ',I3,'  IN MODUL',A8,/)
+#endif
+#ifdef _SP2_
+      WRITE(6,6000)NRRR,MRRR
+ 6000 FORMAT(/,1X,'  ++++++++++ MELDUNG  ',I3,'  IN MODUL',A8,/)
+#endif
+#ifdef _KSR_
+      WRITE(6,6000)NRRR,MRRR
+ 6000 FORMAT(/,1X,'  ++++++++++ MELDUNG  ',I3,'  IN MODUL',A8,/)
+#endif
+      GOTO 2900
+C                                 AUSGABE EINES FEHLERS MIT
+C                                 PARAMETER UND MODULNAMEN
+ 2010 CONTINUE
+#ifdef _VPP_
+       WRITE(6,6010)NRRR,MRRR
+ 6010 FORMAT(/1X,'  ++',
+     2       /1X,'  ++++++++++ FEHLER  ',I3,'  IN MODUL' ,A8,
+     3       /1X,'  ++',/)
+#endif
+#ifdef _T3E_
+       WRITE(6,6010)NRRR,MRRR
+ 6010 FORMAT(/1X,'  ++',
+     2       /1X,'  ++++++++++ FEHLER  ',I3,'  IN MODUL' ,A8,
+     3       /1X,'  ++',/)
+#endif
+#if (defined _CRAY_)
+       WRITE(6,6010)NRRR,MRRR
+ 6010 FORMAT(/1X,'  ++',
+     2       /1X,'  ++++++++++ FEHLER  ',I3,'  IN MODUL' ,A8,
+     3       /1X,'  ++',/)
+#endif
+#if (defined _CRAYT90_)
+       WRITE(6,6010)NRRR,MRRR
+ 6010 FORMAT(/1X,'  ++',
+     2       /1X,'  ++++++++++ FEHLER  ',I3,'  IN MODUL' ,A8,
+     3       /1X,'  ++',/)
+#endif
+#ifdef _CYBER_
+       CALL DISPLA(MRRR,NRRR)
+*      EXPLOS = ALOG10 (-FLOAT(NRRR))
+#endif
+#ifdef _B7800_
+       WRITE(6,6010)NRRR,MRRR
+ 6010 FORMAT(/,1X,'  ++',
+     2       /,1X,'  ++++++++++ FEHLER  ',I3,'  IN MODUL',A8,
+     3       /,1X,'  ++',/)
+#endif
+#ifdef _C3820_
+       WRITE(6,6010)NRRR,MRRR
+ 6010 FORMAT(/,1X,'  ++',
+     2       /,1X,'  ++++++++++ FEHLER  ',I3,'  IN MODUL',A8,
+     3       /,1X,'  ++',/)
+#endif
+#ifdef _IRIS_
+       WRITE(6,6010)NRRR,MRRR
+ 6010 FORMAT(/,1X,'  ++',
+     2       /,1X,'  ++++++++++ FEHLER  ',I3,'  IN MODUL',A8,
+     3       /,1X,'  ++',/)
+#endif
+      GOTO 2900
+ 2900 CONTINUE
+C                                 TEST, OB PROGRAMMSTOP ODER
+C                                 RUECKSPRUNG IN RUFENDE MODUL
+       WRITE(6,*)' NRRR= ',NRRR,' MRRR= ',MRRR
+      IF(NRRR .GT. 499) THEN
+#ifdef _MPI_
+C
+C             BEENDEN DER MPI-ROUTINEN
+C
+      CALL MPI_FINALIZE(IERR)
+C
+#endif
+        STOP ' IN ERRR'
+      ENDIF
+      RETURN
+      END

@@ -1,0 +1,312 @@
+         SUBROUTINE INIGRIDVAR
+     $             (CIDENT,IIDENT,RIDENT,
+     $              DDX,DDY,DDZ,DX,DY,DZ,X,Y,Z,
+#ifdef _TSCAL_
+     $              U,V,W,T,P,G,B,BP,BU,BV,BW,BT,
+#else
+     $              U,V,W,P,G,B,BP,BU,BV,BW,
+#endif
+     $              ITSTEP,ITTOT,TIMEPH,
+     $              IDIMF,NGRP1, NGRP3, IGRHF, GRX0, GRX1, HILF,
+     $              IDIM3D,IDIM2D,IDIM1D,NBUF,NBND,IDIMA,IDIM1L,IDIM2L,
+     $              IGRID,CONV1S)
+C--MGLET----------------------------------------------------------------
+C
+C                   SETZEN UND VORBELEGEN EINES GITTERS
+C
+C
+C        17. 6.93 (MM)  : DUMMYGITTER EINGEFUEHRT
+C        24. 6.93 (MM)  :     ""       WIEDER AUSGEFUEHRT
+C        22. 5.95 (MM.AO): MPI
+C        11.09.1996 (A.O.): SUBGRIDSCALE CONSTANT DEPENDENT OF X
+C        11.03.03 (TB): SCALAR FIELD T AND BOUNDARY FIELD BT IMPLEMENTED
+C     27. 7.05 (jk): Aufteilung in INIGRIDGEO und INIGRIDVAR
+C
+C--MGLET----------------------------------------------------------------
+
+
+#include "mgpar.h"
+#include "comgrid.h"
+#include "colevel.h"
+#include "cogrdpro.h"
+#include "cobound.h"
+#include "costrles.h"
+#include "cophyspar.h"
+#include "cobody.h"
+#include "cogrdcon.h"
+#ifdef _MPI_
+C
+C               MPI-INCLUDE
+C
+#include "compi.h"
+#include "mpif.h"
+#endif
+
+C
+      CHARACTER (LEN=8)    CIDENT(10)
+C
+      INTEGER IIDENT(100),
+     $        IGRHF(IDIMF,NGRP1)
+C
+C
+C
+C
+      REAL    RIDENT(100),
+     $            X(IDIM1D),     Y(IDIM1D),     Z(IDIM1D),
+     $           DX(IDIM1D),    DY(IDIM1D),    DZ(IDIM1D),
+     $          DDX(IDIM1D),   DDY(IDIM1D),   DDZ(IDIM1D),
+#ifdef _TSCAL_
+     $      U( IDIM3D ), V( IDIM3D ), W( IDIM3D ),T( IDIM3D ),
+     $      P( IDIM3D ), G( IDIM3D ), B( IDIM3D ), HILF( IDIM3D ),
+     $      BP( IDIM3D ),BU( IDIM3D ),BV( IDIM3D ),BW( IDIM3D ),
+     $      BT( IDIM3D )    
+#else
+     $      U( IDIM3D ), V( IDIM3D ), W( IDIM3D ),
+     $      P( IDIM3D ), G( IDIM3D ), B( IDIM3D ), HILF( IDIM3D ),
+     $      BP( IDIM3D ),BU( IDIM3D ),BV( IDIM3D ),BW( IDIM3D )
+#endif
+C
+C          SUBGRIDSCALE CONSTANT CONV1S DEPENDENT OF X
+      REAL    CONV1S(IDIM1D)
+#ifdef _MPI_
+C
+C                 MPI-VARIABLEN
+C
+      INTEGER ISTATUS(MPI_STATUS_SIZE)
+C
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
+C
+C                 MPI-ROUTINEN ZUR UEBERGABE VON PARAMETERN
+C                 
+C     CALL MPI_COMM_RANK (MPI_COMM_WORLD,MYID,IERR)
+C     CALL MPI_COMM_SIZE (MPI_COMM_WORLD,NUMPROCS,IERR)
+C
+#endif
+C
+
+C
+C
+C
+      DO ISUB = 1,MAX(1,NOFSLCHILDS(IGRID))
+
+        IF (LSLICE(IGRID)) THEN
+         I = IGRDOFSLCHILD(ISUB,IGRID)
+        ELSE
+         I = IGRID
+        ENDIF
+
+#ifdef _MPI_
+             IPROC  = IDPROCOFGRD(I)
+             IPPAR  = IDPROCOFGRD(IPARENT(I))
+#else
+             MYID   = 0
+             IPROC  = 0
+             IPPAR  = 0
+#endif
+
+C                                 BEREITSTELLUNG DER DIMENSIONIERUNG
+C                                 BASIS-RANDBEDINGUNGEN
+C
+       CALL MGDIMS  (KK,JJ,II,I)
+       CALL MGBASB  (NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB,I)
+
+C                                          POINTER
+#ifdef _MPI_
+       IF(MYID .EQ. IPROC) CALL MGPOINT (IP3,IP2,IP1,IBB,IB3,IBU,I)
+#else
+       CALL MGPOINT (IP3,IP2,IP1,IBB,IB3,IBU,I)
+#endif
+C
+C
+C
+
+
+C
+C                               VORBELEGUNG DER VARIABLEN
+C
+       IF (LCHILD(I)) THEN
+
+
+#ifdef _MPI_
+         IF ( (MYID .EQ. IPROC) .OR. (MYID .EQ. IPPAR)) THEN
+#endif
+C                               VARIABLE WERDEN AUS PARENT-GITTER
+C                               INTERPOLIERT ("PROLONGIERT")
+C                                          POINTER
+C
+
+       CALL MGDIMS  (KKC,JJC,IIC,IPARENT(I))
+       CALL MGBASB  (NFROC,NBACC,NRGTC,NLFTC,NBOTC,NTOPC,NCUBC,
+     $               IPARENT(I))
+       IF(MYID .EQ. IPPAR) CALL MGPOINT (IP3C,IP2C,IP1C,IBBC,IB3C,
+     $               IBUC,IPARENT(I))
+
+              CALL MGCTOF (KK,JJ,II,DX(IP1),DY(IP1),DZ(IP1),
+     &                     DDX(IP1),DDY(IP1),DDZ(IP1),U(IP3),
+     &                     KKC,JJC,IIC,DX(IP1C),DY(IP1C),DZ(IP1C),
+     &                     DDX(IP1C),DDY(IP1C),DDZ(IP1C),U(IP3C),
+     &               IPOSITION(I),JPOSITION(I),KPOSITION(I),
+     &                     'X',IPROC,IPPAR)
+
+              CALL MGCTOF (KK,JJ,II,DX(IP1),DY(IP1),DZ(IP1),
+     &                     DDX(IP1),DDY(IP1),DDZ(IP1),V(IP3),
+     &                     KKC,JJC,IIC,DX(IP1C),DY(IP1C),DZ(IP1C),
+     &                     DDX(IP1C),DDY(IP1C),DDZ(IP1C),V(IP3C),
+     &               IPOSITION(I),JPOSITION(I),KPOSITION(I),
+     &                     'Y',IPROC,IPPAR)
+
+              CALL MGCTOF (KK,JJ,II,DX(IP1),DY(IP1),DZ(IP1),
+     &                     DDX(IP1),DDY(IP1),DDZ(IP1),W(IP3),
+     &                     KKC,JJC,IIC,DX(IP1C),DY(IP1C),DZ(IP1C),
+     &                     DDX(IP1C),DDY(IP1C),DDZ(IP1C),W(IP3C),
+     &               IPOSITION(I),JPOSITION(I),KPOSITION(I),
+     &                     'Z',IPROC,IPPAR)
+#ifdef _TSCAL_
+              CALL MGCTOF (KK,JJ,II,DX(IP1),DY(IP1),DZ(IP1),
+     &                     DDX(IP1),DDY(IP1),DDZ(IP1),T(IP3),
+     &                     KKC,JJC,IIC,DX(IP1C),DY(IP1C),DZ(IP1C),
+     &                     DDX(IP1C),DDY(IP1C),DDZ(IP1C),T(IP3C),
+     &               IPOSITION(I),JPOSITION(I),KPOSITION(I),
+     &                     'T',IPROC,IPPAR)
+#endif     
+              CALL MGCTOF (KK,JJ,II,DX(IP1),DY(IP1),DZ(IP1),
+     &                     DDX(IP1),DDY(IP1),DDZ(IP1),P(IP3),
+     &                     KKC,JJC,IIC,DX(IP1C),DY(IP1C),DZ(IP1C),
+     &                     DDX(IP1C),DDY(IP1C),DDZ(IP1C),P(IP3C),
+     &               IPOSITION(I),JPOSITION(I),KPOSITION(I),
+     &                     'P',IPROC,IPPAR)
+
+              CALL MGCTOF (KK,JJ,II,DX(IP1),DY(IP1),DZ(IP1),
+     &                     DDX(IP1),DDY(IP1),DDZ(IP1),G(IP3),
+     &                     KKC,JJC,IIC,DX(IP1C),DY(IP1C),DZ(IP1C),
+     &                     DDX(IP1C),DDY(IP1C),DDZ(IP1C),G(IP3C),
+     &               IPOSITION(I),JPOSITION(I),KPOSITION(I),
+     &                     'B',IPROC,IPPAR)
+
+              CALL MGCTOF (KK,JJ,II,DX(IP1),DY(IP1),DZ(IP1),
+     &                     DDX(IP1),DDY(IP1),DDZ(IP1),B(IP3),
+     &                     KKC,JJC,IIC,DX(IP1C),DY(IP1C),DZ(IP1C),
+     &                     DDX(IP1C),DDY(IP1C),DDZ(IP1C),B(IP3C),
+     &               IPOSITION(I),JPOSITION(I),KPOSITION(I),
+     &                     'B',IPROC,IPPAR)
+
+#ifdef _MPI_
+         ENDIF
+#endif
+       ELSE
+
+#ifdef _MPI_
+         IF (MYID .EQ. IPROC) THEN
+#endif
+#ifdef _UPWARDS_
+#ifdef _TSCAL_
+CTBA1 100203: UPWARDS NOT YET IMPLEMENTED FOR SCALAR TRANSPORT
+C------TEST by FLO
+C      STOP ' UPWARDS not yet implemented for Scalar Transport'
+#endif
+C                        FLOW IS ASSUMED TO DIRECT UPWARDS
+C                        Therefor only simple settings,
+C                        can be done like SVLE1 later
+
+               CALL SETS   (KK,JJ,II,KK,JJ,II,U(IP3),0.0)
+               CALL SETS   (KK,JJ,II,KK,JJ,II,V(IP3),0.0)
+               CALL SETS   (KK,JJ,II,KK,JJ,II,W(IP3),UFRCON)
+CCCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC CALLING SVLE1 IN ORDER
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC TO GET RANDOM DISTURBANCES
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC STREAMWISE COMPONENT (W) EXCLUDED
+                  CALL SV3D (KK,JJ,II,KK,JJ,II,
+     $                 W(IP3),V(IP3),U(IP3),P(IP3),
+     $                 G(IP3),HILF(IBB),
+     $                   X(IP1),  Y(IP1),  Z(IP1),
+     $                  DX(IP1), DY(IP1), DZ(IP1),
+     $                 DDX(IP1),DDY(IP1),DDZ(IP1),
+     $                 VCON,WCON,
+     $                 XBANF(1,5,IGRID),XBEND(1,5,IGRID),
+     $                 YBANF(1,5,IGRID),YBEND(1,5,IGRID),
+     $                 ZBANF(1,5,IGRID),ZBEND(1,5,IGRID),
+     $                 FREQB(1,5,IGRID),ANIVEAU(1,5,IGRID),
+     $                 AUB(1,5,IGRID),AVB(1,5,IGRID),AWB(1,5,IGRID),
+     $                 TIMEPH,DT,MTURB)
+#else
+#ifdef _ORRSOMMER_
+              GMOL = 1.0/7500.0
+              GRADPX(IGRID)=-2.0/7500.0
+#endif
+              CALL SVLE1  (KK,JJ,II,KK,JJ,II,
+     $                     DX(IP1),DY(IP1),DZ(IP1),
+     &                     U(IP3),V(IP3),W(IP3),P(IP3),
+     &                     X(IP1),Y(IP1),Z(IP1),0.0,0.0,
+     &                     YBANF,YBEND,ZBANF,ZBEND,HILF,GRADPX(IGRID))
+
+#ifdef _TSCAL_
+              CALL SVLE1SCA  (KK,JJ,II,KK,JJ,II,
+     &                        T(IP3),
+     &                        X(IP1),  Y(IP1),  Z(IP1),
+     &                       DX(IP1), DY(IP1), DZ(IP1),
+     &                      DDX(IP1),DDY(IP1),DDZ(IP1),IGRID)   
+#endif          
+#endif
+C
+              CALL SETS   (KK,JJ,II,KK,JJ,II,P(IP3),0.0)
+              CALL SETS   (KK,JJ,II,KK,JJ,II,G(IP3),GMOL)
+
+         CALL IBFIELD (KK,JJ,II,KK,JJ,II,NBND,
+     $              DDX(IP1),DDY(IP1),DDZ(IP1),
+     $              DX(IP1),DY(IP1),DZ(IP1),
+     $              X(IP1),Y(IP1),Z(IP1),
+     $              B(IP3),BP(IP3),BU(IP3),BV(IP3),BW(IP3),
+     $              IDIMF,NGRP3,HILF,ZCUB,NCUB,I
+#ifdef _TSCAL_
+     $             ,BT(IP3)
+#endif 
+     $                 )     
+
+
+
+#ifdef _MPI_
+       ENDIF
+#endif
+
+       ENDIF
+C
+#ifdef _MPI_
+         IF (MYID .EQ. IPROC) THEN
+#endif
+C
+C                                 BELEGUNG DER GRENZEN DER BOUNDING-BOX
+C
+#ifdef _FRED_BODY_
+       CALL SBBC12 (KK,JJ,II,KK,JJ,II,BP(IP3),
+     $              KC1(I),KC2(I),JC1(I),JC2(I),IC1(I),IC2(I),
+     $                  NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB,I)
+#else
+       CALL SBBC12 (KK,JJ,II,KK,JJ,II,B(IP3),
+     $              KC1(I),KC2(I),JC1(I),JC2(I),IC1(I),IC2(I),
+     $                  NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB,I)
+#endif
+C
+C
+C                                 BELEGUNG VON B MIT LAENGENMASS
+C
+       CALL DMIXLE (KK,JJ,II,KK,JJ,II,B(IP3),HILF(IP3),
+     $              X(IP1),Y(IP1),Z(IP1),
+     $              DX(IP1),DY(IP1),DZ(IP1),
+     $              DDX(IP1),DDY(IP1),DDZ(IP1),
+     $              IC1(I),IC2(I),JC1(I),JC2(I),KC1(I),KC2(I),
+     $              NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB,
+     $              GRADPX(I),RHO,GMOL,CONV1S(IP1),
+     $              CONV1SANF(I),CONV1SEND(I),TRANSLES1(I),TRANSLES2(I),
+     $              U(IP3))
+C
+#ifdef _MPI_
+       ENDIF
+#endif
+C
+       ENDDO
+
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+C
+      RETURN
+      END
+
+

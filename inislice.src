@@ -1,0 +1,77 @@
+         SUBROUTINE INISLICE (DDX,DDY,DDZ,DX,DY,DZ,X,Y,Z,B,HILF,
+     $              IDIM3D,IDIM2D,IDIM1D,NBUF,NBND,IDIMA,IDIM1L,IDIM2L,
+     $              IGRID)
+C
+C--MGLET----------------------------------------------------------------
+C
+C                   SETZEN DER GEOMETRIE EINES GITTERS AUS 
+C                   GEBIETSZERLEGUNG
+C
+C
+C        11. 2.94 (MM)  : ORIGINAL
+C
+C--MGLET----------------------------------------------------------------
+
+
+#include "mgpar.h"
+#include "comgrid.h"
+#include "cogrdpro.h"
+#include "cogrdcon.h"
+#include "cobody.h"
+#include "cophyspar.h"
+
+
+C
+      REAL    
+     $            B(IDIM3D),
+     $            X(IDIM1D),     Y(IDIM1D),     Z(IDIM1D),
+     $           DX(IDIM1D),    DY(IDIM1D),    DZ(IDIM1D),
+     $          DDX(IDIM1D),   DDY(IDIM1D),   DDZ(IDIM1D)
+C
+C                       ZERLEGEN DER GEOMETRIE
+C
+       CALL SLICEGEO (DDX,DDY,DDZ,DX,DY,DZ,X,Y,Z,B,HILF,
+     $              IDIM3D,IDIM2D,IDIM1D,NBUF,NBND,IDIMA,IDIM1L,IDIM2L,
+     $              IGRID)
+C
+C                                 BEREITSTELLUNG DER POINTER
+C                                 DIMENSIONIERUNGEN
+C
+       CALL MGDPB (KK,JJ,II,IP3,IP2,IP1,IBB,IBU,
+     $                   NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB,IGRID)
+
+C
+C
+C                                 BELEGUNG DER GRENZEN DER BOUNDING-BOX
+C
+       WRITE (6,*)'INISLICE:',IGRID,KK,JJ,II,IP3
+       CALL SBBC12 (KK,JJ,II,KK,JJ,II,
+     $                  B(IP3),
+     $                  KC1(IGRID),KC2(IGRID),
+     $                  JC1(IGRID),JC2(IGRID),
+     $                  IC1(IGRID),IC2(IGRID),
+     $                  NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB,IGRID)
+C
+C
+C                                 BELEGUNG VON B MIT LAENGENMASS
+C
+C      CALL DMIXLE (KK,JJ,II,KK,JJ,II,B(IP3),HILF,
+C    $              X(IP1),Y(IP1),Z(IP1),
+C    $              DX(IP1),DY(IP1),DZ(IP1),
+C    $              DDX(IP1),DDY(IP1),DDZ(IP1),
+C    $              IC1(IGRID),IC2(IGRID),
+C    $              JC1(IGRID),JC2(IGRID),
+C    $              KC1(IGRID),KC2(IGRID),
+C    $              NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB,
+C    $              GRADPX(IGRID),RHO,GMOL)
+C
+C
+C
+
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+C
+
+      RETURN
+      END
+
+

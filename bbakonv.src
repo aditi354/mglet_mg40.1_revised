@@ -1,0 +1,163 @@
+      SUBROUTINE BBAKONV (KMX,JMX,IMX,
+     $                    U,V,W,P,G,
+     $                    JSTART,JSTOP,KSTART,KSTOP,ITYP,
+     $                    IDIM3D,IDIM2D,IDIM1D,
+     $                    X,Y,Z,DX,DY,DZ,DDX,DDY,DDZ,
+     $                    UBA,VBA,WBA
+#ifdef _TSCAL_
+     $                   ,T,TBA
+#endif
+     $                   )      
+C*STARLET***************************************************************
+C        B B A K O N V  SETZEN DER RANDBEDINGUNGEN FUER DIE
+C                         GESCHWINDIGKEITSFELDER AND SCALAR T.
+C                         (LARGE-EDDY-SIMULATIO/DNS)
+C                    KONVECTIVE BOUNDARY CONDITION FOR THE OUTLET
+C  VERS: 10.09.1995 ORIGINAL (AO)
+C*STARLET***************************************************************
+C
+C PARAM: 
+C        KMX, JMX, IMX  - DIMENSIONEN DES GITTERS 
+C        U(KMX,JMX,IMX) + GESCHWINDIGKEITSFELD
+C        V(KMX,JMX,IMX) + GESCHWINDIGKEITSFELD
+C        W(KMX,JMX,IMX) + GESCHWINDIGKEITSFELD
+C        T(KMX,JMX,IMX) + SCALAR T FIELD
+C        P(KMX,JMX,IMX) - DRUCKFELD
+C        G(KMX,JMX,IMX) - EFFEKTIVE DYNAMISCHE VISKOSITAET (= MUE)
+C        ITYP           - HOLLERITH-KONSTANTE:
+C                         'P'  VOR DER DRUCKKORREKTUR
+C                         'T'  VOR DEM ZEITSCHRITT
+C
+C        28.02.03 (TB)  : SCALAR BOUNDARY TREATMENT IMPLEMENTED
+C
+C DEFINE-DIREKTIVEN     : QUD 
+C
+C*STARLET***************************************************************
+C
+#include "costrles.h"
+C
+      CHARACTER (LEN=1)  ITYP
+C
+      REAL
+     $    U(KMX,JMX,IMX),   V(KMX,JMX,IMX),   W(KMX,JMX,IMX),
+     $    P(KMX,JMX,IMX),   G(KMX,JMX,IMX),
+     $    UBA(KMX,JMX,3), VBA(KMX,JMX,3), WBA(KMX,JMX,3),   
+     $    DX(IMX), DY(JMX),DZ(KMX),
+     $    DDX(IMX),DDY(JMX),DDZ(KMX) 
+C
+#ifdef _TSCAL_
+      REAL T(KMX,JMX,IMX),TBA(KMX,JMX,3)
+#endif
+C
+      IM1 = IMX-1
+      IM2 = IMX-2
+      IM3 = IMX-3
+C
+C
+C                                 **************************************
+C                                 KONVECTIVE BOUNDARY CONDITION FROM MOIN (AO)
+C                                 **************************************
+C
+C
+C
+C                                 VOR DER DRUCKKORREKTUR
+C                                 ----------------------
+      IF(ITYP .EQ. 'P') THEN
+
+         DO J=JSTART+1,JSTOP
+         DO K=KSTART+1,KSTOP
+
+C              P(K,J,IM1) = 0.0
+C              P(K,J,IM1) = P(K,J,IM2)
+
+         ENDDO
+         ENDDO
+
+         RETURN
+
+      ENDIF
+         UIN = 1.0
+
+         DO J=JSTART+1,JSTOP
+         DO K=KSTART+1,KSTOP
+         
+C           UIN = UBA(K,J,2)
+C           UIN = MAX(0.0,UIN)
+
+            U(K,J,IM1) = UBA(K,J,1) - (DT / DDX(IM1)) * UIN * 
+     $                 ( UBA(K,J,1) - UBA(K,J,2) )
+            V(K,J,IM1) = VBA(K,J,1) - (DT / DX(IM2))  * UIN * 
+     $                 ( VBA(K,J,1) - VBA(K,J,2) )
+            W(K,J,IM1) = WBA(K,J,1) - (DT / DX(IM2))  * UIN * 
+     $                 ( WBA(K,J,1) - WBA(K,J,2) )
+C           G(K,J,IM1) = GBA(K,J,1) - (DT / DX(IM2))  * UBA(K,J,3) *
+C    $                 ( GBA(K,J,1) - GBA(K,J,2) )
+            G(K,J,IM1) = G(K,J,IM2)
+            P(K,J,IM1) = 0.0
+#ifdef _TSCAL_
+            T(K,J,IM1) = TBA(K,J,1) - (DT / DX(IM2))  * UIN * 
+     $                 ( TBA(K,J,1) - TBA(K,J,2) )
+#endif            
+
+C           IF THE MASS FLOW IS NEGATIVE THEN GIVE
+C           INFORMATION ABOUT IN OUTFILE
+
+
+         ENDDO
+         ENDDO
+
+#ifndef _FRED_BODY_
+
+C
+C             THE GLOBAL MASS BALANCE DEFINES THE
+C             FACTOR FACMAS 
+C
+        AMAS = 0.0
+        EMAS = 0.0
+        AGES = 0.0
+      DO J=JSTART,JSTOP
+      DO K=KSTART,KSTOP
+	AMAS = AMAS + DDY(J)*DDZ(K)*U(K,J,3)
+	EMAS = EMAS + DDY(J)*DDZ(K)*U(K,J,IM1)
+        AGES = AGES + DDY(J)*DDZ(K)
+      ENDDO
+      ENDDO
+
+      SUBMAS = AMAS - EMAS
+      FACMAS = EMAS/AMAS
+      ADDU = SUBMAS/AGES
+C-T3E-Problems      WRITE(6,*) 'BBAKONV_UINST: MASS BALANCE FACTOR'
+C-T3E-Problems     & ' AT THE OUTLET: FACMAS=EMAS/AMAS = ',FACMAS,
+C-T3E-Problems     & ' ADDU= AMAS - EMAS = ',ADDU
+     
+
+         DO J=JSTART,JSTOP
+         DO K=KSTART,KSTOP
+
+            U(K,J,IM1) = U(K,J,IM1) + ADDU
+
+         ENDDO
+	 ENDDO
+#endif
+#ifdef _QUD_
+
+        DO J=JSTART,JSTOP
+        DO K=KSTART,KSTOP
+
+               U(K,J,IM1) = U(K,J,IM3)
+               V(K,J,IMX) = V(K,J,IM2)
+               W(K,J,IMX) = W(K,J,IM2)
+               P(K,J,IMX) = 0.0
+               G(K,J,IMX) = G(K,J,IM2)
+#ifdef _TSCAL_
+               T(K,J,IMX) = T(K,J,IM2)
+#endif               
+
+         ENDDO
+         ENDDO
+
+#endif
+
+      RETURN
+      END
+

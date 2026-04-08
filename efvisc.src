@@ -1,0 +1,2053 @@
+# ifdef _DYNSGSM_
+c
+c Folgende Routine berechnet fur eine y-z-Ebene die  
+c partiellen Geschw.ableitungen, sowie die Faktoren furs
+c Filtern unter Berucksichtigung von NO-SLIP Wanden . 
+c
+      subroutine Schnitt(KK,JJ,II,KMX,JMX,IMX,X,Y,Z,
+     $                   DX,DY,DZ,DDX,DDY,DDZ,
+     $                   RDX,RDY,RDZ,RDDX,RDDY,RDDZ,
+     $                   U,V,W,G,B,
+     $                   DUDX3,DUDY3,DUDZ3,DVDX3,DVDY3,DVDZ3,
+     $                   DWDX3,DWDY3,DWDZ3,
+     $                   GMOL,RHO,UGRID,
+     $                   IC1,IC2,JC1,JC2,KC1,KC2,
+     $                   uc,vc,wc,i,il,
+     $                   istart,iend,jstart,jend,kstart,kend,
+     $                   nbnd,
+     $                    NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB)
+C     implicit none
+
+ 
+      integer ii,jj,kk,imx,jmx,kmx,ic1,ic2,jc1,jc2,kc1,kc2,i,il,
+     $        istart,iend,jstart,jend,kstart,kend,
+     $        nbnd
+ 
+      REAL
+     $   X(II),         Y(JJ),         Z(KK),
+     $           DX(II),        DY(JJ),        DZ(KK),
+     $          DDX(II),       DDY(JJ),       DDZ(KK),
+     $          RDX(II),       RDY(JJ),       RDZ(KK),
+     $         RDDX(II),      RDDY(JJ),      RDDZ(KK),
+     $            U(KK,JJ,II),   V(KK,JJ,II),   W(KK,JJ,II),
+     $            G(KK,JJ,II),   B(KK,JJ,II),ugrid,
+     $            vorz,rho,gmol
+  
+      REAL 
+     $   DUDX3(kk,JJ,3),DUDY3(kk,JJ,3),DUDZ3(kk,JJ,3),
+     $   DVDX3(kk,JJ,3),DVDY3(kk,JJ,3),DVDZ3(kk,JJ,3),
+     $   DWDX3(kk,JJ,3),DWDY3(kk,JJ,3),DWDZ3(kk,JJ,3),
+     $   uc(kk,jj,3),vc(kk,jj,3),wc(kk,jj,3)
+
+      real     gradpp
+      external gradpp
+
+      integer j,k,km2  
+
+      real ddxi,rddxpl,dxf,dxf2,ddyj,rddypl,dyf,dyf2,
+     $     ddzk,rddzpl,dzf,dzf2   
+       
+
+      KM2 = KEND
+c
+c  i-Index im Feld uber alle PEs 
+c
+
+ 
+
+  
+         DDXI   = DDX(I)
+         RDDXPL = 1.0/DDXI
+         DXF    = 0.25*DX(I-1)*RDDXPL
+         DXF2   = 2.0 *DXF
+C
+C                            ZUERST BESTIMMUNG ALLER PARTIELLER
+C                            ABLEITUNGEN IN TANGENTIALER RICHTUNG
+C
+         DO 200 J  = jstart,jend
+            DDYJ   = DDY(J)
+            RDDYPL = 1.0/DDYJ
+            DYF    = 0.25*DY(J-1)*RDDYPL
+            DYF2   = 2.0 *DYF
+
+C
+            DO 200 K  = kstart,kend
+               DDZK   = DDZ(K)
+               RDDZPL = 1.0/DDZK
+               DZF    = 0.25*DZ(K-1)*RDDZPL
+               DZF2   = 2.0 *DZF
+
+
+
+
+
+C
+C                                 PARTIELLE ABLEITUNGEN IN 
+C                                 - - - - - - - - - - - - - - -
+C                                 TANGENTIALER RICHTUNG
+C                                 - - - - - - - - - - - - - - -
+C
+               DUDX3(k,j,il) = RDDXPL * (U(K  ,J  ,I  )-U(K  ,J  ,I-1))
+               DVDY3(k,j,il) = RDDYPL * (V(K  ,J  ,I  )-V(K  ,J-1,I  ))
+               DWDZ3(k,j,il) = RDDZPL * (W(K,J,I) - W(K-1,J,I)) 
+
+
+               DUDY3(K,J,il) = RDDYPL *
+     $                (((U(K  ,J+1,I  )-U(K  ,J-1,I  )) *      DXF
+     $              +   (U(K  ,J+1,I-1)-U(K  ,J-1,I-1)) * (0.5-DXF)))
+
+               DUDZ3(K,J,il) = RDDZPL *
+     $                (((U(K+1,J  ,I  )-U(K-1,J  ,I  )) *      DXF
+     $              +   (U(K+1,J  ,I-1)-U(K-1,J  ,I-1)) * (0.5-DXF)))
+
+               DVDX3(K,J,il) = RDDXPL *
+     $                (((V(K  ,J  ,I+1)-V(K  ,J  ,I-1)) *      DYF
+     $              +   (V(K  ,J-1,I+1)-V(K  ,J-1,I-1)) * (0.5-DYF)))
+
+               DVDZ3(K,J,il) = RDDZPL *
+     $                (((V(K+1,J  ,I  )-V(K-1,J  ,I  )) *      DYF
+     $              +   (V(K+1,J-1,I  )-V(K-1,J-1,I  )) * (0.5-DYF)))
+
+               DWDX3(K,J,il) = RDDXPL *
+     $                (((W(K  ,J  ,I+1)-W(K  ,J  ,I-1)) *      DZF
+     $              +   (W(K-1,J  ,I+1)-W(K-1,J  ,I-1)) * (0.5-DZF)))
+
+               DWDY3(K,J,il) = RDDYPL *
+     $                (((W(K  ,J+1,I  )-W(K  ,J-1,I  )) *      DZF
+     $              +   (W(K-1,J+1,I  )-W(K-1,J-1,I  )) * (0.5-DZF)))
+
+               uc(k,j,il)=0.5*(u(k,j,i)+u(k,j,i-1))
+               vc(k,j,il)=0.5*(v(k,j,i)+v(k,j-1,i))
+               wc(k,j,il)=0.5*(w(k,j,i)+w(k-1,j,i))
+
+  200    CONTINUE
+
+C
+C                            WANDKORREKTUR ALLER PARTIELLER
+C                            ABLEITUNGEN IN TANGENTIALER RICHTUNG
+C
+#ifdef _EFVISC_NOBODY_
+       IF (NCUB.EQ.111) THEN
+#else
+       IF (NCUB.EQ.5) THEN
+#endif
+C                                 AN FESTEN WAENDEN (NUR IN DER WANDNAEC
+C                                 STEN ZELLE !!!) WIRD DER MISCHUNGSWEG
+C                                 DEM PRANDTL''SCHEN MISCHUNGSWEG ANGEPAS
+C
+         IF ((I.LT.IC1).OR.(I.GT.IC2)) GOTO 301
+
+         DO 300 J  = JC1,JC2
+            DDYJ   = DDY(J)
+            RDDYPL = 1.0/DDYJ
+            DYF    = 0.25*DY(J-1)*RDDYPL
+            DYF2   = 2.0 *DYF
+C
+            DO 300 K  = KC1,KC2
+               DDZK   = DDZ(K)
+               RDDZPL = 1.0/DDZK
+               DZF    = 0.25*DZ(K-1)*RDDZPL
+               DZF2   = 2.0 *DZF
+C
+C                                 PARTIELLE ABLEITUNGEN NACH Z
+C                                 - - - - - - - - - - - - - - -
+C
+C                                 HIER: IN POS. ODER NEG. Z-RICHTUNG
+C                                 LIEGT EINE FESTE, REIBUNGSBEHAFTETE
+C                                 WAND VOR
+C
+#ifndef _FRED_BODY_
+      if (B(k,j,i).gt.0.0) then
+        
+	IF (    (B(K+1,J  ,I  )*B(K,J,I).LE.0.0) 
+     $      .OR.(B(K-1,J  ,I  )*B(K,J,I).LE.0.0) ) THEN
+
+                  VORZ = SIGN(1.0, G(K+1,J  ,I  ))
+                  DUDZ3(K,J,il) = 
+     $  	  GRADP2 (U(K,J,I-1) + (U(K,J,I)-U(K,J,I-1))
+     $                 *         DXF2 + UGRID,DDZK) * VORZ
+                  DVDZ3(K,J,il) = 
+     $  	  GRADP2 (V(K,J-1,I) + (V(K,J,I)-V(K,J-1,I))
+     $                 *         DYF2        ,DDZK) * VORZ
+
+	ENDIF
+C
+C                                 PARTIELLE ABLEITUNGEN NACH Y
+C                                 - - - - - - - - - - - - - - -
+C
+C                                 HIER: IN POS. ODER NEG. Y-RICHTUNG
+C                                 LIEGT EINE FESTE, REIBUNGSBEHAFTETE
+C                                 WAND VOR
+C
+	IF (    (B(K  ,J+1,I  )*B(K,J,I).LE.0.0) 
+     $      .OR.(B(K  ,J-1,I  )*B(K,J,I).LE.0.0) ) THEN
+
+                  VORZ = SIGN(1.0, G(K  ,J+1,I  ))
+                  DWDY3(K,J,il) = 
+     $  	  GRADP2 (W(K-1,J,I) + (W(K,J,I)-W(K-1,J,I))
+     $                 *         DZF2        ,DDYJ) * VORZ
+                  DUDY3(K,J,il) = 
+     $  	  GRADP2 (U(K,J,I-1) + (U(K,J,I)-U(K,J,I-1))
+     $                 *         DXF2 + UGRID,DDYJ) * VORZ
+
+	ENDIF
+C
+C
+C                                 PARTIELLE ABLEITUNGEN NACH X
+C                                 - - - - - - - - - - - - - - -
+C
+C                                 HIER: IN POS. ODER NEG. X-RICHTUNG
+C                                 LIEGT EINE FESTE, REIBUNGSBEHAFTETE
+C                                 WAND VOR
+C
+	IF (    (B(K  ,J  ,I+1)*B(K,J,I).LE.0.0) 
+     $      .OR.(B(K  ,J  ,I-1)*B(K,J,I).LE.0.0) ) THEN
+
+                  VORZ = SIGN(1.0, G(K  ,J  ,I+1))
+                  DVDX3(K,J,il) = 
+     $  	  GRADP2 (V(K,J-1,I) + (V(K,J,I)-V(K,J-1,I))
+     $                 *         DYF2        ,DDXI) * VORZ
+                  DWDX3(K,J,il) = 
+     $  	  GRADP2 (W(K-1,J,I) + (W(K,J,I)-W(K-1,J,I))
+     $                 *         DZF2        ,DDXI) * VORZ
+
+	ENDIF
+C
+      endif 
+#endif 
+  300    CONTINUE
+  301    CONTINUE
+
+       ENDIF
+       IF (NBOT.EQ.5) THEN
+C                                 AN FESTEN WAENDEN (NUR IN DER WANDNAEC
+C                                 STEN ZELLE !!!) WIRD DER MISCHUNGSWEG
+C                                 DEM PRANDTL''SCHEN MISCHUNGSWEG ANGEPAS
+C
+         DO 310 J  = 3,Jend
+            DDYJ   = DDY(J)
+            RDDYPL = 1.0/DDYJ
+            DYF    = 0.25*DY(J-1)*RDDYPL
+            DYF2   = 2.0 *DYF
+C
+             K  = 3
+               DDZK   = DDZ(K)
+               RDDZPL = 1.0/DDZK
+               DZF    = 0.25*DZ(K-1)*RDDZPL
+               DZF2   = 2.0 *DZF
+C
+C                                 PARTIELLE ABLEITUNGEN NACH Z
+C                                 - - - - - - - - - - - - - - -
+C
+C                                 HIER: IN POS. ODER NEG. Z-RICHTUNG
+C                                 LIEGT EINE FESTE, REIBUNGSBEHAFTETE
+C                                 WAND VOR
+C
+
+                  VORZ = SIGN(1.0, G(K+1,J  ,I  ))
+                  DUDZ3(K,J,il) = 
+     $  	  GRADP2 (U(K,J,I-1) + (U(K,J,I)-U(K,J,I-1))
+     $                 *         DXF2 + UGRID,DDZK) * VORZ
+                  DVDZ3(K,J,il) = 
+     $  	  GRADP2 (V(K,J-1,I) + (V(K,J,I)-V(K,J-1,I))
+     $                 *         DYF2        ,DDZK) * VORZ
+
+  310    CONTINUE
+C
+      ENDIF
+      IF (NTOP.EQ.5) THEN
+C                                 AN FESTEN WAENDEN (NUR IN DER WANDNAEC
+C                                 STEN ZELLE !!!) WIRD DER MISCHUNGSWEG
+C                                 DEM PRANDTL''SCHEN MISCHUNGSWEG ANGEPAS
+C
+         DO 320 J  = 3,Jend
+            DDYJ   = DDY(J)
+            RDDYPL = 1.0/DDYJ
+            DYF    = 0.25*DY(J-1)*RDDYPL
+            DYF2   = 2.0 *DYF
+C
+             K  = KM2
+               DDZK   = DDZ(K)
+               RDDZPL = 1.0/DDZK
+               DZF    = 0.25*DZ(K-1)*RDDZPL
+               DZF2   = 2.0 *DZF
+C
+C                                 PARTIELLE ABLEITUNGEN NACH Z
+C                                 - - - - - - - - - - - - - - -
+C
+C                                 HIER: IN POS. ODER NEG. Z-RICHTUNG
+C                                 LIEGT EINE FESTE, REIBUNGSBEHAFTETE
+C                                 WAND VOR
+C
+
+                  VORZ = SIGN(1.0, G(K+1,J  ,I  ))
+                  DUDZ3(K,J,il) = 
+     $  	  GRADP2 (U(K,J,I-1) + (U(K,J,I)-U(K,J,I-1))
+     $                 *         DXF2 + UGRID,DDZK) * VORZ
+                  DVDZ3(K,J,il) = 
+     $  	  GRADP2 (V(K,J-1,I) + (V(K,J,I)-V(K,J-1,I))
+     $                 *         DYF2        ,DDZK) * VORZ
+
+  320    CONTINUE
+C
+      ENDIF
+      IF (NRGT.EQ.5) THEN
+C                                 AN FESTEN WAENDEN (NUR IN DER WANDNAEC
+C                                 STEN ZELLE !!!) WIRD DER MISCHUNGSWEG
+C                                 DEM PRANDTL''SCHEN MISCHUNGSWEG ANGEPAS
+C
+         J  = 3
+            DDYJ   = DDY(J)
+            RDDYPL = 1.0/DDYJ
+            DYF    = 0.25*DY(J-1)*RDDYPL
+            DYF2   = 2.0 *DYF
+C
+            DO 330 K  = 3,Kend
+               DDZK   = DDZ(K)
+               RDDZPL = 1.0/DDZK
+               DZF    = 0.25*DZ(K-1)*RDDZPL
+               DZF2   = 2.0 *DZF
+C
+C                                 PARTIELLE ABLEITUNGEN NACH Y
+C                                 - - - - - - - - - - - - - - -
+C
+C                                 HIER: IN POS. ODER NEG. Y-RICHTUNG
+C                                 LIEGT EINE FESTE, REIBUNGSBEHAFTETE
+C                                 WAND VOR
+C
+                  VORZ = SIGN(1.0, G(K  ,J+1,I  ))
+                  DWDY3(K,J,il) = 
+     $  	  GRADP2 (W(K-1,J,I) + (W(K,J,I)-W(K-1,J,I))
+     $                 *         DZF2        ,DDYJ) * VORZ
+                  DUDY3(K,J,il) = 
+     $  	  GRADP2 (U(K,J,I-1) + (U(K,J,I)-U(K,J,I-1))
+     $                 *         DXF2 + UGRID,DDYJ) * VORZ
+
+
+  330    CONTINUE
+C
+      ENDIF
+      IF (NLFT.EQ.5) THEN
+C                                 AN FESTEN WAENDEN (NUR IN DER WANDNAEC
+C                                 STEN ZELLE !!!) WIRD DER MISCHUNGSWEG
+C                                 DEM PRANDTL''SCHEN MISCHUNGSWEG ANGEPAS
+C
+         J  = Jend
+            DDYJ   = DDY(J)
+            RDDYPL = 1.0/DDYJ
+            DYF    = 0.25*DY(J-1)*RDDYPL
+            DYF2   = 2.0 *DYF
+C
+            DO 340 K  = 3,Kend
+               DDZK   = DDZ(K)
+               RDDZPL = 1.0/DDZK
+               DZF    = 0.25*DZ(K-1)*RDDZPL
+               DZF2   = 2.0 *DZF
+C
+C                                 PARTIELLE ABLEITUNGEN NACH Y
+C                                 - - - - - - - - - - - - - - -
+C
+C                                 HIER: IN POS. ODER NEG. Y-RICHTUNG
+C                                 LIEGT EINE FESTE, REIBUNGSBEHAFTETE
+C                                 WAND VOR
+C
+                  VORZ = SIGN(1.0, G(K  ,J+1,I  ))
+                  DWDY3(K,J,il) = 
+     $  	  GRADP2 (W(K-1,J,I) + (W(K,J,I)-W(K-1,J,I))
+     $                 *         DZF2        ,DDYJ) * VORZ
+                  DUDY3(K,J,il) = 
+     $  	  GRADP2 (U(K,J,I-1) + (U(K,J,I)-U(K,J,I-1))
+     $                 *         DXF2 + UGRID,DDYJ) * VORZ
+
+
+
+  340    CONTINUE
+
+      ENDIF
+
+c
+c
+c Berechnung des Stress-Tensors :
+c
+c
+
+      do j=jstart,jend
+      do k=kstart,kend 
+        dudy3(k,j,il)=0.5*(dudy3(k,j,il)+dvdx3(k,j,il))
+        dudz3(k,j,il)=0.5*(dudz3(k,j,il)+dwdx3(k,j,il))
+        dvdz3(k,j,il)=0.5*(dvdz3(k,j,il)+dwdy3(k,j,il))
+      end do
+      end do 
+
+
+
+
+      return
+      end  
+
+
+
+      subroutine Faktoren(KK,JJ,II,KMX,JMX,IMX,
+     $                   B,
+     $                   IC1,IC2,JC1,JC2,KC1,KC2,
+     $                   fa11,fa12,fa13,fa21,fa22,fa23,
+     $                   fa31,fa32,fa33,fac1,fac2,fac3,i,
+     $                   istart,iend,jstart,jend,kstart,kend,
+     $                    NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB)
+
+
+      integer ii,jj,kk,imx,jmx,kmx,ic1,ic2,jc1,jc2,kc1,kc2,i,
+     $        istart,iend,jstart,jend,kstart,kend
+
+      REAL  B(KK,JJ,II)
+
+      REAL
+     $            FA11(KK,JJ),FA12(kk,JJ),fa13(kk,jj),
+     $            FA21(kk,JJ),FA22(kk,JJ),fa23(kk,jj),
+     $            FA31(kk,JJ),FA32(kk,JJ),fa33(kk,jj),
+     $            fac1,fac2,fac3
+
+
+      integer j,k  
+C
+C                            ZUERST BESTIMMUNG ALLER PARTIELLER
+C                            ABLEITUNGEN IN TANGENTIALER RICHTUNG
+C
+ 
+         DO 200 J  = jstart,jend
+           DO 200 K  = kstart,kend
+             if (B(k,j,i).ge.0.0) then 
+               fa11(k,j)=fac1 
+               fa13(k,j)=fac1
+               fa31(k,j)=fac1
+               fa33(k,j)=fac1 
+
+               fa12(k,j)=fac2 
+               fa21(k,j)=fac2
+               fa23(k,j)=fac2
+               fa32(k,j)=fac2
+
+               fa22(k,j)=fac3
+             else            
+               fa11(k,j)=0.0
+               fa13(k,j)=0.0
+               fa31(k,j)=0.0
+               fa33(k,j)=0.0 
+
+               fa12(k,j)=0.0 
+               fa21(k,j)=0.0
+               fa23(k,j)=0.0
+               fa32(k,j)=0.0
+
+               fa22(k,j)=0.0
+             endif  
+
+  200    CONTINUE
+
+C
+C                            WANDKORREKTUR ALLER PARTIELLER
+C                            ABLEITUNGEN IN TANGENTIALER RICHTUNG
+C
+      IF (NCUB.EQ.5) THEN
+C                                 AN FESTEN WAENDEN (NUR IN DER WANDNAEC
+C                                 STEN ZELLE !!!) WIRD DER MISCHUNGSWEG
+C                                 DEM PRANDTL''SCHEN MISCHUNGSWEG ANGEPAS
+C
+         IF ((I.LT.IC1).OR.(I.GT.IC2)) GOTO 301
+
+         DO 300 J  = JC1,JC2
+           DO 300 K  = KC1,KC2
+C                                 HIER: IN POS. ODER NEG. Y-RICHTUNG
+C                                 LIEGT EINE FESTE, REIBUNGSBEHAFTETE
+C                                 WAND VOR
+C
+#ifndef _FRED_BODY_
+	 IF (B(K  ,J+1,I  )*B(K,J,I).LE.0.0) then
+           fa22(k,j)=fa22(k,j)+fa32(k,j)
+           fa32(k,j)=0.0 
+         end if
+	 IF (B(K  ,J+1,I+1)*B(K,J,I).LE.0.0) then
+           fa22(k,j)=fa22(k,j)+fa33(k,j)
+           fa33(k,j)=0.0 
+         end if
+	 IF (B(K  ,J+1,I-1)*B(K,J,I).LE.0.0) then
+           fa22(k,j)=fa22(k,j)+fa31(k,j)
+           fa31(k,j)=0.0 
+         end if
+
+         if (B(K  ,J-1,I  )*B(K,J,I).LE.0.0) THEN
+           fa22(k,j)=fa22(k,j)+fa12(k,j)
+           fa12(k,j)=0.0 
+	 ENDIF
+         if (B(K  ,J-1,I+1)*B(K,J,I).LE.0.0) THEN
+           fa22(k,j)=fa22(k,j)+fa13(k,j)
+           fa13(k,j)=0.0 
+	 ENDIF
+         if (B(K  ,J-1,I-1)*B(K,J,I).LE.0.0) THEN
+           fa22(k,j)=fa22(k,j)+fa11(k,j)
+           fa11(k,j)=0.0 
+	 ENDIF
+C                                 HIER: IN POS. ODER NEG. X-RICHTUNG
+C                                 LIEGT EINE FESTE, REIBUNGSBEHAFTETE
+C                                 WAND VOR
+C
+	 IF (B(K  ,J  ,I+1)*B(K,J,I).LE.0.0) then
+           fa22(k,j)=fa22(k,j)+fa23(k,j)
+           fa23(k,j)=0.0 
+         end if
+   
+         if (B(K  ,J  ,I-1)*B(K,J,I).LE.0.0) THEN
+           fa22(k,j)=fa22(k,j)+fa21(k,j)
+           fa21(k,j)=0.0 
+         end if
+                
+#endif
+  300    CONTINUE
+  301    CONTINUE
+
+       ENDIF
+       IF (NBOT.EQ.5) THEN
+C                                 AN FESTEN WAENDEN (NUR IN DER WANDNAEC
+C                                 STEN ZELLE !!!) WIRD DER MISCHUNGSWEG
+C                                 DEM PRANDTL''SCHEN MISCHUNGSWEG ANGEPAS
+C
+         DO 310 J  = 3,Jend
+             K  = 3
+C                                 HIER: IN POS. ODER NEG. Z-RICHTUNG
+C                                 LIEGT EINE FESTE, REIBUNGSBEHAFTETE
+C                                 WAND VOR
+C
+  310    CONTINUE
+C
+      ENDIF
+      IF (NTOP.EQ.5) THEN
+C                                 AN FESTEN WAENDEN (NUR IN DER WANDNAEC
+C                                 STEN ZELLE !!!) WIRD DER MISCHUNGSWEG
+C                                 DEM PRANDTL''SCHEN MISCHUNGSWEG ANGEPAS
+C
+         DO 320 J  = 3,Jend
+             K  = Kend
+C                                 HIER: IN POS. ODER NEG. Z-RICHTUNG
+C                                 LIEGT EINE FESTE, REIBUNGSBEHAFTETE
+C                                 WAND VOR
+  320    CONTINUE
+C
+       ENDIF
+       IF (NRGT.EQ.5) THEN
+C                                 AN FESTEN WAENDEN (NUR IN DER WANDNAEC
+C                                 STEN ZELLE !!!) WIRD DER MISCHUNGSWEG
+C                                 DEM PRANDTL''SCHEN MISCHUNGSWEG ANGEPAS
+C
+         J  = 3
+            DO 330 K  = 3,Kend
+C                                 HIER: IN POS. ODER NEG. Y-RICHTUNG
+C                                 LIEGT EINE FESTE, REIBUNGSBEHAFTETE
+C                                 WAND VOR
+C
+           fa22(k,j)=fa22(k,j)+fa12(k,j)
+           fa12(k,j)=0.0 
+           fa22(k,j)=fa22(k,j)+fa13(k,j)
+           fa13(k,j)=0.0 
+           fa22(k,j)=fa22(k,j)+fa11(k,j)
+           fa11(k,j)=0.0 
+  330    CONTINUE
+C
+
+
+      ENDIF
+      IF (NLFT.EQ.5) THEN
+C                                 AN FESTEN WAENDEN (NUR IN DER WANDNAEC
+C                                 STEN ZELLE !!!) WIRD DER MISCHUNGSWEG
+C                                 DEM PRANDTL''SCHEN MISCHUNGSWEG ANGEPAS
+C
+         J  = Jend
+            DO 340 K  = 3,Kend
+C                                 HIER: IN POS. ODER NEG. Y-RICHTUNG
+C                                 LIEGT EINE FESTE, REIBUNGSBEHAFTETE
+C                                 WAND VOR
+C
+           fa22(k,j)=fa22(k,j)+fa32(k,j)
+           fa32(k,j)=0.0 
+           fa22(k,j)=fa22(k,j)+fa33(k,j)
+           fa33(k,j)=0.0 
+           fa22(k,j)=fa22(k,j)+fa31(k,j)
+           fa31(k,j)=0.0 
+  340    CONTINUE
+C
+      ENDIF
+       
+c
+c Sonderbehandlung fur Einstrom-/AusstromRander
+c
+
+      if (i.eq.istart) then 
+        do 350 j=jstart,jend
+        do 350 k=kstart,kend 
+          fa22(k,j)=fa22(k,j)+fa21(k,j)
+          fa21(k,j)=0.0
+          fa22(k,j)=fa22(k,j)+fa11(k,j)
+          fa11(k,j)=0.0
+          fa22(k,j)=fa22(k,j)+fa31(k,j)
+          fa31(k,j)=0.0  
+  350 continue 
+      end if
+
+      if (i.eq.iend) then 
+        do 360 j=jstart,jend
+        do 360 k=kstart,kend 
+          fa22(k,j)=fa22(k,j)+fa13(k,j)
+          fa13(k,j)=0.0
+          fa22(k,j)=fa22(k,j)+fa23(k,j)
+          fa23(k,j)=0.0
+          fa22(k,j)=fa22(k,j)+fa33(k,j)
+          fa33(k,j)=0.0  
+  360 continue       
+      end if 
+
+      return
+      end  
+
+c
+c  Filter:
+c  
+
+       subroutine Filter(KK,JJ,II,
+     $                   fa11,fa12,fa13,fa21,fa22,fa23,
+     $                   fa31,fa32,fa33,
+     $                   istart,iend,jstart,jend,kstart,kend,
+     $                   input,output,B)
+C     implicit none
+
+
+      integer ii,jj,kk,imx,jmx,kmx,ic1,ic2,jc1,jc2,kc1,kc2,i,
+     $        istart,iend,jstart,jend,kstart,kend 
+
+      REAL  B(KK,JJ,II),input(KK,jj,3),output(KK,JJ)
+
+      REAL
+     $            FA11(KK,JJ),FA12(kk,JJ),fa13(kk,jj),
+     $            FA21(kk,JJ),FA22(kk,JJ),fa23(kk,jj),
+     $            FA31(kk,JJ),FA32(kk,JJ),fa33(kk,jj),r
+
+
+      integer j,k       
+    
+      j=jstart
+      do k=kstart,kend
+
+
+        r=
+#ifndef _FILTERY_
+     $    input(k,jend,1)*fa11(k,j)+
+     $    input(k,jend,3)*fa13(k,j)+
+     $    input(k,j  ,1)*fa21(k,j)+
+     $    input(k,j  ,3)*fa23(k,j)+
+     $    input(k,j+1,1)*fa31(k,j)+
+     $    input(k,j+1,3)*fa33(k,j)+
+#endif
+     $    input(k,jend,2)*fa12(k,j)+
+     $    input(k,j  ,2)*fa22(k,j)+
+     $    input(k,j+1,2)*fa32(k,j)
+        output(k,j)=r
+      end do
+
+      j=jend
+      do k=kstart,kend
+        r=
+#ifndef _FILTERY_
+     $    input(k,j-1,1)*fa11(k,j)+
+     $    input(k,j-1,3)*fa13(k,j)+
+     $    input(k,j  ,1)*fa21(k,j)+
+     $    input(k,j  ,3)*fa23(k,j)+
+     $    input(k,jstart,1)*fa31(k,j)+
+     $    input(k,jstart,3)*fa33(k,j)+
+#endif
+     $    input(k,j-1,2)*fa12(k,j)+
+     $    input(k,j  ,2)*fa22(k,j)+
+     $    input(k,jstart,2)*fa32(k,j)
+        output(k,j)=r
+      end do
+  
+      do j=jstart+1,jend-1
+      do k=kstart,kend
+
+c        if (abs(input(k,j,1)).gt.10.0) 
+c     $    print*,'ERR Filter ',k,j,input(k,j,1)
+
+        r=
+#ifndef _FILTERY_
+     $    input(k,j-1,1)*fa11(k,j)+
+     $    input(k,j-1,3)*fa13(k,j)+
+     $    input(k,j  ,1)*fa21(k,j)+
+     $    input(k,j  ,3)*fa23(k,j)+
+     $    input(k,j+1,1)*fa31(k,j)+
+     $    input(k,j+1,3)*fa33(k,j)+
+#endif
+     $    input(k,j-1,2)*fa12(k,j)+
+     $    input(k,j  ,2)*fa22(k,j)+
+     $    input(k,j+1,2)*fa32(k,j)
+        output(k,j)=r
+      end do
+      end do
+  
+      return
+      end 
+
+
+
+
+
+
+
+# endif 
+
+      SUBROUTINE EFVISC  (KK,JJ,II,KMX,JMX,IMX,X,Y,Z,
+     $                    DX,DY,DZ,DDX,DDY,DDZ,
+     $                    RDX,RDY,RDZ,RDDX,RDDY,RDDZ,
+     $                    U,V,W,G,B,
+     $                    DUDY,DUDZ,DVDX,DVDZ,DWDX,DWDY,
+     $                    GMOL,RHO,UGRID,
+     $                    IC1,IC2,JC1,JC2,KC1,KC2,
+     $                    NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB,CONV1S, 
+     $   HILF0,HILF1,HILF2,HILF3,HILF4,HILF5,HILF6,
+     $   LUX,LUY,LUZ,LVY,LVZ,LWZ,MUX,MUY,MUZ,MVY,MVZ,MWZ,
+     $   FA11,FA12,FA13,FA21,FA22,FA23,FA31,FA32,FA33,
+     $   DUDX3,DUDY3,DUDZ3,DVDX3,DVDY3,DVDZ3,
+     $   DWDX3,DWDY3,DWDZ3,NORMS,SDUDX3,SDUDY3,SDUDZ3,
+     $   SDVDY3,SDVDZ3,SDWDZ3,
+     $   UC,VC,WC,UUC,UVC,UWC,VVC,VWC,WWC,CDELTA)
+C*STARLET***************************************************************
+C        E F V I S C      BERECHNUNG DER EFFEKTIVEN DYNAMISCHEN
+C                         VISKOSITAET
+C                         EINBAUTEN, DIE AUS SAEULEN AUFGEBAUT WERDEN
+C                         KOENNEN, WERDEN BERUECKSICHTIGT. DIE GRADIEN-
+C                         TEN AN FESTEN (NOSLIP-) WAENDEN WERDEN MITTELS
+C                         DES 1/7 POTENZGESETZES BESTIMMT.
+C                         ZWISCHEN ZWEI NOSLIP WAENDEN MUESSEN MINDES-
+C                         TENS  Z W E I  ZELLEN LIEGEN!
+C*STARLET***************************************************************
+C
+C PARAM: KK, JJ, II     - ARRAYDIMENSIONEN
+C        KMX, JMX, IMX  - GRENZEN DES BERECHNUNGSGEBIETES (MIT BOUND)
+C        X, Y, Z        - KOORDINATEN DER ZELLDEFINITIONSPUNKTE
+C        DX,DY,DZ       - ABSTAND DER GITTERPUNKTE
+C        DDX,DDY,DDZ    - KANTENLAENGEN DER KONTROLLVOLUMINA
+C        U(KK,JJ,II)    - GESCHWINDIGKEITSFELD
+C        V(KK,JJ,II)    - GESCHWINDIGKEITSFELD
+C        W(KK,JJ,II)    - GESCHWINDIGKEITSFELD
+C        G(KK,JJ,II)    + EFFEKTIVE DYNAMISCHE VISKOSITAET (= MUE)
+C        GMOL           - MOLEKULARE DYNAMISCHE VISKOSITAET
+C        RHO            - DICHTE (= CONST)
+C        UGRID          - GESCHWINDIGKEIT DES KOORDINATENSYSTEMS IN
+C                         XeRICHTUNG (GALILEI-TRANSFORMATION)
+C        IC1,JC1,KC1    - LINKE  RAENDER DER BOUNDING BOX
+C        IC2,JC2,KC2    - RECHTE RAENDER DER BOUNDING BOX
+C
+C UPROG                 : ERRR, BVISK
+C
+C VERS:  08.01.86 (HW)  : ORIGINAL
+C        26.03.86 (HW)  : BVISK EINGEFUEHRT
+C        20.08.86 (HW)  : UEBERGABE WEGEN EINFUEHRUNG VON BVISKK UM
+C                         IB1,IB2,... ERWEITERT.
+C        17.09.86 (HW)  : DDMIX4 KANN DEFINIERT WERDEN. DER MISCHUNGS-
+C                         WEG WIRD AUS DEM VERHAELTNIS VON ZELLVOLUMEN
+C                         ZU ZELLOBERFLAECHE GEBILDET.
+C        12.07.88 (HW)  : VORZEICHENKORREKTUR DER GRADIENTEN IN DER
+C                         NAEHE FESTER WAENDE (WEGEN AUSWERTUNG VON
+C                         OMEGA-X, -Y UND -Z NOETIG GEWORDEN)
+C        17.03.92 (MM)  : LAENGENMASS DMIX UND DMIXG KOMMT UEBER
+C                         B-FELD HEREIN
+C        18.03.92 (MM)  : FELDER DUDY.....DWDY EINGEFUEHRT
+C         4. 4.92 (MM)  : SCHLEIFEN ZUR WANDKORREKTUR AM KOERPER
+C                         LAUFEN NUR INNERHALB DER
+C                         BOUNDING BOX (IC1,IC2,JC1,JC2,KC1,KC2)
+C        17. 4.93 (MM)  : FEHLER IN _LENOS_ BESEITIGT
+C                 
+C        08.02.97 (AO)  : DYNAMISCHES SUBGRIDSCALE-MODELL EINGEBAUT
+C                         NACH GERMANO. ROUTINEN UEBERNOMMEN VON
+C                         G: BAERWOLFF (HFI).(DYNSGSM)
+C                         ORIGINALROUTINEN AUS STANFORD
+C
+C DEFINE-DIREKTIVEN     : DDMIX2, DDMIX3, DDMIX4, DYNSGSM
+C
+C*STARLET***************************************************************
+C
+#include "konsta.h"
+#include "conles.h"
+C
+      CHARACTER (LEN=1)  ITYP
+C
+      REAL        X(II),         Y(JJ),         Z(KK),
+     $           DX(II),        DY(JJ),        DZ(KK),
+     $          DDX(II),       DDY(JJ),       DDZ(KK),
+     $          RDX(II),       RDY(JJ),       RDZ(KK),
+     $         RDDX(II),      RDDY(JJ),      RDDZ(KK),
+     $            U(KK,JJ,II),   V(KK,JJ,II),   W(KK,JJ,II),
+     $            G(KK,JJ,II),   B(KK,JJ,II),rho,gmol
+C
+      REAL        DUDY(KK,JJ),  DUDZ(KK,JJ),
+     $            DVDX(KK,JJ),  DVDZ(KK,JJ),
+     $            DWDX(KK,JJ),  DWDY(KK,JJ),ugrid,
+     $            mineddyv,maxeddyv,maxs,maxcon,
+     $  third,smal2,econst,cap05,rindef,smaone,small,great,cmue,
+     $  cappa,conv2s,preset
+
+      REAL CONV1S(II)
+C
+      integer KK,JJ,II,KMX,JMX,IMX,Ic1,ic2,jc1,jc2,kc1,kc2,
+     $        km2,jm2,im2,i,j,k,i0,j0,k0
+
+      integer  istart,jstart,kstart,iend,jend,kend
+
+      real     gradpp,ddzk,rddzpl,dzf,dyf2,ddyj,
+     $         rddypl,dyf,dwdz,sabs,dmixg,dvdy,dzf2,vorz,dudx,
+     $         dxf2,cmaxr,ddxi,rddxpl,dxf,cmaxs      
+      external gradpp 
+
+#ifdef _DYNSGSM_
+
+      real 
+     $  cdelta(KK)
+                           
+      real
+     $  hilf0(KK,JJ),hilf1(KK,JJ),hilf2(KK,JJ),
+     $  hilf3(KK,JJ),hilf4(KK,JJ),hilf5(KK,JJ),
+     $  hilf6(KK,JJ),
+     $  lux(KK,JJ),luy(KK,JJ),luz(KK,JJ),
+     $  lvy(KK,JJ),lvz(KK,JJ),lwz(KK,JJ),
+     $  mux(KK,JJ),muy(KK,JJ),muz(KK,JJ),
+     $  mvy(KK,JJ),mvz(KK,JJ),mwz(KK,JJ),
+     $  fa11(KK,JJ),fa12(KK,JJ),fa13(KK,JJ),
+     $  fa21(KK,JJ),fa22(KK,JJ),fa23(KK,JJ),
+     $  fa31(KK,JJ),fa32(KK,JJ),fa33(KK,JJ)
+
+      real 
+     $ dudx3(KK,JJ,3),dudy3(KK,JJ,3),dudz3(KK,JJ,3),
+     $ dvdx3(KK,JJ,3),dvdy3(KK,JJ,3),dvdz3(KK,JJ,3),
+     $ dwdx3(KK,JJ,3),dwdy3(KK,JJ,3),dwdz3(KK,JJ,3),
+     $ norms(KK,JJ,3),
+     $ sdudx3(KK,JJ,3),sdudy3(KK,JJ,3),sdudz3(KK,JJ,3),
+     $ sdvdy3(KK,JJ,3),sdvdz3(KK,JJ,3),sdwdz3(KK,JJ,3),
+     $ uc(KK,JJ,3),vc(KK,JJ,3),wc(KK,JJ,3),
+     $ uuc(KK,JJ,3),uvc(KK,JJ,3),uwc(KK,JJ,3),
+     $ vvc(KK,JJ,3),vwc(KK,JJ,3),wwc(KK,JJ,3)
+
+      real
+     $        fac1,fac2,fac3,asq,  ! related to filtering
+     $        sux,suy,suz,svy,svz,swz,r,s 
+      integer nf_ratio,nf_type,i1,j1,k1,i2,j2,k2,i3,j3,k3,
+     $        i4,j4,k4
+
+
+#else
+
+      real 
+     $  cdelta(1)
+                           
+      real
+     $  hilf0(1),hilf1(1),hilf2(1),
+     $  hilf3(1),hilf4(1),hilf5(1),
+     $  hilf6(1),
+     $  lux(1),luy(1),luz(1),
+     $  lvy(1),lvz(1),lwz(1),
+     $  mux(1),muy(1),muz(1),
+     $  mvy(1),mvz(1),mwz(1),
+     $  fa11(1),fa12(1),fa13(1),
+     $  fa21(1),fa22(1),fa23(1),
+     $  fa31(1),fa32(1),fa33(1)
+
+      real 
+     $ dudx3(1),dudy3(1),dudz3(1),
+     $ dvdx3(1),dvdy3(1),dvdz3(1),
+     $ dwdx3(1),dwdy3(1),dwdz3(1),
+     $ norms(1),
+     $ sdudx3(1),sdudy3(1),sdudz3(1),
+     $ sdvdy3(1),sdvdz3(1),sdwdz3(1),
+     $ uc(1),vc(1),wc(1),
+     $ uuc(1),uvc(1),uwc(1),
+     $ vvc(1),vwc(1),wwc(1)
+
+      real
+     $        fac1,fac2,fac3,asq,  ! related to filtering
+     $        sux,suy,suz,svy,svz,swz,r,s 
+      integer nf_ratio,nf_type,i1,j1,k1,i2,j2,k2,i3,j3,k3,
+     $        i4,j4,k4
+
+
+#endif 
+
+      INTEGER  ie0,je0,ke0
+C
+      NBND = 2
+
+      KM2    = KMX-NBND
+      JM2    = JMX-NBND
+      IM2    = IMX-NBND
+
+      kstart = 1+NBND
+      jstart = 1+NBND
+      istart = 1+NBND       
+
+       iend  = im2
+       jend  = jm2
+       kend  = km2  
+C
+      KM2    = KMX-2
+      JM2    = JMX-2
+      IM2    = IMX-2
+C
+      CAP05  = 0.5 * CAPPA
+      SMAL2  = 2.0 * SMALL
+      THIRD  = 1.0 / 3.0
+
+      maxeddyv=-10000000000.0
+      mineddyv= 10000000000.0
+      maxs    =0.0
+      maxcon  =0.0 
+      cmaxr   =0.0
+      cmaxs   =0.0 
+
+      i0=0
+      j0=0
+      k0=0  
+
+C
+#ifndef _DNS_
+C                           TURBULENTE VISKOSITAET NACH DEM
+C                           SMAGORINSKY-FEINSTRUKTURMODELL
+C
+C                           SCHLEIFE  UEBER ALLE I-SCHNITTE
+C                           IN SCHLEIFE 100 WIRD ALLES GEMACHT
+C 
+
+# ifdef _DYNSGSM_ 
+
+c
+c
+c  Dynamic-Subgrid-Scale-Model
+c
+c
+      do k=1,kk
+      do j=1,jj
+        dudx3(k,j,1)=0.0
+        dudx3(k,j,2)=0.0
+        dudx3(k,j,3)=0.0
+
+        dudy3(k,j,1)=0.0
+        dudy3(k,j,2)=0.0
+        dudy3(k,j,3)=0.0
+
+        dudz3(k,j,1)=0.0
+        dudz3(k,j,2)=0.0
+        dudz3(k,j,3)=0.0
+
+        dvdx3(k,j,1)=0.0
+        dvdx3(k,j,2)=0.0
+        dvdx3(k,j,3)=0.0
+
+        dvdy3(k,j,1)=0.0
+        dvdy3(k,j,2)=0.0
+        dvdy3(k,j,3)=0.0
+
+        dvdz3(k,j,1)=0.0
+        dvdz3(k,j,2)=0.0
+        dvdz3(k,j,3)=0.0
+
+        dwdx3(k,j,1)=0.0
+        dwdx3(k,j,2)=0.0
+        dwdx3(k,j,3)=0.0
+
+        dwdy3(k,j,1)=0.0
+        dwdy3(k,j,2)=0.0
+        dwdy3(k,j,3)=0.0
+
+        dwdz3(k,j,1)=0.0
+        dwdz3(k,j,2)=0.0
+        dwdz3(k,j,3)=0.0
+c
+        sdudx3(k,j,1)=0.0
+        sdudx3(k,j,2)=0.0
+        sdudx3(k,j,3)=0.0
+
+        sdudy3(k,j,1)=0.0
+        sdudy3(k,j,2)=0.0
+        sdudy3(k,j,3)=0.0
+
+        sdudz3(k,j,1)=0.0
+        sdudz3(k,j,2)=0.0
+        sdudz3(k,j,3)=0.0
+
+        sdvdy3(k,j,1)=0.0
+        sdvdy3(k,j,2)=0.0
+        sdvdy3(k,j,3)=0.0
+
+        sdvdz3(k,j,1)=0.0
+        sdvdz3(k,j,2)=0.0
+        sdvdz3(k,j,3)=0.0
+
+        sdwdz3(k,j,1)=0.0
+        sdwdz3(k,j,2)=0.0
+        sdwdz3(k,j,3)=0.0
+
+        norms(k,j,1)=0.0
+        norms(k,j,2)=0.0
+        norms(k,j,3)=0.0
+
+        uc(k,j,1)=0.0
+        uc(k,j,2)=0.0
+        uc(k,j,3)=0.0
+
+        vc(k,j,1)=0.0
+        vc(k,j,2)=0.0
+        vc(k,j,3)=0.0
+
+        wc(k,j,1)=0.0
+        wc(k,j,2)=0.0
+        wc(k,j,3)=0.0
+
+        uuc(k,j,1)=0.0
+        uuc(k,j,2)=0.0
+        uuc(k,j,3)=0.0
+
+        uvc(k,j,1)=0.0
+        uvc(k,j,2)=0.0
+        uvc(k,j,3)=0.0
+
+        uwc(k,j,1)=0.0
+        uwc(k,j,2)=0.0
+        uwc(k,j,3)=0.0
+
+        vvc(k,j,1)=0.0
+        vvc(k,j,2)=0.0
+        vvc(k,j,3)=0.0
+
+        vwc(k,j,1)=0.0
+        vwc(k,j,2)=0.0
+        vwc(k,j,3)=0.0
+
+        wwc(k,j,1)=0.0
+        wwc(k,j,2)=0.0
+        wwc(k,j,3)=0.0
+   
+        hilf0(k,j)=0.0
+        hilf1(k,j)=0.0
+        hilf2(k,j)=0.0
+        hilf3(k,j)=0.0
+        hilf4(k,j)=0.0
+        hilf5(k,j)=0.0
+        hilf6(k,j)=0.0
+
+        fa11(k,j)=0.0
+        fa12(k,j)=0.0
+        fa13(k,j)=0.0
+
+        fa21(k,j)=0.0
+        fa22(k,j)=0.0
+        fa23(k,j)=0.0
+
+        fa31(k,j)=0.0
+        fa32(k,j)=0.0
+        fa33(k,j)=0.0
+
+      end do
+      end do
+
+      
+      nf_type  = 2   
+ 
+      IF (NF_TYPE .EQ. 3) THEN      !Trapezoidal for 2/3 mesh 
+        FAC1 = 9./64.                 
+        FAC2 = 3./32.                  
+        FAC3 = 0.         ! not used in new filter-routine
+        NF_RATIO=1
+      ELSEIF (NF_TYPE .EQ. 2) THEN           !Simpsons Rule
+        FAC1 = 1./36.                 
+        FAC2 = 4./36.                  
+        FAC3 = 16./36.
+        NF_RATIO=1
+      ELSEIF (NF_TYPE .EQ. 1) THEN           !Trapezoidal Rule
+        FAC1 = 1./16.                 
+        FAC2 = 1./8.                  
+        FAC3 = 1./4.
+        NF_RATIO=2
+      ENDIF        
+
+c ... previously ASQ hardwired to be 4 (changed may 31, 1995)
+
+      if(NF_RATIO.EQ.1) then    ! spectral, Simpson
+        ASQ = (2.0)**2              
+      else if (NF_RATIO.eq.2) then   ! trapezoidal
+        ASQ = (2.0*sqrt(3./2.))**2
+      endif
+             
+      call  Schnitt(KK,JJ,II,KMX,JMX,IMX,X,Y,Z,
+     $                   DX,DY,DZ,DDX,DDY,DDZ,
+     $                   RDX,RDY,RDZ,RDDX,RDDY,RDDZ,
+     $                   U,V,W,G,B,
+     $                   DUDX3,DUDY3,DUDZ3,DVDX3,DVDY3,DVDZ3,
+     $                   DWDX3,DWDY3,DWDZ3,
+     $                   GMOL,RHO,UGRID,
+     $                   IC1,IC2,JC1,JC2,KC1,KC2,
+     $                   uc,vc,wc,istart,2,
+     $                   istart,iend,jstart,jend,kstart,kend,
+     $                   NBND,
+     $                    NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB)
+
+c
+c Berechnung von |S|Sij ,|S| fur die nachste Schicht ... 
+c
+ 
+      do j=jstart,jend
+      do k=kstart,kend
+        r=dudx3(k,j,2)*dudx3(k,j,2)+
+     $    dudy3(k,j,2)*dudy3(k,j,2)*2.0+
+     $    dudz3(k,j,2)*dudz3(k,j,2)*2.0+
+     $    dvdy3(k,j,2)*dvdy3(k,j,2)+
+     $    dvdz3(k,j,2)*dvdz3(k,j,2)*2.0+
+     $    dwdz3(k,j,2)*dwdz3(k,j,2)   
+        r=sqrt(2.0*r)
+        if (r.gt.maxs) then 
+          maxs=r
+          i0=istart
+          j0=j
+          k0=k
+          sux=dudx3(k,j,2)*dudx3(k,j,2)
+          suy=dudy3(k,j,2)*dudy3(k,j,2)
+          suz=dudz3(k,j,2)*dudz3(k,j,2)
+          svy=dvdy3(k,j,2)*dvdy3(k,j,2)
+          svz=dvdz3(k,j,2)*dvdz3(k,j,2)
+          swz=dwdz3(k,j,2)*dwdz3(k,j,2)
+        end if  
+        norms(k,j,2)=r
+        sdudx3(k,j,2)=r*dudx3(k,j,2)
+        sdudy3(k,j,2)=r*dudy3(k,j,2)
+        sdudz3(k,j,2)=r*dudz3(k,j,2)
+        sdvdy3(k,j,2)=r*dvdy3(k,j,2)
+        sdvdz3(k,j,2)=r*dvdz3(k,j,2)
+        sdwdz3(k,j,2)=r*dwdz3(k,j,2)
+
+        uuc(k,j,2)=uc(k,j,2)*uc(k,j,2)
+        uvc(k,j,2)=uc(k,j,2)*vc(k,j,2)
+        uwc(k,j,2)=uc(k,j,2)*wc(k,j,2)
+        vvc(k,j,2)=vc(k,j,2)*vc(k,j,2)
+        vwc(k,j,2)=vc(k,j,2)*wc(k,j,2)
+        wwc(k,j,2)=wc(k,j,2)*wc(k,j,2)
+
+      end do
+      end do     
+C     WRITE(33,*) 'DUDX3(6,6,2)',DUDX3(6,6,2)
+C     WRITE(33,*) 'DUDY3(6,6,2)',DUDY3(6,6,2)
+C     WRITE(33,*) 'DUDZ3(6,6,2)',DUDZ3(6,6,2)
+C     WRITE(33,*) 'DVDY3(6,6,2)',DVDY3(6,6,2)
+C     WRITE(33,*) 'DVDZ3(6,6,2)',DVDZ3(6,6,2)
+C     WRITE(33,*) 'DWDZ3(6,6,2)',DWDZ3(6,6,2)
+
+
+      do i=istart,iend
+
+c
+c  Berechnung der partiellen Abl. (Sij) und der Geschw. (uic) jeweils fur
+c  den Zell-Mittelpunkt - unter Brecksichtigung von Wandhaftung usw.  
+c   
+
+        call  Schnitt(KK,JJ,II,KMX,JMX,IMX,X,Y,Z,
+     $                   DX,DY,DZ,DDX,DDY,DDZ,
+     $                   RDX,RDY,RDZ,RDDX,RDDY,RDDZ,
+     $                   U,V,W,G,B,
+     $                   DUDX3,DUDY3,DUDZ3,DVDX3,DVDY3,DVDZ3,
+     $                   DWDX3,DWDY3,DWDZ3,
+     $                   GMOL,RHO,UGRID,
+     $                   IC1,IC2,JC1,JC2,KC1,KC2,
+     $                   uc,vc,wc,i+1,3,
+     $                   istart,iend,jstart,jend,kstart,kend,
+     $                   NBND,
+     $                    NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB)
+            
+c
+c Berechnung der Faktoren fur die Filter (momentan nur in der x-y-Ebene) 
+c    
+
+        call  Faktoren(KK,JJ,II,KMX,JMX,IMX,
+     $                   B,
+     $                   IC1,IC2,JC1,JC2,KC1,KC2,
+     $                   fa11,fa12,fa13,fa21,fa22,fa23,
+     $                   fa31,fa32,fa33,fac1,fac2,fac3,i,
+     $                   istart,iend,jstart,jend,kstart,kend,
+     $                    NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB)
+
+c
+c Berechnung von |S|Sij ,|S| fur die nachste Schicht ... 
+c
+  
+        do j=jstart,jend
+        do k=kstart,kend
+          r=dudx3(k,j,3)*dudx3(k,j,3)+
+     $      dudy3(k,j,3)*dudy3(k,j,3)*2.0+
+     $      dudz3(k,j,3)*dudz3(k,j,3)*2.0+
+     $      dvdy3(k,j,3)*dvdy3(k,j,3)+
+     $      dvdz3(k,j,3)*dvdz3(k,j,3)*2.0+
+     $      dwdz3(k,j,3)*dwdz3(k,j,3)   
+          r=sqrt(2.0*r)
+        if (r.gt.maxs) then 
+           maxs=r
+           i0=i
+           j0=j
+           k0=k
+          sux=dudx3(k,j,3)*dudx3(k,j,3)
+          suy=dudy3(k,j,3)*dudy3(k,j,3)
+          suz=dudz3(k,j,3)*dudz3(k,j,3)
+          svy=dvdy3(k,j,3)*dvdy3(k,j,3)
+          svz=dvdz3(k,j,3)*dvdz3(k,j,3)
+          swz=dwdz3(k,j,3)*dwdz3(k,j,3)
+         endif 
+          norms(k,j,3)=r
+          sdudx3(k,j,3)=r*dudx3(k,j,3)
+          sdudy3(k,j,3)=r*dudy3(k,j,3)
+          sdudz3(k,j,3)=r*dudz3(k,j,3)
+          sdvdy3(k,j,3)=r*dvdy3(k,j,3)
+          sdvdz3(k,j,3)=r*dvdz3(k,j,3)
+          sdwdz3(k,j,3)=r*dwdz3(k,j,3)
+
+          uuc(k,j,3)=uc(k,j,3)*uc(k,j,3)
+          uvc(k,j,3)=uc(k,j,3)*vc(k,j,3)
+          uwc(k,j,3)=uc(k,j,3)*wc(k,j,3)
+          vvc(k,j,3)=vc(k,j,3)*vc(k,j,3)
+          vwc(k,j,3)=vc(k,j,3)*wc(k,j,3)
+          wwc(k,j,3)=wc(k,j,3)*wc(k,j,3)
+        end do
+        end do
+  
+C     WRITE(33,*) 'DUDX3(6,6,3)',DUDX3(6,6,3)
+C     WRITE(33,*) 'DUDY3(6,6,3)',DUDY3(6,6,3)
+C     WRITE(33,*) 'DUDZ3(6,6,3)',DUDZ3(6,6,3)
+C     WRITE(33,*) 'DVDY3(6,6,3)',DVDY3(6,6,3)
+C     WRITE(33,*) 'DVDZ3(6,6,3)',DVDZ3(6,6,3)
+C     WRITE(33,*) 'DWDZ3(6,6,3)',DWDZ3(6,6,3)
+c
+c Die Filter-Operationen :  
+c
+
+        call Filter(KK,JJ,II,
+     $                   fa11,fa12,fa13,fa21,fa22,fa23,
+     $                   fa31,fa32,fa33,
+     $                   istart,iend,jstart,jend,kstart,kend,
+     $                   dudx3,hilf1,B)
+        call Filter(KK,JJ,II,
+     $                   fa11,fa12,fa13,fa21,fa22,fa23,
+     $                   fa31,fa32,fa33,
+     $                   istart,iend,jstart,jend,kstart,kend,
+     $                   dudy3,hilf2,B)
+        call Filter(KK,JJ,II,
+     $                   fa11,fa12,fa13,fa21,fa22,fa23,
+     $                   fa31,fa32,fa33,
+     $                   istart,iend,jstart,jend,kstart,kend,
+     $                   dudz3,hilf3,B)
+        call Filter(KK,JJ,II,
+     $                   fa11,fa12,fa13,fa21,fa22,fa23,
+     $                   fa31,fa32,fa33,
+     $                   istart,iend,jstart,jend,kstart,kend,
+     $                   dvdy3,hilf4,B)
+        call Filter(KK,JJ,II,
+     $                   fa11,fa12,fa13,fa21,fa22,fa23,
+     $                   fa31,fa32,fa33,
+     $                   istart,iend,jstart,jend,kstart,kend,
+     $                   dvdz3,hilf5,B)
+        call Filter(KK,JJ,II,
+     $                   fa11,fa12,fa13,fa21,fa22,fa23,
+     $                   fa31,fa32,fa33,
+     $                   istart,iend,jstart,jend,kstart,kend,
+     $                   dwdz3,hilf6,B)
+
+
+c
+c  Mij aufbauen 
+c
+
+        do j=jstart,jend
+        do k=kstart,kend 
+          r=hilf1(k,j)*hilf1(k,j)+
+     $      hilf2(k,j)*hilf2(k,j)*2.0+
+     $      hilf3(k,j)*hilf3(k,j)*2.0+
+     $      hilf4(k,j)*hilf4(k,j)+
+     $      hilf5(k,j)*hilf5(k,j)*2.0+
+     $      hilf6(k,j)*hilf6(k,j)   
+          r=sqrt(2.0*r)
+          MUX(k,j)=asq*r*hilf1(k,j)
+          MUy(k,j)=asq*r*hilf2(k,j)
+          MUz(k,j)=asq*r*hilf3(k,j)
+          Mvy(k,j)=asq*r*hilf4(k,j)
+          Mvz(k,j)=asq*r*hilf5(k,j)
+          Mwz(k,j)=asq*r*hilf6(k,j)
+        end do
+        end do
+
+        call Filter(KK,JJ,II,
+     $                   fa11,fa12,fa13,fa21,fa22,fa23,
+     $                   fa31,fa32,fa33,
+     $                   istart,iend,jstart,jend,kstart,kend,
+     $                   sdudx3,hilf1,B)
+        call Filter(KK,JJ,II,
+     $                   fa11,fa12,fa13,fa21,fa22,fa23,
+     $                   fa31,fa32,fa33,
+     $                   istart,iend,jstart,jend,kstart,kend,
+     $                   sdudy3,hilf2,B)
+        call Filter(KK,JJ,II,
+     $                   fa11,fa12,fa13,fa21,fa22,fa23,
+     $                   fa31,fa32,fa33,
+     $                   istart,iend,jstart,jend,kstart,kend,
+     $                   sdudz3,hilf3,B)
+        call Filter(KK,JJ,II,
+     $                   fa11,fa12,fa13,fa21,fa22,fa23,
+     $                   fa31,fa32,fa33,
+     $                   istart,iend,jstart,jend,kstart,kend,
+     $                   sdvdy3,hilf4,B)
+        call Filter(KK,JJ,II,
+     $                   fa11,fa12,fa13,fa21,fa22,fa23,
+     $                   fa31,fa32,fa33,
+     $                   istart,iend,jstart,jend,kstart,kend,
+     $                   sdvdz3,hilf5,B)
+        call Filter(KK,JJ,II,
+     $                   fa11,fa12,fa13,fa21,fa22,fa23,
+     $                   fa31,fa32,fa33,
+     $                   istart,iend,jstart,jend,kstart,kend,
+     $                   sdwdz3,hilf6,B)       
+
+c
+c  Mij fertigstellen 
+c
+  
+        do j=jstart,jend
+        do k=kstart,kend 
+          MUX(k,j)=MUX(k,j)-hilf1(k,j)
+          MUy(k,j)=MUy(k,j)-hilf2(k,j)
+          MUz(k,j)=MUz(k,j)-hilf3(k,j)
+          Mvy(k,j)=Mvy(k,j)-hilf4(k,j)
+          Mvz(k,j)=Mvz(k,j)-hilf5(k,j)
+          Mwz(k,j)=Mwz(k,j)-hilf6(k,j)
+        end do
+        end do
+
+c
+c  Lij 
+c
+        call Filter(KK,JJ,II,
+     $                   fa11,fa12,fa13,fa21,fa22,fa23,
+     $                   fa31,fa32,fa33,
+     $                   istart,iend,jstart,jend,kstart,kend,
+     $                   uuc,lux,B)
+        call Filter(KK,JJ,II,
+     $                   fa11,fa12,fa13,fa21,fa22,fa23,
+     $                   fa31,fa32,fa33,
+     $                   istart,iend,jstart,jend,kstart,kend,
+     $                   uvc,luy,B)
+        call Filter(KK,JJ,II,
+     $                   fa11,fa12,fa13,fa21,fa22,fa23,
+     $                   fa31,fa32,fa33,
+     $                   istart,iend,jstart,jend,kstart,kend,
+     $                   uwc,luz,B)
+        call Filter(KK,JJ,II,
+     $                   fa11,fa12,fa13,fa21,fa22,fa23,
+     $                   fa31,fa32,fa33,
+     $                   istart,iend,jstart,jend,kstart,kend,
+     $                   vvc,lvy,B)
+        call Filter(KK,JJ,II,
+     $                   fa11,fa12,fa13,fa21,fa22,fa23,
+     $                   fa31,fa32,fa33,
+     $                   istart,iend,jstart,jend,kstart,kend,
+     $                   vwc,lvz,B)
+        call Filter(KK,JJ,II,
+     $                   fa11,fa12,fa13,fa21,fa22,fa23,
+     $                   fa31,fa32,fa33,
+     $                   istart,iend,jstart,jend,kstart,kend,
+     $                   wwc,lwz,B)
+
+        call Filter(KK,JJ,II,
+     $                   fa11,fa12,fa13,fa21,fa22,fa23,
+     $                   fa31,fa32,fa33,
+     $                   istart,iend,jstart,jend,kstart,kend,
+     $                   uc,hilf1,B)
+        call Filter(KK,JJ,II,
+     $                   fa11,fa12,fa13,fa21,fa22,fa23,
+     $                   fa31,fa32,fa33,
+     $                   istart,iend,jstart,jend,kstart,kend,
+     $                   vc,hilf2,B)
+        call Filter(KK,JJ,II,
+     $                   fa11,fa12,fa13,fa21,fa22,fa23,
+     $                   fa31,fa32,fa33,
+     $                   istart,iend,jstart,jend,kstart,kend,
+     $                   wc,hilf3,B)
+
+
+c
+c  Lij fertigstellen 
+c
+  
+        do j=jstart,jend
+        do k=kstart,kend 
+
+
+c         if (abs(lux(k,j)).gt.maxcon) maxcon=abs(lux(k,j))
+c         if (abs(luy(k,j)).gt.maxcon) maxcon=abs(luy(k,j))
+c         if (abs(luz(k,j)).gt.maxcon) maxcon=abs(luz(k,j))
+c         if (abs(lvy(k,j)).gt.maxcon) maxcon=abs(lvy(k,j))
+c         if (abs(lvz(k,j)).gt.maxcon) maxcon=abs(lvz(k,j))
+c         if (abs(lwz(k,j)).gt.maxcon) maxcon=abs(lwz(k,j))
+
+          lUX(k,j)=lUX(k,j)-hilf1(k,j)*hilf1(k,j)
+          lUy(k,j)=lUy(k,j)-hilf1(k,j)*hilf2(k,j)
+          lUz(k,j)=lUz(k,j)-hilf1(k,j)*hilf3(k,j)
+          lvy(k,j)=lvy(k,j)-hilf2(k,j)*hilf2(k,j)
+          lvz(k,j)=lvz(k,j)-hilf2(k,j)*hilf3(k,j)
+          lwz(k,j)=lwz(k,j)-hilf3(k,j)*hilf3(k,j)
+
+        end do
+c       maxcon = maxcon2
+        end do        
+           
+
+c
+c  Berechnung von C delta^2 
+c
+ 
+        do k=kstart,kend 
+          r=0.0
+          s=0.0
+          do j=jstart,jend
+            r=r+
+     $        lux(k,j)*mux(k,j)+
+     $        luy(k,j)*muy(k,j)*2.0+
+     $        luz(k,j)*muz(k,j)*2.0+
+     $        lvy(k,j)*mvy(k,j)+
+     $        lvz(k,j)*mvz(k,j)*2.0+
+     $        lwz(k,j)*mwz(k,j)
+
+            
+
+
+c           if (abs(lux(k,j)).gt.10000000.0) 
+c    $         print*,'LUX:',lux(k,j),i,j,k,hilf1(k,j) 
+c           if (abs(luy(k,j)).gt.10000000.0) 
+c    $         print*,'LUy:',luy(k,j),i,j,k,hilf1(k,j) 
+c           if (abs(luz(k,j)).gt.10000000.0) 
+c    $         print*,'LUz:',luz(k,j),i,j,k,hilf1(k,j) 
+c           if (abs(lvy(k,j)).gt.10000000.0) 
+c    $         print*,'Lvy:',lvy(k,j),i,j,k,hilf2(k,j) 
+c           if (abs(lvz(k,j)).gt.10000000.0) 
+c    $         print*,'Lvz:',lvz(k,j),i,j,k,hilf2(k,j) 
+c           if (abs(lwz(k,j)).gt.10000000.0) 
+c    $         print*,'Lwz:',lwz(k,j),i,j,k,hilf3(k,j) 
+
+            s=s+
+     $        mux(k,j)*mux(k,j)+
+     $        muy(k,j)*muy(k,j)*2.0+
+     $        muz(k,j)*muz(k,j)*2.0+
+     $        mvy(k,j)*mvy(k,j)+
+     $        mvz(k,j)*mvz(k,j)*2.0+
+     $        mwz(k,j)*mwz(k,j)
+          end do ! j
+
+          if (s.gt.cmaxs) then 
+            cmaxs=s
+            i1=i
+            j1=j
+            k1=k
+          end if 
+
+          if (r.gt.cmaxr) then 
+            cmaxr=r
+            i4=i
+            j4=j
+            k4=k
+          end if 
+
+          if (s.le.0.0000001) then 
+            cdelta(k)=0.0
+          else  
+            cdelta(k)=-0.5*r/s
+          end if   
+        end do ! k
+
+c
+c  Berechnung der Eddy-Viscosity  
+c  
+c    und Schichten shiften 
+c
+        
+       
+        do j=jstart,jend
+          do k=kstart,kend 
+            r=cdelta(k)*norms(k,j,2) 
+            if (r.gt.maxeddyv) then 
+              maxeddyv=r
+              i3=i
+              j3=j
+              k3=k 
+            end if
+            if (r.lt.mineddyv) then 
+              mineddyv=r
+              i4=i
+              j4=j
+              k4=k 
+            end if
+
+            if (r.gt.1.0)       r=1.0
+            if (r.lt.-gmol*0.5) r=-gmol*0.5
+c            r=0.0 
+#ifdef _FRED_BODY_
+            g(k,j,i)=gmol+b(k,j,i)*r 
+#else
+            g(k,j,i)=gmol+r            
+#endif
+
+            if (g(k,j,i).le.0.0) g(k,j,i)=0.0 ! 
+            dudx3(k,j,1)=dudx3(k,j,2)  ! Spannungstensor Sij shiften 
+            dudx3(k,j,2)=dudx3(k,j,3)  ! u_x
+
+            dudy3(k,j,1)=dudy3(k,j,2)  ! u_y
+            dudy3(k,j,2)=dudy3(k,j,3)
+
+            dudz3(k,j,1)=dudz3(k,j,2)  ! u_z
+            dudz3(k,j,2)=dudz3(k,j,3)
+
+            dvdy3(k,j,1)=dvdy3(k,j,2)  ! v_y
+            dvdy3(k,j,2)=dvdy3(k,j,3)
+ 
+            dvdz3(k,j,1)=dvdz3(k,j,2)  !v_z
+            dvdz3(k,j,2)=dvdz3(k,j,3)
+
+            dwdz3(k,j,1)=dwdz3(k,j,2)  !w_z
+            dwdz3(k,j,2)=dwdz3(k,j,3)
+
+            sdudx3(k,j,1)=sdudx3(k,j,2) ! |S|Sij shiften
+            sdudx3(k,j,2)=sdudx3(k,j,3) ! ux
+
+            sdudy3(k,j,1)=sdudy3(k,j,2) ! uy
+            sdudy3(k,j,2)=sdudy3(k,j,3)
+
+            sdudz3(k,j,1)=sdudz3(k,j,2) ! uz
+            sdudz3(k,j,2)=sdudz3(k,j,3)
+
+            sdvdy3(k,j,1)=sdvdy3(k,j,2) ! vy  
+            sdvdy3(k,j,2)=sdvdy3(k,j,3)
+
+            sdvdz3(k,j,1)=sdvdz3(k,j,2) ! vz
+            sdvdz3(k,j,2)=sdvdz3(k,j,3)
+
+            sdwdz3(k,j,1)=sdwdz3(k,j,2) ! wz
+            sdwdz3(k,j,2)=sdwdz3(k,j,3)
+
+            norms(k,j,1)=norms(k,j,2)   ! |S| shiften
+            norms(k,j,2)=norms(k,j,3)
+
+            uc(k,j,1)=uc(k,j,2)         ! Geschw. im Zellmittelpkt shiften
+            uc(k,j,2)=uc(k,j,3)         
+            vc(k,j,1)=vc(k,j,2)
+            vc(k,j,2)=vc(k,j,3)
+            wc(k,j,1)=wc(k,j,2)
+            wc(k,j,2)=wc(k,j,3)
+
+            uuc(k,j,1)=uuc(k,j,2)       ! uiuj shiften   
+            uuc(k,j,2)=uuc(k,j,3)
+            uvc(k,j,1)=uvc(k,j,2)
+            uvc(k,j,2)=uvc(k,j,3)
+            uwc(k,j,1)=uwc(k,j,2)
+            uwc(k,j,2)=uwc(k,j,3)
+
+            vvc(k,j,1)=vvc(k,j,2)
+            vvc(k,j,2)=vvc(k,j,3)
+            vwc(k,j,1)=vwc(k,j,2)
+            vwc(k,j,2)=vwc(k,j,3)
+
+            wwc(k,j,1)=wwc(k,j,2)
+            wwc(k,j,2)=wwc(k,j,3)
+
+          end do
+        end do
+
+      end do ! i   
+
+c      maxeddyv=0.0cc
+c 
+
+#else 
+#ifndef _INC_
+
+c
+c
+c  MLET-Subgrid-Scale-Modell
+c
+c
+
+
+      maxeddyv=0.0
+
+      DO 100 I  = istart,IM2
+         DDXI   = DDX(I)
+         RDDXPL = 1.0/DDXI
+         DXF    = 0.25*DX(I-1)*RDDXPL
+         DXF2   = 2.0 *DXF
+C
+C                            ZUERST BESTIMMUNG ALLER PARTIELLER
+C                            ABLEITUNGEN IN TANGENTIALER RICHTUNG
+C
+         DO 200 J  = jstart,JM2
+            DDYJ   = DDY(J)
+            RDDYPL = 1.0/DDYJ
+            DYF    = 0.25*DY(J-1)*RDDYPL
+            DYF2   = 2.0 *DYF
+C
+            DO 200 K  = kstart,KM2
+               DDZK   = DDZ(K)
+               RDDZPL = 1.0/DDZK
+               DZF    = 0.25*DZ(K-1)*RDDZPL
+               DZF2   = 2.0 *DZF
+C
+C                                 PARTIELLE ABLEITUNGEN IN 
+C                                 - - - - - - - - - - - - - - -
+C                                 TANGENTIALER RICHTUNG
+C                                 - - - - - - - - - - - - - - -
+C
+               DUDY(K,J) = RDDYPL *
+     $                (((U(K  ,J+1,I  )-U(K  ,J-1,I  )) *      DXF
+     $              +   (U(K  ,J+1,I-1)-U(K  ,J-1,I-1)) * (0.5-DXF)))
+
+               DUDZ(K,J) = RDDZPL *
+     $                (((U(K+1,J  ,I  )-U(K-1,J  ,I  )) *      DXF
+     $              +   (U(K+1,J  ,I-1)-U(K-1,J  ,I-1)) * (0.5-DXF)))
+
+               DVDX(K,J) = RDDXPL *
+     $                (((V(K  ,J  ,I+1)-V(K  ,J  ,I-1)) *      DYF
+     $              +   (V(K  ,J-1,I+1)-V(K  ,J-1,I-1)) * (0.5-DYF)))
+
+               DVDZ(K,J) = RDDZPL *
+     $                (((V(K+1,J  ,I  )-V(K-1,J  ,I  )) *      DYF
+     $              +   (V(K+1,J-1,I  )-V(K-1,J-1,I  )) * (0.5-DYF)))
+
+               DWDX(K,J) = RDDXPL *
+     $                (((W(K  ,J  ,I+1)-W(K  ,J  ,I-1)) *      DZF
+     $              +   (W(K-1,J  ,I+1)-W(K-1,J  ,I-1)) * (0.5-DZF)))
+
+               DWDY(K,J) = RDDYPL *
+     $                (((W(K  ,J+1,I  )-W(K  ,J-1,I  )) *      DZF
+     $              +   (W(K-1,J+1,I  )-W(K-1,J-1,I  )) * (0.5-DZF)))
+
+C
+C
+
+  200    CONTINUE
+
+C
+C                            WANDKORREKTUR ALLER PARTIELLER
+C                            ABLEITUNGEN IN TANGENTIALER RICHTUNG
+C
+      IF ( NCUB .EQ. 5) THEN
+C                                 AN FESTEN WAENDEN (NUR IN DER WANDNAEC
+C                                 STEN ZELLE !!!) WIRD DER MISCHUNGSWEG
+C                                 DEM PRANDTL''SCHEN MISCHUNGSWEG ANGEPAS
+C
+         IF ((I.LT.IC1).OR.(I.GT.IC2)) GOTO 301
+
+         DO 300 J  = JC1,JC2
+            DDYJ   = DDY(J)
+            RDDYPL = 1.0/DDYJ
+            DYF    = 0.25*DY(J-1)*RDDYPL
+            DYF2   = 2.0 *DYF
+C
+            DO 300 K  = KC1,KC2
+               DDZK   = DDZ(K)
+               RDDZPL = 1.0/DDZK
+               DZF    = 0.25*DZ(K-1)*RDDZPL
+               DZF2   = 2.0 *DZF
+C
+C                                 PARTIELLE ABLEITUNGEN NACH Z
+C                                 - - - - - - - - - - - - - - -
+C
+C                                 HIER: IN POS. ODER NEG. Z-RICHTUNG
+C                                 LIEGT EINE FESTE, REIBUNGSBEHAFTETE
+C                                 WAND VOR
+C
+#ifndef _FRED_BODY_
+	IF (    (B(K+1,J  ,I  )*B(K,J,I).LE.0.0) 
+     $      .OR.(B(K-1,J  ,I  )*B(K,J,I).LE.0.0) ) THEN
+
+                  VORZ = SIGN(1.0, G(K+1,J  ,I  ))
+                  DUDZ(K,J) = 
+     $  	  GRADP2 (U(K,J,I-1) + (U(K,J,I)-U(K,J,I-1))
+     $                 *         DXF2 + UGRID,DDZK) * VORZ
+                  DVDZ(K,J) = 
+     $  	  GRADP2 (V(K,J-1,I) + (V(K,J,I)-V(K,J-1,I))
+     $                 *         DYF2        ,DDZK) * VORZ
+
+	ENDIF
+C
+C                                 PARTIELLE ABLEITUNGEN NACH Y
+C                                 - - - - - - - - - - - - - - -
+C
+C                                 HIER: IN POS. ODER NEG. Y-RICHTUNG
+C                                 LIEGT EINE FESTE, REIBUNGSBEHAFTETE
+C                                 WAND VOR
+C
+	IF (    (B(K  ,J+1,I  )*B(K,J,I).LE.0.0) 
+     $      .OR.(B(K  ,J-1,I  )*B(K,J,I).LE.0.0) ) THEN
+
+                  VORZ = SIGN(1.0, G(K  ,J+1,I  ))
+                  DWDY(K,J) = 
+     $  	  GRADP2 (W(K-1,J,I) + (W(K,J,I)-W(K-1,J,I))
+     $                 *         DZF2        ,DDYJ) * VORZ
+                  DUDY(K,J) = 
+     $  	  GRADP2 (U(K,J,I-1) + (U(K,J,I)-U(K,J,I-1))
+     $                 *         DXF2 + UGRID,DDYJ) * VORZ
+
+	ENDIF
+C
+C
+C                                 PARTIELLE ABLEITUNGEN NACH X
+C                                 - - - - - - - - - - - - - - -
+C
+C                                 HIER: IN POS. ODER NEG. X-RICHTUNG
+C                                 LIEGT EINE FESTE, REIBUNGSBEHAFTETE
+C                                 WAND VOR
+C
+	IF (    (B(K  ,J  ,I+1)*B(K,J,I).LE.0.0) 
+     $      .OR.(B(K  ,J  ,I-1)*B(K,J,I).LE.0.0) ) THEN
+
+                  VORZ = SIGN(1.0, G(K  ,J  ,I+1))
+                  DVDX(K,J) = 
+     $  	  GRADP2 (V(K,J-1,I) + (V(K,J,I)-V(K,J-1,I))
+     $                 *         DYF2        ,DDXI) * VORZ
+                  DWDX(K,J) = 
+     $  	  GRADP2 (W(K-1,J,I) + (W(K,J,I)-W(K-1,J,I))
+     $                 *         DZF2        ,DDXI) * VORZ
+
+	ENDIF
+#endif
+C
+  300    CONTINUE
+  301    CONTINUE
+
+      ENDIF
+      IF ( NBOT .EQ. 5 ) THEN
+C                                 AN FESTEN WAENDEN (NUR IN DER WANDNAEC
+C                                 STEN ZELLE !!!) WIRD DER MISCHUNGSWEG
+C                                 DEM PRANDTL''SCHEN MISCHUNGSWEG ANGEPAS
+C
+         DO 310 J  = 3,JM2
+            DDYJ   = DDY(J)
+            RDDYPL = 1.0/DDYJ
+            DYF    = 0.25*DY(J-1)*RDDYPL
+            DYF2   = 2.0 *DYF
+C
+             K  = 3
+               DDZK   = DDZ(K)
+               RDDZPL = 1.0/DDZK
+               DZF    = 0.25*DZ(K-1)*RDDZPL
+               DZF2   = 2.0 *DZF
+C
+C                                 PARTIELLE ABLEITUNGEN NACH Z
+C                                 - - - - - - - - - - - - - - -
+C
+C                                 HIER: IN POS. ODER NEG. Z-RICHTUNG
+C                                 LIEGT EINE FESTE, REIBUNGSBEHAFTETE
+C                                 WAND VOR
+C
+#ifndef _FRED_BODY_
+	IF (    (B(K+1,J  ,I  )*B(K,J,I).LE.0.0) 
+     $      .OR.(B(K-1,J  ,I  )*B(K,J,I).LE.0.0) ) THEN
+
+                  VORZ = SIGN(1.0, G(K+1,J  ,I  ))
+                  DUDZ(K,J) = 
+     $  	  GRADP2 (U(K,J,I-1) + (U(K,J,I)-U(K,J,I-1))
+     $                 *         DXF2 + UGRID,DDZK) * VORZ
+                  DVDZ(K,J) = 
+     $  	  GRADP2 (V(K,J-1,I) + (V(K,J,I)-V(K,J-1,I))
+     $                 *         DYF2        ,DDZK) * VORZ
+
+	ENDIF
+
+#endif
+  310    CONTINUE
+C
+      ENDIF
+      IF ( NTOP .EQ. 5 ) THEN
+C                                 AN FESTEN WAENDEN (NUR IN DER WANDNAEC
+C                                 STEN ZELLE !!!) WIRD DER MISCHUNGSWEG
+C                                 DEM PRANDTL''SCHEN MISCHUNGSWEG ANGEPAS
+C
+         DO 320 J  = 3,JM2
+            DDYJ   = DDY(J)
+            RDDYPL = 1.0/DDYJ
+            DYF    = 0.25*DY(J-1)*RDDYPL
+            DYF2   = 2.0 *DYF
+C
+             K  = KM2
+               DDZK   = DDZ(K)
+               RDDZPL = 1.0/DDZK
+               DZF    = 0.25*DZ(K-1)*RDDZPL
+               DZF2   = 2.0 *DZF
+C
+C                                 PARTIELLE ABLEITUNGEN NACH Z
+C                                 - - - - - - - - - - - - - - -
+C
+C                                 HIER: IN POS. ODER NEG. Z-RICHTUNG
+C                                 LIEGT EINE FESTE, REIBUNGSBEHAFTETE
+C                                 WAND VOR
+C
+#ifndef _FRED_BODY_
+	IF (    (B(K+1,J  ,I  )*B(K,J,I).LE.0.0) 
+     $      .OR.(B(K-1,J  ,I  )*B(K,J,I).LE.0.0) ) THEN
+
+                  VORZ = SIGN(1.0, G(K+1,J  ,I  ))
+                  DUDZ(K,J) = 
+     $  	  GRADP2 (U(K,J,I-1) + (U(K,J,I)-U(K,J,I-1))
+     $                 *         DXF2 + UGRID,DDZK) * VORZ
+                  DVDZ(K,J) = 
+     $  	  GRADP2 (V(K,J-1,I) + (V(K,J,I)-V(K,J-1,I))
+     $                 *         DYF2        ,DDZK) * VORZ
+
+	ENDIF
+#endif
+
+  320    CONTINUE
+C
+      ENDIF
+      IF ( NRGT .EQ. 5 ) THEN
+C                                 AN FESTEN WAENDEN (NUR IN DER WANDNAEC
+C                                 STEN ZELLE !!!) WIRD DER MISCHUNGSWEG
+C                                 DEM PRANDTL''SCHEN MISCHUNGSWEG ANGEPAS
+C
+         J  = 3
+            DDYJ   = DDY(J)
+            RDDYPL = 1.0/DDYJ
+            DYF    = 0.25*DY(J-1)*RDDYPL
+            DYF2   = 2.0 *DYF
+C
+            DO 330 K  = 3,KM2
+               DDZK   = DDZ(K)
+               RDDZPL = 1.0/DDZK
+               DZF    = 0.25*DZ(K-1)*RDDZPL
+               DZF2   = 2.0 *DZF
+C
+C                                 PARTIELLE ABLEITUNGEN NACH Y
+C                                 - - - - - - - - - - - - - - -
+C
+C                                 HIER: IN POS. ODER NEG. Y-RICHTUNG
+C                                 LIEGT EINE FESTE, REIBUNGSBEHAFTETE
+C                                 WAND VOR
+C
+#ifndef _FRED_BODY_
+	IF (    (B(K  ,J+1,I  )*B(K,J,I).LE.0.0) 
+     $      .OR.(B(K  ,J-1,I  )*B(K,J,I).LE.0.0) ) THEN
+
+                  VORZ = SIGN(1.0, G(K  ,J+1,I  ))
+                  DWDY(K,J) = 
+     $  	  GRADP2 (W(K-1,J,I) + (W(K,J,I)-W(K-1,J,I))
+     $                 *         DZF2        ,DDYJ) * VORZ
+                  DUDY(K,J) = 
+     $  	  GRADP2 (U(K,J,I-1) + (U(K,J,I)-U(K,J,I-1))
+     $                 *         DXF2 + UGRID,DDYJ) * VORZ
+
+	ENDIF
+#endif
+  330    CONTINUE
+C
+      ENDIF
+      IF ( NLFT .EQ. 5 ) THEN
+C                                 AN FESTEN WAENDEN (NUR IN DER WANDNAEC
+C                                 STEN ZELLE !!!) WIRD DER MISCHUNGSWEG
+C                                 DEM PRANDTL''SCHEN MISCHUNGSWEG ANGEPAS
+C
+         J  = 3
+            DDYJ   = DDY(J)
+            RDDYPL = 1.0/DDYJ
+            DYF    = 0.25*DY(J-1)*RDDYPL
+            DYF2   = 2.0 *DYF
+C
+            DO 340 K  = 3,KM2
+               DDZK   = DDZ(K)
+               RDDZPL = 1.0/DDZK
+               DZF    = 0.25*DZ(K-1)*RDDZPL
+               DZF2   = 2.0 *DZF
+C
+C                                 PARTIELLE ABLEITUNGEN NACH Y
+C                                 - - - - - - - - - - - - - - -
+C
+C                                 HIER: IN POS. ODER NEG. Y-RICHTUNG
+C                                 LIEGT EINE FESTE, REIBUNGSBEHAFTETE
+C                                 WAND VOR
+C
+#ifndef _FRED_BODY_
+	IF (    (B(K  ,J+1,I  )*B(K,J,I).LE.0.0) 
+     $      .OR.(B(K  ,J-1,I  )*B(K,J,I).LE.0.0) ) THEN
+
+                  VORZ = SIGN(1.0, G(K  ,J+1,I  ))
+                  DWDY(K,J) = 
+     $  	  GRADP2 (W(K-1,J,I) + (W(K,J,I)-W(K-1,J,I))
+     $                 *         DZF2        ,DDYJ) * VORZ
+                  DUDY(K,J) = 
+     $  	  GRADP2 (U(K,J,I-1) + (U(K,J,I)-U(K,J,I-1))
+     $                 *         DXF2 + UGRID,DDYJ) * VORZ
+
+	ENDIF
+
+#endif
+  340    CONTINUE
+C
+       ENDIF
+C                                 EFFEKTIVE DYNAMISCHE VISKOSITAET
+C                                 FEINSTRUKTURMODELL NACH SMAGORINSKI
+C
+
+         DO 400 J  = 3,JM2
+            DDYJ   = DDY(J)
+            RDDYPL = 1.0/DDYJ
+            DYF    = 0.25*DY(J-1)*RDDYPL
+            DYF2   = 2.0 *DYF
+C
+            DO 400 K  = 3,KM2
+               DDZK   = DDZ(K)
+               RDDZPL = 1.0/DDZK
+               DZF    = 0.25*DZ(K-1)*RDDZPL
+               DZF2   = 2.0 *DZF
+C
+               DUDX = RDDXPL * (U(K  ,J  ,I  )-U(K  ,J  ,I-1))
+               DVDY = RDDYPL * (V(K  ,J  ,I  )-V(K  ,J-1,I  ))
+               DWDZ = RDDZPL * (W(K,J,I) - W(K-1,J,I))
+
+               SABS = SQRT
+     $               (2.0*(DUDX **2+ DVDY **2+ DWDZ **2)
+     $              +     (DUDY(K,J)+DVDX(K,J))**2
+     $              +     (DUDZ(K,J)+DWDX(K,J))**2
+     $              +     (DVDZ(K,J)+DWDY(K,J))**2)
+C
+               DMIXG = B(K,J,I) * CONV1S(I)
+#ifdef _FRED_BODY_
+               RSCALE = (DDX(I)*DDY(J)*DDZ(K))**0.3333333333
+               DMIXG = DMIXG * RSCALE 
+               G(K,J,I) = RHO * DMIXG*DMIXG * SABS * B(K,J,I) + GMOL               
+              
+#else
+               G(K,J,I) = RHO * DMIXG*DMIXG * SABS + GMOL                              
+#endif
+                
+CC             if (abs(RHO * DMIXG*DMIXG * SABS).gt.abs(maxeddyv)) then 
+CC                maxeddyv= RHO * DMIXG*DMIXG * SABS
+CC                ie0=i
+CC                je0=j
+CC                ke0=k
+CC              end if                  
+C
+  400      CONTINUE
+  100      CONTINUE
+C
+
+C      write (6,*) (conv1s(i),i=1,ii)
+CC      print*,'LES Max. Eddy Visc. /molec. visc. :',
+CC     $     maxeddyv,gmol,ie0,je0,ke0
+ 
+# endif 
+#endif 
+#endif
+#ifdef _DNS_
+C                                   AUF G-FELD LIEGT NUR MOLEKULARE
+C                                   VISKOSITAET, FUER DIREKTE SIMULATION
+C
+      DO I=3,IM2
+      DO J=3,JM2
+      DO K=3,KM2
+
+             G(K,J,I) = GMOL
+
+      ENDDO
+      ENDDO
+      ENDDO
+C
+#endif
+#ifdef _INC_
+C                                   AUF G-FELD LIEGT NUR MOLEKULARE
+C                                   VISKOSITAET, FUER DIREKTE SIMULATION
+C
+      DO I=3,IM2
+      DO J=3,JM2
+      DO K=3,KM2
+
+             G(K,J,I) = GMOL
+
+      ENDDO
+      ENDDO
+      ENDDO
+C
+#endif
+
+C     
+C
+      RETURN
+      END
+
+      FUNCTION GRADP2  (UQUER,DDS)
+C*STARLET***************************************************************
+C        G R A D P P    BERECHNUNG DES GRADIENTEN D(UQUER)/D(DDS)
+C                       DER GRADIENT WIRD ALS PUNKTWERT AM PUNKT Z=DDS/2
+C                       BESTIMMT. DAS VORZEICHEN ENTSPRICHT DEM VON
+C                       UQUER !
+C*STARLET***************************************************************
+C
+C PARAM: UQUER          - GESCHWINDIGKEITSKOMPONENTE AM WANDNAECHSTEN
+C                         GITTERPUNKT (UQUER IST EIN MITTELWERT UEBER
+C                         DIE MASCHENFLAECHE SENKRECHT ZU UQUER)
+C        DDS            - KANTENLAENGE DER WANDNAECHSTEN ZELLE
+C                         (SENKRECHT ZU UQUER UND ZUR WAND )
+C
+C VERS:  10.09.85 (HW)  : ORIGINAL
+C        14.01.86 (HW)  : VEREINFACHUNG DES AUSDRUCKES
+C        11.07.88 (HW)  : DAS VORZEICHEN WIRD VON UQUER UEBERNOMMEN
+C                         (NOTWENDIG WEGEN DER AUSWERTEROUTINEN FUER
+C                          DIE KOMPONENTEN DER VORTICITY)
+C
+C DEFINE-DIREKTIVEN     : NATWBC
+C
+C*STARLET***************************************************************
+C
+#include "mgpar.h"
+#include "cophyspar.h"
+#include "conpot.h"
+C
+C
+      UQUERN = ABS(UQUER)
+      VZ     = SIGN(1.0,UQUER)
+C
+#ifndef _DNS_
+#ifndef _NATWBC_
+      RDDS   = 1.0/DDS
+      IF((UQUERN .LT. (CPO6*RDDS)) .OR. (MTURB .EQ. 0)) GOTO 2010
+C
+C                                 HIER: UQUER LIEGT IM VOLLTURBULENTEN
+C                                 GEBIET
+C
+      GRADP2 = RDDS*(CPO12*UQUERN + CPO11*RDDS) * VZ
+      RETURN
+#endif
+#endif
+C
+C                                 HIER: UQUER LIEGT IN DER VISKOSEN
+C                                 UNTERSCHICHT
+ 2010 GRADP2 = 2.0*UQUERN/DDS * VZ
+      RETURN
+C
+      END
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -1,0 +1,411 @@
+      SUBROUTINE BBOPAR (KMX,JMX,IMX,U,V,W,P,G,UFR,
+     $                   KMXN,JMXN,IMXN,UN,VN,WN,PN,GN,
+     $                   ISTA,ISTO,JSTA,JSTO,
+     $                   IPOS,JPOS,KPOS,ITYP,IRB,JRB,KRB,
+     $                   IPROC,IPROCNBR
+#ifdef _TSCAL_
+     $                  ,T,TN
+#endif
+     $                  )     
+C*MGLET*****************************************************************
+C        B B O P A R    SETZEN DER RANDBEDINGUNGEN FUER DIE
+C                         GESCHWINDIGKEITSFELDER. AUS NACHBARGITTER
+C*MGLET*****************************************************************
+C
+C PARAM: 
+C        KMX, JMX, IMX  - DIMENSIONEN DES GITTERS 
+C        U(KMX,JMX,IMX) + GESCHWINDIGKEITSFELD
+C        V(KMX,JMX,IMX) + GESCHWINDIGKEITSFELD
+C        W(KMX,JMX,IMX) + GESCHWINDIGKEITSFELD
+C        T(KK,JJ,II)    + SCALAR T FIELD
+C        P(KMX,JMX,IMX) - DRUCKFELD
+C        G(KMX,JMX,IMX) - EFFEKTIVE DYNAMISCHE VISKOSITAET (= MUE)
+C        ...N           - ENTSPRECHENDE GROESSE AUS DEM NACHBARGITTER
+C        JSTART,JSTOP
+C        KSTART,KSTOP   - BEREICH IN DEM RANDBEDINGUNG GESETZT WIRD
+C        IPOS,JPOS,KPOS - POSITION IM NACHBARGITTER, AUF DER DER PUNKT
+C                         MIT DEN INDIZES (3,3,3) ZU LIEGEN KOMMT
+C        ITYP           - HOLLERITH-KONSTANTE:
+C                         'P'  VOR DER DRUCKKORREKTUR
+C                         'T'  VOR DEM ZEITSCHRITT
+C            IRB                  - INTEGER-KENNZAHL I-RICHTUNG RED-BLACK
+C            JRB                  - INTEGER-KENNZAHL J-RICHTUNG RED-BLACK
+C            KRB                  - INTEGER-KENNZAHL K-RICHTUNG RED-BLACK
+C
+C VERS:  19.12.93 (MM)  : ORIGINAL AUS BFRPER ABGELEITET
+C        28.02.03 (TB)  : SCALAR BOUNDARY TREATMENT IMPLEMENTED
+C
+C DEFINE-DIREKTIVEN     : QUD 
+C
+C*STARLET***************************************************************
+
+C
+      CHARACTER (LEN=1)  ITYP
+C
+      REAL
+     $     U(KMX,JMX,IMX),  V(KMX,JMX,IMX),  W(KMX,JMX,IMX),
+     $     P(KMX,JMX,IMX),  G(KMX,JMX,IMX)
+      REAL
+     $    UN(KMXN,JMXN,IMXN), VN(KMXN,JMXN,IMXN),  WN(KMXN,JMXN,IMXN),
+     $    PN(KMXN,JMXN,IMXN),  GN(KMXN,JMXN,IMXN)
+C
+#ifdef _TSCAL_
+      REAL     T(KMX,JMX,IMX),TN(KMXN,JMXN,IMXN)
+#endif
+C
+
+#ifdef _MPI_
+C               MPI-INCLUDE
+C
+
+#include "mgpar.h"
+#include "colevel.h"
+#include "compi.h"
+#include "mpif.h"
+
+       DOUBLE PRECISION TIME1, TIME2
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
+C
+C                 MPI-VARIABLEN
+C
+      INTEGER ISTATUS(MPI_STATUS_SIZE)
+C
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
+C
+C                 MPI-ROUTINEN ZUR UEBERGABE VON PARAMETERN
+C
+C     CALL MPI_COMM_RANK (MPI_COMM_WORLD,MYID,IERR)
+C     CALL MPI_COMM_SIZE (MPI_COMM_WORLD,NUMPROCS,IERR)
+C
+      stop 'bbopar not yet implemented'
+      ISEND = IPROCNBR
+      IRECV = IPROC
+
+#endif
+
+
+CRED-BLACK-RED-BLACK-RED-BLACK-RED-BLACK-RED-BLACK-RED-BLACK-RED-BLACK-
+C
+      IF (IRB .EQ. 0) THEN
+         ISTART = 1
+         ISTOP  = IMX
+      ELSEIF (IRB .EQ. 1) THEN
+         ISTART =   2  + 2
+         ISTOP  = IMX/2
+      ELSEIF (IRB .EQ. 2) THEN
+          IF (ITYP.EQ.'P') RETURN
+      ELSE
+         CALL ERRR (504,'IRB BBOPAR')
+      ENDIF   
+C
+C
+      IF (JRB .EQ. 0) THEN
+         JSTRIDE = 1
+      ELSEIF (JRB .EQ. 1) THEN
+         JSTART = MAX(  2  + 1,JSTA)
+         JSTOP  = MIN(JMX/2   ,JSTO)
+      ELSEIF (JRB .EQ. 2) THEN
+         JSTART = MAX(JMX/2 + 1 ,JSTA)
+         JSTOP  = MIN(JMX -   2 ,JSTO)
+      ELSE
+         CALL ERRR (504,'JRB BBOPAR')
+      ENDIF   
+C
+C
+      IF (KRB .EQ. 0) THEN
+         KSTRIDE = 1
+         KP      = 0
+      ELSEIF (KRB .EQ. 1) THEN
+         KSTRIDE = 2
+         KP      = 0
+      ELSEIF (KRB .EQ. 2) THEN
+         KSTRIDE = 2
+         KP      = 1
+      ELSE
+         CALL ERRR (504,'KRB BBOPAR')
+      ENDIF   
+C
+CRED-BLACK-RED-BLACK-RED-BLACK-RED-BLACK-RED-BLACK-RED-BLACK-RED-BLACK-
+C
+C                         FINE-GRID: K-INDEX=2       (BOTTOM)
+               KF = 2
+C                         K-INDEX OF COARSE-GRID
+C                                   (=PARENT, CALLED NEIGHBOUR)
+            KC = KPOS - 1 + (KF-1)/2
+C
+C
+C
+#ifdef _MPI_
+C
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
+C
+C                GESENDET WIRD NUR,WENN GITTER AUF VERSCHIEDENEN
+C                PROZESSOREN GERECHNET WERDEN
+C                ANSONSTEN WIRD DIE RANDBEDINGUNG FUER GITTER
+C                GANZ NORMAL GESETZT
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
+        IF (IPROC.EQ.IPROCNBR) THEN
+
+C
+C           ZU TESTZWECKEN SOLL ISEND NORMALE BELEGUNG DURCHLAUFEN 
+C         IF (MYID .EQ. ISEND) THEN
+C
+C
+C                                    GITTER LIEGEN AUF EINEM PROZESSOR
+C
+#endif
+C
+C                                 FUER ZEITSCHRITT
+      IF (ITYP.EQ.'T') THEN
+
+         DO IF=ISTA,ISTO,2
+               IC = IPOS - 1 + (IF-1)/2
+         DO JF=JSTA,JSTO,2
+            JC = JPOS - 1 + (JF-1)/2
+
+               U(KF  ,JF  ,IF  ) = 0.5*( UN(KC,JC,IC) + UN(KC,JC,IC-1))
+               U(KF  ,JF+1,IF  ) = 0.5*( UN(KC,JC,IC) + UN(KC,JC,IC-1))
+               U(KF  ,JF  ,IF+1) = UN(KC,JC,IC)
+               U(KF  ,JF+1,IF+1) = UN(KC,JC,IC)
+
+               V(KF  ,JF  ,IF  ) = 0.5*( VN(KC,JC,IC) + VN(KC,JC-1,IC))
+               V(KF  ,JF  ,IF+1) = 0.5*( VN(KC,JC,IC) + VN(KC,JC-1,IC))
+               V(KF  ,JF+1,IF  ) = VN(KC,JC,IC)
+               V(KF  ,JF+1,IF+1) = VN(KC,JC,IC)
+
+               W(KF-1,JF  ,IF  ) = 0.5*( WN(KC,JC,IC)  + WN(KC-1,JC,IC))
+               W(KF-1,JF  ,IF+1) = 0.5*( WN(KC,JC,IC)  + WN(KC-1,JC,IC))
+               W(KF-1,JF+1,IF  ) = 0.5*( WN(KC,JC,IC)  + WN(KC-1,JC,IC))
+               W(KF-1,JF+1,IF+1) = 0.5*( WN(KC,JC,IC)  + WN(KC-1,JC,IC))
+
+               P(KF  ,JF  ,IF  ) = PN(KC,JC,IC)
+               P(KF  ,JF  ,IF+1) = PN(KC,JC,IC)
+               P(KF  ,JF+1,IF  ) = PN(KC,JC,IC)
+               P(KF  ,JF+1,IF+1) = PN(KC,JC,IC)
+
+               G(KF  ,JF  ,IF  ) = GN(KC,JC,IC)
+               G(KF  ,JF  ,IF+1) = GN(KC,JC,IC)
+               G(KF  ,JF+1,IF  ) = GN(KC,JC,IC)
+               G(KF  ,JF+1,IF+1) = GN(KC,JC,IC)
+
+#ifdef _TSCAL_
+               T(KF  ,JF  ,IF  ) = TN(KC,JC,IC)
+               T(KF  ,JF  ,IF+1) = TN(KC,JC,IC)
+               T(KF  ,JF+1,IF  ) = TN(KC,JC,IC)
+               T(KF  ,JF+1,IF+1) = TN(KC,JC,IC)
+#endif
+
+#ifdef _QUD_
+               CALL ERRR (588,'BBOPAR')
+ 
+               U(K,J,  1) = U(K,J,IN-1)
+               V(K,J,  1) = V(K,J,IN-1)
+               W(K,J,  1) = W(K,J,IN-1)
+               P(K,J,  1) = P(K,J,IN-1)
+               G(K,J,  1) = G(K,J,IN-1)
+#endif
+
+         ENDDO
+         ENDDO
+
+C                                 FUER DRUCKKORREKTUR
+C                                 NUR NORMALKOMPONENTE MUSS GESETZT
+C                                 WERDEN
+       ELSEIF (ITYP.EQ.'P') THEN
+
+C                   NORMAL-KOMPONENT MUST NOT BE SET
+C                   BECAUSE PRESSURE IN THE BOUNDARY-CELLS
+C                   IS NOT MODIFIED, SO NORMAL-KOMPONENTS MUST
+C                   BE ABLE TO DEVELOP FREELY
+               RETURN
+
+         DO IF=ISTART,ISTOP,2
+               IC = IPOS - 1 + (IF-1)/2
+         DO JF=JSTART,JSTOP,2
+            JC = JPOS - 1 + (JF-1)/2
+
+               W(KF  ,JF  ,IF  ) = WN(KC,JC,IC)
+               W(KF  ,JF  ,IF+1) = WN(KC,JC,IC)
+               W(KF  ,JF+1,IF  ) = WN(KC,JC,IC)
+               W(KF  ,JF+1,IF+1) = WN(KC,JC,IC)
+
+         ENDDO
+         ENDDO
+
+       ELSE
+                CALL ERRR (501,' BBOPAR')
+       ENDIF
+C
+#ifdef _MPI_
+       
+C                                  BIS HIER NUR SENDER
+C       ENDIF
+        ELSE
+C
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
+C
+C                 ARE THE GRIDS ON DIFFERENT PROCESSORS THE MESSAGE HAS 
+C                 TO BE SENT BY MPI
+C 
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
+C                                 FUER ZEITSCHRITT
+      IF (ITYP.EQ.'T') THEN
+
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC SEND-BUFFER
+      IF (MYID .EQ. ISEND) THEN
+
+         ICOUNT = 0
+
+         DO J=JSTA,JSTO
+         DO K=KSTA,KSTO
+
+               JN = J + JPOS - 3
+               KN = K + KPOS - 3
+
+               SENDBUF(ICOUNT+1) = UN(KN,JN,IN)
+               SENDBUF(ICOUNT+2) = VN(KN,JN,IN)
+               SENDBUF(ICOUNT+3) = WN(KN,JN,IN)
+#ifdef _TSCAL_
+               SENDBUF(ICOUNT+4) = TN(KN,JN,IN)
+               SENDBUF(ICOUNT+5) = PN(KN,JN,IN)
+               SENDBUF(ICOUNT+6) = GN(KN,JN,IN)
+
+               ICOUNT = ICOUNT+6
+#else
+               SENDBUF(ICOUNT+4) = PN(KN,JN,IN)
+               SENDBUF(ICOUNT+5) = GN(KN,JN,IN)
+
+               ICOUNT = ICOUNT+5
+#endif
+
+          ENDDO
+          ENDDO
+
+C      TIME1 = MPI_WTIME()
+
+      CALL MPI_SEND    ( SENDBUF , ICOUNT , 
+     $ MPI_DOUBLE_PRECISION ,
+     $                 IRECV , ISEND ,
+     $                 MPI_COMM_WORLD , IERR)
+C     WRITE (6,*)'WTIME FOR BBOPART SEND: ',MPI_WTIME()-TIME1
+
+      ENDIF
+
+      IF (MYID .EQ. IRECV) THEN
+
+C      TIME1 = MPI_WTIME()
+      CALL MPI_RECV    ( RECVBUF , IDIM_MG_BUFS , 
+     $ MPI_DOUBLE_PRECISION ,
+     $                 ISEND , ISEND ,
+     $                 MPI_COMM_WORLD , ISTATUS ,IERR)
+C     WRITE (6,*)'WTIME FOR BBOPART RECEIVE: ',MPI_WTIME()-TIME1
+C
+C                                    BELEGUNG DES RECV-BUFFERS
+C
+         ICOUNT = 0
+         DO J=JSTA,JSTO
+         DO K=KSTA,KSTO
+
+               JN = J + JPOS - 3
+               KN = K + KPOS - 3
+
+               U(K,J, 2 ) = RECVBUF(ICOUNT+1)
+               V(K,J, 2 ) = RECVBUF(ICOUNT+2)
+               W(K,J, 2 ) = RECVBUF(ICOUNT+3)
+#ifdef _TSCAL_
+               T(K,J, 2 ) = RECVBUF(ICOUNT+4)
+               P(K,J, 2 ) = RECVBUF(ICOUNT+5)
+               G(K,J, 2 ) = RECVBUF(ICOUNT+6)
+
+               ICOUNT = ICOUNT + 6
+#else
+               P(K,J, 2 ) = RECVBUF(ICOUNT+4)
+               G(K,J, 2 ) = RECVBUF(ICOUNT+5)
+
+               ICOUNT = ICOUNT + 5
+#endif
+
+         ENDDO
+         ENDDO
+
+        ENDIF
+C
+
+#ifdef _QUD_
+      WRITE(0,*) ' IMPLEMENTIEREN SIE DAS SELBER IN BBOPAR!'
+      CALL ERRR(767,'bfrcon')
+#endif
+
+C                                 FUER DRUCKKORREKTUR
+C                                 NUR NORMALKOMPONENTE MUSS GESETZT
+C                                 WERDEN
+       ELSEIF (ITYP.EQ.'P') THEN
+
+         IF (MYID .EQ. ISEND) THEN
+C
+C                                    BELEGUNG DES SEND-BUFFERS
+C
+         ICOUNT = 0
+
+         DO J=JSTART,JSTOP
+         DO K=KSTA+KP,KSTO,KSTRIDE
+
+               JN = J + JPOS - 3
+               KN = K + KPOS - 3
+
+               ICOUNT = ICOUNT+1
+
+               SENDBUF(ICOUNT) = UN(KN,JN,IN)
+
+         ENDDO
+         ENDDO
+
+C      TIME1 = MPI_WTIME()
+      CALL MPI_SEND    ( SENDBUF , ICOUNT , 
+     $ MPI_DOUBLE_PRECISION ,
+     $                 IRECV , ISEND ,
+     $                 MPI_COMM_WORLD , IERR)
+C     WRITE (6,*)'WTIME FOR BBOPARP SEND: ',MPI_WTIME()-TIME1
+
+
+      ENDIF
+
+      IF (MYID .EQ. IRECV) THEN
+
+C      TIME1 = MPI_WTIME()
+      CALL MPI_RECV    ( RECVBUF , IDIM_MG_BUFS , 
+     $ MPI_DOUBLE_PRECISION ,
+     $                 ISEND , ISEND ,
+     $                 MPI_COMM_WORLD , ISTATUS ,IERR)
+C     WRITE (6,*)'WTIME FOR BBOPARP RECEIVE: ',MPI_WTIME()-TIME1
+C
+C                                    BELEGUNG DES RECV-BUFFERS
+C
+         ICOUNT = 0
+
+         DO J=JSTART,JSTOP
+         DO K=KSTA+KP,KSTO,KSTRIDE
+
+               JN = J + JPOS - 3
+               KN = K + KPOS - 3
+
+               ICOUNT = ICOUNT+1
+
+               U(K,J,  2) = RECVBUF(ICOUNT)
+
+         ENDDO
+         ENDDO
+
+       ENDIF
+
+       ELSE
+
+                CALL ERRR (555,' BBOPAR')
+
+       ENDIF
+       ENDIF
+#endif
+
+      RETURN
+      END
+

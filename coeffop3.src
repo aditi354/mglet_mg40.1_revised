@@ -1,0 +1,41 @@
+C$    LIST(ALL=0)      
+      SUBROUTINE COEFFOP3 (II,K,DDX,ALFA,BETA,GAMA)              
+C*MGLET***************************************************************
+C
+C     UNTERPROGRAMM ZU BERECHNUNG DER KOEFFIZIENTEN 
+C     FUER DIE EXTRAPOLATION FUER DEN AUSSTROEMRAND
+C     BEIM ZENTRALDIFFERENZENVERFAHREN  !!!!!
+C     GESCHWINDIGKEITSKOMPONENTE U
+C
+C*MGLET***************************************************************
+C
+C
+C DEFINE DIREKTIVEN     : KEINE
+C
+C UPROG                 : KEINE                                      
+C                                                            
+C 24.09.1997            : ADNAN MERI (ORIGINAL)
+C
+C*MGLET***************************************************************
+C
+
+      REAL ALFA,BETA,GAMA,a,b,c,DDX(II)
+
+      a = DDX(K)
+      b = DDX(K) + DDX(K-1)
+      c = DDX(K) + DDX(K-1) + DDX(K-2)
+
+
+
+      GAMA = (a*b)/(b*(a-c) + c*(c-a))
+      BETA = (a+ GAMA*(c-a)) / (a-b)
+      alfa = 1.0 - GAMA - BETA
+  
+c
+c*******************************************************************
+c
+      RETURN
+      END
+
+
+

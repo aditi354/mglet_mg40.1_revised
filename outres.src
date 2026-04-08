@@ -1,0 +1,29 @@
+      SUBROUTINE OUTRES(II,JJ,KK,FIELD,IK)
+      INTEGER II,JJ,I,J,IIF,K,KK,IK
+      REAL FIELD(KK,JJ,II)
+
+      IIF=II
+
+      IF (II .GE. 101) THEN
+        WRITE(31,*) 'FELD ZU GROSS FUER AUSGABE (MAXIMAL 101 I-WERTE)'
+      ELSE
+        DO 778 K=1,II,12
+          WRITE(31,'(/T2,A3,12I10/)') 'I =',K,K+1,K+2,K+3,K+4,K+5,K+6,
+     1                            K+7,K+8,K+9,K+10,K+11
+
+          DO 777 J=JJ,1,-1
+
+            IF (IIF .GT. 12) THEN
+              WRITE(31,1777) 'J =',J,(FIELD(IK,J,I),I=K,K+11)
+            ELSE
+              WRITE(31,1777) 'J =',J,(FIELD(IK,J,I),I=K,K+IIF-1)
+            ENDIF
+
+ 1777      FORMAT (T2,A3,I3,12F10.6)
+  777       CONTINUE
+          IIF = IIF - 12
+  778     CONTINUE
+      ENDIF
+
+      RETURN
+      END

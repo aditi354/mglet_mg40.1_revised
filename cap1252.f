@@ -1,0 +1,812 @@
+
+
+
+
+
+
+
+
+
+
+
+CCCCC        DEFINITIONEN FUER C-PREPROZESSOR
+C            MASCHINE
+
+C              MESSAGE PASSING INTERFACE
+
+C            RAEUMLICHE DISKRETISIERUNG
+C
+***********************************************************************
+C                       KOMPAKT-UPWIND in X-RICHTUNG (3-TER ORDNUNG) fuer
+C                       die U-Komponente (V und W bleiben Kompakt 4ter ordnung)
+C                       falls im Stroemungsfeld eine Koerper vorhanden ist
+C
+***********************************************************************
+C                       KOMPAKTVERF. in XYZ-RICHTUNG (4-TER ORDNUNG)
+
+
+**********************************************************************
+C                      Preprocessing with ADM for 2nd Order Central
+***********************************************************************
+CCC                     Bei periodischen Randbedingungen in X-Richtung
+CCC                     ist eine hoehere O
+C
+CCC                     Bei periodischen Randbedingungen in Y-Richtung
+CCC                     ist eine hoehere Ordnung moeglich
+C
+CCC                     Bei periodischen Randbedingungen in Y-Richtung:
+CCC                     Zentraldiff. 4-ter Ordnung (Parallelisieung moeglich)
+C
+***********************************************************************
+C
+C
+C            INTERPOLATION AN GITTER-GRENZEN
+
+C            BEHANDLUNG DER TOPAR-RANDBEDINGUNG
+
+C            ZEITLICHE DISKRETISIERUNG
+
+C            FEINSTRUKTURMODELL
+
+C            NICHT-NEWTONSCHE SPANNUNGEN
+
+
+C            TRANSPORT UND ORIENTIERUNG VON PARTIKELN
+
+
+C            SCALAR HEAT/TEMPERATURE TRANSPORT
+C            APROXIMATE DECONVOLUTION FOR SCALAR
+C            TURBULENT PRANDTL NUMBER 
+C            PLOT LOCAL SCALAR CONVECTION DIFFUSION EXTREMES 
+C            ANALYZE AND PLOT NEAR WALL GRID RESLOLUTION 
+C            WRITE SPECIAL 1D LINE FOR TMIX FOR SPECTRA AND PDF
+C            SCALAR TIME ADVANCEMENT/DISCRETISATION METHOD
+
+C            STROEMUNG NACH OBEN?
+
+
+C            BEHANDLUNG DER FLUKTUATIONS-RANDBEDINGUNG
+
+C            BEHANDLUNG VON PPHYS ALS QUELLTERM IN TSTLE2
+
+C            POSITIONIERUNG DER EINSTROEMPROFILE
+
+C           STATISTIK
+
+
+C                 GEMISCHTES
+
+C                GRDFMI WIRD NICHT VERWENDET, DAHER EINSPARUNG DER FELDER
+C                IGRHF UND GRHF
+
+C                VERGROESSERN DER KJI-RICHTUNG BEI FORTSETZUNGSLAUF ERLAUBT!
+
+C                RAUSSCHREIBEN VON ZEITRECORDS
+
+C                FUER KORRELATIONEN UND HAEFIGKEITSVERTEILUNGEN
+      SUBROUTINE CAP1252 (FPSFAK,FCOSMY,FCOSNY
+     T                    ,TRIGSI,IPERMUX,IFAXI,TRIGSJ,IPERMUY,IFAXJ
+     X                    ,KK,JJ,II,NBND,P,WORK
+     X                    ,H2D1,H2D2,H2D3,H2D4,H2D5,H2D6
+     E                    ,NFRO,NBAC,NRGT,NLFT,NBOT,NTOP)
+C
+C**********************************************************************
+C     C A P 1 2 5 2
+C----------------------------------------------------------------------
+C     CAP____ :  - CALCULATION OF PSI
+C        1    :  - 3D-VERSION
+C         2   :  - I- AND J-DIRECTION OF FLOWSI ARE PERIODIC
+C          5  :  - FULL VECTOR SIZE IN CRAY-ROUTINES
+C           2 :  - WITH TRIDIV-SOLVER
+C
+C     VERSION 1252 IS GOOD FOR:
+C        - THREE-DIMENSIONAL PSI('POISSON')-EQUATION
+C        - FULLY VECTORIZABLE
+C        - PERIODIC BOUNDARY CONDITIONS IN X-DIRECTION
+C        - PERIODIC BOUNDARY CONDITIONS IN Y-DIRECTION
+C        - PRESSURE AND/OR VELOCITY BOUNDARY CONDITIONS IN Z-DIRECTION
+C          COEFFICIENTS AND SOURCETERM OF THE PSI-EQUATION AT BZO AND/
+C          OR BZE MUST BE ADAPTED TO THE VARIOUS BOUNDARY CONDITIONS,
+C          SEE SUBROUTINES CALFAC, MODQZ
+C        - COEFFICIENTS IN THE PSI-EQUATION MAY ONLY DEPEND ON THE
+C          K-DIRECTION
+C        - CRAY FFT-ROUTINES
+C          --> FULL VECTORLENGTH: RFFTMLT = IMA*KMA
+C                                 CFFTMLT = JD2P1*KMA
+C----------------------------------------------------------------------
+C     FPSFAK            : COEFFICIENTS IN THE PSI-EQUATION
+C     FCOSMY,FCOSNY
+C     TRIGSI,IFAXI      : SINE AND COSINE TABLES FOR FFT-ROUTINES
+C     TRIGSJ,IFAXJ
+C     KK,JJ,II          : DIMENSIONS OF THE 3D-FIELDS
+C     NBND              : NUMBER OF BOUNDARY CELLS
+C     NFRO,...,NTOP     : INTEGER FOR DEFINITION OF BOUNDARY CONDITION
+C                         5,6   --> NEUMANN FOR PRESSURE
+C                         OTHER --> DIRICHLET FOR PRESSURE
+C              NTOP     : 8 --> NEUMANN, if _TOPAR_FIXED_
+C     OTHER PARAMETERS  : WORK ARRAYS
+C----------------------------------------------------------------------
+C     FOR THEORY SEE: L.SCHMITT, BERICHT NR.82/2, LEHRSTUHL FUER
+C                     STROEMUNGSMECHANIK, TUM, S.173
+C----------------------------------------------------------------------
+C     SOLUTION:
+C     STEP 1: - SHIFTING OF Q:
+C                  I=IPFI(1)IPLA       I=1(1)IMA  DIMENSION: IMA
+C                  J=JPFI(1)JPLA  -->  J=1(1)JMA  DIMENSION: JMAP2
+C                  K=KPFI(1)KPLA       K=1(1)KMA  DIMENSION: KMA
+C               ==> SUBROUTINE XSHIF1
+C     STEP 2: - FOURIER-ANALYSES OF Q IN Y- AND X-DIRECTION
+C               --> RESULT CQE
+C               ==> SUBROUTINE XFFTAN
+C     STEP 3: - SOLUTION OF THE CPE EQUATION WITH A TRIDIAGONAL
+C               MATRIX ALGORITHM.
+C               ==> SUBROUTINE XTRIDI
+C     STEP 4: - FOURIER-SYNTHESIS OF CPE IN Y- AND X-DIRECTION
+C               --> RESULT PSI
+C               ==> SUBROUTINE XFFTSY
+C     STEP 5: - BACKSTORING
+C               ==> SUBROUTINE XSHIF2
+C     STEP 6: - SETTING OF PERIODICITY CONDITIONS IN Y-DIRECTION
+C               ==> SUBROUTINE XPERIY
+C----------------------------------------------------------------------
+C     SUBROUTINE XFFTIJ USES TWO FFT-ROUTINES:
+C     --> RFFTMLT: APPLY A MULTIPLE REAL-TO-COMPLEX FAST FOURIER
+C                  TRANSFORM
+C     --> CFFTMLT: APPLY A MULTIPLE COMPLEX-TO-COMPLEX FAST FOURIER
+C                  TRANSFORM
+C     THE SINE AND COSINE TABLES FOR THESE ROUTINES (AWORKI,AWORKJ)
+C     MUST BE INITIALIZED ELSEWHERE WITH THE ROUTINES
+C     FFTFAX AND CFTFAX.
+C     --> RFFTMLT, CFFTMLT, FFTFAX AND CFTFAX ARE AVAILABLE IN THE
+C         CRAY PROGRAMMERS LIBRARY.
+C----------------------------------------------------------------------
+C     PROGRAM DEVELOPED FROM CAPSI2 OF L.SCHMITT.
+C----------------------------------------------------------------------
+C     PROGRAM DEVELOPED:                       C.WAGNER    /   14.10.92
+C     LAST MODIFICATION:                                   /
+C     ANGEPASST AUF MGLET                      M.MANHART   /   08.03.94
+C     INTRODUCTION OF OUT-FLOW (DIRICHLET FOR PRESSURE)
+C     BOUNDARY CONDITION IN K-DIRECTION        M.MANHART   /   27.11.95 
+C**********************************************************************
+C
+C
+      REAL
+     $     FPSFAK(KK,5),FCOSMY(II),FCOSNY(JJ)
+CDI   19
+      DIMENSION IFAXI(*),IFAXJ(*)
+CDI   2*IMA,2*JMA
+      DIMENSION TRIGSI(*),TRIGSJ(*),
+     $          IPERMUX(*),IPERMUY(*)
+CDI   2*IMA*JMAP2*KMA
+      DIMENSION WORK(*),P(*),
+     $          H2D1(*),H2D2(*),H2D3(*),H2D4(*),H2D5(*),H2D6(*)
+C
+C
+C---- --------------------  DIMENSIONS OF MGLET ---> DIMENSIONS OF FLOWSI
+C
+      IMA = II - 2*NBND
+      JMA = JJ - 2*NBND
+      KMA = KK - 2*NBND
+      JMAP2 = JMA+2
+
+C---- PREPARATIONS
+C
+      NWORK1 = 1
+      NWORK2 = 1 + IMA*KMA
+      NWORK3 = 1 + IMA*KMA*2
+      NWORK4 = 1 + IMA*KMA*3
+      NWORK5 = 1 + IMA*KMA*4
+      NWORK6 = 1 + IMA*KMA*5
+C
+C---- CARRY OUT STEP 1: SHIFTING
+C
+      CALL XCHAN1 (P,WORK,KK,JJ,II,NBND,KMA,JMA,IMA,JMAP2)
+      CALL COP3D (JMAP2,KMA,IMA,WORK,P)
+C
+C---- CARRY OUT STEP 2: FFT-ANALYSIS IN Y- AND X-DIRECTION
+C
+      CALL XFFTAN (P,WORK,TRIGSI,TRIGSJ,IFAXI,IFAXJ,
+     $             IPERMUX,IPERMUY,IMA,JMA,KMA,JMAP2,FCOSNY,FCOSMY)
+C
+C---- CARRY OUT STEP 3: SOLVING OF TDM-ALGORITHM
+C
+      CALL XTRIDI (P,WORK,H2D1,H2D2
+     F            ,FPSFAK(3,2),FPSFAK(3,3),FPSFAK(3,4),FPSFAK(3,5)
+     $            ,FCOSNY,FCOSMY
+     W            ,H2D3,H2D4,H2D5,H2D6
+     $            ,IMA,JMA,KMA,JMAP2,NBOT,NTOP)
+C
+C---- CARRY OUT STEP 4: FFT-SYNTHESIS IN X- AND Y-DIRECTION
+C
+      CALL XFFTSY (P,WORK,TRIGSI,TRIGSJ,IFAXI,IFAXJ
+     $             ,IPERMUX,IPERMUY,IMA,JMA,KMA,JMAP2,FCOSNY,FCOSMY)
+CTEST	stop 'cap1252'
+C
+C---- CARRY OUT STEP 5: SHIFTING
+C
+      CALL XCHAN2 (P,WORK,KK,JJ,II,NBND,KMA,JMA,IMA,JMAP2)
+      CALL COP3D (KK,JJ,II,WORK,P)
+C
+C---- CARRY OUT STEP 6: SETTING OF PERIODICITY IN Y-DIRECTION
+C
+C      WIRD IN BOUND GESETZT
+C
+      RETURN
+C
+C---- FORMATS IN CAP1242
+C
+C---- END OF SUBROUTINE  C A P 1 2 4 2
+C
+      END
+      SUBROUTINE XCHAN1 (A,WORK,KK,JJ,II,NBND,KMA,JMA,IMA,JMAP2)
+C
+C**********************************************************************
+C     X C H A N 1
+C----------------------------------------------------------------------
+C     TAUSCHT DIE INHOMOGENE RICHTUNG VOM ERSTEN AUF DEN ZWEITEN INDEX
+C
+C                                              M.MANHART   /   08.03.94
+C
+C**********************************************************************
+C
+C
+      DIMENSION A(KK,JJ,II),WORK(JMAP2,KMA,IMA)
+C
+      DO I = 1,IMA
+         IMG = I+NBND
+      DO J = 1,JMA
+         JMG = J+NBND
+      DO K = 1,KMA
+
+         KMG = K+NBND
+
+         WORK(J,K,I) = A(KMG,JMG,IMG)
+
+      ENDDO
+      ENDDO
+      ENDDO
+C
+C---- END OF SUBROUTINE  X C H A N 1
+C
+      RETURN
+      END
+      SUBROUTINE XCHAN2 (A,WORK,KK,JJ,II,NBND,KMA,JMA,IMA,JMAP2)
+C
+C**********************************************************************
+C     X C H A N 2
+C----------------------------------------------------------------------
+C     TAUSCHT DIE INHOMOGENE RICHTUNG VOM ZWEITEN AUF DEN ERSTEN INDEX
+C
+C                                              M.MANHART   /   08.03.94
+C
+C**********************************************************************
+C
+C
+      DIMENSION WORK(KK,JJ,II),A(JMAP2,KMA,IMA)
+C
+C---- -----------------------------  REMOVING SCRABLE ON WORK-ARRAY
+C
+
+
+      DO I=1,II
+       DO J=1,JJ
+        DO K=1,KK
+           WORK(K,J,I) = 0.0
+        ENDDO
+       ENDDO
+      ENDDO
+C
+      DO I = 1,IMA
+         IMG = I+NBND
+      DO J = 1,JMA
+         JMG = J+NBND
+      DO K = 1,KMA
+         KMG = K+NBND
+
+         WORK(KMG,JMG,IMG) = A(J,K,I)
+
+      ENDDO
+      ENDDO
+      ENDDO
+CC      DO I = 1,II
+CC      DO J = 1,JJ
+CC      DO K = 1,KK
+CC          WRITE (6,*)'XCHAN2:',K,J,I,WORK(k,j,i)
+CC        ENDDO
+CC       ENDDO
+CC      ENDDO
+C
+C---- END OF SUBROUTINE  X C H A N 2
+C
+      RETURN
+      END
+      SUBROUTINE XFFTAN (A,WORK,TRIGSI,TRIGSJ,IFAXI,IFAXJ
+     $                  ,IPERMUX,IPERMUY,IMA,JMA,KMA,JMAP2,
+     $                   FCOSNY,FCOSMY)
+C
+C**********************************************************************
+C     X F F T A N
+C----------------------------------------------------------------------
+C     FOR INFORMATION SEE THE CALLING SUBROUTINE.
+C----------------------------------------------------------------------
+C          F.UNGER     LEHRSTUHL FUER FLUIDMECHANIK, T.U. MUENCHEN
+C                      ZIMMER: 1303  TELEFON 2105-2506
+C----------------------------------------------------------------------
+C     PROGRAM DEVELOPING:                         F.UNGER    / 17.10.91
+C     LAST MODIFICATION :                                    /
+C**********************************************************************
+C
+      PARAMETER (L_W = 1000)
+C
+      DIMENSION A(JMAP2,KMA,IMA),WORK(JMAP2,KMA,IMA)
+      DIMENSION TRIGSI(*),TRIGSJ(*),IFAXI(*),IFAXJ(*),
+     $          IPERMUX(IMA),IPERMUY(JMAP2),WORKLOCAL(2*L_W)
+      DIMENSION FCOSNY(JMA),FCOSMY(IMA)
+C
+      IF (L_W .LT. IMA) CALL ERRR(503,'XFFTAN')
+      IF (L_W .LT. JMA) CALL ERRR(504,'XFFTAN')
+
+      ODIMA = 1.0 / FLOAT(IMA)
+C      RIMAJMA = 1.0 / FLOAT(IMA*JMA)
+      RIMAJMA = 1.0 
+C
+      JD2P1 = JMA/2 + 1
+
+
+CTEST      DO  I=1,5
+CTEST         DO  K=1,5
+CTEST            DO  J=1,jmap2
+CTEST               write(6,*)'xfftan:',j,k,i,a(j,k,i)
+CTEST            ENDDO
+CTEST         ENDDO
+CTEST      ENDDO
+C------------------------------------------- HIER WIRD KOEFFIZIENTENFELD
+C                                            GESCRAMBLED, ERSETZT 
+C                                            AUFRUF VON SCRAMB FÜR 3D-FELD
+      DO  I=1,IMA
+         DO  K=1,KMA
+            DO  J=1,JMAP2
+               WORK(J,K,I) = 0.0
+               A(J,K,I) = A(J,K,I)*RIMAJMA
+            ENDDO
+         ENDDO
+      ENDDO
+C
+C---- FFT-ANALYSES IN J-DIRECTION: COMPLEX --> COMPLEX
+C
+      CALL FTCCSC (JMA,A,WORK,1,JMAP2,IMA*KMA,-1.0,IFAXJ,TRIGSJ,
+     &     WORKLOCAL,L_W)
+C-------------------------------------------- Testweise ausgeschaltet
+C                                             jetzt wird Koeffizientenfeld
+C                                             gescrambled
+
+      CALL SCRAMB (-1,JMA,A,WORK,1,JMAP2,IMA*KMA,IPERMUY,
+     &     WORKLOCAL)
+
+C
+C---- FFT-ANALYSES IN I-DIRECTION: COMPLEX --> COMPLEX
+C
+      CALL FTCCSC (IMA,A,WORK,KMA*JMAP2,1,JMAP2*KMA,-1.0,IFAXI,TRIGSI,
+     &     WORKLOCAL,L_W)
+C-------------------------------------------- Testweise ausgeschaltet
+C                                             jetzt wird Koeffizientenfeld
+C                                             gescrambled
+
+      CALL SCRAMB (-1,IMA,A,WORK,KMA*JMAP2,1,JMAP2*KMA,IPERMUX,
+     &     WORKLOCAL)
+CTEST      DO  I=1,5
+CTEST         DO  K=1,5
+CTEST            DO  J=1,jmap2
+CTEST               write(6,*)'real-parts:',j,k,i,a(j,k,i)
+CTEST               write(6,*)'imag-parts:',j,k,i,work(j,k,i)
+CTEST            ENDDO
+CTEST         ENDDO
+CTEST      ENDDO
+
+C
+C---- END OF SUBROUTINE  X F F T A N
+C
+      RETURN
+      END
+      SUBROUTINE XTRIDI (A,WORK,ARE,AIM,
+     F                   APSI2,AC,APSI4,AA,FCOSNY,FCOSMY,
+     W                   AN,AE,AF1,AF2,
+     X                   IMA,JMA,KMA,JMAP2,NBOT,NTOP)
+C
+C**********************************************************************
+C     X T R I D I
+C----------------------------------------------------------------------
+C     FOR INFORMATION SEE THE CALLING SUBROUTINE.
+C----------------------------------------------------------------------
+C          F.UNGER     LEHRSTUHL FUER FLUIDMECHANIK, T.U. MUENCHEN
+C                      ZIMMER: 1303  TELEFON 2105-2506
+C----------------------------------------------------------------------
+C     PROGRAM DEVELOPING:                         F.UNGER    / 17.10.91
+C     LAST MODIFICATION :                                    /
+C     ANGEPASST AUF MGLET                      M.MANHART   /   08.03.94
+C     INTRODUCTION OF OUT-FLOW (DIRICHLET FOR PRESSURE)
+C     BOUNDARY CONDITION IN K-DIRECTION        M.MANHART   /   27.11.95 
+C**********************************************************************
+C
+C
+CDI   JMAP2,KMA,IMA
+      DIMENSION A(JMAP2,KMA,IMA),WORK(JMAP2,KMA,IMA)
+CDI   KMA
+      DIMENSION APSI2(*),AC(*),APSI4(*),AA(*)
+CDI   IMA,KMA
+      DIMENSION ARE(IMA,KMA),AIM(IMA,KMA)
+      DIMENSION AN(*),AE(*),AF1(*),AF2(*)
+CDI   JD2P1
+      DIMENSION FCOSNY(JMA)
+CDI   IMA
+      DIMENSION FCOSMY(IMA)
+C
+C
+C---- -------------------- SET INDIZES
+C
+      JPLA =  JMAP2 - 1
+
+C---- SET PARAMETER SING
+C
+C                  SING IST NULL BEI NEUMANN FUER DRUCK IN Z-RICHTUNG
+C                  UND X- UND Y- PERIODISCH (IN MGLET)
+      SING = 0.0
+      IF ((NTOP .NE. 5) .AND. (NTOP .NE. 6)) SING = 1.0
+      IF ((NBOT .NE. 5) .AND. (NBOT .NE. 6)) SING = 1.0
+C
+CTEST      DO  I=1,5
+CTEST         DO  K=1,5
+CTEST            DO  J=1,jmap2
+CTEST               write(6,*)'real-parts:',j,k,i,a(j,k,i)
+CTEST               write(6,*)'imag-parts:',j,k,i,work(j,k,i)
+CTEST            ENDDO
+CTEST         ENDDO
+CTEST      ENDDO
+
+      NY = 0
+CC      DO 10 J=1,JPLA,2
+        DO 10 J=1,JMA
+        NY = NY + 1
+        DO  K=1,KMA
+           DO  I=1,IMA
+              ARE(I,K) =    A(NY,K,I)
+              AIM(I,K) = WORK(NY,K,I)
+           ENDDO
+        ENDDO
+C
+C---- SOLVE THE 'LINEAR' TRIDIAGONAL SYSTEMS
+C
+        CALL TRIDIV (IMA,KMA,ARE,AIM,
+     F               APSI2,AC,APSI4,AA,FCOSNY(NY),FCOSMY,SING,
+     W               AN,AE,AF1,AF2)
+C
+           DO  K=1,KMA
+              DO  I=1,IMA
+                    A(      NY,K,I      ) =  ARE(I,K)
+CC                    A(JMA+2-NY,K,I      ) =  ARE(IMA+2-I,K)
+CC                    A(      NY,K,IMA+2-I) =  ARE(I,K)
+CC                    A(JMA+2-NY,K,IMA+2-I) =  ARE(I,K)
+                 WORK(      NY,K,I      ) =  AIM(I,K)
+CC                 WORK(JMA+2-NY,K,I      ) = -AIM(IMA+2-I,K)
+CC                 WORK(      NY,K,IMA+2-I) = -AIM(I,K)
+CC                 WORK(JMA+2-NY,K,IMA+2-I) =  AIM(I,K)
+              ENDDO
+           ENDDO
+   10 CONTINUE
+
+CTEST      DO  I=1,5
+CTEST         DO  K=1,5
+CTEST            DO  J=1,jmap2
+CTEST               write(6,*)'real-parts after:',j,k,i,a(j,k,i)
+CTEST               write(6,*)'imag-parts after:',j,k,i,work(j,k,i)
+CTEST            ENDDO
+CTEST         ENDDO
+CTEST      ENDDO
+C
+C
+C---- END OF SUBROUTINE  X T R I D I
+C
+      RETURN
+      END
+      SUBROUTINE XFFTSY (A,WORK,TRIGSI,TRIGSJ,IFAXI,IFAXJ,
+     $                   IPERMUX,IPERMUY,IMA,JMA,KMA,JMAP2,
+     $                   FCOSNY,FCOSMY)
+C
+C**********************************************************************
+C     X F F T S Y
+C----------------------------------------------------------------------
+C     FOR INFORMATION SEE THE CALLING SUBROUTINE.
+C----------------------------------------------------------------------
+C          F.UNGER     LEHRSTUHL FUER FLUIDMECHANIK, T.U. MUENCHEN
+C                      ZIMMER: 1303  TELEFON 2105-2506
+C----------------------------------------------------------------------
+C     PROGRAM DEVELOPING:                         F.UNGER    / 17.10.91
+C     LAST MODIFICATION :                                    /
+C**********************************************************************
+C
+C
+      PARAMETER (L_W = 1000)
+C
+      DIMENSION A(JMAP2,KMA,IMA),WORK(JMAP2,KMA,IMA)
+      DIMENSION TRIGSI(*),TRIGSJ(*),IFAXI(*),IFAXJ(*),
+     $          IPERMUX(IMA),IPERMUY(JMAP2),WORKLOCAL(2*L_W)
+      DIMENSION FCOSNY(JMA),FCOSMY(IMA)
+C
+      IF (L_W .LT. IMA) CALL ERRR(503,'XFFTAN')
+      IF (L_W .LT. JMA) CALL ERRR(504,'XFFTAN')
+C
+      JD2P1 = JMA/2 + 1
+
+C      DIMENSION A(JMAP2,KMA,IMA),WORK(JMAP2,KMA,IMA)
+C
+C---- FFT-ANALYSES IN I-DIRECTION: COMPLEX --> COMPLEX
+C
+      CALL FTCCSC (IMA,A,WORK,KMA*JMAP2,1,JMAP2*KMA,1.0,IFAXI,TRIGSI,
+     &     WORKLOCAL,L_W)
+      CALL SCRAMB (-1,IMA,A,WORK,KMA*JMAP2,1,JMAP2*KMA,IPERMUX,
+     &     WORKLOCAL)
+      DO I=1,IMA
+	DO K=1,KMA
+          DO J=1,JMAP2
+            A(J,K,I) = A(J,K,I) / FLOAT(IMA)
+            WORK(J,K,I) = WORK(J,K,I) / FLOAT(IMA)
+          ENDDO
+        ENDDO
+      ENDDO
+C
+C---- FFT-ANALYSES IN J-DIRECTION: COMPLEX --> COMPLEX
+C
+      CALL FTCCSC (JMA,A,WORK,1,JMAP2,IMA*KMA,1.0,IFAXJ,TRIGSJ,
+     &     WORKLOCAL,L_W)
+      CALL SCRAMB (-1,JMA,A,WORK,1,JMAP2,IMA*KMA,IPERMUY,
+     &     WORKLOCAL)
+
+      DO I=1,IMA
+	DO K=1,KMA
+          DO J=1,JMAP2
+            A(J,K,I) = A(J,K,I) / FLOAT(JMA)
+            WORK(J,K,I) = WORK(J,K,I) / FLOAT(JMA)
+          ENDDO
+        ENDDO
+      ENDDO
+CTEST      DO  I=1,5
+CTEST         DO  K=1,5
+CTEST            DO  J=1,jmap2
+CTEST               write(6,*)'xfftsy:',j,k,i,a(j,k,i)
+CTEST            ENDDO
+CTEST         ENDDO
+CTEST      ENDDO
+C------------------------------------------- HIER WIRD KOEFFIZIENTENFELD
+C                                            ENTSCRAMBLED, ERSETZT 
+C                                            AUFRUF VON SCRAMB FÜR 3D-FELD
+C
+C---- END OF SUBROUTINE  X F F T S Y
+C
+      RETURN
+      END
+      SUBROUTINE XSHIF2 (A,WORK)
+C
+C**********************************************************************
+C     X S H I F 2
+C----------------------------------------------------------------------
+C     FOR INFORMATION SEE THE CALLING SUBROUTINE.
+C----------------------------------------------------------------------
+C          F.UNGER     LEHRSTUHL FUER FLUIDMECHANIK, T.U. MUENCHEN
+C                      ZIMMER: 1303  TELEFON 2105-2506
+C----------------------------------------------------------------------
+C     PROGRAM DEVELOPING:                         F.UNGER    / 17.10.91
+C     LAST MODIFICATION :                                    /
+C**********************************************************************
+C
+      COMMON /CNETIN/ IMA,JMA,KMA
+     1               ,IMAP2,JMAP2,KMAP2
+     2               ,IKBL0,IKBL2,JKBL2,IJKBL0,IJKBL2
+     3               ,JD2,JD2P1,IPOISS,ODJMA,ODIMA
+      COMMON /CRUNIN/ IUFI,IULA,IPFI,IPLA
+     1               ,JVFI,JVLA,JPFI,JPLA
+     2               ,KWFI,KWLA,KPFI,KPLA
+     3               ,IUFIM1,IULAP1,IPFIM1,IPLAP1
+     4               ,JVFIM1,JVLAP1,JPFIM1,JPLAP1
+     5               ,KWFIM1,KWLAP1,KPFIM1,KPLAP1
+     6               ,JKPFI,JKWFI
+C
+      DIMENSION A(*),WORK(*)
+C
+      N = IMA*JMAP2*KMA+1
+      DO 10 I=IPLA,IPFI,-1
+        LI = (I-1)*JKBL2
+        DO 20 K=KPLA,KPFI,-1
+          LK  = (K-1)*JMAP2
+          LIK = LI + LK
+          N   = N - 2
+          DO 30 J=JPLA,JPFI,-1
+            N       = N - 1
+            WORK(J) = A(N)
+   30     CONTINUE
+          DO 31 J=JPLA,JPFI,-1
+            LIJK    = LIK + J
+            A(LIJK) = WORK(J)
+   31     CONTINUE
+   20   CONTINUE
+   10 CONTINUE
+C
+C---- END OF SUBROUTINE  X S H I F 2
+C
+      RETURN
+      END
+      SUBROUTINE XPERIY (A)
+C
+C**********************************************************************
+C     X P E R I Y
+C----------------------------------------------------------------------
+C     FOR INFORMATION SEE THE CALLING SUBROUTINE.
+C----------------------------------------------------------------------
+C          F.UNGER     LEHRSTUHL FUER FLUIDMECHANIK, T.U. MUENCHEN
+C                      ZIMMER: 1303  TELEFON 2105-2506
+C----------------------------------------------------------------------
+C     PROGRAM DEVELOPING:                         F.UNGER    / 17.10.91
+C     LAST MODIFICATION :                                    /
+C**********************************************************************
+C
+      COMMON /CNETIN/ IMA,JMA,KMA
+     1               ,IMAP2,JMAP2,KMAP2
+     2               ,IKBL0,IKBL2,JKBL2,IJKBL0,IJKBL2
+     3               ,JD2,JD2P1,IPOISS,ODJMA,ODIMA
+      COMMON /CRUNIN/ IUFI,IULA,IPFI,IPLA
+     1               ,JVFI,JVLA,JPFI,JPLA
+     2               ,KWFI,KWLA,KPFI,KPLA
+     3               ,IUFIM1,IULAP1,IPFIM1,IPLAP1
+     4               ,JVFIM1,JVLAP1,JPFIM1,JPLAP1
+     5               ,KWFIM1,KWLAP1,KPFIM1,KPLAP1
+     6               ,JKPFI,JKWFI
+C
+      DIMENSION A(JMAP2,KMAP2,IMAP2)
+C
+      DO 10 I=IPFI,IPLA
+        DO 20 K=KPFI,KPLA
+          A(JPFIM1,K,I) = A(JPLA,K,I)
+          A(JPLAP1,K,I) = A(JPFI,K,I)
+   20   CONTINUE
+   10 CONTINUE
+C
+C---- END OF SUBROUTINE  X P E R I Y
+C
+      RETURN
+      END
+      SUBROUTINE XPERIX (A)
+C
+C**********************************************************************
+C     X P E R I X
+C----------------------------------------------------------------------
+C     FOR INFORMATION SEE THE CALLING SUBROUTINE.
+C----------------------------------------------------------------------
+C          F.UNGER     LEHRSTUHL FUER FLUIDMECHANIK, T.U. MUENCHEN
+C                      ZIMMER: 1303  TELEFON 2105-2506
+C----------------------------------------------------------------------
+C     PROGRAM DEVELOPING:                         F.UNGER    / 20.07.92
+C     LAST MODIFICATION :                                    /
+C**********************************************************************
+C
+      COMMON /CNETIN/ IMA,JMA,KMA
+     1               ,IMAP2,JMAP2,KMAP2
+     2               ,IKBL0,IKBL2,JKBL2,IJKBL0,IJKBL2
+     3               ,JD2,JD2P1,IPOISS,ODJMA,ODIMA
+      COMMON /CRUNIN/ IUFI,IULA,IPFI,IPLA
+     1               ,JVFI,JVLA,JPFI,JPLA
+     2               ,KWFI,KWLA,KPFI,KPLA
+     3               ,IUFIM1,IULAP1,IPFIM1,IPLAP1
+     4               ,JVFIM1,JVLAP1,JPFIM1,JPLAP1
+     5               ,KWFIM1,KWLAP1,KPFIM1,KPLAP1
+     6               ,JKPFI,JKWFI
+C
+      DIMENSION A(JMAP2,KMAP2,IMAP2)
+C
+      DO 10 K=KPFI,KPLA
+        DO 20 J=JPFI,JPLA
+          A(J,K,IPFIM1) = A(J,K,IPLA)
+          A(J,K,IPLAP1) = A(J,K,IPFI)
+   20   CONTINUE
+   10 CONTINUE
+C
+C---- END OF SUBROUTINE  X P E R I X
+C
+      RETURN
+      END
+      SUBROUTINE TRIDIV (IM,KM,AIKN1,AIKN2
+     F                  ,APSI2,AC,APSI4,AA,ACOSNY,FCOSMY,SING
+     W                  ,AN,AE,AF1,AF2)
+C**********************************************************************
+CTI   SOLUTION OF TWO IN MY-DIRECTION DECOUPLED 2-D-EQUATIONS BY
+CTI   TRIDIAGONAL-MATRIX-ALGORITHM
+CTI
+CTI   VERSION V: VECTORIZED VERSION
+C**********************************************************************
+CAD   L.SCHMITT, JAN.1982
+CAD   F.UNGER  , 31.08.90
+C
+CPT   AIKN1,AIKN2: ON INPUT: RIGHT HAND SIDE, ON OUTPUT: SOLUTION
+CPA   IM: NUMBER OF TRIDIAGONAL SYSTEMS
+CPA   KM: NUMBER OF EQUATIONS IN K-DIRECTION
+CPA   APSI2,...,FCOSMY: FACTORS, SEE COMMENT CFOR
+CPA   SING= 0.: SINGULAR MATRICES (ONLY FOR MY=1 POSSIBLE)
+CPA   SING= 1.: REGULAR MATRICES
+CPW   AE,AN,AF1,AF2: WORK VECTORS
+C
+CFOR    AA(K)*X(MY,K-1)
+CFOR   +(APSI4(K)+APSI2(K)*ACOSNY+FCOSMY(MY))*X(MY,K)
+CFOR   +AC(K)*X(MY,K+1)   =   QNY(MY,K)
+C
+CDI   IM,KM
+      DIMENSION AIKN1(IM,KM),AIKN2(IM,KM)
+      DIMENSION AN(IM,KM),AE(IM,KM),AF1(IM,KM),AF2(IM,KM)
+CDI   KM
+      DIMENSION APSI2(KM),AC(KM),APSI4(KM),AA(KM)
+CDI   IM
+      DIMENSION FCOSMY(IM)
+C
+      K     = 1
+      ABAUX = APSI4(K) + APSI2(K)*ACOSNY
+      ACK   = AC(K)
+      DO 10 MY=1,IM
+        AB       = ABAUX + FCOSMY(MY)
+        AN(MY,K) = 1./AB
+        AE(MY,K) = -ACK*AN(MY,K)
+   10 CONTINUE
+C
+      DO 15 K=2,KM-1
+        ABAUX = APSI4(K) + APSI2(K)*ACOSNY
+        ACK   = AC(K)
+        AAK   = AA(K)
+        DO 20 MY=1,IM
+          AB        = ABAUX + FCOSMY(MY)
+          AN(MY,K)  = 1./(AB+AAK*AE(MY,K-1))
+          AE(MY,K)  = -ACK*AN(MY,K)
+   20   CONTINUE
+   15 CONTINUE
+C
+      K     = KM
+      ABAUX = APSI4(K) + APSI2(K)*ACOSNY
+      AAK   = AA(K)
+      IF (SING.EQ.0.0) THEN
+        AIKN1(1,K) = 0.0
+        AIKN2(1,K) = 0.0
+        SING       = 1.0
+        MYBEG      = 2
+      ELSE
+        MYBEG      = 1
+      END IF
+      DO 25 MY=MYBEG,IM
+        AB       = ABAUX+FCOSMY(MY)
+        AN(MY,K) = 1./(AB+AAK*AE(MY,K-1))
+   25 CONTINUE
+C
+      K = 1
+      DO 100 MY=1,IM
+        AF1(MY,K) = AIKN1(MY,K)*AN(MY,K)
+        AF2(MY,K) = AIKN2(MY,K)*AN(MY,K)
+  100 CONTINUE
+C
+      DO 110 K=2,KM-1
+        AAK = AA(K)
+        DO 120 MY=1,IM
+          AF1(MY,K) = (AIKN1(MY,K)-AAK*AF1(MY,K-1))*AN(MY,K)
+          AF2(MY,K) = (AIKN2(MY,K)-AAK*AF2(MY,K-1))*AN(MY,K)
+  120   CONTINUE
+  110 CONTINUE
+C
+      K   = KM
+      AAK = AA(K)
+      DO 130 MY=MYBEG,IM
+        AIKN1(MY,K) = (AIKN1(MY,K)-AAK*AF1(MY,K-1))*AN(MY,K)
+        AIKN2(MY,K) = (AIKN2(MY,K)-AAK*AF2(MY,K-1))*AN(MY,K)
+  130 CONTINUE
+C
+      DO 140 K=KM-1,1,-1
+        DO 150 MY=1,IM
+          AIKN1(MY,K) = AE(MY,K)*AIKN1(MY,K+1)+AF1(MY,K)
+          AIKN2(MY,K) = AE(MY,K)*AIKN2(MY,K+1)+AF2(MY,K)
+  150   CONTINUE
+  140 CONTINUE
+C
+      RETURN
+      END

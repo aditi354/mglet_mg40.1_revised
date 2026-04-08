@@ -1,0 +1,167 @@
+      SUBROUTINE GRDKOR (LL,LMX,DDS,DS,S,STOT,LB1,LB2,MB1,MB2,DSMIN)
+C*STAR*****************************************************************
+C*STAR*  G R D K O R    NACHBEARBEITUNG DES MIT DER SUBROUTINE
+C*STAR*                 "SETGRD3" ERZEUGTEN GITTERAUFBAUS. MIT
+C*STAR*                 "GRDKOR" WIRD ZWISCHEN DEN GITTERPUNKTEN LB1
+C*STAR*                 UND LB2 DIE VERTEILUNG DER GITTERPUNKTE
+C*STAR*                 DERART ABGEAENDERT, DASS IN DER UMGEBUNG VON
+C*STAR*                 LB1 UND LB2 EIN VERFEINERTES GITTER ENTSTEHT.
+C*STAR*                 IM BEREICH VON LB1 KOENNEN MB1 AEQUIDISTANTE
+C*STAR*                 ZELLEN DER MASCHENWEITE DS0 GEFORDERT WERDEN;
+C*STAR*                 ANALOG DAZU KANN DER BEREICH UM LB2 MB2 AEQUI-
+C*STAR*                 DISTANTE ZELLEN DER MASCHENWEITE DS0 ENTHAL-
+C*STAR*                 TEN.
+C*STAR*****************************************************************
+C
+C PARAM :  S(LL)        + KOORDINATENFELD
+C         DS(LL)        + ABSTAND DER GITTERPUNKTE
+C        DDS(LL)        + KANTENLAENGE DER KONTROLLVOLUMINA
+C        STOT           - GESAMTLAENGE DES NEU AUFZUTEILENDEN GEBIETES
+C        LL             - FELDDIMENSIONEN
+C        LMX            - GRENZE D. BERCHNUNGSGEBIETES(MIT BOUND)
+C        LB1            - NUMMER DER ERSTEN ZELLE INNERHALB DES NEU
+C                         AUFZUTEILENDEN BEREICHES
+C        LB2            - NUMMER DER LETZTEN ZELLE     ""     "   "
+C        MB1            - ZAHL AEQUIDIST. ZELLEN IM BEREICH VON LB1
+C        MB2            - ZAHL AEQUIDIST. ZELLEN IM BEREICH VON LB2
+C        DSMIN          - FALLS  ABS(DSMIN) .GT. 0.0  GILT, SO WIRD
+C                         DIE MASCHENWEITE IM BEREICH UM LB1 UND LB2
+C                         AUF  DSMIN  GESETZT. GILT  DSMIN=0.0, SO
+C                         WIRD AUTOMATISCH DIE MASCHENWEITE AUF DEN
+C                         KLEINEREN DER BEIDEN WERTE UM LB1 U. LB2
+C                         GESETZT: DS = MIN( DS(LB1-1), DS(LB2) )
+C
+C VERS:  22.04.85 (HW)  - ORIGINAL
+C        17.11.88 (HW)  - DSMIN KANN UEBERGEBEN WERDEN
+C        30.12.88 (HW)  : EPS  WIRD MASCHINEN"UN"ABHAENGIG BELEGT
+C
+C*STAR*****************************************************************
+C
+#include "konsta.h"
+C
+      REAL S(LL),  DS(LL),  DDS(LL)
+C
+      EPS    = 10.0 * SMAONE
+      MAXIT  = 1000
+C
+C                                  ABPRUEFUNG DER EINGABEPARAMETER
+C
+      IF((LB1 .LT. 3) .OR. (LB2 .GT. LMX-2))CALL ERRR(501,' GRDKOR   ')
+      IF(LB2 .LT. LB1)                      CALL ERRR(502,' GRDKOR   ')
+      IF((LB2-LB1-MB2-MB1) .LT. 2)          CALL ERRR(503,' GRDKOR   ')
+C
+C                                  BESTIMMUNG VON DS0
+C
+      IF(DS(LB1-1) .LT. DS(LB2))              GOTO 2010
+         DS0    = DS(LB2)
+         IF(ABS(DSMIN) .GT. 0.0) DS0 = ABS(DSMIN)
+         S(LB1) = S(LB2) - STOT + DS0
+C+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+*        DS0    = 1.0/810.0
+*        S(LB1) = 0.5*DS0
+C+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+         GOTO 2015
+ 2010 DS0 = DS(LB1-1)
+      IF(ABS(DSMIN) .GT. 0.0) DS0 = ABS(DSMIN)
+C
+C                                  BELEGUNG DER AEQUIDISTANTEN BEREI-
+C                                  CHE UM LB1 UND LB2 MIT DS0
+C                                  HIER: BEREICH UM LB1
+ 2015 IF(LB1 .NE. 3) GOTO 2020
+         NSTOP = MB1+2
+         DO 10 N=1,NSTOP
+   10       DS(LB1-3+N) = DS0
+         GOTO 2030
+ 2020 IF((LB1-MB1) .LT. 6) CALL ERRR(504,' GRDKOR   ')
+      NSTOP = 2*MB1+1
+      DO 20 N=1,NSTOP
+   20    DS(LB1-MB1-2+N) = DS0
+C
+C                                  HIER: BEREICH UM LB2
+C
+ 2030 IF(LB2 .NE. (LMX-2)) GOTO 2040
+         NSTOP = MB2+3
+         DO 30 N=1,NSTOP
+   30       DS(LB2-MB2-1+N) = DS0
+         GOTO 2050
+ 2040 NSTOP = 2*MB2+1
+      DO 40 N=1,NSTOP
+   40    DS(LB2-MB2-1+N) = DS0
+C
+ 2050 CONTINUE
+C
+C                                  WICHTIGE GEOMETRISCHE GROESSEN DES
+C                                  NICHTAEQUIDISTANTEN BEREICHES
+C                                  ZWISCHEN LB1+MB1 UND LB2-MB2
+C
+      SDIST = STOT - FLOAT(MB1+MB2+1)*DS0
+      NSTUE = (LB2-MB2-LB1-MB1)/2
+      NZUS  = LB2-MB2-LB1-MB1-2*NSTUE
+C
+C                                  NEWTON-ITERATION ZUR BESTIMMUNG
+C                                  DES GITTERSTRECKUNGSFAKTORS (FAK)
+C
+      ITER = 0
+      FAK  = 1.0
+C
+ 2100 CONTINUE
+C
+      FFAK = 0.0
+      DO 100 N=1,NSTUE
+  100    FFAK = FFAK + FAK**N
+      FFAK = DS0*(2.0*FFAK + FAK**(NSTUE+1)*FLOAT(NZUS)) - SDIST
+C
+      FSFAK = 0.0
+      DO 110 N=1,NSTUE
+  110    FSFAK = FSFAK + FLOAT(N)*FAK**(N-1)
+      FSFAK = DS0*(2.0*FSFAK + FAK**NSTUE*(FLOAT(NSTUE+1)
+     $      *                              FLOAT(NZUS)))
+C
+      FAKNEW = FAK - FFAK/FSFAK
+      ITER   = ITER+1
+      IF(ITER .LT. MAXIT) GOTO 2200
+         CALL ERRR(490,' GRDKOR   ')
+         FAK = FAKNEW
+         GOTO 2300
+ 2200 IF(ABS(FAKNEW-FAK) .LT. EPS) GOTO 2300
+         FAK = FAKNEW
+         GOTO 2100
+C
+C                                  BESTIMMUNG DER VARIABLEN DS(N)
+C
+ 2300 CONTINUE
+C
+      NSTOP = NSTUE+NZUS
+      DO 300 N=1,NSTOP
+         DS(LB1+MB1-1+N) = DS(LB1+MB1-2+N)*FAK
+  300    DS(LB2-MB2  -N) = DS(LB1+MB1-1+N)
+C
+C                                  BESTIMMUNG DER DDS(N)
+C
+      DDS(1) = DS(1)
+      NSTOP  = LMX-2
+      DO 310 N=1,NSTOP
+  310    DDS(N+1) = 0.5*(DS(N)+DS(N+1))
+      DDS(LMX) = DS(LMX)
+C
+C                                  BESTIMMUNG DER S(N)
+C                                  ZUNAECHST KOORDINATE VON S(1)
+C
+      S(1)  = S(LB1)
+      NSTOP = LB1-1
+      DO 320 N=1,NSTOP
+  320    S(1) = S(1) - DS(LB1-N)
+C
+      DO 330 N=2,LMX
+  330    S(N) = S(N-1) + DS(N-1)
+C
+C                                  AUSGABE WICHTIGER PARAMETER
+C
+      WRITE(6,6000)
+ 6000 FORMAT(9(1H-),13H G R D K O R ,110(1H-))
+      WRITE(6,6010) FAK,EPS,ITER
+ 6010 FORMAT(1X,'STRECKUNGSFAKTOR = ',F12.10,3X,'EPS = ',1PE11.4,
+     $3X,'ANZAHL DER ITERATIONEN = ',I4)
+C
+      RETURN
+      END

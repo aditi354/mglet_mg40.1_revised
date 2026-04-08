@@ -1,0 +1,107 @@
+      SUBROUTINE BFRFIX (KMX,JMX,IMX,      
+     $                    U,V,W,P,G,UFR,VFR,WFR,      
+     $                    JSTART,JSTOP,KSTART,KSTOP,ITYP
+#ifdef _TSCAL_
+     $                   ,T,TFR,X
+#endif
+     $                   )     
+C*STARLET***************************************************************
+C        B F R F I X   SETZEN DER RANDBEDINGUNGEN FUER DIE
+C                         GESCHWINDIGKEITSFELDER.
+C                         (LARGE-EDDY-SIMULATION)
+C*STARLET***************************************************************
+C
+C PARAM: 
+C        KMX, JMX, IMX  - DIMENSIONEN DES GITTERS 
+C        U(KMX,JMX,IMX) + GESCHWINDIGKEITSFELD
+C        V(KMX,JMX,IMX) + GESCHWINDIGKEITSFELD
+C        W(KMX,JMX,IMX) + GESCHWINDIGKEITSFELD
+C        T(KMX,JMX,IMX) + SCALAR T FIELD
+C        P(KMX,JMX,IMX) - DRUCKFELD
+C        G(KMX,JMX,IMX) - EFFEKTIVE DYNAMISCHE VISKOSITAET (= MUE)
+c      UFR(KMX,JMX, 2 ) - EINSTROEMFELD
+c      TFR(KMX,JMX, 2 ) - SCALAR INFLOW DISTRIBUTION
+C        ITYP           - HOLLERITH-KONSTANTE:
+C                         'P'  VOR DER DRUCKKORREKTUR
+C                         'T'  VOR DEM ZEITSCHRITT
+C
+C VERS:   8. 3.93 (MM)  : ORIGINAL
+C                         AUS BFROLE (BFROL) ABGELEITET
+C        28.02.03 (TB)  : SCALAR BOUNDARY TREATMENT IMPLEMENTED
+C
+C DEFINE-DIREKTIVEN     : QUD 
+C
+C*STARLET***************************************************************
+C
+#include "costrles.h"
+
+      CHARACTER (LEN=1)  ITYP
+C
+      REAL
+     $            U(KMX,JMX,IMX),   V(KMX,JMX,IMX),   W(KMX,JMX,IMX),
+     $            P(KMX,JMX,IMX),   G(KMX,JMX,IMX)
+      REAL        UFR(KMX,JMX, 2 ), VFR(KMX,JMX, 2 ), WFR(KMX,JMX, 2 )
+C
+#ifdef _TSCAL_
+      REAL        T(KMX,JMX,IMX),TFR(KMX,JMX, 2 ),X(IMX)
+#endif
+
+      IMX2=IMX-2
+C
+C
+C                                 **************************************
+C                                 FIXED-CONDITIONS AN DER FRONT-FLAECHE
+C                                 **************************************
+C
+C                                 DIE U-KOMPONENTEN WERDEN BEIM EINLESEN
+C                                 VOM DATENTRAEGER IM FELD "UFR" GESPEI-
+C                                 CHERT. VOR DEM ZEITSCHRITT WERDEN (WIE
+C                                 BEI DER DRUCKKORREKTUR) NUR DIE U-KOMP
+C                                 NOCHMALS KORRIGIERT. DIE V- UND W-KOMP
+C                                 SIND BEIM EINLESEN V. DATENTRAEGER BE-
+C                                 REITS RICHTIG GESETZT.
+C
+C
+C
+      IF ( ITYP .EQ. 'T' ) THEN
+       
+         DO J=JSTART,JSTOP
+         DO K=KSTART,KSTOP
+
+            U(K,J,  2) = UFR(K,J,  2)
+            V(K,J,  2) = VFR(K,J,  2)
+            W(K,J,  2) = WFR(K,J,  2)
+            P(K,J,  2) =   P(K,J,  3)
+#ifdef _TSCAL_ 
+CTBC         PARALLISATION DOES NOT WORK SO FAR FOR TFR!
+C            IF (LTXSTART) THEN
+C               DO I=3,IMX2
+C                  IF (X(I) .LT. TXSTART) THEN
+C                  	T(K,J,I) = TFR(K,J,  2)
+C		  ELSE
+C		  	T(K,J,  2) = TFR(K,J,  2)
+C                  ENDIF
+C               ENDDO
+C            ELSE
+C               T(K,J,  2) = TFR(K,J,  2)
+C	    ENDIF
+#endif            
+
+         ENDDO
+         ENDDO
+
+      ELSEIF ( ITYP .EQ. 'P') THEN
+       
+         DO J=JSTART,JSTOP
+         DO K=KSTART,KSTOP
+
+            U(K,J,  2) = UFR(K,J,  2)
+
+         ENDDO
+         ENDDO
+
+      ENDIF
+
+      RETURN
+      END
+

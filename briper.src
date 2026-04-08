@@ -1,0 +1,137 @@
+#define _WIO4_
+      SUBROUTINE BRIPER (KMX,JMX,IMX,
+     $                    U,V,W,P,G,
+     $                    ISTART,ISTOP,KSTART,KSTOP,ITYP
+#ifdef _TSCAL_
+     $                   ,T
+#endif
+     $                   )     
+C*STARLET***************************************************************
+C        B R I P E R    SETZEN DER RANDBEDINGUNGEN FUER DIE
+C                         GESCHWINDIGKEITSFELDER AND SCALAR T.
+C                         (LARGE-EDDY-SIMULATION)
+C*STARLET***************************************************************
+C
+C PARAM: 
+C        KMX, JMX, IMX  - DIMENSIONEN DES GITTERS 
+C        U(KMX,JMX,IMX) + GESCHWINDIGKEITSFELD
+C        V(KMX,JMX,IMX) + GESCHWINDIGKEITSFELD
+C        W(KMX,JMX,IMX) + GESCHWINDIGKEITSFELD
+C        T(KMX,JMX,IMX) + SCALAR T FIELD
+C        P(KMX,JMX,IMX) - DRUCKFELD
+C        G(KMX,JMX,IMX) - EFFEKTIVE DYNAMISCHE VISKOSITAET (= MUE)
+C        ITYP           - HOLLERITH-KONSTANTE:
+C                         'P'  VOR DER DRUCKKORREKTUR
+C                         'T'  VOR DEM ZEITSCHRITT
+C
+C VERS:   8. 3.93 (MM)  : ORIGINAL
+C                         AUS BLFTLE (BLFTL) ABGELEITET
+C        28.02.03 (TB)  : SCALAR BOUNDARY TREATMENT IMPLEMENTED
+C
+C DEFINE-DIREKTIVEN     : QUD 
+C
+C*STARLET***************************************************************
+C
+      CHARACTER (LEN=1)  ITYP
+C
+      REAL
+     $            U(KMX,JMX,IMX),   V(KMX,JMX,IMX),   W(KMX,JMX,IMX),
+     $            P(KMX,JMX,IMX),   G(KMX,JMX,IMX)
+C
+#ifdef _TSCAL_
+      REAL        T(KMX,JMX,IMX)
+#endif
+C
+      JM1 = JMX-1
+      JM2 = JMX-2
+      JM3 = JMX-3
+C
+C                                 **************************************
+C                                 PERIODISCHE RANDBEDINGUNGEN IN
+C                                 Y-RICHTUNG
+C                                 **************************************
+C
+C
+C                                 FUER ZEITSCHRITT
+C
+      IF (ITYP.EQ.'T') THEN
+
+         DO I=ISTART,ISTOP
+         DO K=KSTART,KSTOP
+
+               U(K,  2,I) = U(K,JM2,I)
+               V(K,  2,I) = V(K,JM2,I)
+               W(K,  2,I) = W(K,JM2,I)
+               P(K,  2,I) = P(K,JM2,I)
+               G(K,  2,I) = G(K,JM2,I)               
+C MERI 190199
+               U(K,  1,I) = U(K,JM3,I)
+               V(K,  1,I) = V(K,JM3,I)
+               W(K,  1,I) = W(K,JM3,I)
+               P(K,  1,I) = P(K,JM3,I)
+               G(K,  1,I) = G(K,JM3,I)
+#ifdef _TSCAL_
+               T(K,  2,I) = T(K,JM2,I)
+               T(K,  1,I) = T(K,JM3,I)
+#endif               
+         ENDDO
+         ENDDO
+
+
+#ifdef _QUD_
+
+         DO I=ISTART,ISTOP
+         DO K=KSTART,KSTOP
+
+               U(K,  1,I) = U(K,JM3,I)
+               V(K,  1,I) = V(K,JM3,I)
+               W(K,  1,I) = W(K,JM3,I)
+               G(K,  1,I) = G(K,JM3,I)
+#ifdef _TSCAL_
+               T(K,  1,I) = T(K,JM3,I)
+#endif
+
+         ENDDO
+         ENDDO
+
+#endif
+#ifdef _WIO4_
+
+         DO I=ISTART,ISTOP
+         DO K=KSTART,KSTOP
+
+               U(K,  1,I) = U(K,JM3,I)
+               V(K,  1,I) = V(K,JM3,I)
+               W(K,  1,I) = W(K,JM3,I)
+               G(K,  1,I) = G(K,JM3,I)
+#ifdef _TSCAL_
+               T(K,  1,I) = T(K,JM3,I)
+#endif
+
+         ENDDO
+         ENDDO
+
+#endif
+
+
+C                                 FUER DRUCKKORREKTUR
+C                                 NUR NORMALKOMPONENTE MUSS 
+C                                 GESETZT WERDEN
+       ELSEIF (ITYP.EQ.'P') THEN
+
+         DO I=ISTART,ISTOP
+         DO K=KSTART,KSTOP
+
+               V(K,  2,I) = V(K,JM2,I)
+
+         ENDDO
+         ENDDO
+ 
+       ELSE
+                CALL ERRR (501,' BRIPER')
+       ENDIF
+
+
+      RETURN
+      END
+

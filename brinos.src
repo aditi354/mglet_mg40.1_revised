@@ -1,0 +1,103 @@
+      SUBROUTINE BRINOS (KMX,JMX,IMX,
+     $                    U,V,W,P,G,
+     $                    ISTART,ISTOP,KSTART,KSTOP,ITYP)
+C*STARLET***************************************************************
+C        B R I N O S      SETZEN DER RANDBEDINGUNGEN FUER DIE
+C                         GESCHWINDIGKEITSFELDER.
+C                         (LARGE-EDDY-SIMULATION)
+C*STARLET***************************************************************
+C
+C PARAM: 
+C        KMX, JMX, IMX  - DIMENSIONEN DES GITTERS 
+C        U(KMX,JMX,IMX) + GESCHWINDIGKEITSFELD
+C        V(KMX,JMX,IMX) + GESCHWINDIGKEITSFELD
+C        W(KMX,JMX,IMX) + GESCHWINDIGKEITSFELD
+C        P(KMX,JMX,IMX) - DRUCKFELD
+C        G(KMX,JMX,IMX) - EFFEKTIVE DYNAMISCHE VISKOSITAET (= MUE)
+C        ITYP           - HOLLERITH-KONSTANTE:
+C                         'P'  VOR DER DRUCKKORREKTUR
+C                         'T'  VOR DEM ZEITSCHRITT
+C
+C VERS:   8. 3.93 (MM)  : ORIGINAL
+C                         AUS BLFTLE (BLFTL) ABGELEITET
+C        11.08.03 (TB)  : SIPITER IMPLEMENTED
+C
+C DEFINE-DIREKTIVEN     : QUD 
+C
+C*STARLET***************************************************************
+C
+#include "konsta.h"
+C
+      CHARACTER (LEN=1)  ITYP
+C
+      REAL
+     $            U(KMX,JMX,IMX),   V(KMX,JMX,IMX),   W(KMX,JMX,IMX),
+     $            P(KMX,JMX,IMX),   G(KMX,JMX,IMX)
+C
+C
+      JM1 = JMX-1
+      JM2 = JMX-2
+      JM3 = JMX-3
+C
+C                                 **************************************
+C                                 REIBUNGSBEHAFTETE, UNDURCHLAESSIGE 
+C                                 WAND
+C                                 **************************************
+C
+C
+C                                 FUER ZEITSCHRITT
+      IF (ITYP.EQ.'T') THEN
+
+         DO I=ISTART,ISTOP
+         DO K=KSTART,KSTOP
+
+               U(K,  2,I) = 0.0
+               V(K,  2,I) = 0.0
+               W(K,  2,I) = 0.0
+#ifdef _POISSONITER_
+               P(  K,2,I) = P(K,3,I)
+#else
+               P(K,  2,I) = 0.0
+#endif
+               G(K,  2,I) = -SMALL
+
+         ENDDO
+         ENDDO
+
+
+#ifdef _QUD_
+
+         DO I=ISTART,ISTOP
+         DO K=KSTART,KSTOP
+
+               U(K,  1,I) = 0.0
+               V(K,  1,I) = 0.0
+               W(K,  1,I) = 0.0
+
+         ENDDO
+         ENDDO
+
+#endif
+
+C                                 FUER DRUCKKORREKTUR
+C                                 NUR NORMALKOMPONENTE MUSS 
+C                                 GESETZT WERDEN
+       ELSEIF (ITYP.EQ.'P') THEN
+
+         DO I=ISTART,ISTOP
+         DO K=KSTART,KSTOP
+
+               V(K,  2,I) = 0.0
+
+         ENDDO
+         ENDDO
+ 
+       ELSE
+                CALL ERRR (501,' BRINOS')
+       ENDIF
+
+
+      RETURN
+      END
+
+

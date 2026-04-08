@@ -1,0 +1,225 @@
+#undef test
+
+      SUBROUTINE THOMASI(KK,JJ,II,KL,KU,JL,JU,IL,IU,LCOL,DIAG,
+     &                   RCOL,RSGS,FAKTOR,FOUTP
+#ifdef _FRED_BODY_
+     $                   ,BP,GI,GJ,GK
+#endif
+     $                   )
+C*MGLET***************************************************************
+C        T H O M A S I   DAS UNTERPROGRAMM THOMAS LOEST EIN TRIDIAGONA-
+C                        LES LINEARES GLEICHUNGSSYSTEM NACH DEM
+C                        THOMAS - ALGORITHMUS
+C*MGLET***************************************************************
+C  PARAM:  IMX         - MAXIMALE ANZAHL DER GITTERPUNKTE EINSCHLIESS-
+C                        LICH DER RANDSCHICHTEN
+C          LCOL        - ENTHAELT KOEFFIZIENTEN DER "LINKEN SPALTE"
+C                        PARALLEL ZUR HAUPTDIAGONALEN
+C          DIAG        - ENTHAELT KOEFFIZIENTEN DER HAUPTDIAGONALEN
+C          RCOL        - ENTHAELT KOEFFIZIENTEN DER "RECHTEN SPALTE"
+C                        PARALLEL ZUR HAUPTDIAGONALEN
+C          RSGS        - ENTHAELT  WERTE DES KONSTANTEN VEKTORS
+C                        AUF DER RECHTEN SEITE DES GL.SYSTEMS
+C          FOUTP       - ENTHAELT  DIE LOESUNG DES GL.SYSTEMS   
+C
+C  DEFINE DIREKTIVEN   : KEINE
+C
+C  UPROG               : KEINE
+C
+C     15.10.96 (AM)    : ORIGINAL
+C     22.10.03 (NP)    : FRED BODY DEFINE DIREKTIVE, Parallelisierung 
+C
+C
+C Definition
+C      GI(K,J,I) = LCOL(I) = COEFFX(I,1)
+C      GJ(K,J,I) = DIAG(I) = COEFFX(I,2)
+C      GK(K,J,I) = RCOL(I) = COEFFX(I,3)
+C
+C*MGLET***************************************************************
+C
+      IMPLICIT NONE
+#if defined _MPI_ && defined test
+#include "cobound.h"
+#include "colevel.h"
+#include "comgrid.h"
+#include "mgpar.h"
+#include "mpif.h"
+#include "compi.h"
+#endif
+
+      INTEGER KK,JJ,II,K,J,I,KL,KU,JL,JU,IL,IU,LP,N,IERR
+
+      REAL     LCOL(II), DIAG(II), RCOL(II),RSGS(KK,JJ,II),
+     $         FOUTP(KK,JJ,II),
+#ifdef _FRED_BODY_
+     $         FAKTOR(KK,JJ,II),BP(KK,JJ,II),
+     $         GI(KK,JJ,II),GJ(KK,JJ,II),GK(KK,JJ,II)
+#else
+     $         FAKTOR(II)
+#endif
+
+#if defined _MPI_ && defined test
+c
+c                                 MPI NACHBARINFORMATION
+c
+c IBOCOND = Anzahl der Boundary conditions pro boundary
+c INBR    = Nummer des Nachbargitters
+c      DO I=IST,NGRIDS,2
+c      IGRID = LOFGRIDS(I)
+c      IBOCOND = 1
+c      INBR = LBOGRIDS (IBOCOND,  2 ,IGRID)
+c      IPROCNBR = IDPROCOFGRD(INBR)
+c      IPROC   = IDPROCOFGRD(IGRID)
+
+      DO I = 1,NGRID
+         IGRID = LOFGRIDS(I)
+         IPROC = IDPROCOFGRD(IGRID)
+         IF(MYID .EQ. IPROC) THEN
+c            IGRID = LOFGRIDS(I)
+            INBRF = LBOGRIDS (IBOCOND, 1 ,IGRID)
+            INBRB = LBOGRIDS (IBOCOND, 2 ,IGRID)
+            IPROCNBRF = IDPROCOFGRD(INBRF)
+            IPROCNBRB = IDPROCOFGRD(INBRB)
+c            IPROC   = IDPROCOFGRD(IGRID)
+         END IF
+      END DO
+
+#endif
+C
+C                                 BILDUNG DER OBEREN DREIECKSMATRIX
+C
+
+ 
+      LP = IL+1
+
+#ifndef _FRED_BODY_
+
+      DO 100  I = LP,IU
+         FAKTOR(I) = LCOL(I) / DIAG(I-1)
+         DIAG(I) = DIAG(I) - (FAKTOR(I) * RCOL(I-1))
+  100 CONTINUE
+
+#else
+
+      DO K = KL,KU
+         DO J = JL , JU
+            DO I = LP,IU
+               FAKTOR(K,J,I) = GI(K,J,I) / GJ(K,J,I-1)
+               GJ(K,J,I)     = GJ(K,J,I) - (FAKTOR(K,J,I) * GK(K,J,I-1))
+            END DO
+         END DO
+      END DO
+
+#endif
+
+#if defined _MPI_ && defined test
+      IF(MYID .EQ. 0) THEN
+#endif
+      DO J = JL,JU
+      DO K = KL,KU
+         FOUTP(K,J,IL) = RSGS(K,J,IL)
+      END DO
+      END DO
+#if defined _MPI_ && defined test
+      ENDIF
+#endif
+
+
+       DO K = KL,KU
+#if defined _MPI_ && defined test
+         IF(MYID.NE.0) THEN
+            write(*,*) '1 MYID',myid
+            CALL MPI_RECV
+     $          (RECVBUF,(KK),MPI_REAL,
+     $           MYID-1,1,MPI_COMM_WORLD,IERR)
+            write(*,*) '2 MYID',myid
+            DO J = JL , JU
+               FOUTP(K,J,IL) = RECVBUF(K)
+            END DO
+         END IF
+#endif
+            DO J = JL , JU
+               DO I = LP,IU
+#ifndef _FRED_BODY_
+         FOUTP(K,J,I) = RSGS(K,J,I) - FAKTOR(I) * FOUTP(K,J,I-1)
+#else
+         FOUTP(K,J,I) = RSGS(K,J,I) - FAKTOR(K,J,I) * FOUTP(K,J,I-1) 
+#endif
+               END DO
+            END DO
+#if defined _MPI_ && defined test
+         IF(MYID.NE.NUMPROCS-1) THEN
+            DO J = JL , JU
+               RECVBUF(K)      = FOUTP(K,J,IU)
+            END DO
+            write(*,*) 'SEND1 MYID',myid
+            CALL MPI_SEND
+     $          (RECVBUF,(KK),MPI_REAL,
+     $           MYID+1,1,MPI_COMM_WORLD,IERR)
+            write(*,*) 'SEND2 MYID',myid
+         ENDIF
+#endif
+       END DO
+
+C
+C                                 RUECKSUBSTITUTION
+C
+#if defined _MPI_ && defined test
+      IF(MYID .EQ.NUMPROCS-1) THEN
+#endif
+      DO 500  J = JL,JU
+      DO 400  K = KL,KU
+#ifndef _FRED_BODY_
+         FOUTP(K,J,IU) = FOUTP(K,J,IU)/DIAG(IU)
+#else
+         FOUTP(K,J,IU) = FOUTP(K,J,IU)/GJ(K,J,IU)
+#endif
+  400 CONTINUE
+  500 CONTINUE
+#if defined _MPI_ && defined test
+      ENDIf
+#endif
+
+
+       DO K = KL,KU
+#if defined _MPI_ && defined test
+         IF(MYID.NE.0) THEN
+            CALL MPI_RECV
+     $          (RECVBUF,(KK),MPI_REAL,
+     $           MYID-1,MPI_COMM_WORLD,IERR)
+            DO J = JL , JU
+               FOUTP(K,J,IU) = RECVBUF(K)
+            END DO
+         END IF
+#endif
+         DO J = JL , JU
+            DO N = LP,IU
+               I = IU-N+IL
+#ifndef _FRED_BODY_
+      FOUTP(K,J,I) = (FOUTP(K,J,I) - RCOL(I) * FOUTP(K,J,I+1))/DIAG(I)
+#else
+      FOUTP(K,J,I) = (FOUTP(K,J,I) - GK(K,J,I) *
+     $                FOUTP(K,J,I+1)) / GJ(K,J,I)   
+#endif
+            END DO
+         END DO
+#if defined _MPI_ && defined test
+         IF(MYID.NE.NUMPROCS-1) THEN
+            DO J = JL , JU
+               RECVBUF(K) = FOUTP(K,J,IL)
+            END DO
+            CALL MPI_SEND
+     $          (RECVBUF,(KK),MPI_REAL,
+     $           MYID+1,MPI_COMM_WORLD,IERR)
+         ENDIF
+#endif
+      END DO
+
+
+c      write(*,*) KK,JJ,II,K,J,I,KL,KU,JL,JU,IL,IU,LP,N
+
+CC    WRITE (44,*) 'THOMAS ERFOLGREICH DURCHLAUFEN!!'
+
+
+      RETURN
+      END

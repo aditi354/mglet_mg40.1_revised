@@ -1,0 +1,84 @@
+      SUBROUTINE FDERFOUWY_PER (KK,JJ,KSTART,JSTART,KSTOP,JSTOP,
+     $           COEFDY,RSGS,DY,DDY,F,FD,LCOL,DIAG,RCOL,UZ,RSP)
+C*MGLET***************************************************************
+C        F D E R F O U W Y P E R   (First DERive Fourth Order)
+C        BERECHNUNG DER ERSTEN ABLEITUNG (DU/DY, DW/DY) BEI 
+C        PERIODISCHEN RANDBEDINGUNGEN
+C*MGLET***************************************************************
+C
+C PARAM: F(K,J)         - BEKANNTE GROESSE AN DEN GITTERKANTEN
+C      : FIN(K,J)       - INTERPOLIERTE GROESSE IN DER GLEICHEN RICHTUNG
+C                         ZWISCHEN DEN BEIDEN KANTEN       
+C      : FD (K,J)       - ERSTE ABLEITUNG, FIRST DERINATIVE  DV/DY
+C
+C      : LCOL           - ENTHAELT KOEFFIZIENTEN DER "LINKEN SPALTE"
+C                         PARALLEL ZUR HAUPTDIAGONALEN
+C      : DIAG           - ENTHAELT KOEFFIZIENTEN DER HAUPTDIAGONALEN
+C      : RCOL           - ENTHAELT KOEFFIZIENTEN DER "RECHTEN SPALTE"
+C                         PARALLEL ZUR HAUPTDIAGONALEN
+C
+C DEFINE DIREKTIVEN     : KEINE 
+C
+C UPROG                 : TRIZYK
+C
+C VERS:  20.01.97(AM)   : ORIGINAL     (KOMPAKT 4. ORDNUNG)
+C
+C*MGLET***************************************************************
+C
+
+      REAL    DY(JJ),       DDY(JJ),
+     $        LCOL(JJ),DIAG(JJ),RCOL(JJ),
+     $        UZ(JJ),       RSP(JJ)
+C
+      REAL    F(KK,JJ),FD(KK,JJ),COEFDY(JSTART:JSTOP+1,12),
+     $        RSGS(KK,JJ)            
+C
+       JJSTOP = JSTOP + 1
+
+#if !defined _4TH_KOBAYASHI_
+       DO 20 J = JSTART, JJSTOP
+C
+	    LCOL(J) = 1./22.      
+	    DIAG(J) = 1.
+	    RCOL(J) = 1./22.         
+C
+       DO 30 K = KSTART, KSTOP
+C
+            RSGS(K,J) = (24./22.)*(F(K,J)-F(K,J-1))*(DY(J-1))
+C
+   30  CONTINUE                   
+   20  CONTINUE                   
+C
+           UZ (1) = 1./22.
+           RSP(1) = 1./22.
+	   
+#else
+       DO 20 J = JSTART, JJSTOP
+C
+	    LCOL(J) = 1./10.      
+	    DIAG(J) = 1.
+	    RCOL(J) = 1./10.         
+C
+       DO 30 K = KSTART, KSTOP
+C
+            RSGS(K,J) = (6./5.)*(F(K,J)-F(K,J-1))*(DY(J-1))
+C
+   30  CONTINUE                   
+   20  CONTINUE                   
+C
+           UZ (1) = 1./10.
+           RSP(1) = 1./10.
+
+
+#endif	   
+C
+       DO 40 K = KSTART, KSTOP
+       CALL TRIZYK (K,KK,JJ,JSTART,JJSTOP,
+     $              LCOL,DIAG,RCOL,UZ,RSP,RSGS,FD)
+
+   40  CONTINUE
+C
+C*MGLET***************************************************************
+       RETURN
+       END
+

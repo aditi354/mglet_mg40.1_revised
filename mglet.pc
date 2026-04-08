@@ -1,0 +1,42 @@
+CPP= /lib/cpp
+#
+###############################################################################################################
+#
+CPPFLAGS= -P -traditional -I/opt/openmpi/include
+
+#
+###############################################################################################################
+#
+
+#F77=ifc
+#F90=ifc
+F77=ifx
+F90=ifx
+
+#
+###############################################################################################################
+#
+#FFLAGS= -O3  -c  -save -zero -fno-alias   -noalign -align dcommons
+#FFLAGS= -O3  -c  -save -zero -fno-alias -noalign -align dcommons  -fpscomp logicals -assume byterecl
+FFLAGS= -O3 -c -save -zero -fno-alias -noalign -align dcommons -fpscomp logicals -assume byterecl -g -traceback -I/opt/openmpi/include
+#FFLAGS= -c  -save -zero -fno-alias -noalign -align dcommons  -fpscomp logicals -assume byterecl
+#FFLAGS=
+
+#
+###############################################################################################################
+#
+#
+OPTIONS = 
+NOPTIONS   =  
+#
+#
+###############################################################################################################
+#
+
+LOPTIONS   =  -static
+#LIBRARY    =  -L/opt/intel/compiler70/ia32/lib -lIEPCF90 -L/usr/lib -lpthread \
+#          -L./qpack -lQPack /usr/lib/libfftpack.a
+#LIBRARY    =   -L/usr/lib -lpthread  -L./qpack -lQPack \
+#           /usr/local/lib/libfftpack.a
+LIBRARY    =   -L/usr/lib -lpthread  -L./qpack -lQPack \
+           ../FFTPACK/libfftpack.a

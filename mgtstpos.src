@@ -1,0 +1,454 @@
+#define _OUTPUT_TIMES_
+         SUBROUTINE MGTSTPOS (IDIM3D,IDIM2D,IDIM1D,NBND,
+     $                      X,Y,Z,DX,DY,DZ,DDX,DDY,DDZ,
+     $                      RDX,RDY,RDZ,RDDX,RDDY,RDDZ,
+     $                      U,V,W,P,G,B,HILF1,HILF2,
+     $                      H2D1,H2D2,H2D3,H2D4,H2D5,H2D6,
+     $                      TIMEPH,ITSTEP,ITTOT,
+     $                      TAU11,TAU12,TAU13,
+     $                      TAU21,TAU22,TAU23,
+     $                      TAU31,TAU32,TAU33)
+
+
+C**MGLET****************************************************************
+C
+C   M G T S T P O S        
+C                     TRANSPORTIERT POSITIONEN 
+C                     DER PARTIKEL
+C                     VERTEILT PARTIKEL AUF PROZESSOREN UND GITTER
+C
+C    30.9.03 (MM):  AUS MGTSTPART ABGELEITET
+C
+C**MGLET****************************************************************
+C
+#include "mgpar.h"
+#include "costrles.h"
+#include "comgrid.h"
+#include "colevel.h"
+#include "cogrdcon.h"
+#include "cogrdpro.h"
+#include "comgvp.h"
+#include "copart.h"
+C
+#ifdef _MPI_PARTICLES_
+C
+C               MPI-INCLUDE
+C
+#include "compi.h"
+#include "mpif.h"
+
+#endif
+C
+      REAL        RDDX(IDIM1D),     RDDY(IDIM1D),     RDDZ(IDIM1D),
+     $             RDX(IDIM1D),      RDY(IDIM1D),      RDZ(IDIM1D),
+     $             DDX(IDIM1D),      DDY(IDIM1D),      DDZ(IDIM1D),
+     $              DX(IDIM1D),       DY(IDIM1D),       DZ(IDIM1D),
+     $               X(IDIM1D),        Y(IDIM1D),        Z(IDIM1D)
+
+
+      REAL        U (   IDIM3D  ), V (   IDIM3D  ), W (   IDIM3D  ),
+     $            P (   IDIM3D  ), G (   IDIM3D  ), B (   IDIM3D  )
+#ifdef _TAU_NN_
+C                             NICHT-NEWTONSCHER SPANNUNGSTENSOR
+      REAL    TAU11( IDIM3D ), TAU12( IDIM3D ), TAU13( IDIM3D ),
+     $        TAU21( IDIM3D ), TAU22( IDIM3D ), TAU23( IDIM3D ),
+     $        TAU31( IDIM3D ), TAU32( IDIM3D ), TAU33( IDIM3D )
+#endif
+
+      REAL     H2D1( IDIM2D ), H2D2( IDIM2D ), H2D3( IDIM2D ),
+     $         H2D4( IDIM2D ), H2D5( IDIM2D ), H2D6( IDIM2D )
+C
+C
+      REAL     HILF1( IDIM3D ),HILF2( IDIM3D )
+
+      LOGICAL LOUT
+
+c        write (6,*) 'MGTSTPART',nfam,npart,ittot,itstep
+C        write (6,*) 'MGTSTPART',conf(1)
+C        write (6,*) 'MGTSTPART',xpart(1)
+C          write (6,*) "DUPART..",dupart(1),upart(1),xpart(1)
+C
+C       write (6,*) 'MGTSTPART',nfam,npart
+C        write (6,*) 'MGTSTPART',conf(1),conf(nfam*npart + 1),
+C     $                           conf(nfam*npart*2 + 1)
+C        write (6,*) 'MGTSTPART',xpart(1),xpart(nfam + 1),
+C     $                           xpart(nfam*2 + 1)
+
+#ifndef _TAU_NN_
+         CALL ERRR (501,' MGTSTPART! ')
+#endif
+#ifdef _OUTPUT_TIMES_
+            tsearch = 0.0
+            tgetvel = 0.0
+            tgetder = 0.0
+            ttstorient = 0.0
+            ttstpos = 0.0
+            tbpart = 0.0
+            tges   = 0.0
+#endif
+
+C
+C
+C
+C------------------------------------------ SETUP
+C
+      SHAPE_PART = (ASPECT**2 - 1.0)/(ASPECT**2 + 1.0)
+      DR = FRANDOM**2 / 2.0
+
+      IF (ITSTEP .EQ. 1) THEN
+
+      WRITE (6,*) 'BROWNIAN DIFFUSIVITY IS: ',DR
+      WRITE (6,*) 'THE SHAPE FACTOR IS: ',SHAPE_PART
+      WRITE (6,*) 'PECLET-NUMBER IS: ',SHEAR / DR
+
+      ENDIF
+
+      call brenner(rmu0,rmu1,rmu2,rmu3,rmu4,DR,VOL_FRAC,ASPECT)
+C      write (6,*)' rmu0,... ',rmu0,rmu1,rmu2,rmu3,rmu4
+
+
+
+C
+C------------------------------------------  GERECHNET WIRD ERST NUR
+C                                            AUF DEM MAXIMALEN LEVEL
+C                                            (FEINSTES GITTER)
+      ILEVEL = MAXLEVEL
+
+      DO I = 1,NOFTST(ILEVEL)
+         IGRID = IGRDOFTST(I,ILEVEL)
+
+         CALL MGDPB (KK,JJ,II,IP3,IP2,IP1,IBB,IBU,
+     $        NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB,IGRID)
+         
+C------------------------------------------- SEARCHING INDEX
+
+#ifdef _OUTPUT_TIMES_
+            t1 = GETSEC(0)
+#endif
+
+            CALL SEARCHINDEX(KK,Z(IP1),DZ(IP1),DDZ(IP1),
+     $           NZGRAE(IGRID),NFAM,XPART(2*NFAM + 1),KINDEX,
+     $           HILF1(IP3))
+
+            CALL SEARCHINDEX(JJ,Y(IP1),DY(IP1),DDY(IP1),
+     $           NYGRAE(IGRID),NFAM,XPART(  NFAM + 1),JINDEX,
+     $           HILF1(IP3))
+
+            CALL SEARCHINDEX(II,X(IP1),DX(IP1),DDX(IP1),
+     $           NXGRAE(IGRID),NFAM,XPART(         1),IINDEX,
+     $           HILF1(IP3))
+
+#ifdef _OUTPUT_TIMES_
+            t2 = GETSEC(0)
+
+C       write (6,*)'mgtstpart kindex',myid,kindex(100)
+C       write (6,*)'mgtstpart jindex',myid,jindex(100)
+C       write (6,*)'mgtstpart iindex',myid,iindex(100)
+#endif
+
+C------------------------------------------- GETTING VELOCITIES
+
+            CALL GETVELOCITIES (KK,JJ,II,  X(IP1),   Y(IP1),   Z(IP1),
+     $                                    DX(IP1),  DY(IP1),  DZ(IP1),
+     $                                  RDDX(IP1),RDDY(IP1),RDDZ(IP1),
+     $                          U(IP3),V(IP3),W(IP3),
+     $                          HILF1(IP3),HILF2(IP3),
+     $                          H2D1(IP1),H2D2(IP1),H2D3(IP1),
+     $                          NFAM,XPART(1),
+     $                          XPART(  NFAM + 1),XPART(2*NFAM + 1),
+     $                          IINDEX,JINDEX,KINDEX,UPART,
+     $                          FXPART,FYPART,FZPART)
+
+#ifdef _OUTPUT_TIMES_
+C       write (6,*)'mgtstpart upart',myid,upart(100)
+            t3 = GETSEC(0)
+#endif
+
+C         goto 1000
+C------------------------------------------ GETTING VELOCITY DERIVATIVES
+
+            CALL GETDERIVATIVES(KK,JJ,II,  X(IP1),   Y(IP1),   Z(IP1),
+     $                                    DX(IP1),  DY(IP1),  DZ(IP1),
+     $                                   RDX(IP1), RDY(IP1), RDZ(IP1),
+     $                                  RDDX(IP1),RDDY(IP1),RDDZ(IP1),
+     $                          U(IP3),V(IP3),W(IP3),
+     $                          HILF1(IP3),HILF2(IP3),
+     $                          H2D1(IP1),H2D2(IP1),H2D3(IP1),
+     $                          NFAM,XPART(1),
+     $                          XPART(  NFAM + 1),XPART(2*NFAM + 1),
+     $                          IINDEX,JINDEX,KINDEX,DUPART,
+     $                          FXPART,FYPART,FZPART)
+
+#ifdef _OUTPUT_TIMES_
+C       write (6,*)'mgtstpart dupart',myid,dupart(100)
+            t4 = GETSEC(0)
+#endif
+
+#ifdef _WRITE_PARTICLES_
+
+            IF (MOD (ITTOT,IPART_OUT) .EQ. 0) THEN
+
+               CALL WRITE_DUPART 
+     $              (29, NFAM*9, DUPART)
+               CALL WRITE_DUPART 
+     $              (31, NFAM*3, UPART)
+            
+            ENDIF
+
+#endif
+
+
+C------------------------------ COMPUTING RANDOM NUMBERS
+
+            CALL RANDOM_NUMBERS (NPART*3,RRANDOM,IRANDOM, DT, FRANDOM)
+
+C------------------------------------------- NEW ORIENTATION
+
+               CALL TSTORIENT (NPART,NFAM,DUPART,CONF,
+     $                      DT,SHAPE_PART,IRANDOM,FRANDOM,RRANDOM)
+
+C       write (6,*)'mgtstpart conf',myid,conf(100)
+#ifdef _OUTPUT_TIMES_
+            t5 = GETSEC(0)
+#endif
+
+
+            CALL CAL_RR (NPART, NFAM, CONF, LOUT,
+     $                    IT, DT, RR)
+#ifdef _OUTPUT_TIMES_
+            t5a1 = GETSEC(0)
+#endif
+            CALL CAL_RRRR (NPART, NFAM, CONF, LOUT,
+     $                     IT, DT, DUPART,RRRREE)
+
+#ifdef _OUTPUT_TIMES_
+            t5a2 = GETSEC(0)
+#endif
+C       write (6,*)'mgtstpart rrrr',myid,rr(100),rrrree(100)
+C------------------------------------------- PARTICLE STRESSES
+
+            CALL STRESS (NFAM, RR, RRRREE, DUPART,
+     $                   TAU, ITTOT, DT,
+     $                   RMU0,RMU1,RMU2,RMU3,RMU4,GMOL,VOL_FRAC,LOUT)
+
+#ifdef _OUTPUT_TIMES_
+            t5a = GETSEC(0)
+#endif
+
+C       write (6,*)'mgtstpart tau',myid,tau(100)
+
+C------------------------------------------- SETTING STRESSES FOR GRID
+C------------------------------------------- OLD STRESSES ARE WEIGHTED BY
+C------------------------------------------- FOLD = 0.1
+
+            FOLD = 0.0001
+
+C         IF (ITSTEP .EQ. 0) THEN
+            CALL SETS (KK,JJ,II,KK,JJ,II,TAU11(IP3),0.0)
+            CALL SETS (KK,JJ,II,KK,JJ,II,TAU12(IP3),0.0)
+            CALL SETS (KK,JJ,II,KK,JJ,II,TAU13(IP3),0.0)
+            CALL SETS (KK,JJ,II,KK,JJ,II,TAU21(IP3),0.0)
+            CALL SETS (KK,JJ,II,KK,JJ,II,TAU22(IP3),0.0)
+            CALL SETS (KK,JJ,II,KK,JJ,II,TAU23(IP3),0.0)
+            CALL SETS (KK,JJ,II,KK,JJ,II,TAU31(IP3),0.0)
+            CALL SETS (KK,JJ,II,KK,JJ,II,TAU32(IP3),0.0)
+            CALL SETS (KK,JJ,II,KK,JJ,II,TAU33(IP3),0.0)
+C         ENDIF
+
+#ifdef _OUTPUT_TIMES_
+            t5b2 = GETSEC(0)
+#endif
+C------------------------------------------ HILF1 CONTAINS NUMBER OF
+C------------------------------------------ PARTICLES IN CELL
+
+            CALL SETS (KK,JJ,II,KK,JJ,II,HILF1(IP3),FOLD)
+
+            CALL PARTICLE_STRESS (KK,JJ,II,  X(IP1),   Y(IP1),   Z(IP1),
+     $                                    DX(IP1),  DY(IP1),  DZ(IP1),
+     $                                  RDDX(IP1),RDDY(IP1),RDDZ(IP1),
+     $                          TAU11(IP3),TAU12(IP3),TAU13(IP3),
+     $                          TAU21(IP3),TAU22(IP3),TAU23(IP3),
+     $                          TAU31(IP3),TAU32(IP3),TAU33(IP3),
+     $                          HILF1(IP3),
+     $                          H2D1(IP1),H2D2(IP1),H2D3(IP1),
+     $                          NFAM,XPART(1),
+     $                          XPART(  NFAM + 1),XPART(2*NFAM + 1),
+     $                          IINDEX,JINDEX,KINDEX,TAU)
+
+#ifdef _OUTPUT_TIMES_
+            t5b = GETSEC(0)
+#endif
+
+#ifdef _MPI_PARTICLES_
+          CALL MPI_ALLREDUCE (HILF1(IP3),HILF2(IP3),KK*JJ*II,
+     $                        MPI_DOUBLE_PRECISION,
+     $                        MPI_SUM,MPI_COMM_WORLD, IERR)
+C                 NUMBER OF SAMPLES NOW IN HILF2
+#endif
+
+C         goto 1000
+          CALL SMOOTH_STRESS (KK,JJ,II,  X(IP1),   Y(IP1),   Z(IP1),
+     $                                    DX(IP1),  DY(IP1),  DZ(IP1),
+     $                                   DDX(IP1), DDY(IP1), DDZ(IP1),
+     $                                   RDX(IP1), RDY(IP1), RDZ(IP1),
+     $                                  RDDX(IP1),RDDY(IP1),RDDZ(IP1),
+     $                          TAU11(IP3),
+     $                          HILF2(IP3),HILF1(IP3))
+
+          CALL SMOOTH_STRESS (KK,JJ,II,  X(IP1),   Y(IP1),   Z(IP1),
+     $                                    DX(IP1),  DY(IP1),  DZ(IP1),
+     $                                   DDX(IP1), DDY(IP1), DDZ(IP1),
+     $                                   RDX(IP1), RDY(IP1), RDZ(IP1),
+     $                                  RDDX(IP1),RDDY(IP1),RDDZ(IP1),
+     $                          TAU12(IP3),
+     $                          HILF2(IP3),HILF1(IP3))
+
+          CALL SMOOTH_STRESS (KK,JJ,II,  X(IP1),   Y(IP1),   Z(IP1),
+     $                                    DX(IP1),  DY(IP1),  DZ(IP1),
+     $                                   DDX(IP1), DDY(IP1), DDZ(IP1),
+     $                                   RDX(IP1), RDY(IP1), RDZ(IP1),
+     $                                  RDDX(IP1),RDDY(IP1),RDDZ(IP1),
+     $                          TAU13(IP3),
+     $                          HILF2(IP3),HILF1(IP3))
+
+C          CALL SMOOTH_STRESS (KK,JJ,II,  X(IP1),   Y(IP1),   Z(IP1),
+C     $                                    DX(IP1),  DY(IP1),  DZ(IP1),
+C     $                                   DDX(IP1), DDY(IP1), DDZ(IP1),
+C     $                                   RDX(IP1), RDY(IP1), RDZ(IP1),
+C     $                                  RDDX(IP1),RDDY(IP1),RDDZ(IP1),
+C     $                          TAU21(IP3),
+C     $                          HILF2(IP3),HILF1(IP3))
+
+          CALL SMOOTH_STRESS (KK,JJ,II,  X(IP1),   Y(IP1),   Z(IP1),
+     $                                    DX(IP1),  DY(IP1),  DZ(IP1),
+     $                                   DDX(IP1), DDY(IP1), DDZ(IP1),
+     $                                   RDX(IP1), RDY(IP1), RDZ(IP1),
+     $                                  RDDX(IP1),RDDY(IP1),RDDZ(IP1),
+     $                          TAU22(IP3),
+     $                          HILF2(IP3),HILF1(IP3))
+
+          CALL SMOOTH_STRESS (KK,JJ,II,  X(IP1),   Y(IP1),   Z(IP1),
+     $                                    DX(IP1),  DY(IP1),  DZ(IP1),
+     $                                   DDX(IP1), DDY(IP1), DDZ(IP1),
+     $                                   RDX(IP1), RDY(IP1), RDZ(IP1),
+     $                                  RDDX(IP1),RDDY(IP1),RDDZ(IP1),
+     $                          TAU23(IP3),
+     $                          HILF2(IP3),HILF1(IP3))
+
+C          CALL SMOOTH_STRESS (KK,JJ,II,  X(IP1),   Y(IP1),   Z(IP1),
+C     $                                    DX(IP1),  DY(IP1),  DZ(IP1),
+C     $                                   DDX(IP1), DDY(IP1), DDZ(IP1),
+C     $                                   RDX(IP1), RDY(IP1), RDZ(IP1),
+C     $                                  RDDX(IP1),RDDY(IP1),RDDZ(IP1),
+C     $                          TAU31(IP3),
+C     $                          HILF2(IP3),HILF1(IP3))
+
+C          CALL SMOOTH_STRESS (KK,JJ,II,  X(IP1),   Y(IP1),   Z(IP1),
+C     $                                    DX(IP1),  DY(IP1),  DZ(IP1),
+C     $                                   DDX(IP1), DDY(IP1), DDZ(IP1),
+C     $                                   RDX(IP1), RDY(IP1), RDZ(IP1),
+C     $                                  RDDX(IP1),RDDY(IP1),RDDZ(IP1),
+C     $                          TAU32(IP3),
+C     $                          HILF2(IP3),HILF1(IP3))
+
+          CALL SMOOTH_STRESS (KK,JJ,II,  X(IP1),   Y(IP1),   Z(IP1),
+     $                                    DX(IP1),  DY(IP1),  DZ(IP1),
+     $                                   DDX(IP1), DDY(IP1), DDZ(IP1),
+     $                                   RDX(IP1), RDY(IP1), RDZ(IP1),
+     $                                  RDDX(IP1),RDDY(IP1),RDDZ(IP1),
+     $                          TAU33(IP3),
+     $                          HILF2(IP3),HILF1(IP3))
+
+C            write (6,*) 'smooth_stress finished'
+C       write (6,*)'mgtstpart tau11',myid,tau11(395367)
+C       write (6,*)'mgtstpart tau12',myid,tau12(395367)
+C       write (6,*)'mgtstpart tau13',myid,tau13(395367)
+C       write (6,*)'mgtstpart tau21',myid,tau21(395367)
+C       write (6,*)'mgtstpart tau22',myid,tau22(395367)
+C       write (6,*)'mgtstpart tau23',myid,tau23(395367)
+C       write (6,*)'mgtstpart tau31',myid,tau31(395367)
+C       write (6,*)'mgtstpart tau32',myid,tau32(395367)
+C       write (6,*)'mgtstpart tau33',myid,tau33(395367)
+
+#ifdef _OUTPUT_TIMES_
+            t5c = GETSEC(0)
+#endif
+ 1000  continue
+C------------------------------------------- NEW POSITION
+
+            CALL TSTPOS (NFAM,UPART,
+     $                   XPART(1), XPART(NFAM + 1), XPART(2*NFAM + 1),
+     $                   DT)
+C            write (6,*) 'tstpos finished'
+#ifdef _OUTPUT_TIMES_
+            t6 = GETSEC(0)
+#endif
+            CALL BPART (KK,JJ,II,  X(IP1),   Y(IP1),   Z(IP1),
+     $                            DX(IP1),  DY(IP1),  DZ(IP1),
+     $                   NFAM,
+     $                   XPART(1), XPART(NFAM + 1), XPART(2*NFAM + 1),
+     $                   NFRO,NBAC,NRGT,NLFT,NBOT,NTOP)
+
+#ifdef _OUTPUT_TIMES_
+            t7 = GETSEC(0)
+#endif
+
+C       write (6,*)'mgtstpart xpart',myid,xpart(100)
+C            write (6,*) 'bpart finished'
+
+C------------------------------------------- LOOP OVER CLUSTER FINISHED
+
+C------------------------------------------- OUTPUT?
+C        write (99,*) xpart(100),xpart(nfam+100),xpart(nfam*2+100)
+
+#ifdef _WRITE_PARTICLES_
+
+         IF (MOD (ITTOT,IPART_OUT) .EQ. 0) THEN
+
+            CALL WRITE_DUPART (23, NFAM*3, XPART)
+            
+         ENDIF
+
+#endif
+
+
+      ENDDO
+
+#ifdef _OUTPUT_TIMES_
+      IF (ITSTEP .EQ. 1) THEN
+
+            tsearch = t2-t1
+            tgetvel = t3-t2
+            tgetder = t4-t3
+            ttstorient = t5-t4
+            trr = t5a1-t5
+            trrrr = t5a2-t5a1
+            tstress = t5a-t5a2
+            tset    = t5b2 - t5a
+            tparticle_stress = t5b-t5b2
+            tsmooth_stress = t5c-t5b
+            ttstpos = t6-t5c
+            tbpart = t7-t6
+            tges   = t7 - t1
+
+        if (myid .eq. 0) then
+            write (6,*)'   search index:',tsearch
+            write (6,*)' get velocities:',tgetvel
+            write (6,*)'get derivatives:',tgetder
+            write (6,*)'   orientations:',ttstorient
+            write (6,*)'             rr:',trr
+            write (6,*)'           rrrr:',trrrr
+            write (6,*)'         stress:',tstress
+            write (6,*)'     set tau_ij:',tset
+            write (6,*)'particle_stress:',tparticle_stress
+            write (6,*)'  smooth_stress:',tsmooth_stress
+            write (6,*)'  new positions:',ttstpos
+            write (6,*)' boundary cond.:',tbpart
+            write (6,*)'            all:',tges
+        endif
+
+        ENDIF
+#endif
+
+         RETURN
+         END

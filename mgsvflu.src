@@ -1,0 +1,425 @@
+      SUBROUTINE MGSVFLU (     
+     $                    U,V,W,P,G,AU,AV,AW,
+     $                    HILF,UFR,VFR,WFR,PFR,GFR,X,Y,Z,
+     $                    IDIM3D,IDIM2D,IDIM1D,IDIMA,
+     $                    NBND,IGRID,ITSTEP,NB,NFRO
+#ifdef _TSCAL_
+     $                   ,T,AT,TFR,TSWITCH
+#endif
+     $                   )
+C--MGLET----------------------------------------------------------
+C
+C     ADDS FLUCTUATIONS TO FRONT-BUFFERS FOR 
+C     "STRUKTUR-PERIODISCHE" BOUNDARY CONDITION
+C
+C        UFR(X0)=UMEAN + (U(X) - <U>(X))
+C
+C     10.12.96 (MM.):    ORIGINAL
+C     28.04.03 (TB) :    CHANGED FOR SCALAR TRANSPORT BOUNDARY TREATMENT
+C
+C          TSWITCH = 0 :  FLUCTUATION BC APPLIED TO U,V,W,(G) ONLY
+C          TSWITCH = 1 :  FLUCTUATION BC APPLIED TO T ONLY
+C          TSWITCH = 0 :  FLUCTUATION BC APPLIED TO ALL VARS U,V,W,(G),T
+C
+C-------10--------20--------30--------40--------50--------60--------7072
+#include "mgpar.h"
+#include "cophyspar.h"
+#include "colevel.h"
+#include "cogrdpro.h"
+#include "cobound.h"
+#include "compi.h"
+
+C-------10--------20--------30--------40--------50--------60--------7072
+      REAL U(IDIM3D),V(IDIM3D),W(IDIM3D),
+     $     P(IDIM3D),G(IDIM3D),HILF(IDIM2D,6)
+      REAL AU(IDIMA),AV(IDIMA),AW(IDIMA)
+      REAL UFR(IDIM2D*2), VFR(IDIM2D*2), WFR(IDIM2D*2),
+     $     PFR(IDIM2D*2), GFR(IDIM2D*2)
+      REAL X(IDIM1D),Y(IDIM1D),Z(IDIM1D)
+#ifdef _TSCAL_
+      REAL T(IDIM3D),AT(IDIMA),TFR(IDIM2D*2)
+      INTEGER TSWITCH
+#endif      
+
+C
+C-------10--------20--------30--------40--------50--------60--------7072
+C                  IS IDIM3D SUFFICIENT?
+
+      IF (IDIM3D .LT. IDIM2D*6) CALL ERRR (501,"MGSVFLU")
+
+C
+C---------------------------------------------------------------------72
+C                      IS NFRO RIGHT?
+      IF (NFRO .NE. 11  .AND. NFRO .NE. 12) CALL ERRR (502,"MGSVFLU")
+C 
+C-------10--------20--------30--------40--------50--------60--------7072
+C
+           CALL MGDPB (KK,JJ,II,IP3,IP2,IP1,IBB,IBU,
+     $               NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB,IGRID)
+           CALL MGDIMA  (KKA,JJA,IIA,IGRID)
+           CALL MGPOINA (IAV,I2L,I1L,IGRID)
+
+           XPOS = XBANF(NB,1,IGRID)
+C
+C-------10--------20--------30--------40--------50--------60--------7072
+C                              BEIM ERSTEN ZEITSCHRITT SONDERBEHANDLUNG
+           IF (ITSTEP .EQ. 0) THEN
+
+#ifdef _MPI_
+             IP = IDPROCOFGRD(IGRID)
+             IF ( MYID .EQ. IP) THEN
+#else
+                IP=0
+#endif
+            CALL COPYREGION(KK,JJ,II,U(IP3),
+     $           IP,1,KK,1,JJ,2,2,
+     $           KK,JJ,2,UFR(IBB),IP,
+     $           0,0,0,
+     $           HILF(1,5),MYID)
+
+            CALL COPYREGION(KK,JJ,II,V(IP3),
+     $           IP,1,KK,1,JJ,2,2,
+     $           KK,JJ,2,VFR(IBB),IP,
+     $           0,0,0,
+     $           HILF(1,5),MYID)
+
+            CALL COPYREGION(KK,JJ,II,W(IP3),
+     $           IP,1,KK,1,JJ,2,2,
+     $           KK,JJ,2,WFR(IBB),IP,
+     $           0,0,0,
+     $           HILF(1,5),MYID)
+#ifdef _TSCAL_
+            CALL COPYREGION(KK,JJ,II,T(IP3),
+     $           IP,1,KK,1,JJ,2,2,
+     $           KK,JJ,2,TFR(IBB),IP,
+     $           0,0,0,
+     $           HILF(1,5),MYID)
+#endif     
+
+#ifndef _DNS_
+            CALL COPYREGION(KK,JJ,II,G(IP3),
+     $           IP,1,KK,1,JJ,2,2,
+     $           KK,JJ,2,GFR(IBB),IP,
+     $           0,0,0,
+     $           HILF(1,5),MYID)
+#endif
+#ifdef _MPI_
+      ENDIF
+#endif
+
+              RETURN
+           ENDIF
+C
+C-------10--------20--------30--------40--------50--------60--------7072
+C                         SUCHE NACH DER POSITION
+
+      ILEVEL = LEVEL(IGRID)
+        DO I = 1,NOFTST(ILEVEL)
+           IGSEARCH = IGRDOFTST(I,ILEVEL)
+
+           CALL MGDIMS  (KK2,JJ2,II2,IGSEARCH)          
+           CALL MGPOINT (IP32,IP22,IP12,IBB2,IB32,IBU2,IGSEARCH)
+           CALL MGDIMA  (KKA2,JJA2,IIA2,IGSEARCH)
+           CALL MGPOINA (IAV2,I2L2,I1L2,IGSEARCH)
+
+
+           CALL FINDPOSITION(II2,X(IP12),XPOS,INDEX,2)
+
+           IF (INDEX .GT. 0 .AND. INDEX .LT. II) THEN
+
+C-------10--------20--------30--------40--------50--------60--------7072
+
+              CALL MGOVERLAP (JJ,Y(IP1),JJ2,Y(IP12),NBND, 0.0 ,
+     $                  JA1,JE1,JA2,JE2)     
+              CALL MGOVERLAP (KK,Z(IP1),KK2,Z(IP12),NBND, 0.0 ,
+     $                  KA1,KE1,KA2,KE2)   
+
+          IF  (( JE1 .EQ. JJ ) .AND. ( JA1 .EQ. 1 )
+     $   .AND. ( KE1 .EQ. KK ) .AND. ( KA1 .EQ. 1 ))
+     $    THEN
+C                                             POSITION AND GRID FOUND!!!
+C---------------------------------------------------------------------72
+
+#ifdef _MPI_
+             IP = IDPROCOFGRD(IGRID)
+             IP2= IDPROCOFGRD(IGSEARCH)
+             IF ( MYID .EQ. IP .OR. MYID .EQ. IP2) THEN
+#else
+                IP=0
+                IP2=0
+#endif
+
+C
+C---------------------------------------------------------------------72
+C                   IF BOUND.-COND. IS "RECYCLE" THEN ANALYSE AVERAGE 
+C                   FIELD FIRST
+C
+             IF (NFRO .EQ. 12) THEN
+                CALL COPYREGION(KKA2,JJA2,IIA2,AU(IAV2),
+     $               IP2,1,KKA2,1,JJA2,INDEX,INDEX,
+     $               KKA2,JJA2,1,HILF(1,1),IP,
+     $               0,0,1-INDEX,
+     $               HILF(1,5),MYID)
+             
+#ifdef _MPI_
+             IF ( MYID .EQ. IP ) THEN
+#endif
+                CALL BL_DIAGNOSE (KKA2,JJA2,1,NBND,HILF(1,1),Z(IP1),
+     $               ZBANF(NB,1,IGRID),
+     $               DELTA_ACT,UTAU_ACT,UMAX_ACT)
+
+	write (6,*) 'delta...',DELTA_ACT,UTAU_ACT,UMAX_ACT
+
+#ifdef _MPI_
+      ENDIF
+#endif
+C
+#ifdef _TSCAL_
+CTBC                   SAME PROCEDURE FOR T, DELTAT_ACT
+                CALL COPYREGION(KKA2,JJA2,IIA2,AT(IAV2),
+     $               IP2,1,KKA2,1,JJA2,INDEX,INDEX,
+     $               KKA2,JJA2,1,HILF(1,1),IP,
+     $               0,0,1-INDEX,
+     $               HILF(1,5),MYID)
+             
+#ifdef _MPI_
+             IF ( MYID .EQ. IP ) THEN
+#endif
+                CALL BL_DIAGNOSE (KKA2,JJA2,1,NBND,HILF(1,1),Z(IP1),
+     $               ZBANF(NB,1,IGRID),
+     $               DELTAT_ACT,UTAU_ACT,TMAX_ACT)
+
+	write (6,*) 'deltaT...',DELTAT_ACT,UTAU_ACT,TMAX_ACT
+
+#ifdef _MPI_
+      ENDIF
+#endif
+C
+#endif
+             ENDIF
+C
+C                   ANALYSIS OF AVERAGE FIELD FINISHED
+C---------------------------------------------------------------------72
+C                                   GETTING INFLOW PROFILE INTO HILF
+C                                   AND PUTTING IT (WITH APPROPRIATE
+C                                   SCALING)ONTO UFR, VFR, WFR, GFR, TFR
+C
+C---------------------------------------------------------------------72
+C                                     HERE: U
+#ifdef _TSCAL_
+           IF (TSWITCH .NE. 1) THEN
+#endif
+             CALL COPYREGION(KK2,JJ2,II2,U(IP32),
+     $            IP2,1,KK2,1,JJ2,INDEX,INDEX,
+     $            KK,JJ,1,HILF(1,1),IP,
+     $            0,0,1-INDEX,
+     $            HILF(1,2),MYID)
+
+
+#ifdef _SVFLU_TIME_AVERAGE_
+             IF (NFRO .EQ. 11) THEN
+                CALL COPYREGION(KKA2,JJA2,IIA2,AU(IAV2),
+     $               IP2,1,KKA2,1,JJA2,INDEX,INDEX,
+     $               KKA2,JJA2,1,HILF(1,3),IP,
+     $               0,0,1-INDEX,
+     $               HILF(1,5),MYID)
+             ENDIF
+#endif
+#ifdef _MPI_
+             IF ( MYID .EQ. IP ) THEN
+#endif
+                IF (NFRO .EQ. 11) THEN
+                   CALL SVFLU(KK,JJ, 2,UFR(IBB),HILF(1,1),HILF(1,2),
+     $                  HILF(1,3),JJA2,
+     $                  NBND,Z(IP1),ZBANF(NB,1,IGRID),DELTA)
+                ELSEIF (NFRO .EQ. 12) THEN
+                   CALL SVREC(KK,JJ, 2,2,UFR(IBB),HILF(1,1),HILF(1,2),
+     $                  HILF(1,3),HILF(1,4),Z(IP1),ZBANF(NB,1,IGRID),
+     $                  DELTA,DELTA_ACT,UTAUX,UTAU_ACT,UFRCON,UMAX_ACT,
+     $                  GMOL)
+                ENDIF
+#ifdef _MPI_
+             ENDIF
+#endif
+
+#ifdef _TSCAL_
+           ENDIF  
+#endif
+             
+C     
+C---------------------------------------------------------------------72
+C     HERE: V
+
+#ifdef _TSCAL_
+           IF (TSWITCH .NE. 1) THEN
+#endif             
+             CALL COPYREGION(KK2,JJ2,II2,V(IP32),
+     $            IP2,1,KK2,1,JJ2,INDEX,INDEX,
+     $            KK,JJ,1,HILF(1,1),IP,
+     $            0,0,1-INDEX,
+     $            HILF(1,2),MYID)
+             
+#ifdef _SVFLU_TIME_AVERAGE_
+               IF (NFRO .EQ. 11) THEN
+                    CALL COPYREGION(KKA2,JJA2,IIA2,AV(IAV2),
+     $                  IP2,1,KKA2,1,JJA2,INDEX,INDEX,
+     $                  KKA2,JJA2,1,HILF(1,3),IP,
+     $                  0,0,1-INDEX,
+     $                  HILF(1,5),MYID)
+             ENDIF
+#endif
+#ifdef _MPI_
+             IF ( MYID .EQ. IP ) THEN
+#endif
+                IF (NFRO .EQ. 11) THEN
+                   CALL SVFLU(KK,JJ, 2,VFR(IBB),HILF(1,1),HILF(1,2),
+     $                  HILF(1,3),JJA2,
+     $                  NBND,Z(IP1),ZBANF(NB,1,IGRID),DELTA)
+                ELSEIF (NFRO .EQ. 12) THEN
+                   CALL SVREC(KK,JJ, 2,2,VFR(IBB),HILF(1,1),HILF(1,2),
+     $                  HILF(1,3),HILF(1,4),Z(IP1),ZBANF(NB,1,IGRID),
+     $                  DELTA,DELTA_ACT,UTAUX,UTAU_ACT,UFRCON,UMAX_ACT,
+     $                  GMOL)
+                ENDIF
+#ifdef _MPI_
+             ENDIF
+#endif
+#ifdef _TSCAL_
+           ENDIF  
+#endif
+C
+C---------------------------------------------------------------------72
+C                                     HERE: W
+
+#ifdef _TSCAL_
+           IF (TSWITCH .NE. 1) THEN
+#endif 
+             CALL COPYREGION(KK2,JJ2,II2,W(IP32),
+     $            IP2,1,KK2,1,JJ2,INDEX,INDEX,
+     $            KK,JJ,1,HILF(1,1),IP,
+     $            0,0,1-INDEX,
+     $            HILF(1,2),MYID)
+
+#ifdef _SVFLU_TIME_AVERAGE_
+                IF (NFRO .EQ. 11) THEN
+CTEST                   CALL COPYREGION(KKA2,JJA2,IIA2,AW(IAV2),
+CTEST     $                  IP2,1,KKA2,1,JJA2,INDEX,INDEX,
+CTEST     $                  KKA2,JJA2,1,HILF(1,3),IP,
+CTEST     $                  0,0,1-INDEX,
+CTEST     $                  HILF(1,5),MYID)
+      CALL SETS   (KKA2,JJA2,1,KKA2,JJA2,1,HILF(1,3),0.0)
+                ENDIF
+#endif
+#ifdef _MPI_
+             IF ( MYID .EQ. IP ) THEN
+#endif
+                IF (NFRO .EQ. 11) THEN
+                   CALL SVFLU(KK,JJ, 2,WFR(IBB),HILF(1,1),HILF(1,2),
+     $                  HILF(1,3),JJA2,
+     $                  NBND,Z(IP1),ZBANF(NB,1,IGRID),DELTA)
+                ELSEIF (NFRO .EQ. 12) THEN
+                   CALL SVREC(KK,JJ, 2,2,WFR(IBB),HILF(1,1),HILF(1,2),
+     $                  HILF(1,3),HILF(1,4),Z(IP1),ZBANF(NB,1,IGRID),
+     $                  DELTA,DELTA_ACT,UTAUX,UTAU_ACT,UFRCON,UMAX_ACT,
+     $                  GMOL)
+                ENDIF
+#ifdef _MPI_
+             ENDIF
+#endif
+#ifdef _TSCAL_
+           ENDIF  
+#endif
+C
+#ifdef _TSCAL_
+C---------------------------------------------------------------------72
+C                                     HERE: T
+           IF (TSWITCH .EQ. 1 .OR. TSWITCH .EQ. 2) THEN
+             CALL COPYREGION(KK2,JJ2,II2,T(IP32),
+     $            IP2,1,KK2,1,JJ2,INDEX,INDEX,
+     $            KK,JJ,1,HILF(1,1),IP,
+     $            0,0,1-INDEX,
+     $            HILF(1,2),MYID)
+
+#ifdef _SVFLU_TIME_AVERAGE_
+                IF (NFRO .EQ. 11) THEN
+                   CALL COPYREGION(KKA2,JJA2,IIA2,AT(IAV2),
+     $                  IP2,1,KKA2,1,JJA2,INDEX,INDEX,
+     $                  KKA2,JJA2,1,HILF(1,3),IP,
+     $                  0,0,1-INDEX,
+     $                  HILF(1,5),MYID)
+                ENDIF
+#endif
+#ifdef _MPI_
+             IF ( MYID .EQ. IP ) THEN
+#endif
+                IF (NFRO .EQ. 11) THEN
+                   CALL SVFLU(KK,JJ, 2,TFR(IBB),HILF(1,1),HILF(1,2),
+     $                  HILF(1,3),JJA2,
+     $                  NBND,Z(IP1),ZBANF(NB,1,IGRID),DELTAT)
+                ELSEIF (NFRO .EQ. 12) THEN
+CTBC               SVREC STILL TO BE CORRECTED AND VALIDATED!!!
+      STOP 'RECYCLING BOUND. COND. NOT YET IMPLEMENTED FOR SCALAR T!'                                  	
+                   CALL SVREC(KK,JJ, 2,2,TFR(IBB),HILF(1,1),HILF(1,2),
+     $                  HILF(1,3),HILF(1,4),Z(IP1),ZBANF(NB,1,IGRID),
+     $                 DELTAT,DELTAT_ACT,UTAUX,UTAU_ACT,TFRCON,TMAX_ACT,
+     $                  GMOL)
+                ENDIF
+#ifdef _MPI_
+             ENDIF
+#endif
+           ENDIF
+C---------------------------------------------------------------------72
+#endif
+C
+#ifndef _DNS_
+C
+C---------------------------------------------------------------------72
+C                                     HERE: G
+
+#ifdef _TSCAL_
+           IF (TSWITCH .NE. 1) THEN
+#endif 
+             CALL COPYREGION(KK2,JJ2,II2,G(IP32),
+     $            IP2,1,KK2,1,JJ2,INDEX,INDEX,
+     $            KK,JJ,1,HILF(1,1),IP,
+     $            0,0,1-INDEX,
+     $            HILF(1,2),MYID)
+#ifdef _MPI_
+             IF ( MYID .EQ. IP ) THEN
+#endif
+                IF (NFRO .EQ. 11) THEN
+#ifdef _SVFLU_TIME_AVERAGE_
+C                  NO TIME-AVERAGE EXISTENT FOR G!
+
+                   CALL SETS(KKA2,JJA2,1,KKA2,JJA2,1,HILF(1,3),0.0)
+#endif
+                   CALL SVFLU(KK,JJ, 2,GFR(IBB),HILF(1,1),HILF(1,2),
+     $                  HILF(1,3),JJA2,
+     $                  NBND,Z(IP1),ZBANF(NB,1,IGRID),DELTA)
+                ELSEIF (NFRO .EQ. 12) THEN
+                   CALL SVREC(KK,JJ, 2,2,GFR(IBB),HILF(1,1),HILF(1,2),
+     $                  HILF(1,3),HILF(1,4),Z(IP1),ZBANF(NB,1,IGRID),
+     $                  DELTA,DELTA_ACT,UTAUX,UTAU_ACT,UFRCON,UMAX_ACT,
+     $                  GMOL)
+                ENDIF
+#ifdef _MPI_
+             ENDIF
+#endif
+#ifdef _TSCAL_
+           ENDIF  
+#endif
+#endif
+
+#ifdef _MPI_
+          ENDIF
+#endif
+
+          GOTO 1000
+       ENDIF
+      ENDIF
+      ENDDO
+     
+ 1000 CONTINUE
+C-------10--------20--------30--------40--------50--------60--------7072
+      RETURN
+      END

@@ -1,0 +1,1163 @@
+
+
+
+
+
+
+
+
+
+
+
+CCCCC        DEFINITIONEN FUER C-PREPROZESSOR
+C            MASCHINE
+
+C              MESSAGE PASSING INTERFACE
+
+C            RAEUMLICHE DISKRETISIERUNG
+C
+***********************************************************************
+C                       KOMPAKT-UPWIND in X-RICHTUNG (3-TER ORDNUNG) fuer
+C                       die U-Komponente (V und W bleiben Kompakt 4ter ordnung)
+C                       falls im Stroemungsfeld eine Koerper vorhanden ist
+C
+***********************************************************************
+C                       KOMPAKTVERF. in XYZ-RICHTUNG (4-TER ORDNUNG)
+
+
+**********************************************************************
+C                      Preprocessing with ADM for 2nd Order Central
+***********************************************************************
+CCC                     Bei periodischen Randbedingungen in X-Richtung
+CCC                     ist eine hoehere O
+C
+CCC                     Bei periodischen Randbedingungen in Y-Richtung
+CCC                     ist eine hoehere Ordnung moeglich
+C
+CCC                     Bei periodischen Randbedingungen in Y-Richtung:
+CCC                     Zentraldiff. 4-ter Ordnung (Parallelisieung moeglich)
+C
+***********************************************************************
+C
+C
+C            INTERPOLATION AN GITTER-GRENZEN
+
+C            BEHANDLUNG DER TOPAR-RANDBEDINGUNG
+
+C            ZEITLICHE DISKRETISIERUNG
+
+C            FEINSTRUKTURMODELL
+
+C            NICHT-NEWTONSCHE SPANNUNGEN
+
+
+C            TRANSPORT UND ORIENTIERUNG VON PARTIKELN
+
+
+C            SCALAR HEAT/TEMPERATURE TRANSPORT
+C            APROXIMATE DECONVOLUTION FOR SCALAR
+C            TURBULENT PRANDTL NUMBER 
+C            PLOT LOCAL SCALAR CONVECTION DIFFUSION EXTREMES 
+C            ANALYZE AND PLOT NEAR WALL GRID RESLOLUTION 
+C            WRITE SPECIAL 1D LINE FOR TMIX FOR SPECTRA AND PDF
+C            SCALAR TIME ADVANCEMENT/DISCRETISATION METHOD
+
+C            STROEMUNG NACH OBEN?
+
+
+C            BEHANDLUNG DER FLUKTUATIONS-RANDBEDINGUNG
+
+C            BEHANDLUNG VON PPHYS ALS QUELLTERM IN TSTLE2
+
+C            POSITIONIERUNG DER EINSTROEMPROFILE
+
+C           STATISTIK
+
+
+C                 GEMISCHTES
+
+C                GRDFMI WIRD NICHT VERWENDET, DAHER EINSPARUNG DER FELDER
+C                IGRHF UND GRHF
+
+C                VERGROESSERN DER KJI-RICHTUNG BEI FORTSETZUNGSLAUF ERLAUBT!
+
+C                RAUSSCHREIBEN VON ZEITRECORDS
+
+C                FUER KORRELATIONEN UND HAEFIGKEITSVERTEILUNGEN
+      SUBROUTINE SVLE1   (KK,JJ,II,KMX,JMX,IMX,
+     $                    DX,DY,DZ,
+     $                    U,V,W,P,X,Y,Z,VCON,WCON,
+     $                    YBANF,YBEND,ZBANF,ZBEND,HI,GRADPX)
+C
+C*STARLET***************************************************************
+C        S V L E 1        VORBELEGUNG DER GESCHWINDIGKEITSFELDER  U,V,W.
+C                         FUER DAS U-FELD WIRD EINE VOLL ENTWICKELTE
+C                         KANALSTROEMUNG ANGENOMMEN. NACH DER ERZEUGUNG
+C                         DER ZEITLICH GEMITTELTEN PROFILE WERDEN DIESEN
+C                         WERTEN SCHWANKUNGSGESCHWINDIGKEITEN UEBERLA-
+C                         GERT.
+C*STARLET***************************************************************
+C
+C PARAM: KK,  JJ,  II   - ARRAYDIMENSIONEN
+C        KMX, JMX, IMX  - GRENZEN DES BERECHNUNGSGEBIETES (MIT BOUND)
+C        U (KK,JJ,II)   + NEUES GESCHWINDIGKEITSFELD
+C        V (KK,JJ,II)   + NEUES GESCHWINDIGKEITSFELD
+C        W (KK,JJ,II)   + NEUES GESCHWINDIGKEITSFELD
+C        G (KK,JJ,II)   + EFFEKTIVE KINEMATISCHE VISKOSITAET (= NY)
+C        MTURB          - SCHALTER (1 : TURBULENT,  0 : LAMINAR)
+C        VCON           - V-GESCHWINDIGKEITSKOMP. AM EINTRITTSRAND
+C        WCON           - W-GESCHWINDIGKEITSKOMP. AM EINTRITTSRAND
+C        VREF           - UEBER DIE KANALHOEHE GEMITTELTE GESCHWINDIGKEI
+C        EXPON          - EXPONENT DES GESCHW.-PROFILES
+C        GMOL           - MOLEKULARE DYN. VISKOSITAET
+C        RHO            - DICHTE DES FLUIDS (= CONST)
+C        Z (KK)         - Z-KOORDINATEN DER ZELLMITTELPUNKTE
+C        DZ(KK)         - ABSTAND DER GITTERPUNKTE IN Z-RICHTUNG
+C
+C VERS:  11.07.85 (HW)  : SVLE1 AUS BFROIK ABGELEITET
+C        07.08.85 (HW)  : IN DER I=1 - EBENE WERDEN DIE GESCHWINDIG-
+C                         KEITSKOMP. ABGESPEICHERT. (DO 200 ...)
+C        17.02.86 (HW)  : SVLE1R IDENTISCH ZU SVLE1; STATT RANF()
+C                         WIRD DIE FUNCTION RANEQU VERWENDET
+C        30.06.86 (HW)  : SVLE1R IN SVLE1 UMBENANNT.
+C        27.02.92 (MM)  : VORBELEGUNG VON RINDEF 
+C                         AUF PRESET (0.0) GEAENDERT
+C                         BELEGUNG DER RANDSCHICHTEN MIT 0.0
+C         7. 3.92 (MM)  : SCHLEIFE 200 AUSGESCHALTET
+C        13. 4.92 (MM)  : UFR EINGEFUEHRT
+C                         CIDUFR UND UFRCON UEBER COMMON 'CORLES'
+C        14. 4.92 (MM)  : BELEGUNG VON UFR WIEDER AUSGESCHALTET
+C                         CIDUFR = 'UNIFORM': U=UFRCON
+C                         CIDUFR = 'CHANNEL': U=KANALSTR.
+C         8. 3.96 (MM)  : YBANF...ZBEND EINGEFUEHRT
+C        27. 6.97 (MM)  : BEI EINIGEN STR.-TYPEN 
+C                         Define-Direktive _UPWARDS_ eingefuehrt
+C                         ACHTUNG: Besser man geht auf sv3d ueber
+C        17. 9.98 (MM)  : _UPWARDS_ wieder ausgefuehrt!
+C
+C UPROG: FUNCTION VORZ
+C        FUNCTION RANEQU
+C
+C*STARLET***************************************************************
+C
+
+      INTEGER MAXGRIDS,MAXBOCONDS
+      PARAMETER ( MAXGRIDS         =128 )
+      PARAMETER ( MAXBOCONDS       = 10 )
+
+
+      PARAMETER (NPPHYS_MAX=1)
+      COMMON /COPHYSPAR/
+     $                  MTURB,  TU_LEVEL,   RHO,    GMOL,   UGRID,
+     $                  VREF,   EXPON,  UTAUX,
+     $                  CIDUFR, UFRCON, UFRFREQ, DELTA,  XREF,
+     $                  IPP,    JPP,    KPP,
+     $                  XPER,   YPER,   ZPER, 
+     $                  NXPER,  NYPER,  NZPER,
+     $                  NPPHYS, PPHYS, XPPHYS
+
+      INTEGER           IPP,  JPP,  KPP,   NPPHYS
+     
+      REAL              TU_LEVEL,  RHO,   GMOL,   UGRID,  VREF,  
+     $                  EXPON, UFRCON, 
+     $                  PPHYS(NPPHYS_MAX), XPPHYS(NPPHYS_MAX)
+
+      CHARACTER (LEN=16)      CIDUFR
+
+C
+
+      COMMON /KONSTA/  GREAT,SMALL,RINDEF,SMAONE,PRESET
+      SAVE   /KONSTA/
+C
+
+      COMMON /CONLES/  CONV2S,CMUE,CAPPA,ECONST
+      SAVE   /CONLES/
+C
+      PARAMETER    (m=1024)
+      REAL         U(KK,JJ,II),   V(KK,JJ,II),   W(KK,JJ,II),
+     $             P(KK,JJ,II),
+     $             Z(KK),
+     $             DX(II),DY(JJ),DZ(KK),
+     $             X(II),   Y(JJ),          F(41),        DF(41),
+     $             ETA(41),        FN,           DFN,
+     $             ETAN,           XDELTA,
+     $             DELTAN,hx,hy
+      REAL         HI(KK*JJ*II)
+C
+      UEIN  (ZWAND)  = (1.0+EXPON)/(2.0-RTURB)*VREF*((1.0-RTURB)
+     $               + SIGN(1.0,(RTURB-0.5))*(ABS(HK2*(1.0-RTURB)
+     $               - ABS(ZWAND))/HK2)**EXPON) * SIGN(1.0,ZWAND)
+      TKEIN (ZMITTE) = CK1 + CK2 * ABS(ZMITTE)**CK3
+C
+      DATA           REV         /20.0/
+      DATA           TU          / 0.10/
+      DATA           PI          /3.1415927/
+C        DATA-STATEMENT FOR BLASIUS-PROFILE
+      DATA           ETA(1)      /0.0/
+      DATA           ETA(2)      /0.1/
+      DATA           ETA(3)      /0.2/
+      DATA           ETA(4)      /0.3/
+      DATA           ETA(5)      /0.4/
+      DATA           ETA(6)      /0.5/
+      DATA           ETA(7)      /0.6/
+      DATA           ETA(8)      /0.7/
+      DATA           ETA(9)      /0.8/
+      DATA           ETA(10)     /0.9/
+      DATA           ETA(11)     /1.0/
+      DATA           ETA(12)     /1.1/
+      DATA           ETA(13)     /1.2/
+      DATA           ETA(14)     /1.3/
+      DATA           ETA(15)     /1.4/
+      DATA           ETA(16)     /1.5/
+      DATA           ETA(17)     /1.6/
+      DATA           ETA(18)     /1.7/
+      DATA           ETA(19)     /1.8/
+      DATA           ETA(20)     /1.9/
+      DATA           ETA(21)     /2.0/
+      DATA           ETA(22)     /2.2/
+      DATA           ETA(23)     /2.4/
+      DATA           ETA(24)     /2.6/
+      DATA           ETA(25)     /2.8/
+      DATA           ETA(26)     /3.0/
+      DATA           ETA(27)     /3.2/
+      DATA           ETA(28)     /3.4/
+      DATA           ETA(29)     /3.6/
+      DATA           ETA(30)     /3.8/
+      DATA           ETA(31)     /4.0/
+      DATA           ETA(32)     /4.2/
+      DATA           ETA(33)     /4.4/
+      DATA           ETA(34)     /4.6/
+      DATA           ETA(35)     /4.8/
+      DATA           ETA(36)     /5.0/
+      DATA           ETA(37)     /5.2/
+      DATA           ETA(38)     /5.4/
+      DATA           ETA(39)     /5.6/
+      DATA           ETA(40)     /5.8/
+      DATA           ETA(41)     /6.0/
+      DATA           F(1)        /0.0/
+      DATA           F(2)        /0.00235/
+      DATA           F(3)        /0.00939/
+      DATA           F(4)        /0.02113/
+      DATA           F(5)        /0.03755/
+      DATA           F(6)        /0.05864/
+      DATA           F(7)        /0.08439/
+      DATA           F(8)        /0.11474/
+      DATA           F(9)        /0.14967/
+      DATA           F(10)       /0.18911/
+      DATA           F(11)       /0.23299/
+      DATA           F(12)       /0.28121/
+      DATA           F(13)       /0.33366/
+      DATA           F(14)       /0.39021/
+      DATA           F(15)       /0.45072/
+      DATA           F(16)       /0.51503/
+      DATA           F(17)       /0.58296/
+      DATA           F(18)       /0.65430/
+      DATA           F(19)       /0.72887/
+      DATA           F(20)       /0.80644/
+      DATA           F(21)       /0.88680/
+      DATA           F(22)       /1.05495/
+      DATA           F(23)       /1.23153/
+      DATA           F(24)       /1.41482/
+      DATA           F(25)       /1.60328/
+      DATA           F(26)       /1.79557/
+      DATA           F(27)       /1.99058/
+      DATA           F(28)       /2.18747/
+      DATA           F(29)       /2.38559/
+      DATA           F(30)       /2.58450/
+      DATA           F(31)       /2.78388/
+      DATA           F(32)       /2.98355/
+      DATA           F(33)       /3.18338/
+      DATA           F(34)       /3.38329/
+      DATA           F(35)       /3.58325/
+      DATA           F(36)       /3.78323/
+      DATA           F(37)       /3.98322/
+      DATA           F(38)       /4.18322/
+      DATA           F(39)       /4.38322/
+      DATA           F(40)       /4.58322/
+      DATA           F(41)       /4.78322/
+      DATA           DF(1)        /0.0/
+      DATA           DF(2)        /0.04696/
+      DATA           DF(3)        /0.09391/
+      DATA           DF(4)        /0.14081/
+      DATA           DF(5)        /0.18761/
+      DATA           DF(6)        /0.23423/
+      DATA           DF(7)        /0.28058/
+      DATA           DF(8)        /0.32653/
+      DATA           DF(9)        /0.37196/
+      DATA           DF(10)       /0.41672/
+      DATA           DF(11)       /0.46063/
+      DATA           DF(12)       /0.50354/
+      DATA           DF(13)       /0.54525/
+      DATA           DF(14)       /0.58559/
+      DATA           DF(15)       /0.62439/
+      DATA           DF(16)       /0.66147/
+      DATA           DF(17)       /0.69670/
+      DATA           DF(18)       /0.72993/
+      DATA           DF(19)       /0.76106/
+      DATA           DF(20)       /0.79000/
+      DATA           DF(21)       /0.81669/
+      DATA           DF(22)       /0.86330/
+      DATA           DF(23)       /0.90107/
+      DATA           DF(24)       /0.93060/
+      DATA           DF(25)       /0.95288/
+      DATA           DF(26)       /0.96905/
+      DATA           DF(27)       /0.98037/
+      DATA           DF(28)       /0.98797/
+      DATA           DF(29)       /0.99289/
+      DATA           DF(30)       /0.99594/
+      DATA           DF(31)       /0.99777/
+      DATA           DF(32)       /0.99882/
+      DATA           DF(33)       /0.99940/
+      DATA           DF(34)       /0.99970/
+      DATA           DF(35)       /0.99986/
+      DATA           DF(36)       /0.99994/
+      DATA           DF(37)       /0.999971/
+      DATA           DF(38)       /0.999988/
+      DATA           DF(39)       /0.999995/
+      DATA           DF(40)       /0.999998/
+      DATA           DF(41)       /0.999999/
+C
+      IF (UFRFREQ .LT. SMALL) THEN
+
+          AMPLITUDE = 1.0
+
+      ELSE
+
+          AMPLITUDE = SIN( 0.0 )
+
+      ENDIF
+C
+      IM2 = IMX-2
+      IM1 = IMX-1
+      JM1 = JMX-1
+      JM2 = JMX-2
+      JM3 = JMX-3
+      KM1 = KMX-1
+      KM2 = KMX-2
+      KM3 = KMX-3
+C
+C                                 EINIGE KONSTANTEN
+C
+      CM25   = CMUE**0.25
+      SQCMUE = CM25**2
+      CM25RE = CM25* REV
+      RTURB  = FLOAT(MTURB)
+C
+C                                 VORBELEGUNG DER GESCHWINDIGKEITSFELDER
+C                                 (MIT PRESET !!)
+C
+      DO 10 I=1,IMX
+         DO 20 J=1,JMX
+            DO 30 K=1,KMX
+               U(K,J,I) = PRESET
+               V(K,J,I) = PRESET
+   30          W(K,J,I) = PRESET
+   20    CONTINUE
+   10 CONTINUE
+C
+C
+C                                 **************************************
+C                                 ZEITLICH GEMITTELTE GESCHW.PROFILE
+C                                 **************************************
+C
+      IF(CIDUFR(1:7).EQ.'UNIFORM') THEN
+C
+C    					UNIFORME GESCHWINDIGKEITSVERT.
+C					IM GANZEN FELD
+C
+      DO 70 I=2,IM2
+      DO 70 J=3,JM2
+      DO 70 K=3,KM2
+            U(K,J,I) = UFRCON
+            V(K,J,I) = VCON
+            W(K,J,I) = WCON
+   70   CONTINUE
+C
+      IF (MTURB .EQ. 1) THEN
+        DO I=3,IM2
+        DO J=3,JM2
+        DO K=3,KM2
+           U(K,J,I) = U(K,J,I) + VREF*TU_LEVEL*(RANF() - 0.5)
+           V(K,J,I) = V(K,J,I) + VREF*TU_LEVEL*(RANF() - 0.5)
+           W(K,J,I) = W(K,J,I) + VREF*TU_LEVEL*(RANF() - 0.5)
+        ENDDO
+        ENDDO
+        ENDDO
+      ENDIF
+
+C
+      RETURN
+C
+      ELSEIF(CIDUFR(1:7).EQ.'CHANNEL') THEN
+C
+C                                 BEI LAMINARER STROEMUNG WIRD EIN PARA-
+C                                 BOLISCHES GESCHWINDIGKEITSPROFIL ER-
+C                                 ZEUGT. DIESES PROFIL WIRD ZWISCHEN
+C                                 ZBANF UND ZBEND GELEGT.
+C
+      IF(MTURB .EQ. 0) THEN
+          EXPON = 2.0
+          HK2   = 0.5*(ZBEND-ZBANF)
+          DO K=3,KM2
+             IF ( Z(K) .GE. ZBANF .AND. Z(K) .LE. ZBEND ) THEN
+                DO I=2,IM2
+                   DO J=3,JM2
+                      DISTANCE = MIN(Z(K)-ZBANF,ZBEND-Z(K))
+                      U(K,J,I) = UFRCON*UEIN(DISTANCE)
+                   ENDDO
+                ENDDO
+             ELSE
+                DO I=2,IM2
+                   DO J=3,JM2
+                      U(K,J,I) = 0.0
+                   ENDDO
+                ENDDO
+             ENDIF
+          ENDDO
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC  Aufbringen einer Stoerung
+
+          lz = float(kmx-4)
+          ly = float(jmx-4)
+          lx = float(imx-4)
+
+          nkx=5
+          nky=5
+          nkz=5
+C          factor = 10.0/(float(nkz*nky*nkx))
+          factor = tu_level
+
+          do kz=1,nkz-1
+             do ky=1,nky-1
+                do kx=0,nkx-1
+
+                   do i=2,imx-1
+                      sinx=cos(2.0*pi*float(i-3)*kx/lx)
+
+                      do j=2,jmx-1
+                        siny=cos(2.0*pi*float(j-3)*ky/ly)
+
+                         do k=3,kmx-2
+                           sinz=sin(2.0*pi*float(k-3)*kz/lz)
+
+                            
+C                            u(k,j,i)=u(k,j,i) + factor * 
+C     $                           ( sinx*siny*sinz )
+
+                            u(k,j,i)=u(k,j,i) 
+     $                          + factor*sinx*siny*sinz
+     $                          + 2*TU_LEVEL*(RANF() - 0.5)
+
+                         enddo
+                      enddo
+                   enddo
+
+                enddo
+             enddo
+          enddo
+          RETURN
+      ENDIF
+C                                 BEI TURBULENTER STROEMUNG, WIE VOR (8.3.96)
+C
+C                                 GEOMETRISCHE GROESSEN, INDIZES DES
+C                                 ERSTEN UND LETZTEN PUNKTES DES FREI
+C                                 DURCHSTROEMTEN KANALS
+C
+      NSTART = 3
+      NSTOP  = KMX-2
+      NSTUE  = (NSTOP-NSTART)/2
+      NMITTE = (NSTOP+NSTART)/2
+      NZUS   =  NSTOP+NSTART-2*NMITTE
+C
+      ZBOT   = 0.5*(Z(NSTART) + Z(NSTART-1))
+      ZTOP   = 0.5*(Z(NSTOP+1)+ Z(NSTOP)   )
+      ZMIT   = 0.5*(ZBOT+ZTOP)
+C
+C                                 HALBE KANALHOEHE
+C
+      HK2    = 0.5*(ZTOP-ZBOT)
+C
+      NSTP   = NSTUE + 1
+C
+      DO 100 I=2,IM2
+      DO 110 J=3,JM2
+         DO 120 N=1,NSTP
+            NMIN        = NMITTE + 1 - N
+            NPLU        = NMITTE - 1 + NZUS + N
+C
+            U(NMIN,J,I) = UFRCON*UEIN(Z(NMIN)-ZBOT)
+  120       U(NPLU,J,I) = UFRCON*UEIN(ZTOP-Z(NPLU))
+C
+         KSTPP = NSTOP
+         DO 130 K=NSTART,KSTPP
+  130       W(K,J,I) = WCON
+C
+         KSTA = NSTART-1
+         KSTP = NSTOP +1
+         DO 140 K=KSTA,KSTP
+  140       V(K,J,I) = VCON
+C
+  110 CONTINUE
+  100 CONTINUE
+C
+C
+      IF(MTURB .EQ. 0) RETURN
+C
+C                                  *************************************
+C                                  ERMITTLUNG DER SCHWANKUNGSGESCHWIN-
+C                                  DIGKEITEN MITTELS ZUFALLSZAHLENGENE-
+C                                  RATOR. DIE SCHWANKUNGEN WERDEN SO BE-
+C                                  STIMMT, DASS EINE VORGEGEBENE TURBU-
+C                                  LENZENERGIEVERTEILUNG EINGEHALTEN
+C                                  WIRD.
+C                                  *************************************
+C
+C                                  KONSTANTEN DER K-VERTEILUNG (AN-
+C                                  NAEHERUNG EINER MIT DEM K-EPS-MODELL
+C                                  BERECHNETEN K-VERTEILUNG)
+C
+      CK1    = 0.0015
+      CK2    = 0.017
+      CK3    = 1.443
+C
+C                                  NAEHERUNGSWEISE BEST. DER DICKE DER
+C                                  VISKOSEN UNTERSCHICHT
+C
+      DYV    = (HK2**EXPON * CM25RE*GMOL*LOG(ECONST*CM25RE)
+     $       /  (CAPPA*RHO*(1.0+EXPON)))**(1.0/(1.0+EXPON))
+      TKV    = TKEIN(HK2-DYV)
+      GRADKV = TKV/DYV
+C
+      NSTP = NSTUE + 1
+      DO 170 I=2,IM2
+      DO 180 J=3,JM2
+         DO 190 N=1,NSTP
+            NMIN         = NMITTE + 1 - N
+            NPLU         = NMITTE - 1 + NZUS + N
+            ZMMIN        = ZMIT - Z(NMIN)
+            ZMPLU        = Z(NPLU) - ZMIT
+            TKMIN        = TKEIN(ZMMIN)
+            TKPLU        = TKEIN(ZMPLU)
+            IF((HK2-ZMMIN) .LE. DYV) TKMIN = GRADKV*(HK2-ZMMIN)
+            IF((HK2-ZMPLU) .LE. DYV) TKPLU = GRADKV*(HK2-ZMPLU)
+C
+C                                 ERSTE SCHAETZUNG FUER DIE QUADRATE DER
+C                                 SCHWANKUNGSGESCHWINDIGKEITEN
+C
+            US2M  = RANEQU(0.123)
+            US2P  = RANEQU(0.123)
+            VS2M  = RANEQU(0.123)
+            VS2P  = RANEQU(0.123)
+            WS2M  = RANEQU(0.123)
+            WS2P  = RANEQU(0.123)
+C                                 ERMITTLUNG EINES FAKTORS, DER DIE
+C                                 SCHAETZWERTE D. SCHWANKUNGSGESCHW. AN
+C                                 DIE GEFORDERTE TURBULENZENERGIE AN-
+C                                 PASST
+C
+            FAKM  = 2.0*TKMIN/(US2M+VS2M+WS2M) * TU_LEVEL
+            FAKP  = 2.0*TKPLU/(US2P+VS2P+WS2P) * TU_LEVEL
+C
+            U(NMIN,J,I) = U(NMIN,J,I)+SQRT(FAKM*US2M)*VORZ(N)
+            U(NPLU,J,I) = U(NPLU,J,I)+SQRT(FAKP*US2P)*VORZ(N+1)
+            V(NMIN,J,I) = V(NMIN,J,I)+SQRT(FAKM*VS2M)*VORZ(N+2)
+            V(NPLU,J,I) = V(NPLU,J,I)+SQRT(FAKP*VS2P)*VORZ(N+3)
+            W(NMIN,J,I) = W(NMIN,J,I)+SQRT(FAKM*WS2M)*VORZ(N+4)
+            W(NPLU,J,I) = W(NPLU,J,I)+SQRT(FAKP*WS2P)*VORZ(N+5)
+  190    CONTINUE
+  180 CONTINUE
+  170 CONTINUE
+
+C........................................................................
+      ELSEIF(CIDUFR(1:9).EQ.'ORRSOMMER') THEN
+      DO I=2,IM1
+       DO J=2,JM1
+        DO K=3,KM2
+C         U(K,J,I) = 0.5/GMOL*GRADPX*
+         U(K,J,I) = -1.0*
+C     $              ((1.0/3.0*(Z(K)+Z(3))**3-(Z(K)+Z(3))**2) -
+C     $               (1.0/3.0*(Z(K)-Z(3))**3-(Z(K)-Z(3))**2))/
+C     $                (2*Z(3))
+     $      ((1.0/3.0*(Z(K)+0.5*DZ(K))**3-(Z(K)+0.5*DZ(K))**2) - 
+     $     (1.0/3.0*(Z(K)-0.5*DZ(K-1))**3-(Z(K)-0.5*DZ(K-1))**2))/
+     $                (0.5*(DZ(K)+DZ(K-1)))
+         V(K,J,I) = 0.0
+         W(K,J,I) = 0.0
+        ENDDO
+       ENDDO
+      ENDDO     
+C.... Hinzugeben der Störung
+      CALL ORRSOMMER(KK,JJ,II,U,W,Z,X,DZ,HI(1),HI(1*m+1),HI(2*m+1),
+     $               HI(3*m+1),HI(4*m+1),HI(5*m+1),HI(6*m+1),
+     $               HI(7*m+1),HI(8*m+1),HI(9*m+1),HI(10*m+1),
+     $               HI(11*m+1),HI(12*m+1),HI(13*m+1),HI(14*m+1),
+     $               HI(15*m+1),1.0)
+C      DO K = 1,KK
+C       DO I = 1,II
+C            WRITE(21,*)K,I,U(K,3,I)
+C         ENDDO
+C         WRITE(21,*)
+C      ENDDO
+c------------------------------------------------------------------------
+      ELSEIF(CIDUFR(1:10).EQ.'TAYLORVORT') THEN
+
+      hx=X(2)-X(1)
+      hy=hx;
+
+      DO I=1,IMX
+         DO J=1,JMX
+           DO K=1,KMX
+      U(K,J,I)= (-4.0*cos(X(I)+hx/2.)*sin(0.5*hx)*sin(0.5*hy)
+     &             *sin(Y(J))/(hx*hy))
+      V(K,J,I)= 4.0*sin(X(I))*sin(0.5*hx)*sin(0.5*hy)
+     &             *cos(Y(J)+hy/2.)/(hx*hy)
+      P(K,J,I)= (0.125*(sin(2.*X(I)-hx)*hy+sin(2.*Y(J)-hy)*hx
+     &          -sin(2.*X(I)+hx)*hy-sin(2.*Y(J)+hy)*hx)/(hx*hy))
+      W(K,J,I)= 0.0
+           ENDDO
+          ENDDO
+      ENDDO
+c.........................................................................
+      ELSEIF(CIDUFR(1:7).EQ.'BLASIUS') THEN
+C
+      DO I=2,IM2
+	DO K=3,KM2
+	ETAN = 3.5 * Z(K)/DELTA
+C
+C
+C
+C     UMRECHNUG VON Z(K) ZUR ETAN   
+C
+C
+      DO N=1,40
+      IF (ETAN.GE.ETA(N).AND.ETAN.LT.ETA(N+1)) THEN
+      FN = (F(N+1)-F(N)) * (ETAN - ETA(N))/(ETA(N+1)-ETA(N)) + F(N)
+      DFN = (DF(N+1)-DF(N)) * (ETAN - ETA(N))/(ETA(N+1)-ETA(N)) + DF(N)
+C
+C                      INTERPOLATION FN UND DFN
+C
+      ENDIF
+      ENDDO
+	DO J=3,JM2
+	  U(K,J,I) = DFN * UFRCON
+	  V(K,J,I) =0.0
+	  W(K,J,I) =0.0 
+      ENDDO
+	  ENDDO
+      ENDDO
+
+       ELSEIF(CIDUFR(1:10).EQ.'SPALART300') THEN
+C
+C                                   MITTLERES PROFIL VON SPALART (1987)
+C
+          CALL SPALART300 (KK,JJ,II,U,Z,ZBANF,DELTA,UFRCON)
+C
+          IF(MTURB .EQ. 1) THEN
+C
+             DO I=3,IM2
+             DO J=3,JM2
+             DO K=3,KM2
+
+             IF (Z(K) .LT. ZBANF+DELTA) THEN
+
+C                                 ERSTE SCHAETZUNG FUER DIE QUADRATE DER
+C                                 SCHWANKUNGSGESCHWINDIGKEITEN
+C
+            US2  = RANF() - 0.5
+            VS2  = RANF() - 0.5
+            WS2  = RANF() - 0.5
+C                                 ERMITTLUNG EINES FAKTORS, DER DIE
+C                                 SCHAETZWERTE D. SCHWANKUNGSGESCHW. AN
+C                                 DIE GEFORDERTE TURBULENZENERGIE AN-
+C                                 PASST
+C
+            FAK  = TU_LEVEL/(US2+VS2+WS2)
+C
+            U(K,J,I) = U(K,J,I) + TU_LEVEL*US2
+            V(K,J,I) = V(K,J,I) + TU_LEVEL*VS2
+            W(K,J,I) = W(K,J,I) + TU_LEVEL*WS2
+
+            ENDIF
+            ENDDO
+            ENDDO
+            ENDDO
+          ENDIF
+C
+
+      RETURN
+C
+       ELSEIF(CIDUFR(1:10).EQ.'SPALART670') THEN
+C
+C                                   MITTLERES PROFIL VON SPALART (1987)
+C
+          CALL SPALART670 (KK,JJ,II,U,Z,ZBANF,DELTA,UFRCON)
+C
+          IF(MTURB .EQ. 1) THEN
+C
+             DO I=3,IM2
+             DO J=3,JM2
+             DO K=3,KM2
+
+             IF (Z(K) .LT. ZBANF+DELTA) THEN
+
+C                                 ERSTE SCHAETZUNG FUER DIE QUADRATE DER
+C                                 SCHWANKUNGSGESCHWINDIGKEITEN
+C
+            US2  = RANF() - 0.5
+            VS2  = RANF() - 0.5
+            WS2  = RANF() - 0.5
+C                                 ERMITTLUNG EINES FAKTORS, DER DIE
+C                                 SCHAETZWERTE D. SCHWANKUNGSGESCHW. AN
+C                                 DIE GEFORDERTE TURBULENZENERGIE AN-
+C                                 PASST
+C
+            FAK  = 1.0/(US2+VS2+WS2)
+C
+            U(K,J,I) = U(K,J,I)+TU_LEVEL*US2
+            V(K,J,I) = V(K,J,I)+TU_LEVEL*VS2
+            W(K,J,I) = W(K,J,I)+TU_LEVEL*WS2
+
+            ENDIF
+            ENDDO
+            ENDDO
+            ENDDO
+          ENDIF
+C
+
+      RETURN
+C
+       ELSEIF(CIDUFR(1:11).EQ.'SPALART1410') THEN
+C
+C                                   MITTLERES PROFIL VON SPALART (1987)
+C
+          CALL SPALART1410 (KK,JJ,II,U,Z,ZBANF,DELTA,UFRCON)
+C
+          IF(MTURB .EQ. 1) THEN
+C
+             DO I=3,IM2
+             DO J=3,JM2
+             DO K=3,KM2
+
+             IF (Z(K) .LT. ZBANF+DELTA) THEN
+
+C                                 ERSTE SCHAETZUNG FUER DIE QUADRATE DER
+C                                 SCHWANKUNGSGESCHWINDIGKEITEN
+C
+            US2  = RANF() - 0.5
+            VS2  = RANF() - 0.5
+            WS2  = RANF() - 0.5
+C                                 ERMITTLUNG EINES FAKTORS, DER DIE
+C                                 SCHAETZWERTE D. SCHWANKUNGSGESCHW. AN
+C                                 DIE GEFORDERTE TURBULENZENERGIE AN-
+C                                 PASST
+C
+            U(K,J,I) = U(K,J,I)+TU_LEVEL*US2
+            V(K,J,I) = V(K,J,I)+TU_LEVEL*VS2
+            W(K,J,I) = W(K,J,I)+TU_LEVEL*WS2
+
+          ENDIF
+            ENDDO
+            ENDDO
+            ENDDO
+          ENDIF
+C
+
+      RETURN
+C
+      ELSEIF(CIDUFR(1:8).EQ.'BOUNDARY') THEN
+C
+C                                 BEI LAMINARER STROEMUNG WIRD EIN PARA-
+C                                 BOLISCHES GESCHWINDIGKEITSPROFIL ER-
+C                                 ZEUGT.
+C
+      IF(MTURB .EQ. 0) THEN
+      EXPON = 2.0
+C
+C
+      ZBOT   = 0.5*(Z(3) + Z(2))
+C
+C
+      DO 200 I=2,IM2
+      DO 210 J=3,JM2
+         DO 220 K=3,KM2
+C
+          ZDELTA=(DELTA+ZBOT-Z(K))/DELTA
+          Verd=MAX(0.0,ZDELTA)**EXPON
+          U(K,J,I)= VREF*(1.0 - Verd)
+C
+  220    CONTINUE
+  210 CONTINUE
+  200 CONTINUE
+C
+C
+      RETURN
+      ELSE
+C                             HIER TURBULENTE GRENZSCHICHT
+C
+      ZBOT = 0.5*(Z(3) + Z(2))
+C     
+      DO I=2,IM2
+         FAK = (MIN(1.0,(Z(I)-ZBOT)/DELTA))**EXPON*VREF
+         DO J=3,JM2
+            DO K=3,KM2
+C    
+               U(K,J,I) = FAK
+            ENDDO
+         ENDDO
+      ENDDO
+
+C
+C                                  *************************************
+C                                  ERMITTLUNG DER SCHWANKUNGSGESCHWIN-
+C                                  DIGKEITEN MITTELS ZUFALLSZAHLENGENE-
+C                                  RATOR. DIE SCHWANKUNGEN WERDEN SO BE-
+C                                  STIMMT, DASS EINE VORGEGEBENE TURBU-
+C                                  LENZENERGIEVERTEILUNG EINGEHALTEN
+C                                  WIRD.
+C                                  *************************************
+C
+C                                  KONSTANTEN DER K-VERTEILUNG (AN-
+C                                  NAEHERUNG EINER MIT DEM K-EPS-MODELL
+C                                  BERECHNETEN K-VERTEILUNG)
+C
+      CK1    = 0.0015
+      CK2    = 0.017
+      CK3    = 1.443
+C
+C                                  NAEHERUNGSWEISE BEST. DER DICKE DER
+C                                  VISKOSEN UNTERSCHICHT
+C
+       HK2 = DELTA
+      DYV    = (HK2**EXPON * CM25RE*GMOL*LOG(ECONST*CM25RE)
+     $       /  (CAPPA*RHO*(1.0+EXPON)))**(1.0/(1.0+EXPON))
+      TKV    = TKEIN(HK2-DYV)
+      GRADKV = TKV/DYV
+C
+      DO 270 I=2,IM2
+      DO 280 J=3,JM2
+         DO 290 N=3,KM2
+	    IF (Z(N).GT.DELTA) GOTO 285
+            ZMMIN        = DELTA - Z(N)
+            TKMIN        = TKEIN(ZMMIN)
+            IF((HK2-ZMMIN) .LE. DYV) TKMIN = GRADKV*(HK2-ZMMIN)
+C
+C                                 ERSTE SCHAETZUNG FUER DIE QUADRATE DER
+C                                 SCHWANKUNGSGESCHWINDIGKEITEN
+C
+            US2M  = RANEQU(0.123)
+            VS2M  = RANEQU(0.123)
+            WS2M  = RANEQU(0.123)
+C                                 ERMITTLUNG EINES FAKTORS, DER DIE
+C                                 SCHAETZWERTE D. SCHWANKUNGSGESCHW. AN
+C                                 DIE GEFORDERTE TURBULENZENERGIE AN-
+C                                 PASST
+C
+            FAKM  = 2.0*TKMIN/(US2M+VS2M+WS2M)
+C
+            U(N,J,I) = U(N,J,I)+SQRT(FAKM*US2M)*VORZ(N)
+            V(N,J,I) = V(N,J,I)+SQRT(FAKM*VS2M)*VORZ(N)
+            W(N,J,I) = W(N,J,I)+SQRT(FAKM*WS2M)*VORZ(N)
+  290    CONTINUE
+  285 CONTINUE
+  280 CONTINUE
+  270 CONTINUE
+C
+      ENDIF
+C
+      ELSEIF(CIDUFR(1:4).EQ.'DUCT') THEN
+C
+CTEST      ZBOT   = 0.5*(Z(3) + Z(2))
+CTEST      ZTOP   = 0.5*(Z(KM2) + Z(KM1))
+CTEST      YBOT   = 0.5*(Y(3) + Y(2))
+CTEST      YTOP   = 0.5*(Y(JM2) + Y(JM1))
+      ZBOT   = ZBANF
+      ZTOP   = ZBEND
+      YBOT   = YBANF
+      YTOP   = YBEND
+C
+C                                 HALBE KANALHOEHE
+C
+      HKZ    = 0.5*(ZTOP-ZBOT)
+      HKY    = 0.5*(YTOP-YBOT)
+      HK2    = 0.5*(HKY + HKZ)
+      RHK    = 1./(HKZ**2 * HKY**2)
+C
+C
+C                                 BEI LAMINARER STROEMUNG WIRD EIN PARA-
+C                                 BOLISCHES GESCHWINDIGKEITSPROFIL ER-
+C                                 ZEUGT.
+C
+      IF(MTURB .EQ. 0) THEN
+
+          DO I=2,IM2
+           DO J=3,JM2
+            DO K=3,KM2
+
+               U(K,J,I) = UFRCON*
+     $                   MAX(0.0,Z(K)-ZBOT)*
+     $                   MAX(0.0,Y(J)-YBOT)*
+     $                   MAX(0.0,ZTOP-Z(K))*
+     $                   MAX(0.0,YTOP-Y(J))*
+     $                    AMPLITUDE * RHK
+
+            ENDDO
+           ENDDO
+          ENDDO
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC  Aufbringen einer Stoerung
+
+          lz = float(kmx-4)
+          ly = float(jmx-4)
+          lx = float(imx-4)
+
+          nkx=5
+          nky=5
+          nkz=5
+
+C          factor = 1.0/(float(nkz*nky*nkx))
+          factor = TU_LEVEL
+
+          if (factor .gt. 0.00001) then
+          do kz=1,nkz-1
+             do ky=1,nky-1
+                do kx=0,nkx-1
+                   
+                   do i=2,imx-1
+                      sinx=cos(2.0*pi*float(i-3)*kx/lx)
+C     sinx=1.0
+                      do j=2,jmx-1
+                         IF (Y(J) .GT. YBOT .AND. Y(J) .LT. YTOP) THEN
+                            siny=cos(2.0*pi*float(j-3)*ky/ly)
+C     siny=1.0
+                            do k=3,kmx-2
+                               IF (Z(K) .GT. ZBOT .AND. 
+     $                             Z(K) .LT. ZTOP) THEN
+                                  sinz=sin(2.0*pi*float(k-3)*kz/lz)
+                                  
+                                  u(k,j,i)=u(k,j,i) 
+     $                                 + factor*sinx*siny*sinz
+     $                                 + factor*(RANF() - 0.5)
+                                  
+                               ENDIF
+                               
+                            enddo
+                         ENDIF
+                      enddo
+                   enddo
+                   
+                enddo
+             enddo
+          enddo
+          endif
+          RETURN
+C
+      ELSE
+C
+      DO 300 I=2,IM2
+      DO 310 J=3,JM2
+         DO 320 K=3,KM2
+C
+            U(K,J,I) = (MIN(1.0              ,
+     +                     (Z(K)-ZBOT)/HKZ,
+     +                     (ZTOP-Z(K))/HKZ,
+     +                     (Y(J)-YBOT)/HKY,
+     +                     (YTOP-Y(J))/HKY))**EXPON*VREF
+                           
+C
+  320    CONTINUE
+  310 CONTINUE
+  300 CONTINUE
+C
+C
+C
+C                                  *************************************
+C                                  ERMITTLUNG DER SCHWANKUNGSGESCHWIN-
+C                                  DIGKEITEN MITTELS ZUFALLSZAHLENGENE-
+C                                  RATOR. DIE SCHWANKUNGEN WERDEN SO BE-
+C                                  STIMMT, DASS EINE VORGEGEBENE TURBU-
+C                                  LENZENERGIEVERTEILUNG EINGEHALTEN
+C                                  WIRD.
+C                                  *************************************
+C
+C                                  KONSTANTEN DER K-VERTEILUNG (AN-
+C                                  NAEHERUNG EINER MIT DEM K-EPS-MODELL
+C                                  BERECHNETEN K-VERTEILUNG)
+C
+      CK1    = 0.0015
+      CK2    = 0.017
+      CK3    = 1.443
+C
+C                                  NAEHERUNGSWEISE BEST. DER DICKE DER
+C                                  VISKOSEN UNTERSCHICHT
+C
+      DYV    = (HK2**EXPON * CM25RE*GMOL*LOG(ECONST*CM25RE)
+     $       /  (CAPPA*RHO*(1.0+EXPON)))**(1.0/(1.0+EXPON))
+      TKV    = TKEIN(HK2-DYV)
+      GRADKV = TKV/DYV
+C
+      DO 370 I=2,IM2
+      DO 380 J=3,JM2
+         DO 390 N=3,KM2
+            ZMMIN        = MAX(HKZ-Z(N),Z(N)-HKZ,HKY-Y(J),Y(J)-HKY)
+            TKMIN        = TKEIN(ZMMIN)
+            IF(
+     +         MIN((Z(N)-ZBOT),(ZTOP-Z(N)),(Y(J)-YBOT),(YTOP-Y(J)))
+     +        .LE. DYV) TKMIN = GRADKV*(HK2-ZMMIN)
+C
+C                                 ERSTE SCHAETZUNG FUER DIE QUADRATE DER
+C                                 SCHWANKUNGSGESCHWINDIGKEITEN
+C
+            US2M  = RANEQU(0.123)
+            VS2M  = RANEQU(0.123)
+            WS2M  = RANEQU(0.123)
+C                                 ERMITTLUNG EINES FAKTORS, DER DIE
+C                                 SCHAETZWERTE D. SCHWANKUNGSGESCHW. AN
+C                                 DIE GEFORDERTE TURBULENZENERGIE AN-
+C                                 PASST
+C
+            FAKM  = 2.0*TKMIN/(US2M+VS2M+WS2M)
+C
+            U(N,J,I) = U(N,J,I)+SQRT(FAKM*US2M)*VORZ(N)
+            V(N,J,I) = V(N,J,I)+SQRT(FAKM*VS2M)*VORZ(N)
+            W(N,J,I) = W(N,J,I)+SQRT(FAKM*WS2M)*VORZ(N)
+  390    CONTINUE
+  385 CONTINUE
+  380 CONTINUE
+  370 CONTINUE
+C
+      ENDIF
+C
+      ELSEIF(CIDUFR(1:5).EQ.'PDE1D') THEN
+C
+          DO I=2,IM2
+           DO J=3,JM2
+            DO K=3,KM2
+
+               U(K,J,I) = 1.0
+
+            ENDDO
+           ENDDO
+          ENDDO
+          RETURN
+C
+      ELSEIF(CIDUFR(1:6).EQ.'DIPOLE') THEN
+C
+         c0 = 1.0/(2.0*pi)
+         d0 = 0.125
+         r0 = 0.2
+
+
+
+C
+          DO I=2,IM2
+           DO J=2,JM2
+            DO K=2,KM2-1
+
+               U(K,J,I) = 0.0
+               V(K,J,I) = 0.0
+               W(K,J,I) = 0.0
+
+            ENDDO
+           ENDDO
+          ENDDO
+          DO I=2,IM2-1
+           DO J=1,JM2
+            DO K=3,KM2-2
+
+         r1uq = ((x(i)+x(i+1))*0.5 - d0)**2 + (z(k)   )**2
+         r1vq = ((z(k)+z(k+1))*0.5     )**2 + (x(i)-d0)**2
+         r2uq = ((x(i)+x(i+1))*0.5 + d0)**2 + (z(k)   )**2
+         r2vq = ((z(k)+z(k+1))*0.5     )**2 + (x(i)+d0)**2
+C
+         u(k,j,i) = -c0*z(k)/r1uq*(1.0 - EXP(-r1uq/r0**2))
+     $              +c0*z(k)/r2uq*(1.0 - EXP(-r2uq/r0**2))
+         w(k,j,i) =  c0*(x(i)-d0)/r1vq*(1.0 - EXP(-r1vq/r0**2))
+     $              -c0*(x(i)+d0)/r2vq*(1.0 - EXP(-r2vq/r0**2))
+
+
+            ENDDO
+           ENDDO
+          ENDDO
+          write (0,*) 'w(50,3,50):',w(50,3,50)
+C
+      ELSEIF(CIDUFR(1:8).EQ.'Z-DIPOLE') THEN
+C
+         c0 = 1.0/(2.0*pi)
+         d0 = 0.125
+         r0 = 0.2
+
+
+
+C
+          DO I=2,IM2
+           DO J=2,JM2
+            DO K=2,KM2-1
+
+               U(K,J,I) = 0.0
+               V(K,J,I) = 0.0
+               W(K,J,I) = 0.0
+
+            ENDDO
+           ENDDO
+          ENDDO
+          DO I=2,IM2-1
+           DO J=2,JM2-1
+            DO K=1,KM2
+
+         r1vq = ((y(j)+y(j+1))*0.5 - d0)**2 + (x(i)   )**2
+         r1uq = ((x(i)+x(i+1))*0.5     )**2 + (y(j)-d0)**2
+         r2vq = ((y(j)+y(j+1))*0.5 + d0)**2 + (x(i)   )**2
+         r2uq = ((x(i)+x(i+1))*0.5     )**2 + (y(j)+d0)**2
+C
+         v(k,j,i) = -c0*x(i)/r1vq*(1.0 - EXP(-r1vq/r0**2))
+     $              +c0*x(i)/r2vq*(1.0 - EXP(-r2vq/r0**2))
+         u(k,j,i) =  c0*(y(j)-d0)/r1uq*(1.0 - EXP(-r1uq/r0**2))
+     $              -c0*(y(j)+d0)/r2uq*(1.0 - EXP(-r2uq/r0**2))
+
+
+            ENDDO
+           ENDDO
+          ENDDO
+          write (0,*) 'u(3,50,50):',u(3,50,50)
+C
+      ENDIF
+C
+      RETURN
+      END
+      FUNCTION VORZ      (NDUMMY)
+C*STARLET***************************************************************
+C        V O R Z          VORZ GIBT DIE ZAHL +1  ODER  -1  AN DAS AUF-
+C                         RUFENDE PROGRAMM ZURUECK. DAS VORZEICHEN WIRD
+C                         VOM ZUFALLSGENERATOR ERMITTELT.
+C*STARLET***************************************************************
+C
+C VERS:  15.07.85 (HW)  : ORIGINAL
+C
+C*STARLET***************************************************************
+C
+      VORZ   = 0.0*FLOAT(NDUMMY) + SIGN(1.0,(0.5-RANEQU(0.123)))
+C
+      RETURN
+      END
+      FUNCTION RANEQU   (START)
+C*STAR******************************************************************
+C*STAR*   R A N E Q U     ERZEUGUNG GLEICHVERTEILTER ZUFALLSZAHLEN
+C*STAR*                   IM BEREICH 0 <= RANEQU <= 1
+C*STAR******************************************************************
+C
+C PARAM:  START         - BELIEBIGER ANFANGSWERT DER VERTEILUNG IM
+C                         BEREICH 0 <= START <= 1
+C VERS:   17.02.86 (FB) - ORIGINAL
+C
+C*STAR******************************************************************
+C
+      SAVE ICOUNT, RVAR
+      DATA ICOUNT /0/, PI /3.141592653589/
+C
+      ICOUNT = ICOUNT + 1
+      IF (ICOUNT .EQ. 1) RVAR = START
+C
+      RVAR = MOD((RVAR + PI)**5, 1.0)
+C
+      RANEQU = RVAR
+C
+      RETURN
+      END

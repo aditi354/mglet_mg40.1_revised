@@ -1,0 +1,122 @@
+      SUBROUTINE WIFAK   (ITSTEP,ITMIT,WPHI,WKON,WDIF,WSOR,IDUZ)
+C*STARLET***************************************************************
+C        W I F A K        DIE WICHTUNGSFAKTOREN FUER DIE KONVEKTIVEN,
+C                         DIFFUSIVEN UND PHI-TERME DES ZEITSCHRITTES
+C                         WERDEN BERECHNET.
+C*STARLET***************************************************************
+C
+C PARAM: ITSTEP         - ZEITSCHRITTZAEHLER
+C        ITMIT          - NACH JEWEILS ITMIT ZEITSCHRITTEN WIRD EIN AB-
+C                         SCHLUSSCHRITT FUER DAS LEAPFROG-VERFAHREN GE-
+C                         MACHT
+C        WPHI           + WICHTUNGSFAKTOR FUER DEN PUNKTWERT
+C        WKON           + WICHTUNGSFAKTOR FUER DIE KONVEKTIVEN TERME
+C        WDIF           + WICHTUNGSFAKTOR FUER DIE DIFFUSIVEN TERME
+C        WSOR           + WICHTUNGSFAKTOR FUER DEN QUELLTERM
+C        IDUZ           - ENTHAELT DIE INFORMATION UEBER DAS ZEITNIVEAU
+C                         IDUZ = 1: OLD OLD -WERTE IM KERNSPEICHER
+C                         IDUZ = 2:     OLD -WERTE IM KERNSPEICHER
+C
+C UPROG                 : ERRR
+C
+C VERS:  23.08.85 (HW)  : ORIGINAL
+C        27.08.85 (HW)  : WSOR ZUSAETZLICH EINGEFUEHRT
+C
+C*STARLET***************************************************************
+#ifdef _RUNGEKUTTA3_
+      IF(IDUZ .NE. 2) CALL ERRR(506,' WIFAK    ')
+         WPHI = 0.0
+         WKON = 1.0
+         WDIF = 1.0
+         WSOR = 1.0
+         RETURN
+#else
+#ifdef _EULER_
+C
+C                                 WICHTUNGSFAKTOREN FUER EULER-ZEIT-
+C                                 SCHRITT
+C
+      IF(IDUZ .EQ. 1) RETURN
+C
+      IF(IDUZ .NE. 2) CALL ERRR(501,' WIFAK    ')
+         WPHI = 1.0
+         WKON = 1.0
+         WDIF = 1.0
+         WSOR = 1.0
+         RETURN
+#else
+C
+C                                 ZU BEGINN EINER BERECHNUNG WIRD FUER
+C                                 DAS LEAPFROG- UND DAS ADAMS/BASHFORTH
+C                                 VERFAHREN EIN EULER-STARTSCHRITT GE-
+C                                 MACHT
+C
+      IF(ITSTEP .NE. 0) GOTO 2010
+C
+      IF(IDUZ .EQ. 1) RETURN
+C
+      IF(IDUZ .NE. 2) CALL ERRR(502,' WIFAK    ')
+         WPHI = 1.0
+         WKON = 1.0
+         WDIF = 1.0
+         WSOR = 1.0
+         RETURN
+#endif
+#ifdef _LEAPF_
+C
+C                                 HIER: LEAPFROG ZWISCHENSCHRITT
+C
+ 2010 IF(MOD(ITSTEP,ITMIT) .EQ. 0) GOTO 2030
+C
+      IF(IDUZ .NE. 1) GOTO 2020
+         WPHI = 1.0
+         WKON = 0.0
+         WDIF = 2.0
+         WSOR = 0.0
+         RETURN
+C
+ 2020 IF(IDUZ .NE. 2) CALL ERRR(503,' WIFAK    ')
+         WPHI = 0.0
+         WKON = 2.0
+         WDIF = 0.0
+         WSOR = 2.0
+         RETURN
+C
+C                                 HIER: LEAPFROG ABSCHLUSSCHRITT
+C
+ 2030 IF(IDUZ .NE. 1) GOTO 2040
+         WPHI = 0.5
+         WKON = 0.0
+         WDIF = 1.5
+         WSOR = 0.0
+         RETURN
+C
+ 2040 IF(IDUZ .NE. 2) CALL ERRR(504,' WIFAK    ')
+         WPHI = 0.5
+         WKON = 1.5
+         WDIF = 0.0
+         WSOR = 1.5
+         RETURN
+#endif
+#ifdef _ADBA_
+C
+C                                 HIER: WICHTUNGSFAKTOREN FUER DAS
+C                                 ADAMS/BASHFORTH - VERFAHREN
+C
+ 2010 IF(IDUZ .NE. 1) GOTO 2020
+         WPHI = 0.0
+         WKON = -0.5
+         WDIF = -0.5
+         WSOR = 0.0
+         RETURN
+C
+ 2020 IF(IDUZ .NE. 2) CALL ERRR(505,' WIFAK    ')
+         WPHI = 1.0
+         WKON = 1.5
+         WDIF = 1.5
+         WSOR = 1.0
+         RETURN
+#endif
+C
+#endif
+      END

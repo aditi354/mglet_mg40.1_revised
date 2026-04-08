@@ -1,0 +1,764 @@
+      SUBROUTINE SETST1  (HILFL,KKML,RKOMXP,RKOMXA,
+#include "cstac1.h"
+C*STARLET***************************************************************
+C        S E T S T 1      VORBELEGUNG DER FELDER, DIE IM WESENTLICHEN
+C                         ENSEMBLE-MITTELWERTE VON KORRELATIONSFUNKTIO-
+C                         NEN, -KOEFFIZIENTEN, LEISTUNGSDICHTESPEKTREN
+C                         UND HAEUFIGKEITSVERTEILUNGEN ENTHALTEN.
+C                                                      ALLE FELDER IN
+C                         DENEN SUMMEN GEBILDET WERDEN, MUESSEN MIT 0.0
+C                         VORBELEGT WERDEN. BEI EINEM VOELLIGEN NEUBE-
+C                         GINN DER STATIST. AUSWERTUNG EINER GROESSE
+C                         WIRD EINE "BESTMOEGLICHE" VORBELEGUNG DES-
+C                         JENIGEN FELDES DURCHGEFUEHRT, DAS DEN ENSEM-
+C                         BLE-MITTELWERT ENTHAELT.
+C  A C H T U N G:         DIESE ROUTINE MUSS ERWEITERT WERDEN, FALLS
+C                         DIE STATIST. AUSWERTUNG ERWEITERT WIRD !
+C*STARLET***************************************************************
+C
+C PARAM: HILFL (KKML,JJ2L,ILIMXP) + HILFSFELD ZUM UMSORTIEREN
+C        KKML                     - ARRAYDIMENSION (MAXIMALE ANZ. IN
+C                                   K-RICHTUNG EINES "LINIEN-FELDES")
+C        RKOMXP                   - MAXIMAL ZULAESSIGER KORRELATIONS-
+C                                   RAD. WAEHREND DES MOMENTANEN LAUFES
+C        RKOMXA                   - MAXIMAL ZULAESSIGER KORRELATIONS-
+C                                   RADIUS WAEHREND DES VORANGEG. LAUFES
+#include "cstap1.h"
+C
+C UPROG                 : DPHI0, LINCTL
+C
+C DEFINE-DIREKTIVEN     : KEINE
+C
+C        13.12.88 (HW)  : ORIGINAL AUS SETSTA ABGELEITET
+C
+C*STARLET***************************************************************
+C
+      CHARACTER (LEN=80)  CT,  CH1680
+C
+      REAL     HILFL (KKML,JJ2L,ILIMXP)
+C
+#include "cstad1.h"
+C
+C                                 BELEGUNG DES HILFL-FELDES MIT 0.0
+C
+      CALL DPHI0   (KKML,JJ2L,ILIMXP,KKML,JJ2L,ILIMXP,HILFL  )
+C
+C                                 STATIST. GROESSEN DER U-KOMPONENTE
+C                                 ----------------------------------
+C
+      IF(ISELEP(1, 14) .GE. 1) THEN
+         IF(ISELEA(1, 14) .EQ. 0  .OR.  ISELEA(1, 14) .EQ. 3) THEN
+            CALL DPHI0   (KKXL,JJ2L,ILIMXP,KKXL,JJ2L,ILIMXP,ARXUU  )
+         ELSE
+C
+C                                  UMSORTIEREN UND NEUBELEGEN DES
+C                                  ARXUU-FELDES
+C
+            CT = CH1680  (' R_U"U"(X)      ')
+            CALL LINCTL  (ARXUU  ,  14 , 'X', HILFL, KKXL, JJ2L, ILIMXP,
+     $                    ISLINP, ISLINA, ISLIDI, RKOMXP, RKOMXA, CT,
+     $                    ISELEP, ISELEA)
+         ENDIF
+      ENDIF
+      IF(ISELEP(1, 15) .GE. 1) THEN
+            CALL DPHI0   (KKXL,JJ1L,ILIMXP,KKXL,JJ1L,ILIMXP,SRXUU  )
+      ENDIF
+      IF(ISELEP(1, 16) .GE. 1) THEN
+         IF(ISELEA(1, 16) .EQ. 0  .OR.  ISELEA(1, 16) .EQ. 3) THEN
+            CALL DPHI0   (KKYL,JJ2L,ILIMXP,KKYL,JJ2L,ILIMXP,ARYUU  )
+         ELSE
+            CT = CH1680  (' R_U"U"(Y)      ')
+            CALL LINCTL  (ARYUU  ,  16 , 'Y', HILFL, KKYL, JJ2L, ILIMXP,
+     $                    ISLINP, ISLINA, ISLIDI, RKOMXP, RKOMXA, CT,
+     $                    ISELEP, ISELEA)
+         ENDIF
+      ENDIF
+      IF(ISELEP(1, 17) .GE. 1) THEN
+            CALL DPHI0   (KKYL,JJ1L,ILIMXP,KKYL,JJ1L,ILIMXP,SRYUU  )
+      ENDIF
+      IF(ISELEP(1, 18) .GE. 1) THEN
+         IF(ISELEA(1, 18) .EQ. 0  .OR.  ISELEA(1, 18) .EQ. 3) THEN
+            CALL DPHI0   (KKZL,JJ2L,ILIMXP,KKZL,JJ2L,ILIMXP,ARZUU  )
+         ELSE
+            CT = CH1680  (' R_U"U"(Z)      ')
+            CALL LINCTL  (ARZUU  ,  18 , 'Z', HILFL, KKZL, JJ2L, ILIMXP,
+     $                    ISLINP, ISLINA, ISLIDI, RKOMXP, RKOMXA, CT,
+     $                    ISELEP, ISELEA)
+         ENDIF
+      ENDIF
+      IF(ISELEP(1, 19) .GE. 1) THEN
+            CALL DPHI0   (KKZL,JJ1L,ILIMXP,KKZL,JJ1L,ILIMXP,SRZUU  )
+      ENDIF
+      IF(ISELEP(1, 20) .GE. 1) THEN
+         IF(ISELEA(1, 20) .EQ. 0  .OR.  ISELEA(1, 20) .EQ. 3) THEN
+            CALL DPHI0   (KSXL,JJ1L,ILIMXP,KSXL,JJ1L,ILIMXP,ASXUU  )
+         ELSE
+            CT = CH1680  (' S_U"U"(K_X)    ')
+            CALL LINCTL  (ASXUU  ,  20 , 'X', HILFL, KSXL, JJ1L, ILIMXP,
+     $                    ISLINP, ISLINA, ISLIDI, RKOMXP, RKOMXA, CT,
+     $                    ISELEP, ISELEA)
+         ENDIF
+      ENDIF
+      IF(ISELEP(1, 21) .GE. 1) THEN
+            CALL DPHI0   (KSXL,JJ1L,ILIMXP,KSXL,JJ1L,ILIMXP,SSXUU  )
+      ENDIF
+      IF(ISELEP(1, 22) .GE. 1) THEN
+         IF(ISELEA(1, 22) .EQ. 0  .OR.  ISELEA(1, 22) .EQ. 3) THEN
+            CALL DPHI0   (KSYL,JJ1L,ILIMXP,KSYL,JJ1L,ILIMXP,ASYUU  )
+         ELSE
+            CT = CH1680  (' S_U"U"(K_Y)    ')
+            CALL LINCTL  (ASYUU  ,  22 , 'Y', HILFL, KSYL, JJ1L, ILIMXP,
+     $                    ISLINP, ISLINA, ISLIDI, RKOMXP, RKOMXA, CT,
+     $                    ISELEP, ISELEA)
+         ENDIF
+      ENDIF
+      IF(ISELEP(1, 23) .GE. 1) THEN
+            CALL DPHI0   (KSYL,JJ1L,ILIMXP,KSYL,JJ1L,ILIMXP,SSYUU  )
+      ENDIF
+      IF(ISELEP(1, 24) .GE. 1) THEN
+         IF(ISELEA(1, 24) .EQ. 0  .OR.  ISELEA(1, 24) .EQ. 3) THEN
+            CALL DPHI0   (KSZL,JJ1L,ILIMXP,KSZL,JJ1L,ILIMXP,ASZUU  )
+         ELSE
+            CT = CH1680  (' S_U"U"(K_Z)    ')
+            CALL LINCTL  (ASZUU  ,  24 , 'Z', HILFL, KSZL, JJ1L, ILIMXP,
+     $                    ISLINP, ISLINA, ISLIDI, RKOMXP, RKOMXA, CT,
+     $                    ISELEP, ISELEA)
+         ENDIF
+      ENDIF
+      IF(ISELEP(1, 25) .GE. 1) THEN
+            CALL DPHI0   (KSZL,JJ1L,ILIMXP,KSZL,JJ1L,ILIMXP,SSZUU  )
+      ENDIF
+C
+C                                 STATIST. GROESSEN DER V-KOMPONENTE
+C                                 ----------------------------------
+C
+      IF(ISELEP(1, 39) .GE. 1) THEN
+         IF(ISELEA(1, 39) .EQ. 0  .OR.  ISELEA(1, 39) .EQ. 3) THEN
+            CALL DPHI0   (KKXL,JJ2L,ILIMXP,KKXL,JJ2L,ILIMXP,ARXVV  )
+         ELSE
+            CT = CH1680  (' R_V"V"(X)      ')
+            CALL LINCTL  (ARXVV  ,  39 , 'X', HILFL, KKXL, JJ2L, ILIMXP,
+     $                    ISLINP, ISLINA, ISLIDI, RKOMXP, RKOMXA, CT,
+     $                    ISELEP, ISELEA)
+         ENDIF
+      ENDIF
+      IF(ISELEP(1, 40) .GE. 1) THEN
+            CALL DPHI0   (KKXL,JJ1L,ILIMXP,KKXL,JJ1L,ILIMXP,SRXVV  )
+      ENDIF
+      IF(ISELEP(1, 41) .GE. 1) THEN
+         IF(ISELEA(1, 41) .EQ. 0  .OR.  ISELEA(1, 41) .EQ. 3) THEN
+            CALL DPHI0   (KKYL,JJ2L,ILIMXP,KKYL,JJ2L,ILIMXP,ARYVV  )
+         ELSE
+            CT = CH1680  (' R_V"V"(Y)      ')
+            CALL LINCTL  (ARYVV  ,  41 , 'Y', HILFL, KKYL, JJ2L, ILIMXP,
+     $                    ISLINP, ISLINA, ISLIDI, RKOMXP, RKOMXA, CT,
+     $                    ISELEP, ISELEA)
+         ENDIF
+      ENDIF
+      IF(ISELEP(1, 42) .GE. 1) THEN
+            CALL DPHI0   (KKYL,JJ1L,ILIMXP,KKYL,JJ1L,ILIMXP,SRYVV  )
+      ENDIF
+      IF(ISELEP(1, 43) .GE. 1) THEN
+         IF(ISELEA(1, 43) .EQ. 0  .OR.  ISELEA(1, 43) .EQ. 3) THEN
+            CALL DPHI0   (KKZL,JJ2L,ILIMXP,KKZL,JJ2L,ILIMXP,ARZVV  )
+         ELSE
+            CT = CH1680  (' R_V"V"(Z)      ')
+            CALL LINCTL  (ARZVV  ,  43 , 'Z', HILFL, KKZL, JJ2L, ILIMXP,
+     $                    ISLINP, ISLINA, ISLIDI, RKOMXP, RKOMXA, CT,
+     $                    ISELEP, ISELEA)
+         ENDIF
+      ENDIF
+      IF(ISELEP(1, 44) .GE. 1) THEN
+            CALL DPHI0   (KKZL,JJ1L,ILIMXP,KKZL,JJ1L,ILIMXP,SRZVV  )
+      ENDIF
+      IF(ISELEP(1, 45) .GE. 1) THEN
+         IF(ISELEA(1, 45) .EQ. 0  .OR.  ISELEA(1, 45) .EQ. 3) THEN
+            CALL DPHI0   (KSXL,JJ1L,ILIMXP,KSXL,JJ1L,ILIMXP,ASXVV  )
+         ELSE
+            CT = CH1680  (' S_V"V"(K_X)    ')
+            CALL LINCTL  (ASXVV  ,  45 , 'X', HILFL, KSXL, JJ1L, ILIMXP,
+     $                    ISLINP, ISLINA, ISLIDI, RKOMXP, RKOMXA, CT,
+     $                    ISELEP, ISELEA)
+         ENDIF
+      ENDIF
+      IF(ISELEP(1, 46) .GE. 1) THEN
+            CALL DPHI0   (KSXL,JJ1L,ILIMXP,KSXL,JJ1L,ILIMXP,SSXVV  )
+      ENDIF
+      IF(ISELEP(1, 47) .GE. 1) THEN
+         IF(ISELEA(1, 47) .EQ. 0  .OR.  ISELEA(1, 47) .EQ. 3) THEN
+            CALL DPHI0   (KSYL,JJ1L,ILIMXP,KSYL,JJ1L,ILIMXP,ASYVV  )
+         ELSE
+            CT = CH1680  (' S_V"V"(K_Y)    ')
+            CALL LINCTL  (ASYVV  ,  47 , 'Y', HILFL, KSYL, JJ1L, ILIMXP,
+     $                    ISLINP, ISLINA, ISLIDI, RKOMXP, RKOMXA, CT,
+     $                    ISELEP, ISELEA)
+         ENDIF
+      ENDIF
+      IF(ISELEP(1, 48) .GE. 1) THEN
+            CALL DPHI0   (KSYL,JJ1L,ILIMXP,KSYL,JJ1L,ILIMXP,SSYVV  )
+      ENDIF
+      IF(ISELEP(1, 49) .GE. 1) THEN
+         IF(ISELEA(1, 49) .EQ. 0  .OR.  ISELEA(1, 49) .EQ. 3) THEN
+            CALL DPHI0   (KSZL,JJ1L,ILIMXP,KSZL,JJ1L,ILIMXP,ASZVV  )
+         ELSE
+            CT = CH1680  (' S_V"V"(K_Z)    ')
+            CALL LINCTL  (ASZVV  ,  49 , 'Z', HILFL, KSZL, JJ1L, ILIMXP,
+     $                    ISLINP, ISLINA, ISLIDI, RKOMXP, RKOMXA, CT,
+     $                    ISELEP, ISELEA)
+         ENDIF
+      ENDIF
+      IF(ISELEP(1, 50) .GE. 1) THEN
+            CALL DPHI0   (KSZL,JJ1L,ILIMXP,KSZL,JJ1L,ILIMXP,SSZVV  )
+      ENDIF
+C
+C                                 STATIST. GROESSEN DER W-KOMPONENTE
+C                                 ----------------------------------
+C
+      IF(ISELEP(1, 64) .GE. 1) THEN
+         IF(ISELEA(1, 64) .EQ. 0  .OR.  ISELEA(1, 64) .EQ. 3) THEN
+            CALL DPHI0   (KKXL,JJ2L,ILIMXP,KKXL,JJ2L,ILIMXP,ARXWW  )
+         ELSE
+            CT = CH1680  (' R_W"W"(X)      ')
+            CALL LINCTL  (ARXWW  ,  64 , 'X', HILFL, KKXL, JJ2L, ILIMXP,
+     $                    ISLINP, ISLINA, ISLIDI, RKOMXP, RKOMXA, CT,
+     $                    ISELEP, ISELEA)
+         ENDIF
+      ENDIF
+      IF(ISELEP(1, 65) .GE. 1) THEN
+            CALL DPHI0   (KKXL,JJ1L,ILIMXP,KKXL,JJ1L,ILIMXP,SRXWW  )
+      ENDIF
+      IF(ISELEP(1, 66) .GE. 1) THEN
+         IF(ISELEA(1, 66) .EQ. 0  .OR.  ISELEA(1, 66) .EQ. 3) THEN
+            CALL DPHI0   (KKYL,JJ2L,ILIMXP,KKYL,JJ2L,ILIMXP,ARYWW  )
+         ELSE
+            CT = CH1680  (' R_W"W"(Y)      ')
+            CALL LINCTL  (ARYWW  ,  66 , 'Y', HILFL, KKYL, JJ2L, ILIMXP,
+     $                    ISLINP, ISLINA, ISLIDI, RKOMXP, RKOMXA, CT,
+     $                    ISELEP, ISELEA)
+         ENDIF
+      ENDIF
+      IF(ISELEP(1, 67) .GE. 1) THEN
+            CALL DPHI0   (KKYL,JJ1L,ILIMXP,KKYL,JJ1L,ILIMXP,SRYWW  )
+      ENDIF
+      IF(ISELEP(1, 68) .GE. 1) THEN
+         IF(ISELEA(1, 68) .EQ. 0  .OR.  ISELEA(1, 68) .EQ. 3) THEN
+            CALL DPHI0   (KKZL,JJ2L,ILIMXP,KKZL,JJ2L,ILIMXP,ARZWW  )
+         ELSE
+            CT = CH1680  (' R_W"W"(Z)      ')
+            CALL LINCTL  (ARZWW  ,  68 , 'Z', HILFL, KKZL, JJ2L, ILIMXP,
+     $                    ISLINP, ISLINA, ISLIDI, RKOMXP, RKOMXA, CT,
+     $                    ISELEP, ISELEA)
+         ENDIF
+      ENDIF
+      IF(ISELEP(1, 69) .GE. 1) THEN
+            CALL DPHI0   (KKZL,JJ1L,ILIMXP,KKZL,JJ1L,ILIMXP,SRZWW  )
+      ENDIF
+      IF(ISELEP(1, 70) .GE. 1) THEN
+         IF(ISELEA(1, 70) .EQ. 0  .OR.  ISELEA(1, 70) .EQ. 3) THEN
+            CALL DPHI0   (KSXL,JJ1L,ILIMXP,KSXL,JJ1L,ILIMXP,ASXWW  )
+         ELSE
+            CT = CH1680  (' S_W"W"(K_X)    ')
+            CALL LINCTL  (ASXWW  ,  70 , 'X', HILFL, KSXL, JJ1L, ILIMXP,
+     $                    ISLINP, ISLINA, ISLIDI, RKOMXP, RKOMXA, CT,
+     $                    ISELEP, ISELEA)
+         ENDIF
+      ENDIF
+      IF(ISELEP(1, 71) .GE. 1) THEN
+            CALL DPHI0   (KSXL,JJ1L,ILIMXP,KSXL,JJ1L,ILIMXP,SSXWW  )
+      ENDIF
+      IF(ISELEP(1, 72) .GE. 1) THEN
+         IF(ISELEA(1, 72) .EQ. 0  .OR.  ISELEA(1, 72) .EQ. 3) THEN
+            CALL DPHI0   (KSYL,JJ1L,ILIMXP,KSYL,JJ1L,ILIMXP,ASYWW  )
+         ELSE
+            CT = CH1680  (' S_W"W"(K_Y)    ')
+            CALL LINCTL  (ASYWW  ,  72 , 'Y', HILFL, KSYL, JJ1L, ILIMXP,
+     $                    ISLINP, ISLINA, ISLIDI, RKOMXP, RKOMXA, CT,
+     $                    ISELEP, ISELEA)
+         ENDIF
+      ENDIF
+      IF(ISELEP(1, 73) .GE. 1) THEN
+            CALL DPHI0   (KSYL,JJ1L,ILIMXP,KSYL,JJ1L,ILIMXP,SSYWW  )
+      ENDIF
+      IF(ISELEP(1, 74) .GE. 1) THEN
+         IF(ISELEA(1, 74) .EQ. 0  .OR.  ISELEA(1, 74) .EQ. 3) THEN
+            CALL DPHI0   (KSZL,JJ1L,ILIMXP,KSZL,JJ1L,ILIMXP,ASZWW  )
+         ELSE
+            CT = CH1680  (' S_W"W"(K_Z)    ')
+            CALL LINCTL  (ASZWW  ,  74 , 'Z', HILFL, KSZL, JJ1L, ILIMXP,
+     $                    ISLINP, ISLINA, ISLIDI, RKOMXP, RKOMXA, CT,
+     $                    ISELEP, ISELEA)
+         ENDIF
+      ENDIF
+      IF(ISELEP(1, 75) .GE. 1) THEN
+            CALL DPHI0   (KSZL,JJ1L,ILIMXP,KSZL,JJ1L,ILIMXP,SSZWW  )
+      ENDIF
+C
+C                                  HIER: KREUZKORRELATIONSFUNKTIONEN
+C                                  ---------------------------------
+C
+      IF(ISELEP(1,210) .GE. 1) THEN
+         IF(ISELEA(1,210) .EQ. 0  .OR.  ISELEA(1,210) .EQ. 3) THEN
+            CALL DPHI0   (KKXL,JJ2L,ILIMXP,KKXL,JJ2L,ILIMXP,ARXUV  )
+         ELSE
+            CT = CH1680  (' R_U"V"(X)      ')
+            CALL LINCTL  (ARXUV  , 210 , 'X', HILFL, KKXL, JJ2L, ILIMXP,
+     $                    ISLINP, ISLINA, ISLIDI, RKOMXP, RKOMXA, CT,
+     $                    ISELEP, ISELEA)
+         ENDIF
+      ENDIF
+      IF(ISELEP(1,211) .GE. 1) THEN
+            CALL DPHI0   (KKXL,JJ1L,ILIMXP,KKXL,JJ1L,ILIMXP,SRXUV  )
+      ENDIF
+      IF(ISELEP(1,212) .GE. 1) THEN
+         IF(ISELEA(1,212) .EQ. 0  .OR.  ISELEA(1,212) .EQ. 3) THEN
+            CALL DPHI0   (KKYL,JJ2L,ILIMXP,KKYL,JJ2L,ILIMXP,ARYUV  )
+         ELSE
+            CT = CH1680  (' R_U"V"(Y)      ')
+            CALL LINCTL  (ARYUV  , 212 , 'Y', HILFL, KKYL, JJ2L, ILIMXP,
+     $                    ISLINP, ISLINA, ISLIDI, RKOMXP, RKOMXA, CT,
+     $                    ISELEP, ISELEA)
+         ENDIF
+      ENDIF
+      IF(ISELEP(1,213) .GE. 1) THEN
+            CALL DPHI0   (KKYL,JJ1L,ILIMXP,KKYL,JJ1L,ILIMXP,SRYUV  )
+      ENDIF
+      IF(ISELEP(1,216) .GE. 1) THEN
+         IF(ISELEA(1,216) .EQ. 0  .OR.  ISELEA(1,216) .EQ. 3) THEN
+            CALL DPHI0   (KKXL,JJ2L,ILIMXP,KKXL,JJ2L,ILIMXP,ARXUW  )
+         ELSE
+            CT = CH1680  (' R_U"W"(X)      ')
+            CALL LINCTL  (ARXUW  , 216 , 'X', HILFL, KKXL, JJ2L, ILIMXP,
+     $                    ISLINP, ISLINA, ISLIDI, RKOMXP, RKOMXA, CT,
+     $                    ISELEP, ISELEA)
+         ENDIF
+      ENDIF
+      IF(ISELEP(1,217) .GE. 1) THEN
+            CALL DPHI0   (KKXL,JJ1L,ILIMXP,KKXL,JJ1L,ILIMXP,SRXUW  )
+      ENDIF
+      IF(ISELEP(1,218) .GE. 1) THEN
+         IF(ISELEA(1,218) .EQ. 0  .OR.  ISELEA(1,218) .EQ. 3) THEN
+            CALL DPHI0   (KKYL,JJ2L,ILIMXP,KKYL,JJ2L,ILIMXP,ARYUW  )
+         ELSE
+            CT = CH1680  (' R_U"W"(Y)      ')
+            CALL LINCTL  (ARYUW  , 218 , 'Y', HILFL, KKYL, JJ2L, ILIMXP,
+     $                    ISLINP, ISLINA, ISLIDI, RKOMXP, RKOMXA, CT,
+     $                    ISELEP, ISELEA)
+         ENDIF
+      ENDIF
+      IF(ISELEP(1,219) .GE. 1) THEN
+            CALL DPHI0   (KKYL,JJ1L,ILIMXP,KKYL,JJ1L,ILIMXP,SRYUW  )
+      ENDIF
+      IF(ISELEP(1,224) .GE. 1) THEN
+         IF(ISELEA(1,224) .EQ. 0  .OR.  ISELEA(1,224) .EQ. 3) THEN
+            CALL DPHI0   (KKYL,JJ2L,ILIMXP,KKYL,JJ2L,ILIMXP,ARYVW  )
+         ELSE
+            CT = CH1680  (' R_V"W"(Y)      ')
+            CALL LINCTL  (ARYVW  , 224 , 'Y', HILFL, KKYL, JJ2L, ILIMXP,
+     $                    ISLINP, ISLINA, ISLIDI, RKOMXP, RKOMXA, CT,
+     $                    ISELEP, ISELEA)
+         ENDIF
+      ENDIF
+      IF(ISELEP(1,225) .GE. 1) THEN
+            CALL DPHI0   (KKYL,JJ1L,ILIMXP,KKYL,JJ1L,ILIMXP,SRYVW  )
+      ENDIF
+C
+C                                  HIER: KORRELATIONSKOEFFIZIENTEN
+C                                  -------------------------------
+C
+      IF(ISELEP(1,234) .GE. 1) THEN
+         IF(ISELEA(1,234) .EQ. 0  .OR.  ISELEA(1,234) .EQ. 3) THEN
+            CALL DPHI0   (KKXL,JJ2L,ILIMXP,KKXL,JJ2L,ILIMXP,ACXUW  )
+         ELSE
+            CT = CH1680  (' RC_U"W"(X)     ')
+            CALL LINCTL  (ACXUW  , 234 , 'X', HILFL, KKXL, JJ2L, ILIMXP,
+     $                    ISLINP, ISLINA, ISLIDI, RKOMXP, RKOMXA, CT,
+     $                    ISELEP, ISELEA)
+         ENDIF
+      ENDIF
+      IF(ISELEP(1,235) .GE. 1) THEN
+            CALL DPHI0   (KKXL,JJ1L,ILIMXP,KKXL,JJ1L,ILIMXP,SCXUW  )
+      ENDIF
+      IF(ISELEP(1,238) .GE. 1) THEN
+         IF(ISELEA(1,238) .EQ. 0  .OR.  ISELEA(1,238) .EQ. 3) THEN
+            CALL DPHI0   (KKZL,JJ2L,ILIMXP,KKZL,JJ2L,ILIMXP,ACZUW  )
+         ELSE
+            CT = CH1680  (' RC_U"W"(Z)     ')
+            CALL LINCTL  (ACZUW  , 238 , 'Z', HILFL, KKZL, JJ2L, ILIMXP,
+     $                    ISLINP, ISLINA, ISLIDI, RKOMXP, RKOMXA, CT,
+     $                    ISELEP, ISELEA)
+         ENDIF
+      ENDIF
+      IF(ISELEP(1,239) .GE. 1) THEN
+            CALL DPHI0   (KKZL,JJ1L,ILIMXP,KKZL,JJ1L,ILIMXP,SCZUW  )
+      ENDIF
+C
+C                                  OBERE DREIECKSMATRIX DES TENSORS
+C                                  DER KORRELATIONSFUNKTIONEN DER
+C                                  FLUKTUATIONEN DER VORTICITY
+C                                  --------------------------------
+C
+      IF(ISELEP(1,246) .GE. 1) THEN
+         IF(ISELEA(1,246) .EQ. 0  .OR.  ISELEA(1,246) .EQ. 3) THEN
+            CALL DPHI0   (KKXL,JJ2L,ILIMXP,KKXL,JJ2L,ILIMXP,ARXOXX )
+         ELSE
+            CT = CH1680  (' R_OX"OX"(X)    ')
+            CALL LINCTL  (ARXOXX , 246 , 'X', HILFL, KKXL, JJ2L, ILIMXP,
+     $                    ISLINP, ISLINA, ISLIDI, RKOMXP, RKOMXA, CT,
+     $                    ISELEP, ISELEA)
+         ENDIF
+      ENDIF
+      IF(ISELEP(1,247) .GE. 1) THEN
+            CALL DPHI0   (KKXL,JJ1L,ILIMXP,KKXL,JJ1L,ILIMXP,SRXOXX )
+      ENDIF
+      IF(ISELEP(1,248) .GE. 1) THEN
+         IF(ISELEA(1,248) .EQ. 0  .OR.  ISELEA(1,248) .EQ. 3) THEN
+            CALL DPHI0   (KKXL,JJ2L,ILIMXP,KKXL,JJ2L,ILIMXP,ARXOXY )
+         ELSE
+            CT = CH1680  (' R_OX"OY"(X)    ')
+            CALL LINCTL  (ARXOXY , 248 , 'X', HILFL, KKXL, JJ2L, ILIMXP,
+     $                    ISLINP, ISLINA, ISLIDI, RKOMXP, RKOMXA, CT,
+     $                    ISELEP, ISELEA)
+         ENDIF
+      ENDIF
+      IF(ISELEP(1,249) .GE. 1) THEN
+            CALL DPHI0   (KKXL,JJ1L,ILIMXP,KKXL,JJ1L,ILIMXP,SRXOXY )
+      ENDIF
+      IF(ISELEP(1,250) .GE. 1) THEN
+         IF(ISELEA(1,250) .EQ. 0  .OR.  ISELEA(1,250) .EQ. 3) THEN
+            CALL DPHI0   (KKXL,JJ2L,ILIMXP,KKXL,JJ2L,ILIMXP,ARXOXZ )
+         ELSE
+            CT = CH1680  (' R_OX"OZ"(X)    ')
+            CALL LINCTL  (ARXOXZ , 250 , 'X', HILFL, KKXL, JJ2L, ILIMXP,
+     $                    ISLINP, ISLINA, ISLIDI, RKOMXP, RKOMXA, CT,
+     $                    ISELEP, ISELEA)
+         ENDIF
+      ENDIF
+      IF(ISELEP(1,251) .GE. 1) THEN
+            CALL DPHI0   (KKXL,JJ1L,ILIMXP,KKXL,JJ1L,ILIMXP,SRXOXZ )
+      ENDIF
+      IF(ISELEP(1,252) .GE. 1) THEN
+         IF(ISELEA(1,252) .EQ. 0  .OR.  ISELEA(1,252) .EQ. 3) THEN
+            CALL DPHI0   (KKXL,JJ2L,ILIMXP,KKXL,JJ2L,ILIMXP,ARXOYY )
+         ELSE
+            CT = CH1680  (' R_OY"OY"(X)    ')
+            CALL LINCTL  (ARXOYY , 252 , 'X', HILFL, KKXL, JJ2L, ILIMXP,
+     $                    ISLINP, ISLINA, ISLIDI, RKOMXP, RKOMXA, CT,
+     $                    ISELEP, ISELEA)
+         ENDIF
+      ENDIF
+      IF(ISELEP(1,253) .GE. 1) THEN
+            CALL DPHI0   (KKXL,JJ1L,ILIMXP,KKXL,JJ1L,ILIMXP,SRXOYY )
+      ENDIF
+      IF(ISELEP(1,254) .GE. 1) THEN
+         IF(ISELEA(1,254) .EQ. 0  .OR.  ISELEA(1,254) .EQ. 3) THEN
+            CALL DPHI0   (KKXL,JJ2L,ILIMXP,KKXL,JJ2L,ILIMXP,ARXOYZ )
+         ELSE
+            CT = CH1680  (' R_OY"OZ"(X)    ')
+            CALL LINCTL  (ARXOYZ , 254 , 'X', HILFL, KKXL, JJ2L, ILIMXP,
+     $                    ISLINP, ISLINA, ISLIDI, RKOMXP, RKOMXA, CT,
+     $                    ISELEP, ISELEA)
+         ENDIF
+      ENDIF
+      IF(ISELEP(1,255) .GE. 1) THEN
+            CALL DPHI0   (KKXL,JJ1L,ILIMXP,KKXL,JJ1L,ILIMXP,SRXOYZ )
+      ENDIF
+      IF(ISELEP(1,256) .GE. 1) THEN
+         IF(ISELEA(1,256) .EQ. 0  .OR.  ISELEA(1,256) .EQ. 3) THEN
+            CALL DPHI0   (KKXL,JJ2L,ILIMXP,KKXL,JJ2L,ILIMXP,ARXOZZ )
+         ELSE
+            CT = CH1680  (' R_OZ"OZ"(X)    ')
+            CALL LINCTL  (ARXOZZ , 256 , 'X', HILFL, KKXL, JJ2L, ILIMXP,
+     $                    ISLINP, ISLINA, ISLIDI, RKOMXP, RKOMXA, CT,
+     $                    ISELEP, ISELEA)
+         ENDIF
+      ENDIF
+      IF(ISELEP(1,257) .GE. 1) THEN
+            CALL DPHI0   (KKXL,JJ1L,ILIMXP,KKXL,JJ1L,ILIMXP,SRXOZZ )
+      ENDIF
+      IF(ISELEP(1,258) .GE. 1) THEN
+         IF(ISELEA(1,258) .EQ. 0  .OR.  ISELEA(1,258) .EQ. 3) THEN
+            CALL DPHI0   (KKYL,JJ2L,ILIMXP,KKYL,JJ2L,ILIMXP,ARYOXX )
+         ELSE
+            CT = CH1680  (' R_OX"OX"(Y)    ')
+            CALL LINCTL  (ARYOXX , 258 , 'Y', HILFL, KKYL, JJ2L, ILIMXP,
+     $                    ISLINP, ISLINA, ISLIDI, RKOMXP, RKOMXA, CT,
+     $                    ISELEP, ISELEA)
+         ENDIF
+      ENDIF
+      IF(ISELEP(1,259) .GE. 1) THEN
+            CALL DPHI0   (KKYL,JJ1L,ILIMXP,KKYL,JJ1L,ILIMXP,SRYOXX )
+      ENDIF
+      IF(ISELEP(1,260) .GE. 1) THEN
+         IF(ISELEA(1,260) .EQ. 0  .OR.  ISELEA(1,260) .EQ. 3) THEN
+            CALL DPHI0   (KKYL,JJ2L,ILIMXP,KKYL,JJ2L,ILIMXP,ARYOXY )
+         ELSE
+            CT = CH1680  (' R_OX"OY"(Y)    ')
+            CALL LINCTL  (ARYOXY , 260 , 'Y', HILFL, KKYL, JJ2L, ILIMXP,
+     $                    ISLINP, ISLINA, ISLIDI, RKOMXP, RKOMXA, CT,
+     $                    ISELEP, ISELEA)
+         ENDIF
+      ENDIF
+      IF(ISELEP(1,261) .GE. 1) THEN
+            CALL DPHI0   (KKYL,JJ1L,ILIMXP,KKYL,JJ1L,ILIMXP,SRYOXY )
+      ENDIF
+      IF(ISELEP(1,262) .GE. 1) THEN
+         IF(ISELEA(1,262) .EQ. 0  .OR.  ISELEA(1,262) .EQ. 3) THEN
+            CALL DPHI0   (KKYL,JJ2L,ILIMXP,KKYL,JJ2L,ILIMXP,ARYOXZ )
+         ELSE
+            CT = CH1680  (' R_OX"OZ"(Y)    ')
+            CALL LINCTL  (ARYOXZ , 262 , 'Y', HILFL, KKYL, JJ2L, ILIMXP,
+     $                    ISLINP, ISLINA, ISLIDI, RKOMXP, RKOMXA, CT,
+     $                    ISELEP, ISELEA)
+         ENDIF
+      ENDIF
+      IF(ISELEP(1,263) .GE. 1) THEN
+            CALL DPHI0   (KKYL,JJ1L,ILIMXP,KKYL,JJ1L,ILIMXP,SRYOXZ )
+      ENDIF
+      IF(ISELEP(1,264) .GE. 1) THEN
+         IF(ISELEA(1,264) .EQ. 0  .OR.  ISELEA(1,264) .EQ. 3) THEN
+            CALL DPHI0   (KKYL,JJ2L,ILIMXP,KKYL,JJ2L,ILIMXP,ARYOYY )
+         ELSE
+            CT = CH1680  (' R_OY"OY"(Y)    ')
+            CALL LINCTL  (ARYOYY , 264 , 'Y', HILFL, KKYL, JJ2L, ILIMXP,
+     $                    ISLINP, ISLINA, ISLIDI, RKOMXP, RKOMXA, CT,
+     $                    ISELEP, ISELEA)
+         ENDIF
+      ENDIF
+      IF(ISELEP(1,265) .GE. 1) THEN
+            CALL DPHI0   (KKYL,JJ1L,ILIMXP,KKYL,JJ1L,ILIMXP,SRYOYY )
+      ENDIF
+      IF(ISELEP(1,266) .GE. 1) THEN
+         IF(ISELEA(1,266) .EQ. 0  .OR.  ISELEA(1,266) .EQ. 3) THEN
+            CALL DPHI0   (KKYL,JJ2L,ILIMXP,KKYL,JJ2L,ILIMXP,ARYOYZ )
+         ELSE
+            CT = CH1680  (' R_OY"OZ"(Y)    ')
+            CALL LINCTL  (ARYOYZ , 266 , 'Y', HILFL, KKYL, JJ2L, ILIMXP,
+     $                    ISLINP, ISLINA, ISLIDI, RKOMXP, RKOMXA, CT,
+     $                    ISELEP, ISELEA)
+         ENDIF
+      ENDIF
+      IF(ISELEP(1,267) .GE. 1) THEN
+            CALL DPHI0   (KKYL,JJ1L,ILIMXP,KKYL,JJ1L,ILIMXP,SRYOYZ )
+      ENDIF
+      IF(ISELEP(1,268) .GE. 1) THEN
+         IF(ISELEA(1,268) .EQ. 0  .OR.  ISELEA(1,268) .EQ. 3) THEN
+            CALL DPHI0   (KKYL,JJ2L,ILIMXP,KKYL,JJ2L,ILIMXP,ARYOZZ )
+         ELSE
+            CT = CH1680  (' R_OZ"OZ"(Y)    ')
+            CALL LINCTL  (ARYOZZ , 268 , 'Y', HILFL, KKYL, JJ2L, ILIMXP,
+     $                    ISLINP, ISLINA, ISLIDI, RKOMXP, RKOMXA, CT,
+     $                    ISELEP, ISELEA)
+         ENDIF
+      ENDIF
+      IF(ISELEP(1,269) .GE. 1) THEN
+            CALL DPHI0   (KKYL,JJ1L,ILIMXP,KKYL,JJ1L,ILIMXP,SRYOZZ )
+      ENDIF
+      IF(ISELEP(1,270) .GE. 1) THEN
+         IF(ISELEA(1,270) .EQ. 0  .OR.  ISELEA(1,270) .EQ. 3) THEN
+            CALL DPHI0   (KKZL,JJ2L,ILIMXP,KKZL,JJ2L,ILIMXP,ARZOXX )
+         ELSE
+            CT = CH1680  (' R_OX"OX"(Z)    ')
+            CALL LINCTL  (ARZOXX , 270 , 'Z', HILFL, KKZL, JJ2L, ILIMXP,
+     $                    ISLINP, ISLINA, ISLIDI, RKOMXP, RKOMXA, CT,
+     $                    ISELEP, ISELEA)
+         ENDIF
+      ENDIF
+      IF(ISELEP(1,271) .GE. 1) THEN
+            CALL DPHI0   (KKZL,JJ1L,ILIMXP,KKZL,JJ1L,ILIMXP,SRZOXX )
+      ENDIF
+      IF(ISELEP(1,272) .GE. 1) THEN
+         IF(ISELEA(1,272) .EQ. 0  .OR.  ISELEA(1,272) .EQ. 3) THEN
+            CALL DPHI0   (KKZL,JJ2L,ILIMXP,KKZL,JJ2L,ILIMXP,ARZOXY )
+         ELSE
+            CT = CH1680  (' R_OX"OY"(Z)    ')
+            CALL LINCTL  (ARZOXY , 272 , 'Z', HILFL, KKZL, JJ2L, ILIMXP,
+     $                    ISLINP, ISLINA, ISLIDI, RKOMXP, RKOMXA, CT,
+     $                    ISELEP, ISELEA)
+         ENDIF
+      ENDIF
+      IF(ISELEP(1,273) .GE. 1) THEN
+            CALL DPHI0   (KKZL,JJ1L,ILIMXP,KKZL,JJ1L,ILIMXP,SRZOXY )
+      ENDIF
+      IF(ISELEP(1,274) .GE. 1) THEN
+         IF(ISELEA(1,274) .EQ. 0  .OR.  ISELEA(1,274) .EQ. 3) THEN
+            CALL DPHI0   (KKZL,JJ2L,ILIMXP,KKZL,JJ2L,ILIMXP,ARZOXZ )
+         ELSE
+            CT = CH1680  (' R_OX"OZ"(Z)    ')
+            CALL LINCTL  (ARZOXZ , 274 , 'Z', HILFL, KKZL, JJ2L, ILIMXP,
+     $                    ISLINP, ISLINA, ISLIDI, RKOMXP, RKOMXA, CT,
+     $                    ISELEP, ISELEA)
+         ENDIF
+      ENDIF
+      IF(ISELEP(1,275) .GE. 1) THEN
+            CALL DPHI0   (KKZL,JJ1L,ILIMXP,KKZL,JJ1L,ILIMXP,SRZOXZ )
+      ENDIF
+      IF(ISELEP(1,276) .GE. 1) THEN
+         IF(ISELEA(1,276) .EQ. 0  .OR.  ISELEA(1,276) .EQ. 3) THEN
+            CALL DPHI0   (KKZL,JJ2L,ILIMXP,KKZL,JJ2L,ILIMXP,ARZOYY )
+         ELSE
+            CT = CH1680  (' R_OY"OY"(Z)    ')
+            CALL LINCTL  (ARZOYY , 276 , 'Z', HILFL, KKZL, JJ2L, ILIMXP,
+     $                    ISLINP, ISLINA, ISLIDI, RKOMXP, RKOMXA, CT,
+     $                    ISELEP, ISELEA)
+         ENDIF
+      ENDIF
+      IF(ISELEP(1,277) .GE. 1) THEN
+            CALL DPHI0   (KKZL,JJ1L,ILIMXP,KKZL,JJ1L,ILIMXP,SRZOYY )
+      ENDIF
+      IF(ISELEP(1,278) .GE. 1) THEN
+         IF(ISELEA(1,278) .EQ. 0  .OR.  ISELEA(1,278) .EQ. 3) THEN
+            CALL DPHI0   (KKZL,JJ2L,ILIMXP,KKZL,JJ2L,ILIMXP,ARZOYZ )
+         ELSE
+            CT = CH1680  (' R_OY"OZ"(Z)    ')
+            CALL LINCTL  (ARZOYZ , 278 , 'Z', HILFL, KKZL, JJ2L, ILIMXP,
+     $                    ISLINP, ISLINA, ISLIDI, RKOMXP, RKOMXA, CT,
+     $                    ISELEP, ISELEA)
+         ENDIF
+      ENDIF
+      IF(ISELEP(1,279) .GE. 1) THEN
+            CALL DPHI0   (KKZL,JJ1L,ILIMXP,KKZL,JJ1L,ILIMXP,SRZOYZ )
+      ENDIF
+      IF(ISELEP(1,280) .GE. 1) THEN
+         IF(ISELEA(1,280) .EQ. 0  .OR.  ISELEA(1,280) .EQ. 3) THEN
+            CALL DPHI0   (KKZL,JJ2L,ILIMXP,KKZL,JJ2L,ILIMXP,ARZOZZ )
+         ELSE
+            CT = CH1680  (' R_OZ"OZ"(Z)    ')
+            CALL LINCTL  (ARZOZZ , 280 , 'Z', HILFL, KKZL, JJ2L, ILIMXP,
+     $                    ISLINP, ISLINA, ISLIDI, RKOMXP, RKOMXA, CT,
+     $                    ISELEP, ISELEA)
+         ENDIF
+      ENDIF
+      IF(ISELEP(1,281) .GE. 1) THEN
+            CALL DPHI0   (KKZL,JJ1L,ILIMXP,KKZL,JJ1L,ILIMXP,SRZOZZ )
+      ENDIF
+C
+C                                  LEISTUNGSDICHTESPEKTREN DER
+C                                  FLUKTUATIONEN DER VORTICITY
+C                                  ----------------------------
+C
+      IF(ISELEP(1,282) .GE. 1) THEN
+         IF(ISELEA(1,282) .EQ. 0  .OR.  ISELEA(1,282) .EQ. 3) THEN
+            CALL DPHI0   (KSXL,JJ1L,ILIMXP,KSXL,JJ1L,ILIMXP,ASXOXX )
+         ELSE
+            CT = CH1680  (' S_OX"OX"(K_X)  ')
+            CALL LINCTL  (ASXOXX , 282 , 'X', HILFL, KSXL, JJ1L, ILIMXP,
+     $                    ISLINP, ISLINA, ISLIDI, RKOMXP, RKOMXA, CT,
+     $                    ISELEP, ISELEA)
+         ENDIF
+      ENDIF
+      IF(ISELEP(1,283) .GE. 1) THEN
+            CALL DPHI0   (KSXL,JJ1L,ILIMXP,KSXL,JJ1L,ILIMXP,SSXOXX )
+      ENDIF
+      IF(ISELEP(1,284) .GE. 1) THEN
+         IF(ISELEA(1,284) .EQ. 0  .OR.  ISELEA(1,284) .EQ. 3) THEN
+            CALL DPHI0   (KSXL,JJ1L,ILIMXP,KSXL,JJ1L,ILIMXP,ASXOYY )
+         ELSE
+            CT = CH1680  (' S_OY"OY"(K_X)  ')
+            CALL LINCTL  (ASXOYY , 284 , 'X', HILFL, KSXL, JJ1L, ILIMXP,
+     $                    ISLINP, ISLINA, ISLIDI, RKOMXP, RKOMXA, CT,
+     $                    ISELEP, ISELEA)
+         ENDIF
+      ENDIF
+      IF(ISELEP(1,285) .GE. 1) THEN
+            CALL DPHI0   (KSXL,JJ1L,ILIMXP,KSXL,JJ1L,ILIMXP,SSXOYY )
+      ENDIF
+      IF(ISELEP(1,286) .GE. 1) THEN
+         IF(ISELEA(1,286) .EQ. 0  .OR.  ISELEA(1,286) .EQ. 3) THEN
+            CALL DPHI0   (KSXL,JJ1L,ILIMXP,KSXL,JJ1L,ILIMXP,ASXOZZ )
+         ELSE
+            CT = CH1680  (' S_OZ"OZ"(K_X)  ')
+            CALL LINCTL  (ASXOZZ , 286 , 'X', HILFL, KSXL, JJ1L, ILIMXP,
+     $                    ISLINP, ISLINA, ISLIDI, RKOMXP, RKOMXA, CT,
+     $                    ISELEP, ISELEA)
+         ENDIF
+      ENDIF
+      IF(ISELEP(1,287) .GE. 1) THEN
+            CALL DPHI0   (KSXL,JJ1L,ILIMXP,KSXL,JJ1L,ILIMXP,SSXOZZ )
+      ENDIF
+      IF(ISELEP(1,288) .GE. 1) THEN
+         IF(ISELEA(1,288) .EQ. 0  .OR.  ISELEA(1,288) .EQ. 3) THEN
+            CALL DPHI0   (KSYL,JJ1L,ILIMXP,KSYL,JJ1L,ILIMXP,ASYOXX )
+         ELSE
+            CT = CH1680  (' S_OX"OX"(K_Y)  ')
+            CALL LINCTL  (ASYOXX , 288 , 'Y', HILFL, KSYL, JJ1L, ILIMXP,
+     $                    ISLINP, ISLINA, ISLIDI, RKOMXP, RKOMXA, CT,
+     $                    ISELEP, ISELEA)
+         ENDIF
+      ENDIF
+      IF(ISELEP(1,289) .GE. 1) THEN
+            CALL DPHI0   (KSYL,JJ1L,ILIMXP,KSYL,JJ1L,ILIMXP,SSYOXX )
+      ENDIF
+      IF(ISELEP(1,290) .GE. 1) THEN
+         IF(ISELEA(1,290) .EQ. 0  .OR.  ISELEA(1,290) .EQ. 3) THEN
+            CALL DPHI0   (KSYL,JJ1L,ILIMXP,KSYL,JJ1L,ILIMXP,ASYOYY )
+         ELSE
+            CT = CH1680  (' S_OY"OY"(K_Y)  ')
+            CALL LINCTL  (ASYOYY , 290 , 'Y', HILFL, KSYL, JJ1L, ILIMXP,
+     $                    ISLINP, ISLINA, ISLIDI, RKOMXP, RKOMXA, CT,
+     $                    ISELEP, ISELEA)
+         ENDIF
+      ENDIF
+      IF(ISELEP(1,291) .GE. 1) THEN
+            CALL DPHI0   (KSYL,JJ1L,ILIMXP,KSYL,JJ1L,ILIMXP,SSYOYY )
+      ENDIF
+      IF(ISELEP(1,292) .GE. 1) THEN
+         IF(ISELEA(1,292) .EQ. 0  .OR.  ISELEA(1,292) .EQ. 3) THEN
+            CALL DPHI0   (KSYL,JJ1L,ILIMXP,KSYL,JJ1L,ILIMXP,ASYOZZ )
+         ELSE
+            CT = CH1680  (' S_OZ"OZ"(K_Y)  ')
+            CALL LINCTL  (ASYOZZ , 292 , 'Y', HILFL, KSYL, JJ1L, ILIMXP,
+     $                    ISLINP, ISLINA, ISLIDI, RKOMXP, RKOMXA, CT,
+     $                    ISELEP, ISELEA)
+         ENDIF
+      ENDIF
+      IF(ISELEP(1,293) .GE. 1) THEN
+            CALL DPHI0   (KSYL,JJ1L,ILIMXP,KSYL,JJ1L,ILIMXP,SSYOZZ )
+      ENDIF
+C
+C                                  HAEUFIGKEITSVERTEILUNG DER
+C                                  INKLINATIONSWINKEL DER VORTICITY-
+C                                  VEKTOREN
+C                                  ---------------------------------
+C
+      IF(ISELEP(1,306) .GE. 1) THEN
+         IF(ISELEA(1,306) .EQ. 0  .OR.  ISELEA(1,306) .EQ. 3) THEN
+            CALL DPHI0   (KH0L,JJ2L,ILIMXP,KH0L,JJ2L,ILIMXP,AHOZOY )
+         ELSE
+            CT = CH1680  (' H (ATAN(OZ/OY))')
+            CALL LINCTL  (AHOZOY , 306 , '0', HILFL, KH0L, JJ2L, ILIMXP,
+     $                    ISLINP, ISLINA, ISLIDI, RKOMXP, RKOMXA, CT,
+     $                    ISELEP, ISELEA)
+         ENDIF
+      ENDIF
+      IF(ISELEP(1,307) .GE. 1) THEN
+            CALL DPHI0   (KH0L,JJ2L,ILIMXP,KH0L,JJ2L,ILIMXP,SHOZOY )
+      ENDIF
+      IF(ISELEP(1,308) .GE. 1) THEN
+         IF(ISELEA(1,308) .EQ. 0  .OR.  ISELEA(1,308) .EQ. 3) THEN
+            CALL DPHI0   (KH0L,JJ2L,ILIMXP,KH0L,JJ2L,ILIMXP,AHOZOX )
+         ELSE
+            CT = CH1680  (' H (ATAN(OZ/OX))')
+            CALL LINCTL  (AHOZOX , 308 , '0', HILFL, KH0L, JJ2L, ILIMXP,
+     $                    ISLINP, ISLINA, ISLIDI, RKOMXP, RKOMXA, CT,
+     $                    ISELEP, ISELEA)
+         ENDIF
+      ENDIF
+      IF(ISELEP(1,309) .GE. 1) THEN
+            CALL DPHI0   (KH0L,JJ2L,ILIMXP,KH0L,JJ2L,ILIMXP,SHOZOX )
+      ENDIF
+      IF(ISELEP(1,310) .GE. 1) THEN
+         IF(ISELEA(1,310) .EQ. 0  .OR.  ISELEA(1,310) .EQ. 3) THEN
+            CALL DPHI0   (KH0L,JJ2L,ILIMXP,KH0L,JJ2L,ILIMXP,AHOYOX )
+         ELSE
+            CT = CH1680  (' H (ATAN(OY/OX))')
+            CALL LINCTL  (AHOYOX , 310 , '0', HILFL, KH0L, JJ2L, ILIMXP,
+     $                    ISLINP, ISLINA, ISLIDI, RKOMXP, RKOMXA, CT,
+     $                    ISELEP, ISELEA)
+         ENDIF
+      ENDIF
+      IF(ISELEP(1,311) .GE. 1) THEN
+            CALL DPHI0   (KH0L,JJ2L,ILIMXP,KH0L,JJ2L,ILIMXP,SHOYOX )
+      ENDIF
+C
+      RETURN
+      END

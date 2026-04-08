@@ -1,0 +1,129 @@
+      SUBROUTINE AEQGRD  (KMX,JMX,IMX,KK,JJ,II,DX,DY,DZ,NBND,
+     &                    NXGRAE,NYGRAE,NZGRAE,IGRID)
+C*STARLET***************************************************************
+C        A E Q G R D      AEQGRD PRUEFT DAS MASCHENGITTER IN ALLEN
+C                         DREI KOORDINATENRICHTUNGEN AUF AEQUIDISTANZ.
+C*STARLET***************************************************************
+C
+C PARAM: KMX, JMX, IMX  - GRENZEN DES BERECHNUNGSGEBIETES (MIT BOUND)
+C        KK, JJ, II     - ARRAYDIMENSIONEN
+C        DX,DY,DZ       - ABSTAND DER GITTERPUNKTE
+C        NBND           - ANZAHL DER RANDSCHICHTEN DES BERECHNUNGS-
+C                         GEBIETES
+C
+C UPROG                 : AEQGR1
+C
+C DEFINE-DIREKTIVEN     : KEINE
+C
+C        25.09.88 (HW)  : ORIGINAL
+C        14.06.89 (HW)  : EPSTOL VON 100.*SMAONE AUF 1000.*SMAONE
+C                         WEGEN GRDFMI
+C
+C*STARLET***************************************************************
+C
+#ifdef _MPI_
+#include "colevel.h"
+#include "mgpar.h"
+#include "compi.h"
+#endif
+C
+      REAL       DX(II),        DY(JJ),        DZ(KK)
+C
+C                                 UEBERPRUEFUNG DER DREI KOORDINATEN-
+C                                 RICHTUNGEN
+C
+#ifdef _MPI_
+	  IF (MYID .EQ. 0) THEN
+#endif
+      WRITE (6,*)
+      WRITE (6,*)
+      WRITE (6,*) ' ********** INFORMATION AUS SUBR. AEQGRD **********'
+      WRITE (6,*)
+      WRITE (6,*) ' ********** GITTERNR.:     ',IGRID
+      WRITE (6,*)
+#ifdef _MPI_
+	  ENDIF
+#endif
+      CALL AEQGR1  (IMX,II,DX,NBND,NXGRAE,'X')
+      CALL AEQGR1  (JMX,JJ,DY,NBND,NYGRAE,'Y')
+      CALL AEQGR1  (KMX,KK,DZ,NBND,NZGRAE,'Z')
+      WRITE (6,*)
+      WRITE (6,*)
+      RETURN
+      END
+      SUBROUTINE AEQGR1  (LMX,LL,DS,NBND,NLGRAE,KOORD)
+C*STARLET***************************************************************
+C        A E Q G R 1      AEQGR1 PRUEFT DAS MASCHENGITTER IN EINER
+C                         KOORDINATENRICHTUNG AUF AEQUIDISTANZ.
+C*STARLET***************************************************************
+C
+C PARAM: LMX            - GRENZE DES BERECHNUNGSGEBIETES (MIT BOUND)
+C        LL             - ARRAYDIMENSION
+C        DS             - ABSTAND DER GITTERPUNKTE
+C        NBND           - ANZAHL DER RANDSCHICHTEN DES BERECHNUNGS-
+C                         GEBIETES
+C        NLGRAE         + NLGRAE = 1 : MASCHENGITTER IST AEQUIDISTANT
+C                         NLGRAE = 0 : MASCHENGITTER IST  N I C H T
+C                                      AEQUIDISTANT
+C        KOORD          - CHARACTER (LEN=1) VARIABLE (KOORDINATENRICHTUNG)
+C
+C UPROG                 : ERRR
+C
+C DEFINE-DIREKTIVEN     : KEINE
+C
+C        25.09.88 (HW)  : ORIGINAL
+C
+C*STARLET***************************************************************
+C
+#ifdef _MPI_
+#include "colevel.h"
+#include "mgpar.h"
+#include "compi.h"
+#endif
+#include "konsta.h"
+C
+      CHARACTER (LEN=1)  KOORD
+      REAL          DS(LL)
+C
+      NLGRAE = 1
+#ifdef _LINUX_
+      EPSTOL = SQRT(SMALL)
+#else
+      EPSTOL = SQRT(SMALL)
+#endif
+C
+      LBEG   = 1   + NBND
+      LEND   = LMX - NBND
+C
+      DO L = LBEG,LEND
+       IF(ABS (DS(L) - DS(L-1)) .GT. EPSTOL) THEN
+             NLGRAE = 0
+C             WRITE(6,*)'AEQGRID:',DS(L),DS(L-1),EPSTOL
+       ENDIF
+      ENDDO
+C
+      IF(NLGRAE .EQ. 1) THEN
+#ifdef _MPI_
+	  IF (MYID .EQ. 0) THEN
+#endif
+         WRITE (6,*) ' DAS GITTER IST IN ',KOORD,'-RICHTUNG ',
+     $               'AEQUIDISTANT              -->  N',KOORD,'GRAE = 1'
+#ifdef _MPI_
+	  ENDIF
+#endif
+         GOTO 9999
+      END IF
+      IF(NLGRAE .EQ. 0) THEN
+#ifdef _MPI_
+	  IF (MYID .EQ. 0) THEN
+#endif
+         WRITE (6,*) ' DAS GITTER IST IN ',KOORD,'-RICHTUNG ',
+     $               ' N I C H T  AEQUIDISTANT  -->  N',KOORD,'GRAE = 0'
+#ifdef _MPI_
+	  ENDIF
+#endif
+         GOTO 9999
+      END IF
+      CALL ERRR (501,' AEQGR1   ')
+ 9999 RETURN
+      END

@@ -1,0 +1,202 @@
+      SUBROUTINE INTERPOLATE_3D_CELL3 (KK,JJ,II,H2,RDDX,RDDY,RDDZ,
+     $                          HX,HY,HZ,
+     $                          NPART,KINDEX,JINDEX,IINDEX,XP,YP,ZP,
+     $                          DUPART)
+
+C-------------------------------------------------------------
+C
+C         INTERPOLATION NACH LAGRANGESCHER INTERPOLATION 3. ORDNUNG
+C
+C-------------------------------------------------------------
+
+      REAL H2(KK,JJ,II)
+      REAL RDDX(II),RDDY(JJ),RDDZ(KK),HX(II),HY(JJ),HZ(KK)
+
+      REAL FX1,FX2,FX3,FX4
+      REAL FY1,FY2,FY3,FY4
+      REAL FZ1,FZ2,FZ3,FZ4
+
+      INTEGER KINDEX(NPART),JINDEX(NPART),IINDEX(NPART)
+
+      REAL XP(NPART),YP(NPART),ZP(NPART)
+      REAL DUPART(NPART)
+
+#ifdef _HITACHI_MPP_AUSGESCHALTET
+      write (6,*) 'INTERPOLATE_3D_CELL3 SWITCHED OFF ON HITACHI'
+      WRITE (6,*) 'DUE TO COMPILER cwPROBLEMS'
+      STOP 'INTERPOLATE_3D_CELL3 SWITCHED OFF'
+#else
+      DO IPART = 1,NPART
+         
+         X = XP(IPART)
+         Y = YP(IPART)
+         Z = ZP(IPART)
+
+         K=KINDEX(IPART)
+         J=JINDEX(IPART)
+         I=IINDEX(IPART)
+
+C------------------------------- FAKTOREN IN X-RICHTUNG
+
+         FX1 = ( (X-HX(I-1)) * (X-HX(I  )) * (X-HX(I+1)) )
+     $      /((HX(I-2)-HX(I-1)) * (HX(I-2)-HX(I  )) * (HX(I-2)-HX(I+1)))
+
+         FX2 = ( (X-HX(I-2)) * (X-HX(I  )) * (X-HX(I+1)) )
+     $      /((HX(I-1)-HX(I-2)) * (HX(I-1)-HX(I  )) * (HX(I-1)-HX(I+1)))
+
+         FX3 = ( (X-HX(I-2)) * (X-HX(I-1)) * (X-HX(I+1)) )
+     $      /((HX(I  )-HX(I-2)) * (HX(I  )-HX(I-1)) * (HX(I  )-HX(I+1)))
+
+         FX4 = ( (X-HX(I-2)) * (X-HX(I-1)) * (X-HX(I  )) )
+     $      /((HX(I+1)-HX(I-2)) * (HX(I+1)-HX(I-1)) * (HX(I+1)-HX(I  )))
+
+C------------------------------- FAKTOREN IN Y-RICHTUNG
+
+         FY1 = ( (Y-HY(J-1)) * (Y-HY(J  )) * (Y-HY(J+1)) )
+     $      /((HY(J-2)-HY(J-1)) * (HY(J-2)-HY(J  )) * (HY(J-2)-HY(J+1)))
+
+         FY2 = ( (Y-HY(J-2)) * (Y-HY(J  )) * (Y-HY(J+1)) )
+     $      /((HY(J-1)-HY(J-2)) * (HY(J-1)-HY(J  )) * (HY(J-1)-HY(J+1)))
+
+         FY3 = ( (Y-HY(J-2)) * (Y-HY(J-1)) * (Y-HY(J+1)) )
+     $      /((HY(J  )-HY(J-2)) * (HY(J  )-HY(J-1)) * (HY(J  )-HY(J+1)))
+
+         FY4 = ( (Y-HY(J-2)) * (Y-HY(J-1)) * (Y-HY(J  )) )
+     $      /((HY(J+1)-HY(J-2)) * (HY(J+1)-HY(J-1)) * (HY(J+1)-HY(J  )))
+
+
+C------------------------------- FAKTOREN IN Z-RICHTUNG
+
+         FZ1 = ( (Z-HZ(K-1)) * (Z-HZ(K  )) * (Z-HZ(K+1)) )
+     $      /((HZ(K-2)-HZ(K-1)) * (HZ(K-2)-HZ(K  )) * (HZ(K-2)-HZ(K+1)))
+
+         FZ2 = ( (Z-HZ(K-2)) * (Z-HZ(K  )) * (Z-HZ(K+1)) )
+     $      /((HZ(K-1)-HZ(K-2)) * (HZ(K-1)-HZ(K  )) * (HZ(K-1)-HZ(K+1)))
+
+         FZ3 = ( (Z-HZ(K-2)) * (Z-HZ(K-1)) * (Z-HZ(K+1)) )
+     $      /((HZ(K  )-HZ(K-2)) * (HZ(K  )-HZ(K-1)) * (HZ(K  )-HZ(K+1)))
+
+         FZ4 = ( (Z-HZ(K-2)) * (Z-HZ(K-1)) * (Z-HZ(K  )) )
+     $      /((HZ(K+1)-HZ(K-2)) * (HZ(K+1)-HZ(K-1)) * (HZ(K+1)-HZ(K  )))
+
+
+C         DUDX = 0.0
+
+C         DO IINT=1,4
+C            DO JINT=1,4
+C               DO KINT=1,4
+C----------------------------------------------------------- X1:                                 
+                  DX1Y1 = 
+     $               (H2(K-2, J - 2,  I - 2)*FZ1 +
+     $                H2(K-1, J - 2,  I - 2)*FZ2 +
+     $                H2(K-0, J - 2,  I - 2)*FZ3 +
+     $                H2(K+1, J - 2,  I - 2)*FZ4  )*FY1
+
+                  DX1Y2 = 
+     $               (H2(K-2, J - 1,  I - 2)*FZ1 +
+     $                H2(K-1, J - 1,  I - 2)*FZ2 +
+     $                H2(K-0, J - 1,  I - 2)*FZ3 +
+     $                H2(K+1, J - 1,  I - 2)*FZ4  )*FY2
+
+
+                  DX1Y3 = 
+     $               (H2(K-2, J - 0,  I - 2)*FZ1 +
+     $                H2(K-1, J - 0,  I - 2)*FZ2 +
+     $                H2(K-0, J - 0,  I - 2)*FZ3 +
+     $                H2(K+1, J - 0,  I - 2)*FZ4  )*FY3
+
+
+                  DX1Y4 = 
+     $               (H2(K-2, J + 1,  I - 2)*FZ1 +
+     $                H2(K-1, J + 1,  I - 2)*FZ2 +
+     $                H2(K-0, J + 1,  I - 2)*FZ3 +
+     $                H2(K+1, J + 1,  I - 2)*FZ4  )*FY4
+C----------------------------------------------------------- X2:                  
+                  DX2Y1 = 
+     $               (H2(K-2, J - 2,  I - 1)*FZ1 +
+     $                H2(K-1, J - 2,  I - 1)*FZ2 +
+     $                H2(K-0, J - 2,  I - 1)*FZ3 +
+     $                H2(K+1, J - 2,  I - 1)*FZ4  )*FY1
+
+                  DX2Y2 = 
+     $               (H2(K-2, J - 1,  I - 1)*FZ1 +
+     $                H2(K-1, J - 1,  I - 1)*FZ2 +
+     $                H2(K-0, J - 1,  I - 1)*FZ3 +
+     $                H2(K+1, J - 1,  I - 1)*FZ4  )*FY2
+
+                  DX2Y3 = 
+     $               (H2(K-2, J - 0,  I - 1)*FZ1 +
+     $                H2(K-1, J - 0,  I - 1)*FZ2 +
+     $                H2(K-0, J - 0,  I - 1)*FZ3 +
+     $                H2(K+1, J - 0,  I - 1)*FZ4  )*FY3
+
+                  DX2Y4 = 
+     $               (H2(K-2, J + 1,  I - 1)*FZ1 +
+     $                H2(K-1, J + 1,  I - 1)*FZ2 +
+     $                H2(K-0, J + 1,  I - 1)*FZ3 +
+     $                H2(K+1, J + 1,  I - 1)*FZ4  )*FY4
+C----------------------------------------------------------- X3:                                 
+                  DX3Y1 = 
+     $               (H2(K-2, J - 2,  I - 0)*FZ1 +
+     $                H2(K-1, J - 2,  I - 0)*FZ2 +
+     $                H2(K-0, J - 2,  I - 0)*FZ3 +
+     $                H2(K+1, J - 2,  I - 0)*FZ4  )*FY1
+
+                  DX3Y2 = 
+     $               (H2(K-2, J - 1,  I - 0)*FZ1 +
+     $                H2(K-1, J - 1,  I - 0)*FZ2 +
+     $                H2(K-0, J - 1,  I - 0)*FZ3 +
+     $                H2(K+1, J - 1,  I - 0)*FZ4  )*FY2
+
+                  DX3Y3 = 
+     $               (H2(K-2, J - 0,  I - 0)*FZ1 +
+     $                H2(K-1, J - 0,  I - 0)*FZ2 +
+     $                H2(K-0, J - 0,  I - 0)*FZ3 +
+     $                H2(K+1, J - 0,  I - 0)*FZ4  )*FY3
+
+                  DX3Y4 = 
+     $               (H2(K-2, J + 1,  I - 0)*FZ1 +
+     $                H2(K-1, J + 1,  I - 0)*FZ2 +
+     $                H2(K-0, J + 1,  I - 0)*FZ3 +
+     $                H2(K+1, J + 1,  I - 0)*FZ4  )*FY4
+C----------------------------------------------------------- X4:                                 
+                  DX4Y1 = 
+     $               (H2(K-2, J - 2,  I + 1)*FZ1 +
+     $                H2(K-1, J - 2,  I + 1)*FZ2 +
+     $                H2(K-0, J - 2,  I + 1)*FZ3 +
+     $                H2(K+1, J - 2,  I + 1)*FZ4  )*FY1
+
+                  DX4Y2 = 
+     $               (H2(K-2, J - 1,  I + 1)*FZ1 +
+     $                H2(K-1, J - 1,  I + 1)*FZ2 +
+     $                H2(K-0, J - 1,  I + 1)*FZ3 +
+     $                H2(K+1, J - 1,  I + 1)*FZ4  )*FY2
+
+
+                  DX4Y3 = 
+     $               (H2(K-2, J - 0,  I + 1)*FZ1 +
+     $                H2(K-1, J - 0,  I + 1)*FZ2 +
+     $                H2(K-0, J - 0,  I + 1)*FZ3 +
+     $                H2(K+1, J - 0,  I + 1)*FZ4  )*FY3
+
+
+                  DX4Y4 = 
+     $               (H2(K-2, J + 1,  I + 1)*FZ1 +
+     $                H2(K-1, J + 1,  I + 1)*FZ2 +
+     $                H2(K-0, J + 1,  I + 1)*FZ3 +
+     $                H2(K+1, J + 1,  I + 1)*FZ4  )*FY4
+
+
+
+
+         DUPART(IPART) = (DX1Y1 + DX1Y2 + DX1Y3 + DX1Y4)*FX1 +
+     $                   (DX2Y1 + DX2Y2 + DX2Y3 + DX2Y4)*FX2 +
+     $                   (DX3Y1 + DX3Y2 + DX3Y3 + DX3Y4)*FX3 +
+     $                   (DX4Y1 + DX4Y2 + DX4Y3 + DX4Y4)*FX4
+
+      ENDDO
+#endif
+
+      RETURN
+      END
+

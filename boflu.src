@@ -1,0 +1,144 @@
+      SUBROUTINE BOFLU(KK,JJ,II,UBO,U,HILF,AU,JJA,NBND,X,XBANF,XBEND)
+C--MGLET----------------------------------------------------------
+C
+C     ADDS FLUCTUATIONS TO BOTTOM-BUFFERS FOR 
+C     "STRUKTUR-PERIODISCHE" BOUNDARY CONDITION
+C
+C        UBO(X0)=UBO(X0) + (U(X) - <U>(X))
+C
+C    03.07.97 (MM.):    ORIGINAL AUS SVFLU ABGELEITET
+C
+C-------10--------20--------30--------40--------50--------60--------7072
+#ifdef _MPI_
+#include "mgpar.h"
+#include "colevel.h"
+#include "compi.h"
+#include "mpif.h"
+#endif
+
+CCCCCCADDED FOR CORRECTION BY TB, 280503 CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
+#ifdef _MPI_
+C
+C                 MPI-VARIABLEN
+C
+      INTEGER ISTATUS(MPI_STATUS_SIZE)
+#endif
+      
+      REAL
+     $     UBO(JJ,II, 2),U(JJ,II),HILF(II,JJ),X(II)
+      REAL AU(JJA,II)
+	data icount /0/
+	save icount
+
+	icount = icount + 1
+
+C---------------------------------------------------------------------72
+      IF (NBND .LT. 1) CALL ERRR(501,"BOFLU")
+#ifndef _BOFLU_TIME_AVERAGE_
+C-------------------------------- AVERAGING IN Y ---------------------72
+
+      FAC = 1./FLOAT(JJ - 2*NBND)
+
+C                                        FIRST VALUE
+      DO I=NBND+1,II-NBND+1
+         HILF(I,NBND+1) = FAC*U(NBND+1,I)
+      ENDDO
+
+C                                        SUMMING UP
+
+
+      DO I= NBND+1,II-NBND+1
+         DO J=NBND+2,JJ-NBND
+            HILF(I,J) = HILF(I,J-1) + FAC*U(J,I)
+         ENDDO
+      ENDDO
+C                                      AVERAGE IS IN HILF(I,JJ-NBND)
+#endif
+
+
+#ifdef _MPI_
+#ifdef _BOFLU_CCOMM_
+
+C                            geht nur f|r 2 Prozessoren
+C      if ( myid .eq. 1) then
+C         call mpi_send( hilf(1,jj-nbnd), ii, mpi_real, 0, myid,
+C     $        MPI_COMM_WORLD , IERR)
+C         call mpi_recv(hilf(1,jj-nbnd), ii, mpi_real, 0, 1, 
+C     $        MPI_COMM_WORLD , ISTATUS, IERR)
+C      endif
+C      if (myid .eq. 0) then
+C         call mpi_recv(hilf(1,1), ii, mpi_real, 1, 1, 
+C     $        MPI_COMM_WORLD , ISTATUS, IERR)
+C         do i=1,ii
+C            hilf(i,jj-nbnd) = 0.5*(hilf(i,jj-nbnd) + hilf(i,1))
+C         enddo
+C         call mpi_send( hilf(1,jj-nbnd), ii, mpi_real, 1, 0,
+C     $        MPI_COMM_WORLD , IERR)
+C      endif
+C      do i=1,ii
+C         write (6,*) 'boflu, vor...',myid,i,hilf(i,jj-nbnd)
+C      enddo
+
+	CALL MPI_ALLREDUCE( HILF(1,JJ-NBND), HILF(1,1), II, 
+     $ MPI_DOUBLE_PRECISION,
+     $                      MPI_SUM, MPI_COMM_WORLD, IERR)
+
+        FACT = 1.0/FLOAT(NUMPROCS)
+        DO I=1,II
+           HILF(I,JJ-NBND) = HILF(I,1) * FACT
+        ENDDO
+
+C      do i=1,ii
+C         write (6,*) 'boflu, nach...',myid,i,hilf(i,jj-nbnd)
+C      enddo
+
+#endif
+#endif
+
+C------------------------------------- NOW ADDING FLUCTUATIONS -------72
+
+      DO I=NBND+1,II-NBND+1
+         DISTANCE = MIN(0.0,(XBEND-X(I))/(XBEND-XBANF))
+         FAK = EXP(DISTANCE)**4
+CCC         WRITE (6,*) 'BOFLU:',I,X(I),DISTANCE,FAK
+         DO J=   NBND+1,JJ-NBND
+
+#ifdef _BOFLU_TIME_AVERAGE_
+           JAV = MIN(JJA,J)
+            UBO(J,I,2)=UBO(J,I,2) + (U(J,I)-AU(JJA,I))*FAK
+#else
+            UBO(J,I,2)=UBO(J,I,2) + (U(J,I)-HILF(I,JJ-NBND))*FAK
+#endif
+
+         ENDDO
+      ENDDO
+
+C---------------------------------------------------------------------72
+       iwrite = -20000
+       if (iwrite .eq. 1) then
+       if (icount .lt.20) then
+       if (jj .eq. 16) then
+       do i=1,ii
+        write (6,'(A10,i3,4(1X,E12.5E3))') 'boflu_grd1',icount,
+     $              x(i),UBO(3,i, 2),U(3,i),HILF(I,JJ-NBND)
+       enddo
+
+       elseif (jj .eq. 28) then
+       do i=1,ii
+        write (6,'(A10,i3,4(1X,E12.5E3))') 'boflu_grd2',icount,
+     $              x(i),UBO(3,i, 2),U(3,i),HILF(I,JJ-NBND)
+       enddo
+       elseif (jj .eq. 52) then
+       do i=1,ii
+        write (6,'(A10,i3,4(1X,E12.5E3))') 'boflu_grd3',icount,
+     $              x(i),UBO(3,i, 2),U(3,i),HILF(I,JJ-NBND)
+       enddo
+
+
+       endif
+       endif
+       endif
+C---------------------------------------------------------------------72
+
+      RETURN
+      END

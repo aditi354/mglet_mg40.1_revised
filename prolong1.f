@@ -1,0 +1,497 @@
+
+
+
+
+
+
+
+
+
+
+
+CCCCC        DEFINITIONEN FUER C-PREPROZESSOR
+C            MASCHINE
+
+C              MESSAGE PASSING INTERFACE
+
+C            RAEUMLICHE DISKRETISIERUNG
+C
+***********************************************************************
+C                       KOMPAKT-UPWIND in X-RICHTUNG (3-TER ORDNUNG) fuer
+C                       die U-Komponente (V und W bleiben Kompakt 4ter ordnung)
+C                       falls im Stroemungsfeld eine Koerper vorhanden ist
+C
+***********************************************************************
+C                       KOMPAKTVERF. in XYZ-RICHTUNG (4-TER ORDNUNG)
+
+
+**********************************************************************
+C                      Preprocessing with ADM for 2nd Order Central
+***********************************************************************
+CCC                     Bei periodischen Randbedingungen in X-Richtung
+CCC                     ist eine hoehere O
+C
+CCC                     Bei periodischen Randbedingungen in Y-Richtung
+CCC                     ist eine hoehere Ordnung moeglich
+C
+CCC                     Bei periodischen Randbedingungen in Y-Richtung:
+CCC                     Zentraldiff. 4-ter Ordnung (Parallelisieung moeglich)
+C
+***********************************************************************
+C
+C
+C            INTERPOLATION AN GITTER-GRENZEN
+
+C            BEHANDLUNG DER TOPAR-RANDBEDINGUNG
+
+C            ZEITLICHE DISKRETISIERUNG
+
+C            FEINSTRUKTURMODELL
+
+C            NICHT-NEWTONSCHE SPANNUNGEN
+
+
+C            TRANSPORT UND ORIENTIERUNG VON PARTIKELN
+
+
+C            SCALAR HEAT/TEMPERATURE TRANSPORT
+C            APROXIMATE DECONVOLUTION FOR SCALAR
+C            TURBULENT PRANDTL NUMBER 
+C            PLOT LOCAL SCALAR CONVECTION DIFFUSION EXTREMES 
+C            ANALYZE AND PLOT NEAR WALL GRID RESLOLUTION 
+C            WRITE SPECIAL 1D LINE FOR TMIX FOR SPECTRA AND PDF
+C            SCALAR TIME ADVANCEMENT/DISCRETISATION METHOD
+
+C            STROEMUNG NACH OBEN?
+
+
+C            BEHANDLUNG DER FLUKTUATIONS-RANDBEDINGUNG
+
+C            BEHANDLUNG VON PPHYS ALS QUELLTERM IN TSTLE2
+
+C            POSITIONIERUNG DER EINSTROEMPROFILE
+
+C           STATISTIK
+
+
+C                 GEMISCHTES
+
+C                GRDFMI WIRD NICHT VERWENDET, DAHER EINSPARUNG DER FELDER
+C                IGRHF UND GRHF
+
+C                VERGROESSERN DER KJI-RICHTUNG BEI FORTSETZUNGSLAUF ERLAUBT!
+
+C                RAUSSCHREIBEN VON ZEITRECORDS
+
+C                FUER KORRELATIONEN UND HAEFIGKEITSVERTEILUNGEN
+      SUBROUTINE PROLONG1 (JMX,IMX,JMXC,NBND,Y,DY,DDY,YC,DYC,DDYC,
+     $                   IN,OUT,HILF,
+     $                   ISTA,ISTO,JSTA,JSTO,
+     $                   IPOS,JPOS,ISTAG,IORDER)
+C*MGLET*****************************************************************
+C     P R O L O N G 1    PROLONGATES THE FIRST DIRECTION IN A 2D FIELD
+C*MGLET*****************************************************************
+C
+C PARAM: 
+C             JMX, IMX  - DIMENSIONS OF FINE GRID
+C                 JMXC  - DIMENSION OF COARSE GRID
+C       IN(KMX,JMX,IMX) - INPUT-2D-FIELD COARSE
+C      OUT(KMX,JMX,IMX) + OUTPUT-2D-FIELD FINE
+C        ISTA,ISTO,JSTA,JSTO - INDEX-REGION
+C        IPOS,JPOS,KPOS - POSITIONS OF FINE GRID IN COARSE GRID, 
+C                         AUF DER DER PUNKT
+C                         MIT DEN INDIZES (3,3,3) ZU LIEGEN KOMMT
+C               ISTAG   - INIDCATOR, IF VARIABLE IS STAGGERED IN FIRST DIM.
+C                         0: NON-STAGGERED; 1: STAGGERED
+C           IORDER      - INTERPOLATION ORDER
+C
+C VERS:  16.09.96 (MM)  : ORIGINAL AUS CONTOPAR ABGELEITET
+C
+C DEFINE-DIREKTIVEN     : QUD 
+C
+C*STARLET***************************************************************
+
+C
+      CHARACTER (LEN=1)  ITYP
+C
+      REAL
+     $    IN(JMXC,IMX),  OUT(JMX,IMX), HILF(JMXC,IMX),
+     $       Y(JMX),           YC(JMXC),
+     $      DY(JMX),          DYC(JMXC),
+     $     DDY(JMX),         DDYC(JMXC)
+
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
+      PI2 = ATAN(1.0)*8.0
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
+C
+            ICSTA = IPOS - 1 + (ISTA-1)/2
+            ICSTO = IPOS - 1 + (ISTO-1)/2
+            JCSTA = JPOS - 1 + (JSTA-1)/2
+            JCSTO = JPOS - 1 + (JSTO-1)/2
+C
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC  VARIABLE NON-STAGGERED IN FIRST DIR.
+      IF (ISTAG .EQ. 0) THEN
+C                                Interpolation of first order
+         IF (IORDER .EQ. 1) THEN
+                  
+            DO IC = ICSTA,ICSTO
+               DO JF=JSTA,JSTO,2
+                  JC = JPOS - 1 + (JF-1)/2
+
+                  OUT(JF  ,IC) = IN(JC,IC)
+                  OUT(JF+1,IC) = IN(JC,IC)
+
+               ENDDO
+            ENDDO
+
+         ENDIF
+C                                Interpolation of second order
+         IF (IORDER .EQ. 2) THEN
+            DO IC = ICSTA,ICSTO
+                DO JF=JSTA,JSTO,2
+                  JC = JPOS - 1 + (JF-1)/2
+                  
+                  OUT(JF  ,IC) = IN(JC  ,IC)*0.75  +
+     +                           IN(JC-1,IC)*0.25
+
+                  OUT(JF+1,IC) = IN(JC  ,IC)*0.75  +
+     +                           IN(JC+1,IC)*0.25
+                   
+                ENDDO
+            ENDDO
+         ENDIF
+C                                Interpolation of third order, 
+C                                Lagrange-Polynomial (Carnahan et al. 1969)
+         IF (IORDER .EQ. 3) THEN
+            DO IC = ICSTA,ICSTO
+                DO JF=JSTA,JSTO,2
+                  JC = JPOS - 1 + (JF-1)/2
+
+                  D1Y0 =    0.75*DYC(JC-1)
+                  D1Y1 = -  0.25*DYC(JC-1)
+                  D1Y2 = - (0.25*DYC(JC-1) + DYC(JC))
+
+                  D2Y0 =   (0.25*DYC(JC) + DYC(JC-1))
+                  D2Y1 =    0.25*DYC(JC)
+                  D2Y2 =  - 0.75*DYC(JC)
+
+                  R1_0 = D1Y1*D1Y2 / (DYC(JC-1)*(DYC(JC-1)+DYC(JC)))
+                  R1_1 = D1Y0*D1Y2 / (DYC(JC-1)*( - DYC(JC)))
+                  R1_2 = D1Y0*D1Y1 / (DYC(JC  )*(DYC(JC-1)+DYC(JC)))
+
+                  R2_0 = D2Y1*D2Y2 / (DYC(JC-1)*(DYC(JC-1)+DYC(JC)))
+                  R2_1 = D2Y0*D2Y2 / (DYC(JC-1)*( - DYC(JC)))
+                  R2_2 = D2Y0*D2Y1 / (DYC(JC  )*(DYC(JC-1)+DYC(JC)))
+
+                  OUT(JF  ,IC) = IN(JC-1,IC)*R1_0  +
+     +                           IN(JC  ,IC)*R1_1  +
+     +                           IN(JC+1,IC)*R1_2
+
+                  OUT(JF+1,IC) = IN(JC-1,IC)*R2_0  +
+     +                           IN(JC  ,IC)*R2_1  +
+     +                           IN(JC+1,IC)*R2_2
+
+                ENDDO
+            ENDDO
+         ENDIF
+C                                Interpolation of third order, 
+C                                Lagrange-Polynomial (Carnahan et al. 1969)
+C                                PLUS CONTINUITY!!!!!!!!!!!!!!
+         IF (IORDER .EQ.13) THEN
+            DO IC = ICSTA,ICSTO
+                DO JF=JSTA,JSTO,2
+                  JC = JPOS - 1 + (JF-1)/2
+
+                  D1Y0 =    0.75*DYC(JC-1)
+                  D1Y1 = -  0.25*DYC(JC-1)
+                  D1Y2 = - (0.25*DYC(JC-1) + DYC(JC))
+
+                  D2Y0 =   (0.25*DYC(JC) + DYC(JC-1))
+                  D2Y1 =    0.25*DYC(JC)
+                  D2Y2 =  - 0.75*DYC(JC)
+
+                  R1_0 = D1Y1*D1Y2 / (DYC(JC-1)*(DYC(JC-1)+DYC(JC)))
+                  R1_1 = D1Y0*D1Y2 / (DYC(JC-1)*( - DYC(JC)))
+                  R1_2 = D1Y0*D1Y1 / (DYC(JC  )*(DYC(JC-1)+DYC(JC)))
+
+                  R2_0 = D2Y1*D2Y2 / (DYC(JC-1)*(DYC(JC-1)+DYC(JC)))
+                  R2_1 = D2Y0*D2Y2 / (DYC(JC-1)*( - DYC(JC)))
+                  R2_2 = D2Y0*D2Y1 / (DYC(JC  )*(DYC(JC-1)+DYC(JC)))
+
+                  OUT(JF  ,IC) = IN(JC-1,IC)*R1_0  +
+     +                           IN(JC  ,IC)*R1_1  +
+     +                           IN(JC+1,IC)*R1_2
+
+                  OUT(JF+1,IC) = IN(JC-1,IC)*R2_0  +
+     +                           IN(JC  ,IC)*R2_1  +
+     +                           IN(JC+1,IC)*R2_2
+
+                  DIFF = IN(JC,IC) - 0.5*(OUT(JF  ,IC)+OUT(JF+1,IC))
+                  OUT(JF  ,IC) = OUT(JF  ,IC) + DIFF
+                  OUT(JF+1,IC) = OUT(JF+1,IC) + DIFF
+                ENDDO
+            ENDDO
+         ENDIF
+C                                Interpolation of fourth order,
+C                                Lagrange-Polynomial (Carnahan et al. 1969)
+         IF (IORDER .EQ. 4) THEN
+            DO IC = ICSTA,ICSTO
+                DO JF=MAX(3,JSTA),MIN(JMX-NBND,JSTO),2
+                  JC = JPOS - 1 + (JF-1)/2
+
+                  D1Y0 =    0.75*DYC(JC-1) + DYC(JC-2)
+                  D1Y1 =    0.75*DYC(JC-1)
+                  D1Y2 = -  0.25*DYC(JC-1)
+                  D1Y3 = - (0.25*DYC(JC-1) + DYC(JC))
+
+                  D2Y0 =   (0.25*DYC(JC) + DYC(JC-1))
+                  D2Y1 =    0.25*DYC(JC)
+                  D2Y2 =  - 0.75*DYC(JC)
+                  D2Y3 =  - 0.75*DYC(JC) - DYC(JC+1)
+
+                  R1_0 = D1Y1*D1Y2*D1Y3 / 
+     $                  (-1.0*(DYC(JC-2))*
+     $                        (DYC(JC-2)+DYC(JC-1))*
+     $                        (DYC(JC-2)+DYC(JC-1)+DYC(JC)))
+
+                  R1_1 = D1Y0*D1Y2*D1Y3 / 
+     $                  (     (DYC(JC-2))*
+     $                        (DYC(JC-1))*
+     $                        (DYC(JC-1)+DYC(JC)))
+
+                  R1_2 = D1Y0*D1Y1*D1Y3 / 
+     $                  (-1.0*(DYC(JC-2)+DYC(JC-1))*
+     $                        (DYC(JC-1))*
+     $                        (DYC(JC)))
+
+                  R1_3 = D1Y0*D1Y1*D1Y2 / 
+     $                  (     (DYC(JC-2)+DYC(JC-1)+DYC(JC))*
+     $                        (DYC(JC-1)+DYC(JC  ))*
+     $                        (DYC(JC  )))
+
+                  R2_0 = D2Y1*D2Y2*D2Y3 / 
+     $                  (-1.0*(DYC(JC-1))*
+     $                        (DYC(JC-1)+DYC(JC  ))*
+     $                        (DYC(JC-1)+DYC(JC  )+DYC(JC+1)))
+
+                  R2_1 = D2Y0*D2Y2*D2Y3 / 
+     $                  (     (DYC(JC-1))*
+     $                        (DYC(JC  ))*
+     $                        (DYC(JC  )+DYC(JC+1)))
+
+                  R2_2 = D2Y0*D2Y1*D2Y3 / 
+     $                  (-1.0*(DYC(JC-1)+DYC(JC  ))*
+     $                        (DYC(JC  ))*
+     $                        (DYC(JC+1)))
+
+                  R2_3 = D2Y0*D2Y1*D2Y2 / 
+     $                  (     (DYC(JC-1)+DYC(JC  )+DYC(JC+1))*
+     $                        (DYC(JC  )+DYC(JC+1))*
+     $                        (DYC(JC+1)))
+
+                  OUT(JF  ,IC) = IN(JC-2,IC)*R1_0  +
+     +                           IN(JC-1,IC)*R1_1  +
+     +                           IN(JC  ,IC)*R1_2  +
+     +                           IN(JC+1,IC)*R1_3
+
+                  OUT(JF+1,IC) = IN(JC-1,IC)*R2_0  +
+     +                           IN(JC  ,IC)*R2_1  +
+     +                           IN(JC+1,IC)*R2_2  +
+     +                           IN(JC+2,IC)*R2_3
+
+                ENDDO
+            ENDDO
+         ENDIF
+C                                  FOURIER-INTERPOLATION
+         IF (IORDER .EQ.99) THEN
+C                                  INITIALISIEREN DES OUT-FELDES
+            DO I=1,IMX
+               DO J=1,JMXC
+                  HILF(J,I)=0.0
+               ENDDO
+               DO J=1,JMX
+                  OUT(J,I)=0.0
+               ENDDO
+            ENDDO
+C                                  BELEGUNG DES 2D-FELDES
+            DO IC = NBND+1,IMX-NBND
+               DO JC = NBND+1,JMXC-NBND
+                  
+                  HILF(JC,IC) = IN(JC,IC)
+                  
+               ENDDO
+            ENDDO
+C                                  FFT IN ERSTEM INDEX
+
+C                                  SHIFTEN DER WELLENZAHLEN
+            DO JK = 1,(JMXC-(2*NBND))/2+NBND+1
+               JC = 2*JK+NBND
+
+               RCOS=COS( PI2 * FLOAT(JK-1) * 0.5 * DY(NBND+1) 
+     $              / (Y(JMX-NBND)-Y(NBND)))
+               RSIN=SIN( PI2 * FLOAT(JK-1) * 0.5 * DY(NBND+1) 
+     $              / (Y(JMX-NBND)-Y(NBND)))
+
+               DO IC = NBND+1,IMX-NBND
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC HIER: REALTEIL DER WELLENZAHL JK
+CTEST                 OUT(JC  ,IC)=OUT(JC  ,IC) * 2.0
+CTEST                 OUT(JC-1,IC)=OUT(JC-1,IC) * 2.0
+
+                  OUT(JC  ,IC)=HILF(JC  ,IC) * RCOS * 2.0 - 
+     $                         HILF(JC-1,IC) * RSIN * 2.0
+
+
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC HIER: IMAGINAERTEIL DER WELLENZAHL JK
+                  OUT(JC-1,IC)=HILF(JC-1,IC) * RCOS * 2.0 + 
+     $                         HILF(JC  ,IC) * RSIN * 2.0
+               
+               ENDDO
+            ENDDO
+C                                         WELLENZAHLEN > (JMXC-(2*NBND))
+C                                         WERDEN MIT NULL BELEGT
+            DO IC = NBND+1,IMX-NBND
+               DO JC = (JMXC-(2*NBND))+NBND+1,JMX
+               
+                  OUT(JC,IC)=0.0
+
+               ENDDO
+            ENDDO
+               
+
+C                                  RUECKTRANSFORMATION
+
+C                                  PERIODIC BOUNDARY CONDITIONS
+            DO I=1,IMX
+               OUT(    NBND  , I ) = OUT(JMX-NBND  , I )
+               OUT(JMX-NBND+1, I ) = OUT(    NBND+1, I )
+            ENDDO
+         ENDIF
+C
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC  VARIABLE STAGGERED IN FIRST DIR.
+      ELSE
+
+C                                Interpolation of first order
+         IF (IORDER .EQ. 1) THEN
+
+                  
+            DO IC = ICSTA,ICSTO
+               DO JF=JSTA,JSTO,2
+                  JC = JPOS - 1 + (JF-1)/2
+
+                  OUT(JF  ,IC) = 0.5*(IN(JC,IC) + IN(JC-1,IC))
+                  OUT(JF+1,IC) = IN(JC,IC)
+
+               ENDDO
+            ENDDO
+
+         ENDIF
+C                                Interpolation of second order
+         IF (IORDER .EQ. 2) THEN
+            DO IC = ICSTA,ICSTO
+               DO JF=JSTA,JSTO,2
+                  JC = JPOS - 1 + (JF-1)/2
+                  
+                  OUT(JF  ,IC) = 1./DDYC(JC) *
+     +                          (IN(JC  ,IC)*DDY(JF  ) +
+     +                           IN(JC-1,IC)*DDY(JF+1))
+
+                  OUT(JF+1,IC) = IN(JC  ,IC)
+                   
+                ENDDO
+            ENDDO
+         ENDIF
+
+C                                Interpolation of third order, 
+C                                Lagrange-Polynomial (Carnahan et al. 1969)
+         IF (IORDER .EQ. 3) THEN
+            DO IC = ICSTA,ICSTO
+                DO JF=JSTA,JSTO,2
+                  JC = JPOS - 1 + (JF-1)/2
+
+                  D1Y0 =    0.25*(DYC(JC-1) + DDYC(JC))
+                  D1Y1 = -  0.25*(DYC(JC  ) + DDYC(JC))
+                  D1Y2 = -  0.25*(DYC(JC  ) + DDYC(JC)) - DDYC(JC+1)
+
+                  R1_0 = D1Y1*D1Y2 / (DDYC(JC)*(DDYC(JC)+DDYC(JC+1)))
+                  R1_1 = D1Y0*D1Y2 / (DDYC(JC)*( - DDYC(JC+1)))
+                  R1_2 = D1Y0*D1Y1 / (DDYC(JC+1)*(DDYC(JC+1)+DDYC(JC)))
+
+                  OUT(JF  ,IC) = IN(JC-1,IC)*R1_0  +
+     +                           IN(JC  ,IC)*R1_1  +
+     +                           IN(JC+1,IC)*R1_2
+
+                  OUT(JF+1,IC) = IN(JC  ,IC)
+
+                ENDDO
+            ENDDO
+         ENDIF
+C                                  FOURIER-INTERPOLATION
+         IF (IORDER .EQ.99) THEN
+C                                  INITIALISIEREN DES OUT-FELDES
+            DO I=1,IMX
+               DO J=1,JMXC
+                  HILF(J,I)=0.0
+               ENDDO
+               DO J=1,JMX
+                  OUT(J,I)=0.0
+               ENDDO
+            ENDDO
+C                                  BELEGUNG DES 2D-FELDES
+            DO IC = NBND+1,IMX-NBND
+               DO JC = NBND+1,JMXC-NBND
+                  
+                  HILF(JC,IC) = IN(JC,IC)
+                  
+               ENDDO
+            ENDDO
+C                                  FFT IN ERSTEM INDEX
+
+C                                  SHIFTEN DER WELLENZAHLEN
+            DO JK = 1,(JMXC-(2*NBND))/2+NBND+1
+               JC = 2*JK+NBND
+
+               RCOS=COS( PI2 * FLOAT(JK-1) * DY(NBND+1) 
+     $              / (Y(JMX-NBND)-Y(NBND)))
+               RSIN=SIN( PI2 * FLOAT(JK-1) * DY(NBND+1) 
+     $              / (Y(JMX-NBND)-Y(NBND)))
+
+               DO IC = NBND+1,IMX-NBND
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC HIER: REALTEIL DER WELLENZAHL JK
+CTEST                 OUT(JC  ,IC)=OUT(JC  ,IC) * 2.0
+CTEST                 OUT(JC-1,IC)=OUT(JC-1,IC) * 2.0
+
+                  OUT(JC  ,IC)=HILF(JC  ,IC) * RCOS * 2.0 - 
+     $                         HILF(JC-1,IC) * RSIN * 2.0
+
+
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC HIER: IMAGINAERTEIL DER WELLENZAHL JK
+                  OUT(JC-1,IC)=HILF(JC-1,IC) * RCOS * 2.0 + 
+     $                         HILF(JC  ,IC) * RSIN * 2.0
+               
+               ENDDO
+            ENDDO
+C                                         WELLENZAHLEN > (JMXC-(2*NBND))
+C                                         WERDEN MIT NULL BELEGT
+            DO IC = NBND+1,IMX-NBND
+               DO JC = (JMXC-(2*NBND))+NBND+1,JMX
+               
+                  OUT(JC,IC)=0.0
+
+               ENDDO
+            ENDDO
+               
+
+C                                  RUECKTRANSFORMATION
+
+C                                  PERIODIC BOUNDARY CONDITIONS
+            DO I=1,IMX
+               OUT(    NBND  , I ) = OUT(JMX-NBND  , I )
+               OUT(JMX-NBND+1, I ) = OUT(    NBND+1, I )
+            ENDDO
+         ENDIF
+      ENDIF
+      
+
+      RETURN
+      END
+

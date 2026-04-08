@@ -1,0 +1,136 @@
+      SUBROUTINE ENERFG  (KK,JJ,II,KMX,JMX,IMX,DDX,DDY,DDZ,
+     $                    DX,DY,DZ,X,Y,Z,UFG,VFG,WFG,EFG,ESUM,
+     $                    NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB,ISUM,
+     $                    GRADPX)
+C*STARLET***************************************************************
+C        E N E R F G      IN ENERFG WIRD DIE GROBSTRUKTURENERGIE
+C                         AUS DEN MOMENTAN VORHANDENEN FLUKTUATIONEN
+C                         DES GESCHWINDIGKEITSFELDES GEBILDET.
+C*STARLET***************************************************************
+C
+C PARAM: KK, JJ, II     - ARRAYDIMENSIONEN
+C        KMX, JMX, IMX  - GRENZEN DES BERECHNUNGSGEBIETES (MIT BOUND)
+C        DDX,DDY,DDZ    - ABMESSUNGEN DER BASISZELLEN
+C        DX,DY,DZ       - ABSTAND DER BASISZELLMITTELPUNKTE
+C        X,Y,Z          - KOORDINATEN DER ZELLMITTELPUNKTE
+C        UFG(KK,JJ,II)  - FLUKTUATIONEN DER U-KOMPONENTE
+C                         UFG = U - <U>
+C        VFG(KK,JJ,II)  - FLUKTUATIONEN DER V-KOMPONENTE
+C                         VFG = V - <V>
+C        WFG(KK,JJ,II)  - FLUKTUATIONEN DER W-KOMPONENTE
+C                         WFG = W - <W>
+C        EFG(KK,JJ,II)  + ENTHAELT DIE GROBSTRUKTURENERGIE
+C        ESUM           + ENTHAELT GESAMTENERGIE
+C
+C        ISUM           - SCHALTER, OB GESAMTENERGIE BERECHNET WERDEN
+C                         SOLL:    0 --> NICHT BERECHNET
+C                                  1 --> SUMME WIRD GEBILDET
+C
+C UPROG                 : KEINE
+C
+C DEFINE-DIREKTIVEN     : KEINE
+C
+C        27.08.86 (HW)  : ORIGINAL
+C         1.11.93 (MM)  : RANDBEDINGUNGEN UEBER KOPF
+C         7.12.93 (MM)  : ISUM EINGEFUEHRT
+C
+C*STARLET***************************************************************
+C
+C
+#include "cophyspar.h"
+
+      REAL     UFG(KK,JJ,II),  VFG(KK,JJ,II),  WFG(KK,JJ,II),
+     $         EFG(KK,JJ,II)
+C
+      REAL     DDX(II),   DDY(JJ),  DDZ(KK),
+     $          DX(II),    DY(JJ),   DZ(KK),
+     $           X(II),     Y(JJ),    Z(KK)
+C
+C                                 KONSTANTEN
+C
+
+
+
+      IM2    = IMX - 2
+      JM2    = JMX - 2
+      KM2    = KMX - 2
+      IFRFIX = 0
+      JRIFIX = 0
+      KBOFIX = 0
+
+      IF ( NFRO .EQ. 2) IFRFIX = 1
+      IF ( NRGT .EQ. 2) JRIFIX = 1
+      IF ( NBOT .EQ. 2) KBOFIX = 1
+C
+C
+      DO 100 I = 3-IFRFIX,IM2
+         DO 110 J = 3-JRIFIX,JM2
+            DO 120 K = 3-KBOFIX,KM2
+C
+C                                 ZUERST WERDEN DIE FLUKTUATIONEN AUF
+C                                 DEN ZELLMITTELPUNKT INTERPOLIERT
+C                                 UND DANACH ERST QUADRIERT.
+C
+#ifdef _ORRSOMMER_
+               UFGM2      = UFG(K,J,I)*UFG(K,J,I) 
+               VFGM2      = VFG(K,J,I)*VFG(K,J,I)
+               WFGM2      = WFG(K,J,I)*WFG(K,J,I)
+               EFG(K,J,I) = 0.5*(WFGM2+UFGM2)
+#else
+               UFGM2      = (UFG(K,J,I-1) + (UFG(K,J,I)-UFG(K,J,I-1))
+     $                    *  0.5 * DX(I-1) / DDX(I))
+               UFGM2      = UFGM2*UFGM2
+               VFGM2      = (VFG(K,J-1,I) + (VFG(K,J,I)-VFG(K,J-1,I))
+     $                    *  0.5 * DY(J-1) / DDY(J))
+               VFGM2      = VFGM2*VFGM2
+               WFGM2      = (WFG(K-1,J,I) + (WFG(K,J,I)-WFG(K-1,J,I))
+     $                    *  0.5 * DZ(K-1) / DDZ(K))
+               WFGM2      = WFGM2*WFGM2
+               EFG(K,J,I) = 0.5*(UFGM2 + VFGM2 + WFGM2)
+#endif
+
+  120       CONTINUE
+  110    CONTINUE
+  100 CONTINUE
+C
+C
+      IF (ISUM.EQ.1) THEN
+
+#ifdef _ORRSOMMER_
+      DO I = 3-IFRFIX,IM2
+        DO K = 3-KBOFIX,KM2
+          ESUM = ESUM + EFG(K,JJ/2,I)*DDX(I)*DDZ(K)
+        ENDDO
+      ENDDO
+       XL = X(  IM2   ) + DX(  IM2     )*0.5
+     $    -(X(3-IFRFIX) - DX(3-IFRFIX-1)*0.5)
+           ZL = Z(  KM2   ) + DZ(  KM2     )*0.5
+     $        -(Z(3-KBOFIX) - DZ(3-KBOFIX-1)*0.5)
+      ESUM = ESUM/(XL*ZL)
+#else
+
+        DO I = 3-IFRFIX,IM2
+        DO J = 3-JRIFIX,JM2
+        DO K = 3-KBOFIX,KM2
+           ESUM = ESUM + EFG(K,J,I)*DDX(I)*DDY(J)*DDZ(K)
+  
+        ENDDO
+        ENDDO
+        ENDDO
+
+           XL = X(  IM2   ) + DX(  IM2     )*0.5
+     $        -(X(3-IFRFIX) - DX(3-IFRFIX-1)*0.5)
+
+           YL = Y(  JM2   ) + DY(  JM2     )*0.5
+     $        -(Y(3-JRIFIX) - DY(3-JRIFIX-1)*0.5)
+
+           ZL = Z(  KM2   ) + DZ(  KM2     )*0.5
+     $        -(Z(3-KBOFIX) - DZ(3-KBOFIX-1)*0.5)
+
+           ESUM = ESUM / (XL*YL*ZL)
+
+#endif
+      ENDIF
+
+      RETURN
+      END

@@ -1,0 +1,213 @@
+
+
+
+
+
+
+
+
+
+
+
+CCCCC        DEFINITIONEN FUER C-PREPROZESSOR
+C            MASCHINE
+
+C              MESSAGE PASSING INTERFACE
+
+C            RAEUMLICHE DISKRETISIERUNG
+C
+***********************************************************************
+C                       KOMPAKT-UPWIND in X-RICHTUNG (3-TER ORDNUNG) fuer
+C                       die U-Komponente (V und W bleiben Kompakt 4ter ordnung)
+C                       falls im Stroemungsfeld eine Koerper vorhanden ist
+C
+***********************************************************************
+C                       KOMPAKTVERF. in XYZ-RICHTUNG (4-TER ORDNUNG)
+
+
+**********************************************************************
+C                      Preprocessing with ADM for 2nd Order Central
+***********************************************************************
+CCC                     Bei periodischen Randbedingungen in X-Richtung
+CCC                     ist eine hoehere O
+C
+CCC                     Bei periodischen Randbedingungen in Y-Richtung
+CCC                     ist eine hoehere Ordnung moeglich
+C
+CCC                     Bei periodischen Randbedingungen in Y-Richtung:
+CCC                     Zentraldiff. 4-ter Ordnung (Parallelisieung moeglich)
+C
+***********************************************************************
+C
+C
+C            INTERPOLATION AN GITTER-GRENZEN
+
+C            BEHANDLUNG DER TOPAR-RANDBEDINGUNG
+
+C            ZEITLICHE DISKRETISIERUNG
+
+C            FEINSTRUKTURMODELL
+
+C            NICHT-NEWTONSCHE SPANNUNGEN
+
+
+C            TRANSPORT UND ORIENTIERUNG VON PARTIKELN
+
+
+C            SCALAR HEAT/TEMPERATURE TRANSPORT
+C            APROXIMATE DECONVOLUTION FOR SCALAR
+C            TURBULENT PRANDTL NUMBER 
+C            PLOT LOCAL SCALAR CONVECTION DIFFUSION EXTREMES 
+C            ANALYZE AND PLOT NEAR WALL GRID RESLOLUTION 
+C            WRITE SPECIAL 1D LINE FOR TMIX FOR SPECTRA AND PDF
+C            SCALAR TIME ADVANCEMENT/DISCRETISATION METHOD
+
+C            STROEMUNG NACH OBEN?
+
+
+C            BEHANDLUNG DER FLUKTUATIONS-RANDBEDINGUNG
+
+C            BEHANDLUNG VON PPHYS ALS QUELLTERM IN TSTLE2
+
+C            POSITIONIERUNG DER EINSTROEMPROFILE
+
+C           STATISTIK
+
+
+C                 GEMISCHTES
+
+C                GRDFMI WIRD NICHT VERWENDET, DAHER EINSPARUNG DER FELDER
+C                IGRHF UND GRHF
+
+C                VERGROESSERN DER KJI-RICHTUNG BEI FORTSETZUNGSLAUF ERLAUBT!
+
+C                RAUSSCHREIBEN VON ZEITRECORDS
+
+C                FUER KORRELATIONEN UND HAEFIGKEITSVERTEILUNGEN
+      subroutine filter_periodicy(kk,jj,ii,T,HELP1,HELP2,wsavey,
+     $                            feldy,filtery)
+C-----------------------------------------------------------------
+C      Periodischer filter der die FFT-Coefficients mit
+C      der in filtery gespeicherten transfer-funktion multipliziert
+C
+C      FFT aus FFTPACK mit dependecies kopiert
+C      17.06.04   Florian Schwertfirm
+C-----------------------------------------------------------------
+       implicit none
+       integer nx,ny,nz,ii,jj,kk
+       integer l,m,NCOUNT,k,j,i
+       real T(kk,jj,ii),pi
+
+       real HELP1((kk)*(jj)*(ii)),HELP2((kk)*(jj)*(ii))
+       real filtery((jj-4)/2+1)
+C       real*8 wsavey(2*(jj-4)+15)
+       real wsavey(2*(jj-4)+15)
+       real feldy((jj-4))
+C       real*8 feldydp((jj-4))
+       integer,parameter::singleprec = SELECTED_REAL_KIND(4)
+       integer,parameter::doubleprec = SELECTED_REAL_KIND(8)
+
+       nx=ii-4
+       ny=jj-4
+       nz=kk-4
+       NCOUNT = 0
+       pi = acos(-1.0)
+
+C--- DEBUG
+C       do i=1,nx/2+1
+C        filterx(i) = 1.0
+C       enddo
+C       do k=1,nz
+C        do j=1,ny
+C         do i=1,nx
+C          T(k+2,j+2,i+2) = cos(2.0*pi*float((i-1))/256.0) + 
+C     $     2.0*cos(4.0*pi*float((i-1))/256.0)
+C     $   + 3.0*cos(6.0*pi*float((i-1))/256.0)
+C     $   + sin(2.0*pi*float((i-1))/256.0)
+C     $   + 2.0*sin(4.0*pi*float((i-1))/256.0)
+C     $   + 3.0*sin(6.0*pi*float((i-1))/256.0)
+C         enddo
+C        enddo
+C       enddo
+C      do i=1,nx
+C  
+C         write(20,*)i,T(10,10,i+2)
+C       enddo
+
+
+C------ i-direction must be innermost
+       do k=1,nz
+        do i=1,nx
+         do j=1,ny
+         NCOUNT = NCOUNT + 1 
+         HELP1(NCOUNT) = T(k+2,j+2,i+2)
+         enddo
+        enddo
+       enddo
+C------ fft initialize
+
+        call rffti(ny,wsavey)
+
+C----- forward fft in nx-stripes
+        do l=1,(nz*nx)
+         do j = 1,ny
+C          feldxdp(i) = real(HELP1((l-1)*nx+i),doubleprec)
+          feldy(j) = HELP1((l-1)*ny+j)
+         enddo
+C         call dfftf(nx,feldxdp,wsavex)
+         call rfftf(ny,feldy,wsavey)
+         do j = 1,ny
+C          HELP1(l+(nz*ny)*(i-1)) = real(feldxdp(i),singleprec)
+          HELP1((l-1)*ny+j) = feldy(j)
+         enddo
+        enddo
+
+C----- Multiplikation with transfere funktion         
+ 
+       do l=1,(nz*nx)
+        j = 1
+C----- Behandlung des nullten mode
+        HELP2((l-1)*ny+j) = HELP1((l-1)*ny+j)*filtery(j)
+C----- restliche mode
+        do j = 2,ny/2
+            HELP2((l-1)*ny+(2*j-2)) = 
+     $                           HELP1((l-1)*ny+(2*j-2))*filtery(j)
+            HELP2((l-1)*ny+(2*j-1)) = 
+     $                           HELP1((l-1)*ny+(2*j-1))*filtery(j)
+        enddo
+C----- letzter mode
+        j = ny
+        HELP2((l-1)*ny+j) = 
+     $                           HELP1((l-1)*ny+(j))*filtery(j/2+1)
+       enddo
+
+C----- backward fft
+        do l=1,(nx*nz)
+         do j=1,ny
+C          feldxdp(i) = dble(HELP2(l+(nz*ny)*(i-1)))
+          feldy(j) = HELP2((l-1)*ny+j)
+         enddo
+C         call dfftb(nx,feldxdp,wsavex)
+         call rfftb(ny,feldy,wsavey)
+         do j=1,ny
+C          HELP2(l+(nz*ny)*(i-1)) = real(feldxdp(i),singleprec)/float(nx)
+          HELP2((l-1)*ny+j) = feldy(j)/float(ny)
+         enddo
+        enddo
+C----- Transpose bak into T-Field
+       NCOUNT = 0
+       do k=1,nz
+        do i=1,nx
+         do j=1,ny
+         NCOUNT = NCOUNT + 1
+         T(k+2,j+2,i+2) = HELP2(NCOUNT)
+         enddo
+        enddo
+       enddo
+C        do i=1,nx
+C
+C         write(21,*)i,T(10,10,i+2)
+C       enddo
+ 
+       RETURN
+       END 

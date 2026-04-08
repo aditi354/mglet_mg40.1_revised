@@ -1,0 +1,106 @@
+      SUBROUTINE BCUSLI (KMX,JMX,IMX,
+     $                    U,V,W,P,G,B,HILF,
+     $                    IC1,IC2,JC1,JC2,KC1,KC2,ITYP
+#ifdef _TSCAL_
+     $                    ,T
+#endif
+     $                   )      
+C*STARLET***************************************************************
+C        B C U S L I   SETZEN DER RANDBEDINGUNGEN FUER DIE
+C                         GESCHWINDIGKEITSFELDER AND SCALAR T.
+C                         (LARGE-EDDY-SIMULATION)
+C*STARLET***************************************************************
+C
+C PARAM: 
+C        KMX, JMX, IMX  - DIMENSIONEN DES GITTERS 
+C        U(KMX,JMX,IMX) + GESCHWINDIGKEITSFELD
+C        V(KMX,JMX,IMX) + GESCHWINDIGKEITSFELD
+C        W(KMX,JMX,IMX) + GESCHWINDIGKEITSFELD
+C        T(KK,JJ,II)    + SCALAR T FIELD
+C        P(KMX,JMX,IMX) - DRUCKFELD
+C        G(KMX,JMX,IMX) - EFFEKTIVE DYNAMISCHE VISKOSITAET (= MUE)
+C        ITYP           - HOLLERITH-KONSTANTE:
+C                         'P'  VOR DER DRUCKKORREKTUR
+C                         'T'  VOR DEM ZEITSCHRITT
+C
+C VERS:   8. 3.93 (MM)  : ORIGINAL
+C                         AUS BCUBLE (BCUBL) ABGELEITET
+C        28.02.03 (TB)  : SCALAR BOUNDARY TREATMENT IMPLEMENTED
+C
+C DEFINE-DIREKTIVEN     : QUD 
+C
+C*STARLET***************************************************************
+C
+#include "konsta.h"
+C
+      CHARACTER (LEN=1)  ITYP
+C
+      REAL
+     $            U(KMX,JMX,IMX),   V(KMX,JMX,IMX),   W(KMX,JMX,IMX),
+     $            P(KMX,JMX,IMX),   G(KMX,JMX,IMX),   B(KMX,JMX,IMX),
+     $         HILF(KMX,JMX)
+C
+#ifdef _TSCAL_
+      REAL       T(KMX,JMX,IMX)
+#endif
+C
+C
+C                                 **************************************
+C                                 KUBUS-WAENDE REIBUNGSBEHAFTET UND
+C                                 UNDURCHLAESSIG (NOSLIP)
+C                                 **************************************
+C
+      GPAR   = 2.0*SMALL
+
+C
+C                                 BELEGUNG DES KOERPERINNEREN
+C
+      DO 10 I= IC1,IC2
+         DO 50 J= JC1,JC2
+            DO 40 K= KC1,KC2
+               FACTOR    = 1.0 + MIN( 0.0 , MAX( -1.0 , B(K,J,I) ) )
+               U(K  ,J  ,I  ) = U(K  ,J  ,I  )*FACTOR   
+               U(K  ,J  ,I-1) = U(K  ,J  ,I-1)*FACTOR   
+               V(K  ,J  ,I  ) = V(K  ,J  ,I  )*FACTOR   
+               V(K  ,J-1,I  ) = V(K  ,J-1,I  )*FACTOR   
+               W(K  ,J  ,I  ) = W(K  ,J  ,I  )*FACTOR   
+               W(K-1,J  ,I  ) = W(K-1,J  ,I  )*FACTOR   
+               G(K  ,J  ,I  ) = G(K  ,J  ,I  )*FACTOR   
+     $                        + GPAR          *(1.0-FACTOR   )
+   40       CONTINUE
+   50    CONTINUE
+   10 CONTINUE
+#ifdef _TSCAL_
+CTBC  LIMIT LOOPS TO INNER-BODY REGION
+      ICT1 = IC1 + 1
+      ICT2 = IC2 - 1
+      JCT1 = JC1 + 1
+      JCT2 = JC2 - 1
+      KCT1 = KC1 + 1
+      KCT2 = KC2 - 1
+CTBC  LOOP OVER BODY      
+      DO 11 I= ICT1,ICT2
+         DO 51 J= JCT1,JCT2
+            DO 41 K= KCT1,KCT2
+               FACE   = 1.0 + MIN( 0.0 , MAX( -1.0 , B(K,J,I+1) ) ) 
+               FACW   = 1.0 + MIN( 0.0 , MAX( -1.0 , B(K,J,I-1) ) ) 
+               FACN   = 1.0 + MIN( 0.0 , MAX( -1.0 , B(K,J+1,I) ) )  
+               FACS   = 1.0 + MIN( 0.0 , MAX( -1.0 , B(K,J-1,I) ) )
+               FACT   = 1.0 + MIN( 0.0 , MAX( -1.0 , B(K+1,J,I) ) )
+               FACB   = 1.0 + MIN( 0.0 , MAX( -1.0 , B(K-1,J,I) ) ) 
+               FACSUM = FACE + FACW + FACN + FACS + FACT + FACB                                                                                     
+CTBC  AVERAGE WALL TEMPERATURE AT BODY CORNERS FROM SURROUNDING CELLS 
+CTBC  IN ORDER TO MINIMIZE WALL FLUX
+CTBC  (ZERO WALL FLUX IN CORNER CELLS CANNOT BE ACHIEVED WHEN USING
+CTBC  CENTRAL T STORING!!!) 
+               T(K,J,I) = ( T(K,J,I+1)*FACE + T(K,J,I-1)*FACW
+     $                  +   T(K,J+1,I)*FACN + T(K,J-1,I)*FACS   
+     $                  +   T(K+1,J,I)*FACT + T(K-1,J,I)*FACB )
+     $                  / MAX( 1.0 , FACSUM )                  
+   41       CONTINUE
+   51    CONTINUE
+   11 CONTINUE
+#endif
+      RETURN
+      END
+

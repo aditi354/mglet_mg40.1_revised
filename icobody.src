@@ -1,0 +1,64 @@
+       SUBROUTINE ICOBODY ()
+
+
+C*STARLET***************************************************************
+C        I C O B O D Y     INITIALISIEREN DER COMMON-BLOCKES
+C                          COBODY
+C                          ZUM STEUERN DER KOERPEREINBAUTEN
+C*STARLET***************************************************************
+C
+C PARAM: NBOCONDS : + ANZAHL DER SPEZIFIZIERTEN RANDBEDINGUNGEN
+C                     PRO SEITENFLAECHE JEDES GITTERS
+C      LARBOCONDS : + BEGRENZUNGSINDIZES DER FLAECHE, AUF DER
+C                     JEWEILIGE RANDBEDINGUNG GILT
+C     ITYPBOCONDS : + TYP DER JEWEILIGEN RANDBEDINGUNG
+C        LBOGRIDS : + GITTER, AUS DEM RANDBEDINGUNG KOMMT
+C     LPOSBOGRIDS : + POSITION IM GITTER, AUS DEM RANDBEDINGUNG KOMMT
+C
+C
+C        IDIR     : ZEIGER AUF DIE RICHTUNG:
+C
+C                         = 1 : FRONT
+C                         = 2 : BACK 
+C                         = 3 : RIGHT
+C                         = 4 : LEFT
+C                         = 5 : BOTTOM
+C                         = 6 : TOP
+C                         = 7 : CUBUS
+C
+C        ITYP     : TYP DER RANDBEDINGUNG:
+
+C                         = 1 : PERIODISCH
+C                         = 2 : FIXED-CONDITION
+C                         = 3 : OPEN-WALL GRADIENT=0
+C                         = 4 : OPEN-WALL ZWEITE ABLEITUNG=0
+C                         = 5 : NOSLIP
+C                         = 6 : SLIP
+C                         = 7 : NOCH NICHT FESTGELEGT
+C
+C
+C VERS:  10. 3.93 (MM)  : ORIGINAL
+C
+C
+C*STARLET***************************************************************
+C
+#include "mgpar.h"
+#include "comgrid.h"
+#include "cobound.h"
+#include "cogrddef.h"
+C
+#if defined _MPI_ | defined _MPI_PARTICLES_
+C               TO GET RID OF TOO MANY ERROR MESSAGES
+      return
+#endif
+C
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC  VORBELEGUNG 
+C
+      WRITE (6,*) 'WARNUNG: ICOBODY NOCH NICHT IMPLEMENTIERT'
+C
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC  
+C
+      RETURN
+      END
+
+

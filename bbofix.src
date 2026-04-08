@@ -1,0 +1,91 @@
+      SUBROUTINE BBOFIX (KMX,JMX,IMX,
+     $                    U,V,W,P,G,UBO,VBO,WBO,
+     $                    ISTART,ISTOP,JSTART,JSTOP,ITYP
+#ifdef _TSCAL_
+     $                   ,T,TBO
+#endif
+     $                   )     
+C*STARLET***************************************************************
+C        B B O F I X   SETZEN DER RANDBEDINGUNGEN FUER DIE
+C                         GESCHWINDIGKEITSFELDER AND SCALAR T.
+C                         (LARGE-EDDY-SIMULATION)
+C*STARLET***************************************************************
+C
+C PARAM: 
+C        KMX, JMX, IMX  - DIMENSIONEN DES GITTERS 
+C        U(KMX,JMX,IMX) + GESCHWINDIGKEITSFELD
+C        V(KMX,JMX,IMX) + GESCHWINDIGKEITSFELD
+C        W(KMX,JMX,IMX) + GESCHWINDIGKEITSFELD
+C        T(KMX,JMX,IMX) + SCALAR T FIELD
+C        P(KMX,JMX,IMX) - DRUCKFELD
+C        G(KMX,JMX,IMX) - EFFEKTIVE DYNAMISCHE VISKOSITAET (= MUE)
+c      WBO(KMX,JMX, 2 ) - EINSTROEMFELD
+C        ITYP           - HOLLERITH-KONSTANTE:
+C                         'P'  VOR DER DRUCKKORREKTUR
+C                         'T'  VOR DEM ZEITSCHRITT
+C
+C VERS:   6. 6.97 (MM)  : ORIGINAL
+C                         AUS BBONOS und BFRFIX ABGELEITET
+C        28.02.03 (TB)  : SCALAR BOUNDARY TREATMENT IMPLEMENTED
+C
+C DEFINE-DIREKTIVEN     : QUD 
+C
+C*STARLET***************************************************************
+C
+      CHARACTER (LEN=1)  ITYP
+C
+      REAL
+     $            U(KMX,JMX,IMX),   V(KMX,JMX,IMX),   W(KMX,JMX,IMX),
+     $            P(KMX,JMX,IMX),   G(KMX,JMX,IMX), 
+     $            UBO(JMX,IMX,2),VBO(JMX,IMX,2),WBO(JMX,IMX,2)
+C
+#ifdef _TSCAL_
+      REAL        T(KMX,JMX,IMX),TBO(JMX,IMX,2)
+#endif
+C
+C
+C                                 **************************************
+C                                 FIXED-CONDITIONS AN DER BOTTOM FLAECHE
+C                                 **************************************
+C
+C                                 DIE W-KOMPONENTEN WERDEN BEIM EINLESEN
+C                                 VOM DATENTRAEGER IM FELD "WBO" GESPEI-
+C                                 CHERT. VOR DEM ZEITSCHRITT WERDEN (WIE
+C                                 BEI DER DRUCKKORREKTUR) NUR DIE W-KOMP
+C                                 NOCHMALS KORRIGIERT. DIE U- UND V-KOMP
+C                                 SIND BEIM EINLESEN V. DATENTRAEGER BE-
+C                                 REITS RICHTIG GESETZT.
+C
+C
+C
+      IF ( ITYP .EQ. 'T' ) THEN
+
+         DO I=ISTART,ISTOP
+         DO J=JSTART,JSTOP
+
+             U(2,J,I) = UBO(J,I,2)
+             V(2,J,I) = VBO(J,I,2)
+             W(2,J,I) = WBO(J,I,2)
+             P(2,J,I) =   P(3,J,I)
+#ifdef _TSCAL_
+             T(2,J,I) = TBO(J,I,2)
+#endif             
+
+         ENDDO
+         ENDDO
+
+      ELSEIF ( ITYP .EQ. 'P') THEN
+
+         DO I=ISTART,ISTOP
+         DO J=JSTART,JSTOP
+
+             W(2,J,I) = WBO(J,I,2)
+
+         ENDDO
+         ENDDO
+
+      ENDIF
+
+      RETURN
+      END
+

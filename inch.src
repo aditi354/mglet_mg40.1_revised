@@ -1,0 +1,53 @@
+      SUBROUTINE INCH (KK,JJ,II,U,V,W,DU,DV,DW)
+C
+C**********************************************************************
+C     I N C
+C----------------------------------------------------------------------
+C     EVALUATION OF THE INCREMENT OF THE VELOCITY
+C     FILTERED AT 1ST LEVEL.
+C----------------------------------------------------------------------
+C     C. BRUN
+C     LEHRSTUHL FUER FLUIDMECHANIK, TU MUENCHEN
+C----------------------------------------------------------------------
+C     PROGRAM DEVELOPING:                          C. BRUN / 04.03.1999
+C     LAST MODIFICATION :                                  / 17.09.1999
+C     LAST MODIFICATION :                        C. BRUN / 24.03.2000
+C**********************************************************************
+C
+      IMPLICIT NONE
+C
+      integer KK,JJ,II
+      integer K,J,I
+C
+      REAL        U(KK,JJ,II),   V(KK,JJ,II),   W(KK,JJ,II),
+     $            DU(KK,JJ,II),   DV(KK,JJ,II),   DW(KK,JJ,II)
+C
+C
+C---- CALCULATE (DU1,DU2,DU3...) 
+C
+C     3D HOMOGENEOUS FILTERING COMPLETE !!!!
+C     BRUN (ERCOF 99)
+C
+C
+      DO I=2,II-1
+         DO J=2,JJ-1
+            DO K=2,KK-1
+            DU(K,J,I) = U(K  ,J  ,I  )-U(K  ,J  ,I-1)
+     $                + U(K  ,J  ,I-1)-U(K  ,J-1,I-1)
+     $                + U(K  ,J  ,I-1)-U(K-1,J  ,I-1)
+            DV(K,J,I) = V(K  ,J-1,I  )-V(K  ,J-1,I-1)
+     $                + V(K  ,J  ,I  )-V(K  ,J-1,I  )
+     $                + V(K  ,J-1,I  )-V(K-1,J-1,I  )
+            DW(K,J,I) = W(K-1,J  ,I  )-W(K-1,J  ,I-1)
+     $                + W(K-1,J  ,I  )-W(K-1,J-1,I  )
+     $                + W(K  ,J  ,I  )-W(K-1,J  ,I  )
+            ENDDO
+         ENDDO
+      ENDDO
+
+C
+ 1000    CONTINUE
+ 1010 CONTINUE
+C
+      RETURN
+      END

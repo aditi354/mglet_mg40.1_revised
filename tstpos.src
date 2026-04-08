@@ -1,0 +1,39 @@
+      SUBROUTINE TSTPOS (NPART,UPART,XP,YP,ZP,DT
+#ifdef _PASSIVE_PARTICLE_
+     $ ,DS
+#endif
+     $ )
+C------------------------------------------------------------
+C
+C     COMPUTES NEW POSITIONS OF PARTICLES BY XNEW = XOLD + DT*U
+C
+C     020999 (MM)  ORIGINAL
+C     100603 (FS)  BAHNLAENGE "DS" IMPLEMENTIERT
+C
+C------------------------------------------------------------
+
+
+      REAL XP(NPART), YP(NPART), ZP(NPART)
+      REAL UPART(NPART,3)
+#ifdef _PASSIVE_PARTICLE_
+      REAL DS(NPART)
+#endif
+      
+C---------------------------------- TIME STEP
+C      write (6,*) 'tstpos, before',xp(1),yp(1),zp(1)
+
+      DO IPART = 1,NPART
+         
+         XP(IPART) = XP(IPART) + DT*UPART(IPART,1)
+         YP(IPART) = YP(IPART) + DT*UPART(IPART,2) 
+         ZP(IPART) = ZP(IPART) + DT*UPART(IPART,3)
+#ifdef _PASSIVE_PARTICLE_
+         DS(IPART) = SQRT((DT*UPART(IPART,1))**2+(DT*UPART(IPART,2))**2
+     $        + (DT*UPART(IPART,3))**2) + DS(IPART)
+#endif
+      ENDDO
+       
+C---------------------------------- READY
+
+      RETURN
+      END

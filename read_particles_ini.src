@@ -1,0 +1,39 @@
+      SUBROUTINE READ_PARTICLES_INI (CHANNEL,RUN,NFAM,XPART,
+     $     START_VEC,NFAM_MAX,WLOP,DS)
+
+C--------------------------------------------------------
+C
+C     READS PARTICEL-FILE FOR RESTART
+C
+C     28.05.03 (FS): ORIGINAL
+C
+C--------------------------------------------------------
+
+      IMPLICIT NONE
+      INTEGER I,CHANNEL,NFAM,NFAM_MAX,RUN(NFAM_MAX),WLOP,J
+      REAL    XPART(NFAM_MAX,3),START_VEC(NFAM_MAX,3),DS(NFAM_MAX)
+
+      READ(CHANNEL,ERR=2000) NFAM
+      READ(CHANNEL,ERR=2000) WLOP      
+
+      DO I=1,NFAM
+         READ(CHANNEL,ERR=2000) J,RUN(I),XPART(I,1),XPART(I,2),
+     $        XPART(I,3),START_VEC(I,1),START_VEC(I,2),START_VEC(I,3),
+     $        DS(I)
+      ENDDO
+
+      DO I=1,NFAM
+         WRITE(6,*) I,RUN(I),XPART(I,1),XPART(I,2),
+     $        XPART(I,3),START_VEC(I,1),START_VEC(I,2),START_VEC(I,3),
+     $        DS(I)
+      ENDDO
+      
+
+      RETURN
+
+ 1000 FORMAT (I5,I5, 6(1X,E12.5E2))
+ 1500 FORMAT (I5)
+ 2000 CALL ERRR (501,'R_PART_INI')
+      
+      END
+

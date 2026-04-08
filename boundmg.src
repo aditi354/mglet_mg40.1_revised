@@ -1,0 +1,174 @@
+      SUBROUTINE BOUNDMG 
+     $                   (IDIM3D,IDIM2D,IDIM1D,
+     $                    X,Y,Z,DX,DY,DZ,DDX,DDY,DDZ,    
+     $                    U,V,W,P,G,B,UFR,VFR,WFR,VRI,HILF,
+     $                    UTO,VTO,WTO,PTO,GTO,
+     $                    ITYP,IGRID,IRB,JRB,KRB,
+     $                    TIMEPHYS,UBA,VBA,WBA,PBA,GBA,UBO,VBO,WBO,
+     $                    PFR,GFR
+#ifdef _TSCAL_
+     $                    ,T,TFR,TBA,TTO,TBO
+#endif
+     $                   )     
+C*STARLET***************************************************************
+C        B O U N D M G    SETZEN DER RANDBEDINGUNGEN VOR DER
+C                         DRUCKKORREKTUR UND VOR DEM ZEITSCHRITT.
+C                         (LARGE-EDDY-SIMULATION)
+C                         FUER EIN GITTER IN MULTIGRID-UMGEBUNG
+C*STARLET***************************************************************
+C
+C VERS:  10. 3.93 (MM)  : ORIGINAL AUS BOUND ABGELEITET
+C                         AENDERUNGEN: KOPF, DIMENSIONIERUNGEN
+C VERS:  10.09.95 (AO)  : BLOWING/SUCTION AND CONVECTIVE BOUNDARY CONDITION
+C                         INTRODUCED 
+C VERS:  21.04.98 (AO)  : BBOTMG WIRD NUN NACH BCUB AUFGERUFEN, DA
+C                         MANIPULATION AN KOERPERWAND MOEGLICH SEIN SOLL.
+C                         ZANF UND ZEND WERDEN IN MGBLOINDEX BELEGT AUCH
+C                         BEI BOTTOM-RB.
+C 
+C VERS:  12.12.98 (AM)  : AENDERUNG WEGEN DER FRONT-FLAECHE
+C        28.02.03 (TB)  : SCALAR BOUNDARY TREATMENT IMPLEMENTED
+C
+C*STARLET***************************************************************
+C
+C
+      CHARACTER (LEN=1)  ITYP
+C
+      REAL        X(IDIM1D),         Y(IDIM1D),         Z(IDIM1D),
+     $           DX(IDIM1D),        DY(IDIM1D),        DZ(IDIM1D),
+     $          DDX(IDIM1D),       DDY(IDIM1D),       DDZ(IDIM1D),
+     $          U( IDIM3D ),       V( IDIM3D ),       W( IDIM3D ),
+     $          P( IDIM3D ),       G( IDIM3D ),       B( IDIM3D ),
+     $        UFR(IDIM2D,2),     VFR(IDIM2D,2),     WFR(IDIM2D,2),
+     $        PFR(IDIM2D*2),     GFR(IDIM2D*2),
+     $        VRI(IDIM2D,2),    
+     $        UBO(IDIM2D,2),     VBO(IDIM2D,2),     WBO(IDIM2D*2),
+     $        UBA(IDIM2D*2),     VBA(IDIM2D*2),     WBA(IDIM2D*2),
+     $        PBA(IDIM2D*2),     GBA(IDIM2D*2),
+     $        UTO(IDIM2D,2),     VTO(IDIM2D,2),     WTO(IDIM2D,2),
+     $        PTO(IDIM2D,2),     GTO(IDIM2D,2),
+     $       HILF( IDIM3D ), TIMEPHYS
+C
+#ifdef _TSCAL_
+      REAL     T( IDIM3D ),
+     $         TFR(IDIM2D,2),TBA(IDIM2D*2),TTO(IDIM2D,2),TBO(IDIM2D,2)
+#endif
+C
+#ifdef _FRED_BODY_
+      IF((ITYP.NE.'X').AND.(ITYP.NE.'Y').AND.(ITYP.NE.'Z')
+     $    .AND.(ITYP.NE.'A')) THEN
+#endif
+      IF (IRB .NE. 2) THEN
+       CALL BFROMG  
+     $             (IDIM3D,IDIM2D,IDIM1D,
+     $              X,Y,Z,DX,DY,DZ,DDX,DDY,DDZ,     
+     $              U,V,W,P,G,B,UFR,VFR,WFR,HILF,
+     $              ITYP,IGRID,IRB,JRB,KRB,TIMEPHYS,
+     $              PFR,GFR
+#ifdef _TSCAL_
+     $              ,T,TFR
+#endif
+     $             )
+      ENDIF
+
+      IF (IRB .NE. 1) THEN
+      CALL BBACMG  
+     $             (IDIM3D,IDIM2D,IDIM1D,
+     $              X,Y,Z,DX,DY,DZ,DDX,DDY,DDZ,
+     $              U,V,W,P,G,B,UFR,VFR,WFR,HILF,
+     $              ITYP,IGRID,IRB,JRB,KRB,
+     $              UBA,VBA,WBA,PBA,GBA
+#ifdef _TSCAL_
+     $              ,T,TBA
+#endif
+     $             )
+      ENDIF
+
+      IF (JRB .NE. 2) THEN
+      CALL BRGTMG  
+     $             (IDIM3D,IDIM2D,IDIM1D,
+     $              X,Y,Z,DX,DY,DZ,DDX,DDY,DDZ,
+     $              U,V,W,P,G,B,UFR,VRI,WFR,HILF,
+     $              ITYP,IGRID,IRB,JRB,KRB
+#ifdef _TSCAL_
+     $              ,T
+#endif
+     $             )     
+      ENDIF
+
+      IF (JRB .NE. 1) THEN
+      CALL BLFTMG  
+     $             (IDIM3D,IDIM2D,IDIM1D,
+     $              X,Y,Z,DX,DY,DZ,DDX,DDY,DDZ,
+     $              U,V,W,P,G,B,UFR,VRI,WFR,HILF,
+     $              ITYP,IGRID,IRB,JRB,KRB
+#ifdef _TSCAL_
+     $              ,T
+#endif
+     $             )     
+      ENDIF
+
+      IF (KRB .NE. 1) THEN
+      CALL BTOPMG  
+     $             (IDIM3D,IDIM2D,IDIM1D,
+     $              X,Y,Z,DX,DY,DZ,DDX,DDY,DDZ,
+     $              U,V,W,P,G,B,UTO,VTO,WTO,PTO,GTO,HILF,
+     $              ITYP,IGRID,IRB,JRB,KRB
+#ifdef _TSCAL_
+     $              ,T,TTO
+#endif     
+     $             ) 
+      ENDIF
+#ifdef _FRED_BODY_
+      ENDIF
+#endif
+
+#ifdef _AVOIDLOADIMBALANCE_
+C                              NORMALKOMPONENTEN WURDEN SCHON IN VPRBC GESETZT
+      IF (ITYP .NE. 'P') THEN
+#endif
+#ifndef _NOBODY_
+#ifdef _FRED_BODY_
+      IF ((ITYP.EQ.'X').OR.(ITYP.EQ.'Y').OR.(ITYP.EQ.'Z')
+     $    .OR.(ITYP.EQ.'A')) THEN
+#endif
+      CALL BCUBMG  
+     $             (IDIM3D,IDIM2D,IDIM1D,
+     $              X,Y,Z,DX,DY,DZ,DDX,DDY,DDZ,
+     $              U,V,W,P,G,B,UFR,VRI,WBO,HILF,
+     $              ITYP,IGRID,IRB,JRB,KRB
+#ifdef _TSCAL_
+     $              ,T
+#endif
+     $             )     
+#ifdef _FRED_BODY_
+      END IF
+#endif
+#endif
+#ifdef _AVOIDLOADIMBALANCE_
+      ENDIF
+#endif
+#ifdef _FRED_BODY_
+      IF ((ITYP.NE.'X').AND.(ITYP.NE.'Y').AND.(ITYP.NE.'Z')
+     $    .AND.(ITYP.NE.'A')) THEN
+#endif
+
+      IF (KRB .NE. 2) THEN
+      CALL BBOTMG  
+     $             (IDIM3D,IDIM2D,IDIM1D,
+     $              X,Y,Z,DX,DY,DZ,DDX,DDY,DDZ,
+     $              U,V,W,P,G,B,UFR,VRI,HILF,
+     $              ITYP,IGRID,IRB,JRB,KRB,
+     $              TIMEPHYS,UBO,VBO,WBO
+#ifdef _TSCAL_
+     $              ,T,TBO
+#endif
+     $             )      
+      ENDIF
+#ifdef _FRED_BODY_
+      ENDIF
+#endif
+
+C
+      RETURN
+      END

@@ -1,0 +1,99 @@
+      SUBROUTINE DOENST  (KANAL,MODUS,ISTALM,ISTPLM,JSTALM,JSTPLM,
+     $                    ITTOT,ITFLUC,DT,X,Y,Z,DX,DY,DZ,DDX,DDY,DDZ,
+     $                    WDIMLO,
+#include "cstaca.h"
+C*STARLET***************************************************************
+C        D O E N S T      IN DOENST WIRD DER MOMENTANWERT DER ENSTROPHY
+C                         NEU BERECHNET (FELD "HILF") UND ANSCHLIESSEND
+C                         MIT DOBC HERAUSGESCHRIEBEN
+C*STARLET***************************************************************
+C
+C PARAM: KANAL                    - DIE DATEN WERDEN UEBER DIESEN KANAL
+C                                   AUSGEGEBEN
+C        MODUS                    - CHARACTER-VARIABLE:
+C                                   'BINAER  ' : DATEN WERDEN UNFORMA-
+C                                                TIERT GESCHRIEBEN
+C                                   'CODIERT ' : DATEN WERDEN FORMA-
+C                                                TIERT GESCHRIEBEN
+C        ISTALM                   - STARTINDEX FUER DIE LINIENMITTELUNG
+C                                   IN X-RICHTUNG (FALLS X-RI. HOMOGEN)
+C        ISTPLM                   - STOPINDEX FUER DIE LINIENMITTELUNG
+C                                   IN X-RICHTUNG (FALLS X-RI. HOMOGEN)
+C        JSTALM                   - STARTINDEX FUER DIE LINIENMITTELUNG
+C                                   IN Y-RICHTUNG (FALLS Y-RI. HOMOGEN)
+C        JSTPLM                   - STOPINDEX FUER DIE LINIENMITTELUNG
+C                                   IN Y-RICHTUNG (FALLS Y-RI. HOMOGEN)
+C        ITTOT                    - GESAMTANZAHL DER ZEITSCHRITTE (SUMME
+C                                   MEHRERER LAEUFE)
+C        ITFLUC                   - NACH JEWEILS ITFLUC ZEITSCHRITTEN
+C                                   WIRD EINE STICHPROBE FUER DIE
+C                                   BILDUNG DER ENSEMBLE-MITTELWERTE
+C                                   ENTNOMMEN
+C        DT                       - ZEITSCHRITT
+C        X  (II), Y  (JJ), Z  (KK)- KOORDINATEN DER BASISZELLBEZUGS-
+C                                   PUNKTE
+C        DX (II), DY (JJ), DZ (KK)- ABSTAENDE DER BASISZELLBEZUGS-
+C                                   PUNKTE
+C        DDX(II), DDY(JJ), DDZ(KK)- ABMESSUNGEN DER BASISZELLEN
+C        WDIMLO         - LOGISCHE VARIABLE:
+C                         .FALSE. : DIMENSIONSBEHAFTETE GROESSEN WERDEN
+C                                   HERAUSGESCHRIEBEN --> ENSTROPHY MUSS
+C                                   DIMENSIONSLOS GEMACHT WERDEN
+C                         .TRUE.  : DIMENSIONSLOSE GROESSEN WERDEN GE-
+C                                   SCHRIEBEN --> DIE AUSGANGSGROESSEN
+C                                   F. DIE ENSTR. SIND BEREITS DIMEN-
+C                                   SIONSLOS
+#include "cstapa.h"
+C
+C UPROG                 : AMULT,   DOBC,    DPHI0,    ENSTRO
+C
+C DEFINE-DIREKTIVEN     : XHOMOG, YHOMOG  (IN: *CALL CDOBCA !)
+C
+C        17.06.89 (HW)  : ORIGINAL
+C        20.12.89 (HW)  : PRAEZISERE FORMULIERUNG VON ISELEP ...
+C
+C*STARLET***************************************************************
+C
+#include "konsta.h"
+C
+      CHARACTER (LEN=8)  MODUS
+      CHARACTER (LEN=80) CT, CH1680
+      LOGICAL       WDIMLO
+C
+      REAL     X  (II),      Y  (JJ),      Z  (KK),
+     $         DX (II),      DY (JJ),      DZ (KK),
+     $         DDX(II),      DDY(JJ),      DDZ(KK)
+C
+#include "cstadi.h"
+#include "crefva.h"
+#include "cdobca.h"
+C
+C                                 VORBELEGUNG DES HILF-FELDES MIT 0.0
+C
+      CALL DPHI0   (KK ,JJ ,II ,KMX ,JMX ,IMX ,HILF   )
+C
+C                                 ENSTROPHIE
+C                                 ----------
+C
+      IF( (ISELEP(1,176) .EQ. 1  .OR. ISELEP(1,176) .EQ. 2) .AND.
+     $    (ISELEP(1,182) .EQ. 1  .OR. ISELEP(1,182) .EQ. 2) .AND.
+     $    (ISELEP(1,188) .EQ. 1  .OR. ISELEP(1,188) .EQ. 2) ) THEN
+         CALL ENSTRO  (KK,JJ,II,KMX,JMX,IMX,OX,OY,OZ,HILF)
+C
+C                                 DIE ENSTROPHIE WIRD GRUNDSAETZLICH
+C                                 DIMENSIONSLOS AUSGEGEBEN
+C
+         IF(.NOT. WDIMLO) THEN
+            CALL AMULT   (KK ,JJ ,II ,KMX ,JMX ,IMX ,HILF   ,RO2REF )
+         END IF
+C
+         TSEM   = TEEM - FLOAT((ISELEP(2,195)-1) * ITFLUC) * DT
+         CT     = CH1680 (' ENSTROPHY      ')
+         CALL DOBC   (KK ,JJ ,II ,KMX ,JMX ,IMX ,KANAL,MODUS,
+     $                      1      ,      1      ,      1      ,
+     $                ZSLMST,ZELMST,YSLMST,YELMST,XSLMST,XELMST,
+     $                TSEM,TSEM, 0.0 ,HILF   ,CT)
+      ENDIF
+C
+      RETURN
+      END

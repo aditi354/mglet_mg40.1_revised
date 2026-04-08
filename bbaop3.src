@@ -1,0 +1,120 @@
+      SUBROUTINE BBAOP3 (KMX,JMX,IMX,
+     $                    U,V,W,P,G,
+     $                    JSTART,JSTOP,KSTART,KSTOP,ITYP,
+     $                    II,DDX,DX
+#ifdef _TSCAL_
+     $                   ,T
+#endif
+     $                   )                        
+C*MGLET***************************************************************
+C        B B A O P 3    SETZEN DER RANDBEDINGUNGEN FUER DIE
+C                         GESCHWINDIGKEITSFELDER AND SCALAR T.
+C                         (LARGE-EDDY-SIMULATION)
+C*MGLET***************************************************************
+C
+C PARAM: 
+C        KMX, JMX, IMX  - DIMENSIONEN DES GITTERS 
+C        U(KMX,JMX,IMX) + GESCHWINDIGKEITSFELD
+C        V(KMX,JMX,IMX) + GESCHWINDIGKEITSFELD
+C        W(KMX,JMX,IMX) + GESCHWINDIGKEITSFELD
+C        T(KMX,JMX,IMX) + SCALAR T FIELD
+C        P(KMX,JMX,IMX) - DRUCKFELD
+C        G(KMX,JMX,IMX) - EFFEKTIVE DYNAMISCHE VISKOSITAET (= MUE)
+C        ITYP           - HOLLERITH-KONSTANTE:
+C                         'P'  VOR DER DRUCKKORREKTUR
+C                         'T'  VOR DEM ZEITSCHRITT
+C
+C VERS:  24. 9.97 (AM)  : ORIGINAL
+C                         NEUE RANDBEDINGUNG  HOEHERER ORDNUNG
+C        28.02.03 (TB)  : SCALAR BOUNDARY TREATMENT IMPLEMENTED
+C
+C DEFINE-DIREKTIVEN     : QUD 
+C
+C*MGLET***************************************************************
+C
+      CHARACTER (LEN=1)  ITYP
+C
+      REAL
+     $            U(KMX,JMX,IMX),   V(KMX,JMX,IMX),   W(KMX,JMX,IMX),
+     $            P(KMX,JMX,IMX),   G(KMX,JMX,IMX),
+     $            DDX (II), DX (II), ALFA ,BETA ,GAMA ,
+     $            ALFA2 ,BETA2 ,GAMA2 
+C
+#ifdef _TSCAL_
+      REAL        T(KMX,JMX,IMX)
+#endif
+C
+      IM1 = IMX-1
+      IM2 = IMX-2
+      IM3 = IMX-3
+      IM4 = IMX-4
+C
+C
+C                                 **************************************
+C                                 OPEN-WALL, 3. ABLEITUNG = 0
+C                                 **************************************
+C
+C                    HIER DIE KOEFFIZIENTEN DER EXTRAPOLATION
+C                    FUER NICHTAEQUIDISTANTE GITTER
+C
+      CALL COEFFOP3  (II,IM1,DDX,ALFA,BETA,GAMA  )
+      CALL COEFFOP32 (II,IM1,DX,ALFA2,BETA2,GAMA2)
+C
+C
+         DO J=JSTART,JSTOP
+         DO K=KSTART,KSTOP
+
+C
+CNEU
+             UM1       = ALFA * U(K,J,IM2) + BETA * U(K,J,IM3) 
+     $                    + GAMA * U(K,J,IM4) 
+#ifdef _LIMIT_OUTFLOW_BACK_
+             U(K,J,IM1) = MAX(-0.01,UM1)
+#else
+	     U(K,J,IM1) = UM1
+#endif
+
+C
+             V(K,J,IM1) = ALFA2 * V(K,J,IM2) + BETA2 * V(K,J,IM3) 
+     $                    + GAMA2 * V(K,J,IM4)
+C
+             W(K,J,IM1) = ALFA2 * W(K,J,IM2) + BETA2 * W(K,J,IM3) 
+     $                    + GAMA2 * W(K,J,IM4)
+C
+C            G(K,J,IM1) = ALFA2 * G(K,J,IM2) + BETA2 * G(K,J,IM3) 
+C    $                    + GAMA2 * G(K,J,IM4)
+             G(K,J,IM1) =  G(K,J,IM2)
+CNEU
+             P(K,J,IM1) = 0.0
+#ifdef _TSCAL_
+             T(K,J,IM1) = ALFA2 * T(K,J,IM2) + BETA2 * T(K,J,IM3) 
+     $                    + GAMA2 * T(K,J,IM4)
+#endif             
+
+         ENDDO
+         ENDDO
+
+
+
+#ifdef _QUD_
+
+        DO J=JSTART,JSTOP
+        DO K=KSTART,KSTOP
+
+               U(K,J,IMX) = U(K,J,IM2)
+               V(K,J,IMX) = V(K,J,IM2)
+               W(K,J,IMX) = W(K,J,IM2)
+               P(K,J,IMX) = 0.0
+               G(K,J,IMX) = G(K,J,IM2)
+#ifdef _TSCAL_
+               T(K,J,IMX) = T(K,J,IM2)
+#endif               
+
+         ENDDO
+         ENDDO
+
+#endif
+
+      RETURN
+      END
+

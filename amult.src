@@ -1,0 +1,27 @@
+      SUBROUTINE AMULT   (KK,JJ,II,KMX,JMX,IMX,PHI,CMULT)
+C*STARLET***************************************************************
+C        A M U L T        DAS GESAMTE PHI-FELD WIRD MIT DER KONSTANTEN
+C                         CMULT MULTIPLIZIERT.
+C                         PHI(K,J,I) = PHI(K,J,I) * CMULT
+C*STARLET***************************************************************
+C
+C PARAM: KK,  JJ,  II   - ARRAYDIMENSIONEN
+C        KMX, JMX, IMX  - GRENZEN DES BERECHNUNGSGEBIETES (MIT BOUND)
+C        PHI(KK,JJ,II)  + ALLGEMEINE VARIABLE
+C        CMULT          - MULTIPLIKATOR
+C
+C VERS:  01.09.86 (HW)  : ORIGINAL
+C
+C*STARLET***************************************************************
+C
+      REAL PHI(KK,JJ,II)
+C
+      DO 100 I=1,IMX
+         DO 110 J=1,JMX
+            DO 120 K=1,KMX
+  120          PHI(K,J,I) = PHI(K,J,I) * CMULT
+  110    CONTINUE
+  100 CONTINUE
+C
+      RETURN
+      END

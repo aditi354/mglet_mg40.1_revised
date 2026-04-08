@@ -1,0 +1,547 @@
+      SUBROUTINE   SWCLE1(KK,JJ,II,KMX,JMX,IMX,DX,DY,DZ,DDX,DDY,DDZ,
+     $                    U,V,W,P,G,TK,
+     $                    B,
+     $                    WCU,WCV,WCW,GMOL,RHO,UGRID,
+     $                    MTURB,ZTOT,GRADPX,I,
+     $                    IC1,IC2,JC1,JC2,KC1,KC2,
+     $                    NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB,
+     $                    RDDX,RDDY,RDDZ,FDUK)
+C*STARLET***************************************************************
+C        S W C L E 1      WALL-CORRECTION (LAM-TUR)
+C*STARLET***************************************************************
+C
+C PARAM: GMOL             - MOLEKULARE DYNAM. VISKOSITAET ( = MUE)
+C        CAPPA            - VON KARMAN KONSTANTE
+C        CMUE*RHO             - KONSTANTE (G = CMUE*RHO*TK**2/TE)
+C        ECONST           - RAUHIGKEITSPARAMETER FUER WANDGESETZ
+C        MTURB            - 0 = LAMINAR, 1 = TURBULENT
+C        IC1,JC1,KC1    - LINKE  RAENDER DER BOUNDING BOX
+C        IC2,JC2,KC2    - RECHTE RAENDER DER BOUNDING BOX
+C
+C WARNG: IN WANDNORMALRICHTUNG WIRD D = DD VORAUSGESETZT
+C        ALLE WC''S  HABEN NEGATIVES VORZEICHEN
+C
+C DEFINE-DIREKTIVEN     : FRPER, RIPER, TONOS
+C
+C VERS:  12.05.86 (HW)  : SWCLEC AUS SWCLE1 ABGELEITET. SWCLEC IST FUER
+C                         EINBAUTEN, DIE AUS SAEULEN AUFGEBAUT SIND,
+C                         GEEIGNET. DIE WANDSCHUBSPANNUNG WIRD AUS DEM
+C                         1/7-POTENZGESETZ BERECHNET.
+C        02.04.92 (MM)  : WANDERKENNUNG JETZT MIT G-FELD               
+C         4. 4.92 (MM)  : SCHLEIFEN ZUR WANDKORREKTUR AM KOERPER
+C                         LAUFEN NUR INNERHALB DER
+C                         BOUNDING BOX (IC1,IC2,JC1,JC2,KC1,KC2)
+C        14.08.1996 (AO): RDDX(II),RDDY(JJ) UND RDDZ(KK) INTRODUCED;
+C                        IF DNS THE WALL-SHEAR-STRESS WILL BE CALCULATED
+C                         DIRECTLY WITHOUT CALLING THE FUNCTION TAUWIN
+C
+C*STARLET***************************************************************
+C
+#include "conles.h"
+#include "konsta.h"
+#include "conpot.h"
+C
+      REAL    U(KK,JJ,II), V(KK,JJ,II), W(KK,JJ,II), TK(KK,JJ,II),
+     $        DX(II),      DY(JJ),      DZ(KK),      P(KK,JJ,II),
+     $        DDX(II),     DDY(JJ),     DDZ(KK),     G(KK,JJ,II),
+     $        WCU(KK,JJ),  WCV(KK,JJ),  WCW(KK,JJ),
+     $        RDDX(II),    RDDY(JJ),    RDDZ(KK)
+      REAL    B(KK,JJ,II)
+#ifdef _KOMZD_
+      REAL FDUK(KK,JJ)
+#else
+      REAL FDUK(1)
+#endif
+C
+C
+         KM1  = KMX-1
+         KM2  = KMX-2
+         JM1  = JMX-1
+         JM2  = JMX-2
+         JM3  = JMX-3
+         IM1  = IMX-1
+         IM2  = IMX-2
+         IM3  = IMX-3
+C
+C                                 WALL-CORRECTION AUF NULL
+      DO 10  J=1,JMX
+      DO 10  K=1,KMX
+         WCU(K,J)  = 0.0
+         WCV(K,J)  = 0.0
+         WCW(K,J)  = 0.0
+   10 CONTINUE
+
+
+C
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC  BOTTOM NOSLIP
+C
+      IF ( NBOT .EQ. 5 ) THEN
+
+
+         K = 3
+
+         DO 100 J=2,JM1
+
+C                                 **************************************
+C                                 UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU
+C                                 **************************************
+         UXZ     = DX(I)*DDZ(K)
+         UXY     = DX(I)*DDY(J)
+C
+C                                 WANDFUNKTIONEN
+C
+#ifdef _DNS_
+#ifdef _KOMZD_
+         WCUZ  = GMOL*FDUK(K,J)*UXY
+#else
+	 WCUZ  = UXY * 
+     &	 2.0*GMOL*ABS(U(K,J,I)+UGRID)*RDDZ(K)
+     &   *SIGN(1.0,(U(K,J,I)+UGRID))
+#endif
+#else
+         WCUZ  = UXY * TAUWIN(U(K,J,I)+UGRID,DDZ(K))
+#endif
+C
+         WCU(K,J) = - WCUZ
+C
+C                                 **************************************
+C                                 VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV
+C                                 **************************************
+C
+         VYZ   = DY(J)*DDZ(K)
+         VXY   = DY(J)*DDX(I)
+C
+C                                 WANDFUNKTIONEN
+C
+#ifdef _DNS_
+         WCVZ  = VXY * 
+     &	 2.0*GMOL*ABS(V(K,J,I))*RDDZ(K)*SIGN(1.0,V(K,J,I))
+#else
+         WCVZ  = VXY * TAUWIN(V(K,J,I),DDZ(K))
+#endif
+C
+         WCV(K,J) = - WCVZ
+C
+  100    CONTINUE
+C
+
+      ENDIF
+C
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC  TOP NOSLIP
+C
+      IF ( NTOP .EQ. 5 ) THEN
+
+
+         K = KMX-2
+
+         DO 110 J=2,JM1
+
+C                                 **************************************
+C                                 UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU
+C                                 **************************************
+         UXZ     = DX(I)*DDZ(K)
+         UXY     = DX(I)*DDY(J)
+C
+C                                 WANDFUNKTIONEN
+C
+#ifdef _DNS_
+#ifdef _KOMZD_
+         WCUZ  = -GMOL*FDUK(K+1,J)*UXY
+#else
+         WCUZ  = UXY * 
+     &	 2.0*GMOL*ABS(U(K,J,I)+UGRID)*RDDZ(K)*SIGN(1.0,U(K,J,I)+UGRID)
+#endif
+#else
+         WCUZ  = UXY * TAUWIN(U(K,J,I)+UGRID,DDZ(K))
+#endif
+C
+         WCU(K,J) = - WCUZ
+C
+C                                 **************************************
+C                                 VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV
+C                                 **************************************
+C
+         VYZ   = DY(J)*DDZ(K)
+         VXY   = DY(J)*DDX(I)
+C
+C                                 WANDFUNKTIONEN
+C
+#ifdef _DNS_
+         WCVZ  = VXY * 
+     &	 2.0*GMOL*ABS(V(K,J,I))*RDDZ(K)*SIGN(1.0,V(K,J,I))
+#else
+         WCVZ  = VXY * TAUWIN(V(K,J,I),DDZ(K))
+#endif
+C
+         WCV(K,J) = - WCVZ
+C
+  110    CONTINUE
+C
+      ENDIF
+C
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC  LEFT NOSLIP
+C
+      IF ( NLFT .EQ. 5 ) THEN
+
+
+         J = JMX-2
+
+         DO 230 K=2,KM1
+
+C                                 **************************************
+C                                 UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU
+C                                 **************************************
+         UXZ     = DX(I)*DDZ(K)
+         UXY     = DX(I)*DDY(J)
+C
+C                                 WANDFUNKTIONEN
+C
+#ifdef _DNS_
+         WCUY  = UXZ *
+     &	 2.0*GMOL*ABS(U(K,J,I)+UGRID)*RDDY(J)*SIGN(1.0,U(K,J,I)+UGRID)
+#else
+         WCUY  = UXZ * TAUWIN(U(K,J,I)+UGRID,DDY(J))
+#endif
+C
+         WCU(K,J) = - WCUY
+C
+C                                 **************************************
+C                                 WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW
+C                                 **************************************
+C
+         WXZ   = DZ(K)*DDX(I)
+         WYZ   = DZ(K)*DDY(J)
+C
+C                                 WANDFUNKTIONEN
+C
+#ifdef _DNS_
+         WCWY  = WXZ *
+     &	 2.0*GMOL*ABS(W(K,J,I))*RDDY(J)*SIGN(1.0,W(K,J,I))
+#else
+         WCWY  = WXZ * TAUWIN(W(K,J,I),DDY(J))
+#endif
+C
+         WCW(K,J) = - WCWY
+C
+  230    CONTINUE
+C
+      ENDIF
+C
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC  RIGHT NOSLIP
+C
+      IF ( NRGT .EQ. 5 ) THEN
+
+
+         J = 3
+
+         DO 240 K=2,KM1
+
+C                                 **************************************
+C                                 UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU
+C                                 **************************************
+         UXZ     = DX(I)*DDZ(K)
+         UXY     = DX(I)*DDY(J)
+C
+C                                 WANDFUNKTIONEN
+C
+#ifdef _DNS_
+         WCUY  = UXZ * 
+     &	 2.0*GMOL*ABS(U(K,J,I)+UGRID)*RDDY(J)*SIGN(1.0,U(K,J,I)+UGRID)
+#else
+         WCUY  = UXZ * TAUWIN(U(K,J,I)+UGRID,DDY(J))
+#endif
+C
+         WCU(K,J) = - WCUY
+C
+C                                 **************************************
+C                                 WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW
+C                                 **************************************
+C
+         WXZ   = DZ(K)*DDX(I)
+         WYZ   = DZ(K)*DDY(J)
+C
+C                                 WANDFUNKTIONEN
+C
+#ifdef _DNS_
+         WCWY  = WXZ * 
+     &	 2.0*GMOL*ABS(W(K,J,I))*RDDY(J)*SIGN(1.0,W(K,J,I))
+#else
+         WCWY  = WXZ * TAUWIN(W(K,J,I),DDY(J))
+#endif
+C
+         WCW(K,J) = - WCWY
+C
+  240    CONTINUE
+C
+      ENDIF
+C
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC  FRONT NOSLIP
+C
+      IF ( NFRO .EQ. 5 ) THEN
+         IF ( I .EQ. 3 ) THEN
+
+         DO J=2,JM1
+            DO  K=2,KM1
+C                                 **************************************
+C                                 VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV
+C                                 **************************************
+               VYZ     = DY(J)*DDZ(K)
+C
+C                                 WANDFUNKTIONEN
+C
+#ifdef _DNS_
+         WCVX  = VYZ * 
+     &	 2.0*GMOL*V(K,J,I)*RDDX(I)
+#else
+         WCVX  = VYZ* TAUWIN(V(K,J,I),DDX(I))
+#endif
+C
+         WCV(K,J) = - WCVX + WCV(K,J)
+C
+C                                 **************************************
+C                                 WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW
+C                                 **************************************
+C
+         WYZ   = DZ(K)*DDY(J)
+C
+C                                 WANDFUNKTIONEN
+C
+#ifdef _DNS_
+         WCWX  = WYZ * 
+     &	 2.0*GMOL*W(K,J,I)*RDDX(I)
+#else
+         WCWX  = WYZ * TAUWIN(W(K,J,I),DDX(I))
+#endif
+C
+         WCW(K,J) = - WCWX + WCW(K,J)
+C
+         ENDDO
+         ENDDO
+C
+      ENDIF
+      ENDIF
+
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC  BACK NOSLIP
+C
+      IF ( NBAC .EQ. 5 ) THEN
+         IF ( I .EQ. IMX-2 ) THEN
+
+         DO J=2,JM1
+            DO  K=2,KM1
+C                                 **************************************
+C                                 VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV
+C                                 **************************************
+               VYZ     = DY(J)*DDZ(K)
+C
+C                                 WANDFUNKTIONEN
+C
+#ifdef _DNS_
+         WCVX  = VYZ *
+     &   2.0*GMOL*V(K,J,I)*RDDX(I)
+#else
+         WCVX  = VYZ* TAUWIN(V(K,J,I),DDX(I))
+#endif
+C
+         WCV(K,J) = - WCVX + WCV(K,J)
+C
+C                                 **************************************
+C                                 WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW
+C                                 **************************************
+C
+         WYZ   = DZ(K)*DDY(J)
+C
+C                                 WANDFUNKTIONEN
+C
+#ifdef _DNS_
+         WCWX  = WYZ *
+     &   2.0*GMOL*W(K,J,I)*RDDX(I)
+#else
+         WCWX  = WYZ * TAUWIN(W(K,J,I),DDX(I))
+#endif
+C
+         WCW(K,J) = - WCWX + WCW(K,J)
+C
+         ENDDO
+         ENDDO
+C
+      ENDIF
+      ENDIF
+
+C
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC  KOERPER NOSLIP
+C
+      IF ( NCUB .EQ. 5 ) THEN
+
+C
+        IF ((I.LT.IC1).OR.(I.GT.IC2)) GOTO 150
+
+          DO 120 J=JC1,JC2
+          DO 120 K=KC1,KC2
+C
+C                                 **************************************
+C                                 UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU
+C                                 **************************************
+C
+          UXZ     = DX(I)*DDZ(K)
+          UXY     = DX(I)*DDY(J)
+C
+C                                 SCHALTFAKTOREN BERECHNUNG
+C
+          FYPO  = (SIGN(0.25,G(K,J,I+1)*G(K,J+1,I+1))-0.25)
+     $          + (SIGN(0.25,G(K,J,I  )*G(K,J+1,I  ))-0.25)
+          FYNE  = (SIGN(0.25,G(K,J,I+1)*G(K,J-1,I+1))-0.25)
+     $          + (SIGN(0.25,G(K,J,I  )*G(K,J-1,I  ))-0.25)
+          FZPO  = (SIGN(0.25,G(K,J,I+1)*G(K+1,J,I+1))-0.25)
+     $          + (SIGN(0.25,G(K,J,I  )*G(K+1,J,I  ))-0.25)
+          FZNE  = (SIGN(0.25,G(K,J,I+1)*G(K-1,J,I+1))-0.25)
+     $          + (SIGN(0.25,G(K,J,I  )*G(K-1,J,I  ))-0.25)
+C
+C                                 WANDFUNKTIONEN
+C
+#ifdef _DNS_
+          WCUY  = UXZ * 
+     &	 2.0*GMOL*ABS(U(K,J,I)+UGRID)*RDDY(J)*SIGN(1.0,U(K,J,I)+UGRID)
+          WCUZ  = UXY *
+     &	 2.0*GMOL*ABS(U(K,J,I)+UGRID)*RDDZ(K)*SIGN(1.0,U(K,J,I)+UGRID)
+#else
+          WCUY  = UXZ * TAUWIN(U(K,J,I)+UGRID,DDY(J))
+          WCUZ  = UXY * TAUWIN(U(K,J,I)+UGRID,DDZ(K))
+#endif
+C
+          WCU(K,J) = FYPO*WCUY + FYNE*WCUY + FZPO*WCUZ + FZNE*WCUZ
+C
+  120     CONTINUE
+C
+C
+C
+          DO 130 J=JC1,JC2
+          DO 130 K=KC1,KC2
+C                                 **************************************
+C                                 VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV
+C                                 **************************************
+C
+          VYZ   = DY(J)*DDZ(K)
+          VXY   = DY(J)*DDX(I)
+C
+C                                 SCHALTFAKTOREN BERECHNUNG
+C
+          FXPO  = (SIGN(0.25,G(K,J+1,I)*G(K,J+1,I+1))-0.25)
+     $          + (SIGN(0.25,G(K,J,I  )*G(K,J,I+1  ))-0.25)
+          FXNE  = (SIGN(0.25,G(K,J+1,I)*G(K,J+1,I-1))-0.25)
+     $          + (SIGN(0.25,G(K,J,I  )*G(K,J,I-1  ))-0.25)
+          FZPO  = (SIGN(0.25,G(K,J+1,I)*G(K+1,J+1,I))-0.25)
+     $          + (SIGN(0.25,G(K,J,I  )*G(K+1,J,I  ))-0.25)
+          FZNE  = (SIGN(0.25,G(K,J+1,I)*G(K-1,J+1,I))-0.25)
+     $          + (SIGN(0.25,G(K,J,I  )*G(K-1,J,I  ))-0.25)
+C
+C                                 WANDFUNKTIONEN
+C
+#ifdef _DNS_
+          WCVX  = VYZ *
+     &	 2.0*GMOL*ABS(V(K,J,I))*RDDX(I)*SIGN(1.0,V(K,J,I))
+          WCVZ  = VXY *
+     &	 2.0*GMOL*ABS(V(K,J,I))*RDDZ(K)*SIGN(1.0,V(K,J,I))
+#else
+          WCVX  = VYZ * TAUWIN(V(K,J,I),DDX(I))
+          WCVZ  = VXY * TAUWIN(V(K,J,I),DDZ(K))
+#endif
+C
+          WCV(K,J) = FXPO*WCVX + FXNE*WCVX + FZPO*WCVZ + FZNE*WCVZ
+C
+  130     CONTINUE
+C
+C
+C
+          DO 140 J=JC1,JC2
+          DO 140 K=KC1,KC2
+C                                 **************************************
+C                                 WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW
+C                                 **************************************
+C
+          WXZ   = DZ(K)*DDX(I)
+          WYZ   = DZ(K)*DDY(J)
+C
+C                                 SCHALTFAKTOREN BERECHNUNG
+C
+          FXPO  = (SIGN(0.25,G(K+1,J,I)*G(K+1,J,I+1))-0.25)
+     $          + (SIGN(0.25,G(K,J,I  )*G(K,J,I+1  ))-0.25)
+          FXNE  = (SIGN(0.25,G(K+1,J,I)*G(K+1,J,I-1))-0.25)
+     $          + (SIGN(0.25,G(K,J,I  )*G(K,J,I-1  ))-0.25)
+          FYPO  = (SIGN(0.25,G(K+1,J,I)*G(K+1,J+1,I))-0.25)
+     $          + (SIGN(0.25,G(K,J,I  )*G(K,J+1,I  ))-0.25)
+          FYNE  = (SIGN(0.25,G(K+1,J,I)*G(K+1,J-1,I))-0.25)
+     $          + (SIGN(0.25,G(K,J,I  )*G(K,J-1,I  ))-0.25)
+C
+C                                 WANDFUKTIONEN
+C
+#ifdef _DNS_
+          WCWX  = WYZ *
+     &	 2.0*GMOL*ABS(W(K,J,I))*RDDX(I)*SIGN(1.0,W(K,J,I))
+          WCWY  = WXZ *
+     &	 2.0*GMOL*ABS(W(K,J,I))*RDDY(J)*SIGN(1.0,W(K,J,I))
+#else
+          WCWX  = WYZ * TAUWIN(W(K,J,I),DDX(I))
+          WCWY  = WXZ * TAUWIN(W(K,J,I),DDY(J))
+#endif
+C
+          WCW(K,J) = FXPO*WCWX + FXNE*WCWX + FYPO*WCWY + FYNE*WCWY
+C
+  140     CONTINUE
+
+  150 CONTINUE
+
+      ENDIF
+
+
+      RETURN
+      END
+      FUNCTION TAUWIN   (UQUER,DDS)
+C*STARLET***************************************************************
+C        T A U W P      BERECHNUNG DER WANDSCHUBSPANNUNG MITTELS DES
+C                       1/7 POTENZGESETZES. DAS VORZEICHEN DER WAND-
+C                       SCHUBSPG. ENTSPRICHT DEM VON UQUER !
+C*STARLET***************************************************************
+C
+C PARAM: UQUER          - GESCHWINDIGKEITSKOMPONENTE AM WANDNAECHSTEN
+C                         GITTERPUNKT (UQUER IST EIN MITTELWERT UEBER
+C                         DIE MASCHENFLAECHE SENKRECHT ZU UQUER)
+C        DDS            - KANTENLAENGE DER WANDNAECHSTEN ZELLE
+C                         (SENKRECHT ZU UQUER UND ZUR WAND )
+C
+C VERS:  10.09.85 (HW)  : ORIGINAL
+C                         IDENTISCH MIT TAUWP, NUR FUER INLINING
+C                         AUF VPP IN SWCLE1 EINGEFUEGT
+C
+C DEFINE-DIREKTIVEN     : NATWBC
+C
+C*STARLET***************************************************************
+C
+#include "mgpar.h"
+#include "cophyspar.h"
+#include "conpot.h"
+C
+C
+      VZ     = SIGN(1.0,UQUER)
+      UQUERN = ABS(UQUER)
+C
+#ifndef _DNS_
+#ifndef _NATWBC_
+      IF((UQUERN .LT. (CPO6/DDS)) .OR. (MTURB .EQ. 0)) GOTO 2010
+C
+C                                 HIER: UQUER LIEGT IM VOLLTURBULENTEN
+C                                 GEBIET
+C
+      DDSB   = DDS**(-CWB)
+C
+      TAUWIN  = RHO*(DDSB*(CPO4*UQUERN + CPO5/DDS))**CPO8 * VZ
+      RETURN
+#endif
+#endif
+C
+C                                 HIER: UQUER LIEGT IN DER VISKOSEN
+C                                 UNTERSCHICHT
+C
+ 2010 TAUWIN  = 2.0*GMOL*UQUERN/DDS * VZ
+      RETURN
+C
+      END

@@ -1,0 +1,32 @@
+      SUBROUTINE RMCOMMENT (KAN1,KAN2)
+
+
+      CHARACTER (LEN=80) STRING1
+      CHARACTER (LEN=80) STRING2
+
+      DO ILINE = 1,1000
+
+
+      LOFSTRING = 80
+      STRING1   = ' '
+      
+      READ (KAN1,'(A)',END=1000) STRING1
+
+      DO I=1,80
+
+         IF (STRING1(I:I).EQ.'#') THEN
+            LOFSTRING = I-1
+            GOTO 100
+         ENDIF
+
+      ENDDO
+
+  100  STRING2 = STRING1(1:LOFSTRING)
+
+      WRITE (KAN2,'(A)') STRING2
+
+      ENDDO
+
+ 1000  REWIND KAN2
+      RETURN
+      END

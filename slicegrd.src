@@ -1,0 +1,57 @@
+          SUBROUTINE SLICEGRD (U,V,W,P,G,B,HILF,IDIM3D,IGRID
+#ifdef _TSCAL_
+     $                        ,T
+#endif
+     $                         )
+C
+C--MGLET----------------------------------------------------------------
+C
+C                   ZERSCHNEIDEN EINES GITTERS, HIER: U,V,W,P,G
+C
+C
+C        15. 2.94 (MM)  : ORIGINAL
+C        08.05.03 (TB)  : SCALAR T ADDED
+C
+C--MGLET----------------------------------------------------------------
+
+
+#include "mgpar.h"
+#include "comgrid.h"
+#include "colevel.h"
+#include "cogrdpro.h"
+#include "cobound.h"
+#include "costrles.h"
+#include "cophyspar.h"
+#include "cobody.h"
+#include "cogrdcon.h"
+
+C
+C
+C
+C
+      REAL
+     $        U( IDIM3D ), V( IDIM3D ), W( IDIM3D ),
+     $        P( IDIM3D ), G( IDIM3D ), B( IDIM3D )
+#ifdef _TSCAL_
+     $       ,T( IDIM3D )
+#endif     
+C
+C
+C
+          CALL SLICEFIELD (U,HILF,IDIM3D,IGRID)
+          CALL SLICEFIELD (V,HILF,IDIM3D,IGRID)
+          CALL SLICEFIELD (W,HILF,IDIM3D,IGRID)
+          CALL SLICEFIELD (P,HILF,IDIM3D,IGRID)
+          CALL SLICEFIELD (G,HILF,IDIM3D,IGRID)
+          CALL SLICEFIELD (B,HILF,IDIM3D,IGRID)
+#ifdef _TSCAL_
+          CALL SLICEFIELD (T,HILF,IDIM3D,IGRID)
+#endif          
+C
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+C
+
+      RETURN
+      END
+
+

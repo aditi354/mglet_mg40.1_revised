@@ -1,0 +1,109 @@
+         SUBROUTINE MGPARSET (DDX,DDY,DDZ,DX,DY,DZ,X,Y,Z,BUF,
+     $                        IDIM1D,IDIMF,NBND)
+C
+C--MGLET----------------------------------------------------------------
+C
+C                   SETZT DIE PARENTS FUER DAS GITTER IGRID
+C                  
+C
+C
+C        14. 3.96 (MM)  : ORIGINAL VON MGNBRSET ABGELEITET
+C                         IM MOMENT MUSS FEINGITTER (CHILD) NOCH KOMPLETT
+C                         VOM PARENT ABGEDECKT SEIN. ERWEITERUNG, SIEHE
+C                         MGNBRSET
+C
+C--MGLET----------------------------------------------------------------
+
+
+#include "mgpar.h"
+#include "colevel.h"
+#include "cobound.h"
+#include "cophyspar.h"
+#include "cogrdpro.h"
+#include "cogrdcon.h"
+C
+C
+      REAL    
+     $            X(IDIM1D),     Y(IDIM1D),     Z(IDIM1D),
+     $           DX(IDIM1D),    DY(IDIM1D),    DZ(IDIM1D),
+     $          DDX(IDIM1D),   DDY(IDIM1D),   DDZ(IDIM1D)
+
+      REAL BUF(IDIMF,IDIMF)
+C
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+C                                    ALLE GITTER JEDES LEVELS WERDEN
+C                                    AUF PARENTS ABGECHECKT
+C
+C      WRITE (6,*) 'IN MGPARSET ANGEKOMMEN:',IGRID,LCHILD(IGRID),
+C     $             IPARENT(IGRID),LEVEL(IGRID)
+C           ILEVEL = LEVEL(IGRID)
+      DO ILEVEL = MINLEVEL,MAXLEVEL
+
+        DO I = 1, NOFLEVEL(ILEVEL)
+          IGRID = IGRDOFLEVEL(I,ILEVEL)
+
+          IF (LCHILD(IGRID)) THEN
+C                                    
+                IF (IPARENT(IGRID) .LE. 0) THEN
+C
+C                                    HIER SIND NOCH KEINE PARENTS 
+C                                    EXPLIZIT GESETZT
+
+                  IPARFOUND = 0
+C                                    PERIODIZITAETEN DER GEOMTRIE
+                  DO IPER = 0,NXPER
+                  DO IPM  = -1,1,2
+                  DO JPER = 0,NYPER
+                  DO JPM  = -1,1,2
+                  DO KPER = 0,NZPER
+                  DO KPM  = -1,1,2
+
+                    XSHIFT = FLOAT(IPM*IPER) * XPER
+                    YSHIFT = FLOAT(JPM*JPER) * YPER
+                    ZSHIFT = FLOAT(KPM*KPER) * ZPER
+
+C                                    ALLE GITTER DES NAECHSTNIEDRIGEREN
+C                                    LEVELS, DIE 
+C                                    DRUCKKORREKTUR DURCHLAUFEN, KOENNEN
+C                                    PARENTS SEIN
+
+CC       write (6,*)'mgparset,ilevel..:',ilevel,nofvpit(ilevel-1)
+                    DO I2 = 1, NOFVPIT(ILEVEL-1)
+                    IGRID2 = IGRDOFVPIT(I2,ILEVEL-1)
+
+CC        WRITE (6,*) 'CALLING MGPARCHECK',igrid,igrid2
+                    CALL MGPARCHECK (IGRID,IGRID2,
+     $                               IDIM1D,IDIMF,
+     $                               NBND,X,Y,Z,DX,DY,DZ,
+     $                               XSHIFT,YSHIFT,ZSHIFT,
+     $                               IFOUND,ICOMPLETE)
+
+C                                      REICHEN DIE NACHBARN AUS ???
+
+                    IF (ICOMPLETE .EQ. 1) GOTO 100
+
+
+                    ENDDO
+
+                  ENDDO
+                  ENDDO
+                  ENDDO
+                  ENDDO
+                  ENDDO
+                  ENDDO
+
+                ENDIF
+
+               ENDIF
+  100          CONTINUE
+        ENDDO
+      ENDDO
+C
+C
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+C
+
+      RETURN
+      END
+
+

@@ -1,0 +1,155 @@
+      SUBROUTINE BTOOP1 (KMX,JMX,IMX,X,
+     $                    U,V,W,P,G,
+     $                    ISTART,ISTOP,JSTART,JSTOP,ITYP
+#ifdef _TSCAL_
+     $                   ,T
+#endif
+     $                   )     
+C*STARLET***************************************************************
+C        B T O O P 1   SETZEN DER RANDBEDINGUNGEN FUER DIE
+C                         GESCHWINDIGKEITSFELDER AND SCALAR T.
+C                         (LARGE-EDDY-SIMULATION)
+C*STARLET***************************************************************
+C
+C PARAM: 
+C        KMX, JMX, IMX  - DIMENSIONEN DES GITTERS 
+C        U(KMX,JMX,IMX) + GESCHWINDIGKEITSFELD
+C        V(KMX,JMX,IMX) + GESCHWINDIGKEITSFELD
+C        W(KMX,JMX,IMX) + GESCHWINDIGKEITSFELD
+C        T(KMX,JMX,IMX) + SCALAR T FIELD
+C        P(KMX,JMX,IMX) - DRUCKFELD
+C        G(KMX,JMX,IMX) - EFFEKTIVE DYNAMISCHE VISKOSITAET (= MUE)
+C        ITYP           - HOLLERITH-KONSTANTE:
+C                         'P'  VOR DER DRUCKKORREKTUR
+C                         'T'  VOR DEM ZEITSCHRITT
+C
+C VERS:   8. 3.93 (MM)  : ORIGINAL
+C                         AUS BTOPLE (BTOPL) ABGELEITET
+C        28.02.03 (TB)  : SCALAR BOUNDARY TREATMENT IMPLEMENTED
+C
+C DEFINE-DIREKTIVEN     : QUD 
+C
+C*STARLET***************************************************************
+C
+#include "cophyspar.h"
+#include "konsta.h"
+C
+      CHARACTER (LEN=1)  ITYP
+C
+      REAL
+     $            U(KMX,JMX,IMX),   V(KMX,JMX,IMX),   W(KMX,JMX,IMX),
+     $            P(KMX,JMX,IMX),   G(KMX,JMX,IMX)
+      REAL        X( IMX )
+C
+#ifdef _TSCAL_
+      REAL        T(KMX,JMX,IMX)
+#endif
+C
+      KM1 = KMX-1
+      KM2 = KMX-2
+      KM3 = KMX-3
+      KM4 = KMX-4
+
+#ifndef _UPWARDS_
+C
+C       do i=1,npphys
+C         write(6,*)'PPHYS:',PPHYS(i),XPPHYS(i)
+C       enddo
+C
+C                                 START- AND STOP-INDICES FOR PRESSURE
+C                                 ON TOP
+      IX_START = 1
+      DO I=2,NPPHYS
+         IF ( X(1)   .LE. XPPHYS(I) ) THEN
+            IX_START = I-1
+            GOTO 30
+         ENDIF
+      ENDDO
+   30 CONTINUE
+
+      IX_STOP = NPPHYS
+      DO I=NPPHYS-1,1,-1
+         IF ( X(IMX) .GE. XPPHYS(I) ) THEN
+            IX_STOP  = I+1
+            GOTO 31
+         ENDIF
+      ENDDO
+   31 CONTINUE
+C
+#endif
+C
+C                                 **************************************
+C                                 OPEN-WALL, GRADIENT = 0
+C                                 **************************************
+C
+C
+C
+       IF(ITYP .EQ. 'P') RETURN
+
+       DO I=ISTART,ISTOP
+#ifdef _UPWARDS_
+       PINFTY = 0.0
+#else
+C                                  CALCULATION OF PINFTY
+
+          IF ( X(I) .LE. XPPHYS(1     )) THEN
+             PINFTY = PPHYS(1)
+          ELSEIF ( X(I) .GE. XPPHYS(NPPHYS)) THEN
+             PINFTY = PPHYS(NPPHYS)
+          ELSE
+
+             DO IX=IX_START,IX_STOP
+                IF ((X(I)-XPPHYS(IX))*(X(I)-XPPHYS(IX+1)) 
+     $               .LE. 0.0) THEN
+                   PINFTY = PPHYS(IX) + 
+     $                  (PPHYS(IX+1)-PPHYS(IX))*
+     $                  (X(I)       -XPPHYS(IX))/
+     $                  (XPPHYS(IX+1)-XPPHYS(IX))
+                ENDIF
+             ENDDO
+          ENDIF
+#endif
+C
+C---------------------------------------------------------------
+C          write(6,*)'pinfty:',i,x(i),pinfty
+
+          DO J=JSTART,JSTOP
+
+               U(KM1,J,I) = U(KM2,J,I)
+               V(KM1,J,I) = V(KM2,J,I)
+C_030297               W(KM2,J,I) = W(KM3,J,I)
+#ifdef _LIMIT_OUTFLOW_TOP_
+               W(KM1,J,I) = MAX(-0.01,W(KM2,J,I))
+#else
+               W(KM1,J,I) = W(KM2,J,I)
+#endif
+               P(KM1,J,I) = PINFTY
+               G(KM1,J,I) = G(KM2,J,I)
+#ifdef _TSCAL_
+               T(KM1,J,I) = T(KM2,J,I)
+#endif               
+
+         ENDDO
+         ENDDO
+
+#ifdef _QUD_
+
+         DO I=ISTART,ISTOP
+         DO J=JSTART,JSTOP
+
+               U(KMX,J,I) = U(KM2,J,I)
+               V(KMX,J,I) = V(KM2,J,I)
+               W(KM1,J,I) = W(KM3,J,I)
+               W(KMX,J,I) = W(KM2,J,I)
+#ifdef _TSCAL_
+               T(KMX,J,I) = T(KM2,J,I)
+#endif                
+
+         ENDDO
+         ENDDO
+
+#endif
+
+      RETURN
+      END
+

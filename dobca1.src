@@ -1,0 +1,553 @@
+      SUBROUTINE DOBCA1  (KANAL,MODUS,ISTALM,ISTPLM,JSTALM,JSTPLM,
+     $                    ITTOT,ITFLUC,DT,X,Y,Z,DX,DY,DZ,DDX,DDY,DDZ,
+     $                    ILINT0,ILINTX,ILINTY,ILINTZ,
+#include "cstac1.h"
+C*STARLET***************************************************************
+C        D O B C A 1      AUSGABE VON FELDERN (WAHLWEISE FORMATIERT ODER
+C                         UNFORMATIERT S. VAR. 'MODUS'),DIE UEBERWIEGEND
+C                         ENSEMBLE-MITTELWERTE VON KORRELATIONSFUNKTIO-
+C                         NEN, -KOEFFIZIENTEN, LEISTUNGSDICHTESPEKTREN
+C                         UND HAEUFIGKEITSVERTEILUNGEN ENTHALTEN AUF
+C                         KANAL 'KANAL'.
+C        A C H T U N G    DIESES UNTERPROGRAMM MUSS ERWEITERT WERDEN,
+C                         WENN DIE STATIST. AUSWERTUNG UMFANGREICHER
+C                         WIRD !
+C                         DIE NEU HINZUKOMMENDEN FELDER SIND GEMAESS
+C                         DER ORDNUNG IM ISELEP-FELD EINZUREIHEN.
+C
+C                         BEI DER BERECHNUNG DER PHYS. ZEITEN, DIE
+C                         SICH AUF DIE ENSEMBLE-MITTELUNG BEZIEHEN,
+C                         WURDE DAVON AUSGEGANGEN, DASS SOWOHL DER
+C                         ZEITSCHRITT 'DT' ALS AUCH DIE GROESSE
+C                         'ITFLUC' WAEHREND ALLER FORTSETZUNGSLAEUFE
+C                         KONSTANT BLEIBEN. DA DIE ZEITEN NUR IN-
+C                         FORMATIVEN CHARAKTER HABEN, KOENNEN
+C                         EVENTUELL AUFTRETENDE FEHLER TOLERIERT
+C                         WERDEN.
+C*STARLET***************************************************************
+C
+C PARAM: KANAL                    - DIE DATEN WERDEN UEBER DIESEN KANAL
+C                                   AUSGEGEBEN
+C        MODUS                    - CHARACTER-VARIABLE:
+C                                   'BINAER  ' : DATEN WERDEN UNFORMA-
+C                                                TIERT GESCHRIEBEN
+C                                   'CODIERT ' : DATEN WERDEN FORMA-
+C                                                TIERT GESCHRIEBEN
+C        ISTALM                   - STARTINDEX FUER DIE LINIENMITTELUNG
+C                                   IN X-RICHTUNG (FALLS X-RI. HOMOGEN)
+C        ISTPLM                   - STOPINDEX FUER DIE LINIENMITTELUNG
+C                                   IN X-RICHTUNG (FALLS X-RI. HOMOGEN)
+C        JSTALM                   - STARTINDEX FUER DIE LINIENMITTELUNG
+C                                   IN Y-RICHTUNG (FALLS Y-RI. HOMOGEN)
+C        JSTPLM                   - STOPINDEX FUER DIE LINIENMITTELUNG
+C                                   IN Y-RICHTUNG (FALLS Y-RI. HOMOGEN)
+C        ITTOT                    - GESAMTANZAHL DER ZEITSCHRITTE (SUMME
+C                                   MEHRERER LAEUFE)
+C        ITFLUC                   - NACH JEWEILS ITFLUC ZEITSCHRITTEN
+C                                   WIRD EINE STICHPROBE FUER DIE
+C                                   BILDUNG DER ENSEMBLE-MITTELWERTE
+C                                   ENTNOMMEN
+C        DT                       - ZEITSCHRITT
+C        X  (II), Y  (JJ), Z  (KK)- KOORDINATEN DER BASISZELLBEZUGS-
+C                                   PUNKTE
+C        DX (II), DY (JJ), DZ (KK)- ABSTAENDE DER BASISZELLBEZUGS-
+C                                   PUNKTE
+C        DDX(II), DDY(JJ), DDZ(KK)- ABMESSUNGEN DER BASISZELLEN
+C        ILINT0         - ANZAHL DER AUFPUNKTE MIT RICHTUNGSINFORMATION
+C                         '0' + 1 (AUFPKT. IN DEN I-LINES 2 ... ILINT0)
+C        ILINTX         - ANZAHL DER AUFPUNKTE MIT RICHTUNGSINFORMATION
+C                         'X' + 1 (AUFPKT. IN DEN I-LINES 2 ... ILINTX)
+C        ILINTY         - ANZAHL DER AUFPUNKTE MIT RICHTUNGSINFORMATION
+C                         'Y' + 1 (AUFPKT. IN DEN I-LINES 2 ... ILINTY)
+C        ILINTZ         - ANZAHL DER AUFPUNKTE MIT RICHTUNGSINFORMATION
+C                         'Z' + 1 (AUFPKT. IN DEN I-LINES 2 ... ILINTZ)
+#include "cstap1.h"
+C
+C UPROG                           : DOBC
+C
+C DEFINE-DIREKTIVEN               : XHOMOG, YHOMOG (IN COMMON-DECK
+C                                   CDOBCA)
+C
+C        09.12.88 (HW)  : ORIGINAL AUS DOBCA ABGELEITET
+C        09.12.88 (HW)  : CDOBCA EINGEFUEHRT
+C        23.12.88 (HW)  : ILINT. STEUERT DIE AUSABE FUER DIE I-RICHTUNG
+C
+C*STARLET***************************************************************
+C
+      CHARACTER (LEN=8)   MODUS
+      CHARACTER (LEN=80)  CT, CH1680
+C
+      REAL     X  (II),      Y  (JJ),      Z  (KK),
+     $         DX (II),      DY (JJ),      DZ (KK),
+     $         DDX(II),      DDY(JJ),      DDZ(KK)
+#include "cstad1.h"
+#include "cdobca.h"
+C
+C                                 AUSGABE DER FELDER, DIE ENSEMBLE-
+C                                 MITTELWERTE ENTHALTEN.
+C
+C                                 STATIST. GROESSEN DER U-KOMPONENTE
+C                                 ----------------------------------
+C
+      IF(ISELEP(1, 14) .EQ. 1  .OR.  ISELEP(1, 14) .EQ. 2) THEN
+C
+C                                 DAS FELD WURDE IM MOMENTANEN LAUF
+C                                 AUSGEWERTET UND WIRD DAHER AUSGEGEBEN
+C
+C                                 PHYSIKAL. ZEIT ZU DER MIT DER BILDUNG
+C                                 VON ENSEMBLE-MITTELWERTEN BEGONNEN
+C                                 WURDE. (EXAKTER: ZU DIESEM ZEITPUNKT
+C                                 WURDE DIE ERSTE STICHPROBE ENTNOMMEN)
+C
+         TSEM   = TEEM - FLOAT((ISELEP(2, 14)-1) * ITFLUC) * DT
+C
+         CT     = CH1680 (' R_U"U"(X)      ')
+         CALL DOBC   (KKXL,JJ2L,ILIMXP,KKXL,JJ2L,ILINTX,KANAL,MODUS,
+     $                      0      ,      0      ,      1      ,
+     $                ZSLM  ,ZELM  ,YSLM  ,YELM  ,XSLMST,XELMST,
+     $                TSEM,TEEM,DTEM,ARXUU  ,CT)
+      ENDIF
+      IF(ISELEP(1, 16) .EQ. 1  .OR.  ISELEP(1, 16) .EQ. 2) THEN
+         TSEM   = TEEM - FLOAT((ISELEP(2, 16)-1) * ITFLUC) * DT
+         CT     = CH1680 (' R_U"U"(Y)      ')
+         CALL DOBC   (KKYL,JJ2L,ILIMXP,KKYL,JJ2L,ILINTY,KANAL,MODUS,
+     $                      0      ,      0      ,      1      ,
+     $                ZSLM  ,ZELM  ,YSLM  ,YELM  ,XSLMST,XELMST,
+     $                TSEM,TEEM,DTEM,ARYUU  ,CT)
+      ENDIF
+      IF(ISELEP(1, 18) .EQ. 1  .OR.  ISELEP(1, 18) .EQ. 2) THEN
+         TSEM   = TEEM - FLOAT((ISELEP(2, 18)-1) * ITFLUC) * DT
+         CT     = CH1680 (' R_U"U"(Z)      ')
+         CALL DOBC   (KKZL,JJ2L,ILIMXP,KKZL,JJ2L,ILINTZ,KANAL,MODUS,
+     $                      0      ,      0      ,      1      ,
+     $                ZSLM  ,ZELM  ,YSLM  ,YELM  ,XSLMST,XELMST,
+     $                TSEM,TEEM,DTEM,ARZUU  ,CT)
+      ENDIF
+      IF(ISELEP(1, 20) .EQ. 1  .OR.  ISELEP(1, 20) .EQ. 2) THEN
+         TSEM   = TEEM - FLOAT((ISELEP(2, 20)-1) * ITFLUC) * DT
+         CT     = CH1680 (' S_U"U"(K_X)    ')
+         CALL DOBC   (KSXL,JJ1L,ILIMXP,KSXL,JJ1L,ILINTX,KANAL,MODUS,
+     $                      0      ,      0      ,      1      ,
+     $                ZSLM  ,ZELM  ,YSLM  ,YELM  ,XSLMST,XELMST,
+     $                TSEM,TEEM,DTEM,ASXUU  ,CT)
+      ENDIF
+      IF(ISELEP(1, 22) .EQ. 1  .OR.  ISELEP(1, 22) .EQ. 2) THEN
+         TSEM   = TEEM - FLOAT((ISELEP(2, 22)-1) * ITFLUC) * DT
+         CT     = CH1680 (' S_U"U"(K_Y)    ')
+         CALL DOBC   (KSYL,JJ1L,ILIMXP,KSYL,JJ1L,ILINTY,KANAL,MODUS,
+     $                      0      ,      0      ,      1      ,
+     $                ZSLM  ,ZELM  ,YSLM  ,YELM  ,XSLMST,XELMST,
+     $                TSEM,TEEM,DTEM,ASYUU  ,CT)
+      ENDIF
+      IF(ISELEP(1, 24) .EQ. 1  .OR.  ISELEP(1, 24) .EQ. 2) THEN
+         TSEM   = TEEM - FLOAT((ISELEP(2, 24)-1) * ITFLUC) * DT
+         CT     = CH1680 (' S_U"U"(K_Z)    ')
+         CALL DOBC   (KSZL,JJ1L,ILIMXP,KSZL,JJ1L,ILINTZ,KANAL,MODUS,
+     $                      0      ,      0      ,      1      ,
+     $                ZSLM  ,ZELM  ,YSLM  ,YELM  ,XSLMST,XELMST,
+     $                TSEM,TEEM,DTEM,ASZUU  ,CT)
+      ENDIF
+C
+C                                 STATIST. GROESSEN DER V-KOMPONENTE
+C                                 ----------------------------------
+C
+      IF(ISELEP(1, 39) .EQ. 1  .OR.  ISELEP(1, 39) .EQ. 2) THEN
+         TSEM   = TEEM - FLOAT((ISELEP(2, 39)-1) * ITFLUC) * DT
+         CT     = CH1680 (' R_V"V"(X)      ')
+         CALL DOBC   (KKXL,JJ2L,ILIMXP,KKXL,JJ2L,ILINTX,KANAL,MODUS,
+     $                      0      ,      1      ,      0      ,
+     $                ZSLM  ,ZELM  ,YSLMST,YELMST,XSLM  ,XELM  ,
+     $                TSEM,TEEM,DTEM,ARXVV  ,CT)
+      ENDIF
+      IF(ISELEP(1, 41) .EQ. 1  .OR.  ISELEP(1, 41) .EQ. 2) THEN
+         TSEM   = TEEM - FLOAT((ISELEP(2, 41)-1) * ITFLUC) * DT
+         CT     = CH1680 (' R_V"V"(Y)      ')
+         CALL DOBC   (KKYL,JJ2L,ILIMXP,KKYL,JJ2L,ILINTY,KANAL,MODUS,
+     $                      0      ,      1      ,      0      ,
+     $                ZSLM  ,ZELM  ,YSLMST,YELMST,XSLM  ,XELM  ,
+     $                TSEM,TEEM,DTEM,ARYVV  ,CT)
+      ENDIF
+      IF(ISELEP(1, 43) .EQ. 1  .OR.  ISELEP(1, 43) .EQ. 2) THEN
+         TSEM   = TEEM - FLOAT((ISELEP(2, 43)-1) * ITFLUC) * DT
+         CT     = CH1680 (' R_V"V"(Z)      ')
+         CALL DOBC   (KKZL,JJ2L,ILIMXP,KKZL,JJ2L,ILINTZ,KANAL,MODUS,
+     $                      0      ,      1      ,      0      ,
+     $                ZSLM  ,ZELM  ,YSLMST,YELMST,XSLM  ,XELM  ,
+     $                TSEM,TEEM,DTEM,ARZVV  ,CT)
+      ENDIF
+      IF(ISELEP(1, 45) .EQ. 1  .OR.  ISELEP(1, 45) .EQ. 2) THEN
+         TSEM   = TEEM - FLOAT((ISELEP(2, 45)-1) * ITFLUC) * DT
+         CT     = CH1680 (' S_V"V"(K_X)    ')
+         CALL DOBC   (KSXL,JJ1L,ILIMXP,KSXL,JJ1L,ILINTX,KANAL,MODUS,
+     $                      0      ,      1      ,      0      ,
+     $                ZSLM  ,ZELM  ,YSLMST,YELMST,XSLM  ,XELM  ,
+     $                TSEM,TEEM,DTEM,ASXVV  ,CT)
+      ENDIF
+      IF(ISELEP(1, 47) .EQ. 1  .OR.  ISELEP(1, 47) .EQ. 2) THEN
+         TSEM   = TEEM - FLOAT((ISELEP(2, 47)-1) * ITFLUC) * DT
+         CT     = CH1680 (' S_V"V"(K_Y)    ')
+         CALL DOBC   (KSYL,JJ1L,ILIMXP,KSYL,JJ1L,ILINTY,KANAL,MODUS,
+     $                      0      ,      1      ,      0      ,
+     $                ZSLM  ,ZELM  ,YSLMST,YELMST,XSLM  ,XELM  ,
+     $                TSEM,TEEM,DTEM,ASYVV  ,CT)
+      ENDIF
+      IF(ISELEP(1, 49) .EQ. 1  .OR.  ISELEP(1, 49) .EQ. 2) THEN
+         TSEM   = TEEM - FLOAT((ISELEP(2, 49)-1) * ITFLUC) * DT
+         CT     = CH1680 (' S_V"V"(K_Z)    ')
+         CALL DOBC   (KSZL,JJ1L,ILIMXP,KSZL,JJ1L,ILINTZ,KANAL,MODUS,
+     $                      0      ,      1      ,      0      ,
+     $                ZSLM  ,ZELM  ,YSLMST,YELMST,XSLM  ,XELM  ,
+     $                TSEM,TEEM,DTEM,ASZVV  ,CT)
+      ENDIF
+C
+C                                 STATIST. GROESSEN DER W-KOMPONENTE
+C                                 ----------------------------------
+C
+      IF(ISELEP(1, 64) .EQ. 1  .OR.  ISELEP(1, 64) .EQ. 2) THEN
+         TSEM   = TEEM - FLOAT((ISELEP(2, 64)-1) * ITFLUC) * DT
+         CT     = CH1680 (' R_W"W"(X)      ')
+         CALL DOBC   (KKXL,JJ2L,ILIMXP,KKXL,JJ2L,ILINTX,KANAL,MODUS,
+     $                      1      ,      0      ,      0      ,
+     $                ZSLMST,ZELMST,YSLM  ,YELM  ,XSLM  ,XELM  ,
+     $                TSEM,TEEM,DTEM,ARXWW  ,CT)
+      ENDIF
+      IF(ISELEP(1, 66) .EQ. 1  .OR.  ISELEP(1, 66) .EQ. 2) THEN
+         TSEM   = TEEM - FLOAT((ISELEP(2, 66)-1) * ITFLUC) * DT
+         CT     = CH1680 (' R_W"W"(Y)      ')
+         CALL DOBC   (KKYL,JJ2L,ILIMXP,KKYL,JJ2L,ILINTY,KANAL,MODUS,
+     $                      1      ,      0      ,      0      ,
+     $                ZSLMST,ZELMST,YSLM  ,YELM  ,XSLM  ,XELM  ,
+     $                TSEM,TEEM,DTEM,ARYWW  ,CT)
+      ENDIF
+      IF(ISELEP(1, 68) .EQ. 1  .OR.  ISELEP(1, 68) .EQ. 2) THEN
+         TSEM   = TEEM - FLOAT((ISELEP(2, 68)-1) * ITFLUC) * DT
+         CT     = CH1680 (' R_W"W"(Z)      ')
+         CALL DOBC   (KKZL,JJ2L,ILIMXP,KKZL,JJ2L,ILINTZ,KANAL,MODUS,
+     $                      1      ,      0      ,      0      ,
+     $                ZSLMST,ZELMST,YSLM  ,YELM  ,XSLM  ,XELM  ,
+     $                TSEM,TEEM,DTEM,ARZWW  ,CT)
+      ENDIF
+      IF(ISELEP(1, 70) .EQ. 1  .OR.  ISELEP(1, 70) .EQ. 2) THEN
+         TSEM   = TEEM - FLOAT((ISELEP(2, 70)-1) * ITFLUC) * DT
+         CT     = CH1680 (' S_W"W"(K_X)    ')
+         CALL DOBC   (KSXL,JJ1L,ILIMXP,KSXL,JJ1L,ILINTX,KANAL,MODUS,
+     $                      1      ,      0      ,      0      ,
+     $                ZSLMST,ZELMST,YSLM  ,YELM  ,XSLM  ,XELM  ,
+     $                TSEM,TEEM,DTEM,ASXWW  ,CT)
+      ENDIF
+      IF(ISELEP(1, 72) .EQ. 1  .OR.  ISELEP(1, 72) .EQ. 2) THEN
+         TSEM   = TEEM - FLOAT((ISELEP(2, 72)-1) * ITFLUC) * DT
+         CT     = CH1680 (' S_W"W"(K_Y)    ')
+         CALL DOBC   (KSYL,JJ1L,ILIMXP,KSYL,JJ1L,ILINTY,KANAL,MODUS,
+     $                      1      ,      0      ,      0      ,
+     $                ZSLMST,ZELMST,YSLM  ,YELM  ,XSLM  ,XELM  ,
+     $                TSEM,TEEM,DTEM,ASYWW  ,CT)
+      ENDIF
+      IF(ISELEP(1, 74) .EQ. 1  .OR.  ISELEP(1, 74) .EQ. 2) THEN
+         TSEM   = TEEM - FLOAT((ISELEP(2, 74)-1) * ITFLUC) * DT
+         CT     = CH1680 (' S_W"W"(K_Z)    ')
+         CALL DOBC   (KSZL,JJ1L,ILIMXP,KSZL,JJ1L,ILINTZ,KANAL,MODUS,
+     $                      1      ,      0      ,      0      ,
+     $                ZSLMST,ZELMST,YSLM  ,YELM  ,XSLM  ,XELM  ,
+     $                TSEM,TEEM,DTEM,ASZWW  ,CT)
+      ENDIF
+C
+C                                  HIER: KREUZKORRELATIONSFUNKTIONEN
+C                                  ---------------------------------
+C
+      IF(ISELEP(1,210) .EQ. 1  .OR.  ISELEP(1,210) .EQ. 2) THEN
+         TSEM   = TEEM - FLOAT((ISELEP(2,210)-1) * ITFLUC) * DT
+         CT     = CH1680 (' R_U"V"(X)      ')
+         CALL DOBC   (KKXL,JJ2L,ILIMXP,KKXL,JJ2L,ILINTX,KANAL,MODUS,
+     $                      0      ,      1      ,      1      ,
+     $                ZSLM  ,ZELM  ,YSLMST,YELMST,XSLMST,XELMST,
+     $                TSEM,TEEM,DTEM,ARXUV  ,CT)
+      ENDIF
+      IF(ISELEP(1,212) .EQ. 1  .OR.  ISELEP(1,212) .EQ. 2) THEN
+         TSEM   = TEEM - FLOAT((ISELEP(2,212)-1) * ITFLUC) * DT
+         CT     = CH1680 (' R_U"V"(Y)      ')
+         CALL DOBC   (KKYL,JJ2L,ILIMXP,KKYL,JJ2L,ILINTY,KANAL,MODUS,
+     $                      0      ,      1      ,      1      ,
+     $                ZSLM  ,ZELM  ,YSLMST,YELMST,XSLMST,XELMST,
+     $                TSEM,TEEM,DTEM,ARYUV  ,CT)
+      ENDIF
+      IF(ISELEP(1,216) .EQ. 1  .OR.  ISELEP(1,216) .EQ. 2) THEN
+         TSEM   = TEEM - FLOAT((ISELEP(2,216)-1) * ITFLUC) * DT
+         CT     = CH1680 (' R_U"W"(X)      ')
+         CALL DOBC   (KKXL,JJ2L,ILIMXP,KKXL,JJ2L,ILINTX,KANAL,MODUS,
+     $                      1      ,      0      ,      1      ,
+     $                ZSLMST,ZELMST,YSLM  ,YELM  ,XSLMST,XELMST,
+     $                TSEM,TEEM,DTEM,ARXUW  ,CT)
+      ENDIF
+      IF(ISELEP(1,218) .EQ. 1  .OR.  ISELEP(1,218) .EQ. 2) THEN
+         TSEM   = TEEM - FLOAT((ISELEP(2,218)-1) * ITFLUC) * DT
+         CT     = CH1680 (' R_U"W"(Y)      ')
+         CALL DOBC   (KKYL,JJ2L,ILIMXP,KKYL,JJ2L,ILINTY,KANAL,MODUS,
+     $                      1      ,      0      ,      1      ,
+     $                ZSLMST,ZELMST,YSLM  ,YELM  ,XSLMST,XELMST,
+     $                TSEM,TEEM,DTEM,ARYUW  ,CT)
+      ENDIF
+      IF(ISELEP(1,224) .EQ. 1  .OR.  ISELEP(1,224) .EQ. 2) THEN
+         TSEM   = TEEM - FLOAT((ISELEP(2,224)-1) * ITFLUC) * DT
+         CT     = CH1680 (' R_V"W"(Y)      ')
+         CALL DOBC   (KKYL,JJ2L,ILIMXP,KKYL,JJ2L,ILINTY,KANAL,MODUS,
+     $                      1      ,      1      ,      0      ,
+     $                ZSLMST,ZELMST,YSLMST,YELMST,XSLM  ,XELM  ,
+     $                TSEM,TEEM,DTEM,ARYVW  ,CT)
+      ENDIF
+C
+C                                  HIER: KORRELATIONSKOEFFIZIENTEN
+C                                  -------------------------------
+C
+      IF(ISELEP(1,234) .EQ. 1  .OR.  ISELEP(1,234) .EQ. 2) THEN
+         TSEM   = TEEM - FLOAT((ISELEP(2,234)-1) * ITFLUC) * DT
+         CT     = CH1680 (' RC_U"W"(X)     ')
+         CALL DOBC   (KKXL,JJ2L,ILIMXP,KKXL,JJ2L,ILINTX,KANAL,MODUS,
+     $                      1      ,      0      ,      1      ,
+     $                ZSLMST,ZELMST,YSLM  ,YELM  ,XSLMST,XELMST,
+     $                TSEM,TEEM,DTEM,ACXUW  ,CT)
+      ENDIF
+      IF(ISELEP(1,238) .EQ. 1  .OR.  ISELEP(1,238) .EQ. 2) THEN
+         TSEM   = TEEM - FLOAT((ISELEP(2,238)-1) * ITFLUC) * DT
+         CT     = CH1680 (' RC_U"W"(Z)     ')
+         CALL DOBC   (KKZL,JJ2L,ILIMXP,KKZL,JJ2L,ILINTZ,KANAL,MODUS,
+     $                      1      ,      0      ,      1      ,
+     $                ZSLMST,ZELMST,YSLM  ,YELM  ,XSLMST,XELMST,
+     $                TSEM,TEEM,DTEM,ACZUW  ,CT)
+      ENDIF
+C
+C                                  OBERE DREIECKSMATRIX DES TENSORS
+C                                  DER KORRELATIONSFUNKTIONEN DER
+C                                  FLUKTUATIONEN DER VORTICITY
+C                                  --------------------------------
+C
+      IF(ISELEP(1,246) .EQ. 1  .OR.  ISELEP(1,246) .EQ. 2) THEN
+         TSEM   = TEEM - FLOAT((ISELEP(2,246)-1) * ITFLUC) * DT
+         CT     = CH1680 (' R_OX"OX"(X)    ')
+         CALL DOBC   (KKXL,JJ2L,ILIMXP,KKXL,JJ2L,ILINTX,KANAL,MODUS,
+     $                      1      ,      1      ,      0      ,
+     $                ZSLMST,ZELMST,YSLMST,YELMST,XSLM  ,XELM  ,
+     $                TSEM,TEEM,DTEM,ARXOXX ,CT)
+      ENDIF
+      IF(ISELEP(1,248) .EQ. 1  .OR.  ISELEP(1,248) .EQ. 2) THEN
+         TSEM   = TEEM - FLOAT((ISELEP(2,248)-1) * ITFLUC) * DT
+         CT     = CH1680 (' R_OX"OY"(X)    ')
+         CALL DOBC   (KKXL,JJ2L,ILIMXP,KKXL,JJ2L,ILINTX,KANAL,MODUS,
+     $                      1      ,      1      ,      1      ,
+     $                ZSLMST,ZELMST,YSLMST,YELMST,XSLMST,XELMST,
+     $                TSEM,TEEM,DTEM,ARXOXY ,CT)
+      ENDIF
+      IF(ISELEP(1,250) .EQ. 1  .OR.  ISELEP(1,250) .EQ. 2) THEN
+         TSEM   = TEEM - FLOAT((ISELEP(2,250)-1) * ITFLUC) * DT
+         CT     = CH1680 (' R_OX"OZ"(X)    ')
+         CALL DOBC   (KKXL,JJ2L,ILIMXP,KKXL,JJ2L,ILINTX,KANAL,MODUS,
+     $                      1      ,      1      ,      1      ,
+     $                ZSLMST,ZELMST,YSLMST,YELMST,XSLMST,XELMST,
+     $                TSEM,TEEM,DTEM,ARXOXZ ,CT)
+      ENDIF
+      IF(ISELEP(1,252) .EQ. 1  .OR.  ISELEP(1,252) .EQ. 2) THEN
+         TSEM   = TEEM - FLOAT((ISELEP(2,252)-1) * ITFLUC) * DT
+         CT     = CH1680 (' R_OY"OY"(X)    ')
+         CALL DOBC   (KKXL,JJ2L,ILIMXP,KKXL,JJ2L,ILINTX,KANAL,MODUS,
+     $                      1      ,      0      ,      1      ,
+     $                ZSLMST,ZELMST,YSLM  ,YELM  ,XSLMST,XELMST,
+     $                TSEM,TEEM,DTEM,ARXOYY ,CT)
+      ENDIF
+      IF(ISELEP(1,254) .EQ. 1  .OR.  ISELEP(1,254) .EQ. 2) THEN
+         TSEM   = TEEM - FLOAT((ISELEP(2,254)-1) * ITFLUC) * DT
+         CT     = CH1680 (' R_OY"OZ"(X)    ')
+         CALL DOBC   (KKXL,JJ2L,ILIMXP,KKXL,JJ2L,ILINTX,KANAL,MODUS,
+     $                      1      ,      1      ,      1      ,
+     $                ZSLMST,ZELMST,YSLMST,YELMST,XSLMST,XELMST,
+     $                TSEM,TEEM,DTEM,ARXOYZ ,CT)
+      ENDIF
+      IF(ISELEP(1,256) .EQ. 1  .OR.  ISELEP(1,256) .EQ. 2) THEN
+         TSEM   = TEEM - FLOAT((ISELEP(2,256)-1) * ITFLUC) * DT
+         CT     = CH1680 (' R_OZ"OZ"(X)    ')
+         CALL DOBC   (KKXL,JJ2L,ILIMXP,KKXL,JJ2L,ILINTX,KANAL,MODUS,
+     $                      0      ,      1      ,      1      ,
+     $                ZSLM  ,ZELM  ,YSLMST,YELMST,XSLMST,XELMST,
+     $                TSEM,TEEM,DTEM,ARXOZZ ,CT)
+      ENDIF
+      IF(ISELEP(1,258) .EQ. 1  .OR.  ISELEP(1,258) .EQ. 2) THEN
+         TSEM   = TEEM - FLOAT((ISELEP(2,258)-1) * ITFLUC) * DT
+         CT     = CH1680 (' R_OX"OX"(Y)    ')
+         CALL DOBC   (KKYL,JJ2L,ILIMXP,KKYL,JJ2L,ILINTY,KANAL,MODUS,
+     $                      1      ,      1      ,      0      ,
+     $                ZSLMST,ZELMST,YSLMST,YELMST,XSLM  ,XELM  ,
+     $                TSEM,TEEM,DTEM,ARYOXX ,CT)
+      ENDIF
+      IF(ISELEP(1,260) .EQ. 1  .OR.  ISELEP(1,260) .EQ. 2) THEN
+         TSEM   = TEEM - FLOAT((ISELEP(2,260)-1) * ITFLUC) * DT
+         CT     = CH1680 (' R_OX"OY"(Y)    ')
+         CALL DOBC   (KKYL,JJ2L,ILIMXP,KKYL,JJ2L,ILINTY,KANAL,MODUS,
+     $                      1      ,      1      ,      1      ,
+     $                ZSLMST,ZELMST,YSLMST,YELMST,XSLMST,XELMST,
+     $                TSEM,TEEM,DTEM,ARYOXY ,CT)
+      ENDIF
+      IF(ISELEP(1,262) .EQ. 1  .OR.  ISELEP(1,262) .EQ. 2) THEN
+         TSEM   = TEEM - FLOAT((ISELEP(2,262)-1) * ITFLUC) * DT
+         CT     = CH1680 (' R_OX"OZ"(Y)    ')
+         CALL DOBC   (KKYL,JJ2L,ILIMXP,KKYL,JJ2L,ILINTY,KANAL,MODUS,
+     $                      1      ,      1      ,      1      ,
+     $                ZSLMST,ZELMST,YSLMST,YELMST,XSLMST,XELMST,
+     $                TSEM,TEEM,DTEM,ARYOXZ ,CT)
+      ENDIF
+      IF(ISELEP(1,264) .EQ. 1  .OR.  ISELEP(1,264) .EQ. 2) THEN
+         TSEM   = TEEM - FLOAT((ISELEP(2,264)-1) * ITFLUC) * DT
+         CT     = CH1680 (' R_OY"OY"(Y)    ')
+         CALL DOBC   (KKYL,JJ2L,ILIMXP,KKYL,JJ2L,ILINTY,KANAL,MODUS,
+     $                      1      ,      0      ,      1      ,
+     $                ZSLMST,ZELMST,YSLM  ,YELM  ,XSLMST,XELMST,
+     $                TSEM,TEEM,DTEM,ARYOYY ,CT)
+      ENDIF
+      IF(ISELEP(1,266) .EQ. 1  .OR.  ISELEP(1,266) .EQ. 2) THEN
+         TSEM   = TEEM - FLOAT((ISELEP(2,266)-1) * ITFLUC) * DT
+         CT     = CH1680 (' R_OY"OZ"(Y)    ')
+         CALL DOBC   (KKYL,JJ2L,ILIMXP,KKYL,JJ2L,ILINTY,KANAL,MODUS,
+     $                      1      ,      1      ,      1      ,
+     $                ZSLMST,ZELMST,YSLMST,YELMST,XSLMST,XELMST,
+     $                TSEM,TEEM,DTEM,ARYOYZ ,CT)
+      ENDIF
+      IF(ISELEP(1,268) .EQ. 1  .OR.  ISELEP(1,268) .EQ. 2) THEN
+         TSEM   = TEEM - FLOAT((ISELEP(2,268)-1) * ITFLUC) * DT
+         CT     = CH1680 (' R_OZ"OZ"(Y)    ')
+         CALL DOBC   (KKYL,JJ2L,ILIMXP,KKYL,JJ2L,ILINTY,KANAL,MODUS,
+     $                      0      ,      1      ,      1      ,
+     $                ZSLM  ,ZELM  ,YSLMST,YELMST,XSLMST,XELMST,
+     $                TSEM,TEEM,DTEM,ARYOZZ ,CT)
+      ENDIF
+      IF(ISELEP(1,270) .EQ. 1  .OR.  ISELEP(1,270) .EQ. 2) THEN
+         TSEM   = TEEM - FLOAT((ISELEP(2,270)-1) * ITFLUC) * DT
+         CT     = CH1680 (' R_OX"OX"(Z)    ')
+         CALL DOBC   (KKZL,JJ2L,ILIMXP,KKZL,JJ2L,ILINTZ,KANAL,MODUS,
+     $                      1      ,      1      ,      0      ,
+     $                ZSLMST,ZELMST,YSLMST,YELMST,XSLM  ,XELM  ,
+     $                TSEM,TEEM,DTEM,ARZOXX ,CT)
+      ENDIF
+      IF(ISELEP(1,272) .EQ. 1  .OR.  ISELEP(1,272) .EQ. 2) THEN
+         TSEM   = TEEM - FLOAT((ISELEP(2,272)-1) * ITFLUC) * DT
+         CT     = CH1680 (' R_OX"OY"(Z)    ')
+         CALL DOBC   (KKZL,JJ2L,ILIMXP,KKZL,JJ2L,ILINTZ,KANAL,MODUS,
+     $                      1      ,      1      ,      1      ,
+     $                ZSLMST,ZELMST,YSLMST,YELMST,XSLMST,XELMST,
+     $                TSEM,TEEM,DTEM,ARZOXY ,CT)
+      ENDIF
+      IF(ISELEP(1,274) .EQ. 1  .OR.  ISELEP(1,274) .EQ. 2) THEN
+         TSEM   = TEEM - FLOAT((ISELEP(2,274)-1) * ITFLUC) * DT
+         CT     = CH1680 (' R_OX"OZ"(Z)    ')
+         CALL DOBC   (KKZL,JJ2L,ILIMXP,KKZL,JJ2L,ILINTZ,KANAL,MODUS,
+     $                      1      ,      1      ,      1      ,
+     $                ZSLMST,ZELMST,YSLMST,YELMST,XSLMST,XELMST,
+     $                TSEM,TEEM,DTEM,ARZOXZ ,CT)
+      ENDIF
+      IF(ISELEP(1,276) .EQ. 1  .OR.  ISELEP(1,276) .EQ. 2) THEN
+         TSEM   = TEEM - FLOAT((ISELEP(2,276)-1) * ITFLUC) * DT
+         CT     = CH1680 (' R_OY"OY"(Z)    ')
+         CALL DOBC   (KKZL,JJ2L,ILIMXP,KKZL,JJ2L,ILINTZ,KANAL,MODUS,
+     $                      1      ,      0      ,      1      ,
+     $                ZSLMST,ZELMST,YSLM  ,YELM  ,XSLMST,XELMST,
+     $                TSEM,TEEM,DTEM,ARZOYY ,CT)
+      ENDIF
+      IF(ISELEP(1,278) .EQ. 1  .OR.  ISELEP(1,278) .EQ. 2) THEN
+         TSEM   = TEEM - FLOAT((ISELEP(2,278)-1) * ITFLUC) * DT
+         CT     = CH1680 (' R_OY"OZ"(Z)    ')
+         CALL DOBC   (KKZL,JJ2L,ILIMXP,KKZL,JJ2L,ILINTZ,KANAL,MODUS,
+     $                      1      ,      1      ,      1      ,
+     $                ZSLMST,ZELMST,YSLMST,YELMST,XSLMST,XELMST,
+     $                TSEM,TEEM,DTEM,ARZOYZ ,CT)
+      ENDIF
+      IF(ISELEP(1,280) .EQ. 1  .OR.  ISELEP(1,280) .EQ. 2) THEN
+         TSEM   = TEEM - FLOAT((ISELEP(2,280)-1) * ITFLUC) * DT
+         CT     = CH1680 (' R_OZ"OZ"(Z)    ')
+         CALL DOBC   (KKZL,JJ2L,ILIMXP,KKZL,JJ2L,ILINTZ,KANAL,MODUS,
+     $                      0      ,      1      ,      1      ,
+     $                ZSLM  ,ZELM  ,YSLMST,YELMST,XSLMST,XELMST,
+     $                TSEM,TEEM,DTEM,ARZOZZ ,CT)
+      ENDIF
+C
+C                                  LEISTUNGSDICHTESPEKTREN DER
+C                                  FLUKTUATIONEN DER VORTICITY
+C                                  ----------------------------
+C
+      IF(ISELEP(1,282) .EQ. 1  .OR.  ISELEP(1,282) .EQ. 2) THEN
+         TSEM   = TEEM - FLOAT((ISELEP(2,282)-1) * ITFLUC) * DT
+         CT     = CH1680 (' S_OX"OX"(K_X)  ')
+         CALL DOBC   (KSXL,JJ1L,ILIMXP,KSXL,JJ1L,ILINTX,KANAL,MODUS,
+     $                      1      ,      1      ,      0      ,
+     $                ZSLMST,ZELMST,YSLMST,YELMST,XSLM  ,XELM  ,
+     $                TSEM,TEEM,DTEM,ASXOXX ,CT)
+      ENDIF
+      IF(ISELEP(1,284) .EQ. 1  .OR.  ISELEP(1,284) .EQ. 2) THEN
+         TSEM   = TEEM - FLOAT((ISELEP(2,284)-1) * ITFLUC) * DT
+         CT     = CH1680 (' S_OY"OY"(K_X)  ')
+         CALL DOBC   (KSXL,JJ1L,ILIMXP,KSXL,JJ1L,ILINTX,KANAL,MODUS,
+     $                      1      ,      0      ,      1      ,
+     $                ZSLMST,ZELMST,YSLM  ,YELM  ,XSLMST,XELMST,
+     $                TSEM,TEEM,DTEM,ASXOYY ,CT)
+      ENDIF
+      IF(ISELEP(1,286) .EQ. 1  .OR.  ISELEP(1,286) .EQ. 2) THEN
+         TSEM   = TEEM - FLOAT((ISELEP(2,286)-1) * ITFLUC) * DT
+         CT     = CH1680 (' S_OZ"OZ"(K_X)  ')
+         CALL DOBC   (KSXL,JJ1L,ILIMXP,KSXL,JJ1L,ILINTX,KANAL,MODUS,
+     $                      0      ,      1      ,      1      ,
+     $                ZSLM  ,ZELM  ,YSLMST,YELMST,XSLMST,XELMST,
+     $                TSEM,TEEM,DTEM,ASXOZZ ,CT)
+      ENDIF
+      IF(ISELEP(1,288) .EQ. 1  .OR.  ISELEP(1,288) .EQ. 2) THEN
+         TSEM   = TEEM - FLOAT((ISELEP(2,288)-1) * ITFLUC) * DT
+         CT     = CH1680 (' S_OX"OX"(K_Y)  ')
+         CALL DOBC   (KSYL,JJ1L,ILIMXP,KSYL,JJ1L,ILINTY,KANAL,MODUS,
+     $                      1      ,      1      ,      0      ,
+     $                ZSLMST,ZELMST,YSLMST,YELMST,XSLM  ,XELM  ,
+     $                TSEM,TEEM,DTEM,ASYOXX ,CT)
+      ENDIF
+      IF(ISELEP(1,290) .EQ. 1  .OR.  ISELEP(1,290) .EQ. 2) THEN
+         TSEM   = TEEM - FLOAT((ISELEP(2,290)-1) * ITFLUC) * DT
+         CT     = CH1680 (' S_OY"OY"(K_Y)  ')
+         CALL DOBC   (KSYL,JJ1L,ILIMXP,KSYL,JJ1L,ILINTY,KANAL,MODUS,
+     $                      1      ,      0      ,      1      ,
+     $                ZSLMST,ZELMST,YSLM  ,YELM  ,XSLMST,XELMST,
+     $                TSEM,TEEM,DTEM,ASYOYY ,CT)
+      ENDIF
+      IF(ISELEP(1,292) .EQ. 1  .OR.  ISELEP(1,292) .EQ. 2) THEN
+         TSEM   = TEEM - FLOAT((ISELEP(2,292)-1) * ITFLUC) * DT
+         CT     = CH1680 (' S_OZ"OZ"(K_Y)  ')
+         CALL DOBC   (KSYL,JJ1L,ILIMXP,KSYL,JJ1L,ILINTY,KANAL,MODUS,
+     $                      0      ,      1      ,      1      ,
+     $                ZSLM  ,ZELM  ,YSLMST,YELMST,XSLMST,XELMST,
+     $                TSEM,TEEM,DTEM,ASYOZZ ,CT)
+      ENDIF
+C
+C                                  HAEUFIGKEITSVERTEILUNG DER
+C                                  INKLINATIONSWINKEL DER VORTICITY-
+C                                  VEKTOREN
+C                                  ---------------------------------
+C
+      IF(ISELEP(1,306) .EQ. 1  .OR.  ISELEP(1,306) .EQ. 2) THEN
+         TSEM   = TEEM - FLOAT((ISELEP(2,306)-1) * ITFLUC) * DT
+         CT     = CH1680 (' H (ATAN(OZ/OY))')
+         CALL DOBC   (KH0L,JJ2L,ILIMXP,KH0L,JJ2L,ILINT0,KANAL,MODUS,
+     $                      1      ,      1      ,      1      ,
+     $                ZSLMST,ZELMST,YSLMST,YELMST,XSLMST,XELMST,
+     $                TSEM,TEEM,DTEM,AHOZOY ,CT)
+      ENDIF
+      IF(ISELEP(1,308) .EQ. 1  .OR.  ISELEP(1,308) .EQ. 2) THEN
+         TSEM   = TEEM - FLOAT((ISELEP(2,308)-1) * ITFLUC) * DT
+         CT     = CH1680 (' H (ATAN(OZ/OX))')
+         CALL DOBC   (KH0L,JJ2L,ILIMXP,KH0L,JJ2L,ILINT0,KANAL,MODUS,
+     $                      1      ,      1      ,      1      ,
+     $                ZSLMST,ZELMST,YSLMST,YELMST,XSLMST,XELMST,
+     $                TSEM,TEEM,DTEM,AHOZOX ,CT)
+      ENDIF
+      IF(ISELEP(1,310) .EQ. 1  .OR.  ISELEP(1,310) .EQ. 2) THEN
+         TSEM   = TEEM - FLOAT((ISELEP(2,310)-1) * ITFLUC) * DT
+         CT     = CH1680 (' H (ATAN(OY/OX))')
+         CALL DOBC   (KH0L,JJ2L,ILIMXP,KH0L,JJ2L,ILINT0,KANAL,MODUS,
+     $                      1      ,      1      ,      1      ,
+     $                ZSLMST,ZELMST,YSLMST,YELMST,XSLMST,XELMST,
+     $                TSEM,TEEM,DTEM,AHOYOX ,CT)
+      ENDIF
+C
+      RETURN
+      END

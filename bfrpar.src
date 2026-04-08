@@ -1,0 +1,137 @@
+      SUBROUTINE BFRPAR (KMX,JMX,IMX,     
+     $                   U,V,W,P,G,UFR,VFR,WFR,PFR,GFR,
+     $                   JSTART,JSTOP,KSTART,KSTOP,
+     $                   ITYP,IRB,JRB,KRB
+#ifdef _TSCAL_
+     $                   ,T
+#endif
+     $                   )      
+C*MGLET*****************************************************************
+C        B F R P A R    SETZEN DER RANDBEDINGUNGEN FUER DIE
+C                         GESCHWINDIGKEITSFELDER. AUS PARENT-GITTERN
+C*MGLET*****************************************************************
+C
+C PARAM: 
+C        KMX, JMX, IMX  - DIMENSIONEN DES GITTERS 
+C        U(KMX,JMX,IMX) + GESCHWINDIGKEITSFELD
+C        V(KMX,JMX,IMX) + GESCHWINDIGKEITSFELD
+C        W(KMX,JMX,IMX) + GESCHWINDIGKEITSFELD
+C        T(KMX,JMX,IMX) + SCALAR T FIELD
+C        P(KMX,JMX,IMX) - DRUCKFELD
+C        G(KMX,JMX,IMX) - EFFEKTIVE DYNAMISCHE VISKOSITAET (= MUE)
+C        ...N           - ENTSPRECHENDE GROESSE AUS DEM NACHBARGITTER
+C        JSTART,JSTOP
+C        KSTART,KSTOP   - BEREICH IN DEM RANDBEDINGUNG GESETZT WIRD
+C        IPOS,JPOS,KPOS - POSITION IM NACHBARGITTER, AUF DER DER PUNKT
+C                         MIT DEN INDIZES (3,3,3) ZU LIEGEN KOMMT
+C        ITYP           - HOLLERITH-KONSTANTE:
+C                         'P'  VOR DER DRUCKKORREKTUR
+C                         'T'  VOR DEM ZEITSCHRITT
+C        IRB            - INTEGER-KENNZAHL I-RICHTUNG RED-BLACK
+C        JRB            - INTEGER-KENNZAHL J-RICHTUNG RED-BLACK
+C        KRB            - INTEGER-KENNZAHL K-RICHTUNG RED-BLACK
+C        IGRID          - GITTER, FUER DAS DIE RANDBEDINGUNG GESETZT WIRD
+C        INBR           - GITTER, AUS DEM DIE RANDBEDINGUNG KOMMT
+C
+C VERS:  27.07.95 (MM)  : ORIGINAL AUS BBACON ABGELEITET
+C        15.12.98 (AM)    SETZEN DER WERTE AUS BUFFERN UBA,VBA...
+C        28.02.03 (TB)  : SCALAR BOUNDARY TREATMENT IMPLEMENTED
+C
+C
+C*MGLET*****************************************************************
+C
+C
+      CHARACTER (LEN=1)  ITYP
+C
+      REAL
+     $    U(KMX,JMX,IMX),   V(KMX,JMX,IMX),   W(KMX,JMX,IMX),
+     $    P(KMX,JMX,IMX),   G(KMX,JMX,IMX)
+      REAL
+     $     UFR(KMX,JMX,2),  VFR(KMX,JMX,2),  WFR(KMX,JMX,2),
+     $     PFR(KMX,JMX,2),  GFR(KMX,JMX,2)
+#ifdef _TSCAL_
+      REAL T(KMX,JMX,IMX),TFR(KMX,JMX, 2 )
+#endif
+C
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
+C
+      IM1 = IMX-1
+      IM2 = IMX-2
+      IM3 = IMX-3
+C
+C
+C                         FINE-GRID: I-INDEX= IMX - 1 (BACK)
+               IIF = IMX - 1
+C                         I-INDEX OF COARSE-GRID
+C                                   (=PARENT, CALLED NEIGHBOUR)
+C INDEX OF PARENT:               IC = IPOS - 1 + (IF-1)/2
+C INDEX IN BUFFER:
+                         IC = 1
+C
+C
+C                                 FUER ZEITSCHRITT
+C                                 NORMALKOMPONENTE WIRD EINEN INDEX
+C                                 AUSSERHALB  GESETZT
+      IF (ITYP.EQ.'T') THEN
+
+         DO J=JSTART,JSTOP
+         DO K=KSTART,KSTOP
+
+               U(K,J,1)   = UFR(K,J,1)
+               U(K,J,2)   = UFR(K,J,1)
+               V(K,J,2)   = VFR(K,J,1)
+               W(K,J,2)   = WFR(K,J,1)
+               P(K,J,2)   = PFR(K,J,1)
+               G(K,J,2)   = GFR(K,J,1)
+#ifdef _TSCAL_
+               T(K,J,1)   = TFR(K,J,1)
+#endif               
+
+
+#ifdef _QUD_
+C                                   FALLS QUADRATIC UPSTREAM
+C
+               CALL ERRR (587,'BFRPAR ')
+
+               U(K,J,IMX) = UN(KN,JN,IN+1)
+               V(K,J,IMX) = VN(KN,JN,IN+1)
+               W(K,J,IMX) = WN(KN,JN,IN+1)
+               P(K,J,IMX) = PN(KN,JN,IN+1)
+               G(K,J,IMX) = GN(KN,JN,IN+1)
+#ifdef _TSCAL_
+               T(K,J,IMX) = TN(KN,JN,IN+1)
+#endif               
+#endif
+
+         ENDDO
+         ENDDO
+C
+C                                 FUER DRUCKKORREKTUR
+C                                 NUR NORMALKOMPONENTE MUSS GESETZT
+C                                 WERDEN
+       ELSEIF (ITYP.EQ.'P') THEN
+
+#ifndef _BAPAR_FIXED_
+C                   NORMAL-KOMPONENT MUST NOT BE SET
+C                   BECAUSE PRESSURE IN THE BOUNDARY-CELLS
+C                   IS NOT MODIFIED, SO NORMAL-KOMPONENTS MUST
+C                   BE ABLE TO DEVELOP FREELY
+               RETURN
+#endif
+
+         DO J=JSTART,JSTOP
+         DO K=KSTART,KSTOP
+
+                U(K,J,1) = UFR(K,J,1)
+
+         ENDDO
+         ENDDO
+C
+       ELSE
+                CALL ERRR (501,' BBAPAR')
+       ENDIF
+
+
+      RETURN
+      END
+

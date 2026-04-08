@@ -1,0 +1,180 @@
+      SUBROUTINE INTERUX_PER(KK,JJ,II,KSTART,JSTART,ISTART,
+     $     KSTOP,JSTOP,ISTOP,RSGS,U,UINI,LCOL,DIAG,RCOL,UZ,RSP)
+C*MGLET***************************************************************
+C        I N T E R U X P E R
+C                  = =
+C        INTERPOLIERT U IN X-RICHTUNG (UINI) PERIODISCHE RB
+C*MGLET***************************************************************
+C
+C PARAM: U(K,J,I)         - ZU INTERPOLIERENDE GROESSE(U)
+C      : UINI(K,J,I)      - INTERPOLIERTE U IN I(X)-RICHTUNG
+C
+C DEFINE DIREKTIVEN     : KEINE 
+C
+C UPROG                 : TRIZYK3D
+C
+C VERS:  07.06.97 (AM)  : ORIGINAL        (KOMPAKT 4. ORDNUNG)
+C
+C*MGLET***************************************************************
+C
+      IMPLICIT NONE
+
+      INTEGER KK,JJ,II,K,J,I,KSTART,JSTART,ISTART,KSTOP,JSTOP,ISTOP
+
+      REAL       LCOL(II),DIAG(II),RCOL(II),UZ(II),RSP(II),
+     $           U(KK,JJ,II),UINI(KK,JJ,II),RSGS(KK,JJ,II)
+C
+C
+C
+
+#if defined _KOMXK_
+
+#if !defined _6TH_KOBAYASHI_ 
+
+#if !defined _4TH_KOBAYASHI_ 
+
+       DO I = ISTART+1, ISTOP
+
+         LCOL(I) = 1./6.
+         DIAG(I) = 1.
+         RCOL(I) = 1./6.
+         UZ (I) = 1./6.
+         RSP(I) = 1./6.
+
+         DO J = JSTART, JSTOP
+            DO K = KSTART, KSTOP
+               RSGS(K,J,I) = (2./3.)*(U(K,J,I) + U(K,J,I-1))
+            ENDDO
+         ENDDO
+      ENDDO
+
+       CALL TRIZYK3D (KK,JJ,II,KSTART,KSTOP,JSTART,JSTOP,
+     & ISTART+1,ISTOP,LCOL,DIAG,RCOL,UZ,RSP,RSGS,UINI)
+
+       DO J = JSTART, JSTOP
+          DO K = KSTART, KSTOP
+             UINI (K,J,ISTART) = UINI (K,J,ISTOP)
+             UINI (K,J,ISTOP+1) = UINI (K,J,ISTART+1)
+          ENDDO
+       ENDDO
+       
+#else 
+
+      DO I = ISTART+1, ISTOP
+
+         LCOL(I) = 1./4.
+         DIAG(I) = 1.
+         RCOL(I) = 1./4.
+         UZ (I) = 1./4.
+         RSP(I) = 1./4.
+
+         DO J = JSTART, JSTOP
+            DO K = KSTART, KSTOP
+               RSGS(K,J,I) = (3./4.)*(U(K,J,I) + U(K,J,I-1))
+            ENDDO
+         ENDDO
+      ENDDO
+
+       CALL TRIZYK3D (KK,JJ,II,KSTART,KSTOP,JSTART,JSTOP,
+     & ISTART+1,ISTOP,LCOL,DIAG,RCOL,UZ,RSP,RSGS,UINI)
+
+       DO J = JSTART, JSTOP
+          DO K = KSTART, KSTOP
+             UINI (K,J,ISTART) = UINI (K,J,ISTOP)
+             UINI (K,J,ISTOP+1) = UINI (K,J,ISTART+1)
+          ENDDO
+       ENDDO
+#endif
+#endif       
+#endif
+
+#if defined _KOMXK6O_
+C
+       DO  K = KSTART, KSTOP
+       DO  J = JSTART, JSTOP
+       U(K,J,ISTART-1) = U(K,J,ISTOP-1 )
+       U(K,J,ISTOP+1 ) = U(K,J,ISTART+1)
+       ENDDO
+       ENDDO
+C
+       DO 20 I = ISTART+1, ISTOP
+C
+         LCOL(I) = 3./10.
+         DIAG(I) = 1.
+         RCOL(I) = 3./10.
+         UZ (I)  = 3./10.
+         RSP(I)  = 3./10.
+C
+       DO 30 J = JSTART, JSTOP
+       DO 40 K = KSTART, KSTOP
+C
+         RSGS(K,J,I) = (3./4.)*(U(K,J,I) + U(K,J,I-1)) + 
+     $                 (1./20.)*(U(K,J,I+1) + U(K,J,I-2))
+C
+   40  CONTINUE
+   30  CONTINUE
+   20  CONTINUE
+C
+       CALL TRIZYK3D (KK,JJ,II,KSTART,KSTOP,JSTART,JSTOP,ISTART+1,
+     $                ISTOP,LCOL,DIAG,RCOL,UZ,RSP,RSGS,UINI)
+C
+C
+       DO 300 J = JSTART, JSTOP
+       DO 400 K = KSTART, KSTOP
+       UINI (K,J,ISTART)  = UINI (K,J,ISTOP)
+       UINI (K,J,ISTOP+1) = UINI (K,J,ISTART+1)
+  400  CONTINUE
+  300  CONTINUE
+
+
+#endif
+#if defined _KOMXK8O_
+C
+       DO  K = KSTART, KSTOP
+       DO  J = JSTART, JSTOP
+       U(K,J,ISTART-1) = U(K,J,ISTOP-1 )
+       U(K,J,ISTART-2) = U(K,J,ISTOP-2 )
+       U(K,J,ISTOP+1 ) = U(K,J,ISTART+1)
+       U(K,J,ISTOP+2 ) = U(K,J,ISTART+2)
+       ENDDO
+       ENDDO
+C
+       DO 20 I = ISTART+1, ISTOP
+C
+         LCOL(I) = 5./14.
+         DIAG(I) = 1.
+         RCOL(I) = 5./14.
+         UZ (I)  = 5./14.
+         RSP(I)  = 5./14.
+C
+       DO 30 J = JSTART, JSTOP
+       DO 40 K = KSTART, KSTOP
+C
+         RSGS(K,J,I) = (12.5/16.) *(U(K,J,I) + U(K,J,I-1)) +
+     $                 (17.5/224.)*(U(K,J,I+1) + U(K,J,I-2)) -
+     $                 (1./448.)  *(U(K,J,I+2) + U(K,J,I-3))
+C
+   40  CONTINUE
+   30  CONTINUE
+   20  CONTINUE
+C
+       CALL TRIZYK3D (KK,JJ,II,KSTART,KSTOP,JSTART,JSTOP,ISTART+1,
+     $                ISTOP,LCOL,DIAG,RCOL,UZ,RSP,RSGS,UINI)
+C
+C
+       DO 300 J = JSTART, JSTOP
+       DO 400 K = KSTART, KSTOP
+       UINI (K,J,ISTART)  = UINI (K,J,ISTOP)
+       UINI (K,J,ISTOP+1) = UINI (K,J,ISTART+1)
+  400  CONTINUE
+  300  CONTINUE
+
+
+#endif
+C
+C
+C*MGLET***************************************************************
+C
+       RETURN
+       END
+

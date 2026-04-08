@@ -1,0 +1,81 @@
+      SUBROUTINE BLENOS (KMX,JMX,IMX,
+     $                    U,V,W,P,G,
+     $                    ISTART,ISTOP,KSTART,KSTOP,ITYP)
+C*STARLET***************************************************************
+C        B L E N O S    SETZEN DER RANDBEDINGUNGEN FUER DIE
+C                         GESCHWINDIGKEITSFELDER.
+C                         (LARGE-EDDY-SIMULATION)
+C*STARLET***************************************************************
+C
+C PARAM: 
+C        KMX, JMX, IMX  - DIMENSIONEN DES GITTERS 
+C        U(KMX,JMX,IMX) + GESCHWINDIGKEITSFELD
+C        V(KMX,JMX,IMX) + GESCHWINDIGKEITSFELD
+C        W(KMX,JMX,IMX) + GESCHWINDIGKEITSFELD
+C        P(KMX,JMX,IMX) - DRUCKFELD
+C        G(KMX,JMX,IMX) - EFFEKTIVE DYNAMISCHE VISKOSITAET (= MUE)
+C        ITYP           - HOLLERITH-KONSTANTE:
+C                         'P'  VOR DER DRUCKKORREKTUR
+C                         'T'  VOR DEM ZEITSCHRITT
+C
+C VERS:   8. 3.93 (MM)  : ORIGINAL
+C                         AUS BLFTLE (BLFTL) ABGELEITET
+C        11.08.03 (TB)  : SIPITER IMPLEMENTED
+C
+C DEFINE-DIREKTIVEN     : QUD 
+C
+C*STARLET***************************************************************
+C
+#include "konsta.h"
+C
+      CHARACTER (LEN=1)  ITYP
+C
+      REAL
+     $            U(KMX,JMX,IMX),   V(KMX,JMX,IMX),   W(KMX,JMX,IMX),
+     $            P(KMX,JMX,IMX),   G(KMX,JMX,IMX)
+C
+C
+      JM1 = JMX-1
+      JM2 = JMX-2
+      JM3 = JMX-3
+C
+C                                 **************************************
+C                                 REIBUNGSBEHAFTETE, UNDURCHLAESSIGE WAN
+C                                 **************************************
+C
+C
+         DO I=ISTART,ISTOP
+         DO K=KSTART,KSTOP
+
+               U(K,JM1,I) = 0.0
+               V(K,JM2,I) = 0.0
+               W(K,JM1,I) = 0.0
+#ifdef _POISSONITER_
+               P(K,JM1,I) = P(K,JM2,I)
+#else
+               P(K,JM1,I) = 0.0
+#endif
+               G(K,JM1,I) = -SMALL
+
+         ENDDO
+         ENDDO
+
+
+#ifdef _QUD_
+
+         DO I=ISTART,ISTOP
+         DO K=KSTART,KSTOP
+
+               U(K,JMX,I) = 0.0
+               V(K,JM1,I) = 0.0
+               W(K,JMX,I) = 0.0
+
+         ENDDO
+         ENDDO
+
+#endif
+
+      RETURN
+      END
+
+

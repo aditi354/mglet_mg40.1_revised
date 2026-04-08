@@ -1,0 +1,64 @@
+C#ifdef _TSCAL_
+      SUBROUTINE BLESCA (KMX,JMX,IMX,
+     $                    T,TSCALE,
+     $                    ISTART,ISTOP,KSTART,KSTOP,ITYP)
+C*STARLET***************************************************************
+C        B L E S C A     SETTING SCALAR BOUNDARY CONDITION FIXED-SCALAR
+C*STARLET***************************************************************
+C
+C PARAM: 
+C        KMX, JMX, IMX  - DIMENSIONEN DES GITTERS 
+C        T(KMX,JMX,IMX) + SCALAR T FIELD
+C        ITYP           - HOLLERITH-KONSTANTE:
+C                         'P'  VOR DER DRUCKKORREKTUR
+C                         'T'  VOR DEM ZEITSCHRITT
+C
+C VERS:  28.02.03 (TB)  : ORIGINAL
+C
+C DEFINE-DIREKTIVEN     : QUD 
+C
+C*STARLET***************************************************************
+C
+#include "konsta.h"
+C
+      CHARACTER (LEN=1)  ITYP
+C
+      REAL      T(KMX,JMX,IMX)
+C
+C
+      JM1 = JMX-1
+      JM2 = JMX-2
+      JM3 = JMX-3
+C
+C                                 **************************************
+C                                 FIXED SCALAR-CONDITION AT RIGHT
+C                                 **************************************
+C
+C
+C                                 FUER ZEITSCHRITT
+      IF (ITYP.EQ.'T') THEN
+
+         DO I=ISTART,ISTOP
+         DO K=KSTART,KSTOP
+
+            T(K,JM1,I) = TSCALE
+
+         ENDDO
+         ENDDO
+
+
+#ifdef _QUD_
+
+         DO I=ISTART,ISTOP
+         DO K=KSTART,KSTOP
+
+            T(K,JMX,I) = TSCALE
+
+         ENDDO
+         ENDDO
+
+#endif
+      ENDIF
+      END
+C#endif
+

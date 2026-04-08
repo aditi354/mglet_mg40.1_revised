@@ -1,0 +1,62 @@
+      SUBROUTINE BL_DIAGNOSE (KK,JJ,II,NBND,U,Z,ZBANF,DELTA,UTAU,UMAX)
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
+C
+C     Calculation of boundary layer thickness and utau
+C
+C     VERSION VOM 23.3.1998 (MM) 
+C                          II and JJ are assumed to be 1
+C
+CCCCC CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC72
+
+      REAL U(KK,JJ,II)
+      REAL Z(KK)
+
+C---- --------------------  CHECK OF THE DIMENSIONS
+
+      IF (JJ .NE. 1) CALL ERRR (501,"BL_DIAGNOSE")
+      IF (II .NE. 1) CALL ERRR (502,"BL_DIAGNOSE")
+
+C---- --------------------  Search of the maximum
+
+      UMAX = -100000
+
+      DO K=NBND+1,KK-NBND
+         UMAX = MAX(UMAX,U(K,1,1))
+      ENDDO
+
+      U995 = 0.995*UMAX
+
+C---- -------------------- SEARCH OF THE 99.5%-POSITION
+
+      DO K=NBND+1,KK-NBND
+         IF ( U(K,1,1) .GT. U995 .AND. U(K-1,1,1) .LE. U995 ) THEN
+            DELTA = Z(K-1) +
+     $           (Z(K)-Z(K-1))*(U995-U(K-1,1,1))/(U(K,1,1)-U(K-1,1,1))
+            GOTO 999
+         ENDIF
+      ENDDO
+
+  999 CONTINUE
+
+C---- -------------------- CALCULATION OF UTAU
+
+      DO K=NBND+1,KK-NBND
+         IF (Z(K) .GT. ZBANF) THEN
+C                                                   FUNCTION UTAU ASSUMES
+C                                                   THAT DDS IS TWO TIMES
+C                                                   THE WALL DISTANCE OF THE
+C                                                   DEFINITION POINT
+            UTAU = UTAUP (U(K,1,1),2.0*(Z(K)-ZBANF))
+            write (6,*) "utaup",utau,U(K,1,1),Z(K)-ZBANF
+            GOTO 998
+         ENDIF
+      ENDDO
+
+  998 CONTINUE
+
+C---- -------------------- CHECK-OUTPUT
+
+
+      RETURN
+      END
+

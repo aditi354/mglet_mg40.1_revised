@@ -1,0 +1,47 @@
+      SUBROUTINE SLICE1D (IIP,XP,IIS,XS,IPOS,CS,CSI)
+C
+C*MGLET*****************************************************************
+C  S L I C E 1 D      GEBIETSZERLEGUNG VON 1D-FELDERN
+C
+C   ORIGINAL:   11. 2. 94 (MM)
+C
+C*MGLET*****************************************************************
+C
+C  PARAMETER
+C             IIP            - DIMENSIONIERUNG DES PARENT
+C              XP            - 1D-FELD DES PARENT
+C
+C             IIS            - DIMENSIONIERUNG DES SUBGITTERS
+C              XS            - 1D-FELD DES SUBGITTERS
+C
+C            IPOS            - POSITION DES SUBGITTERS IM PARENTGITTER
+C
+C************************************************************************
+C
+      REAL XP(IIP)
+      REAL XS(IIS)
+
+      CHARACTER (LEN=1) CS,CSI
+C
+C-------------------------------------------------- CHECK AUF KONSISTENZ
+C
+      IF ( IIP .LT. IIS ) CALL ERRR (501,'SLICE1D')
+C
+C----------------------------------------------- SETZEN DER GITTERPUNKTE
+C
+      DO IS = 1,IIS
+
+         XS(IS) = XP(IS+IPOS-3)
+
+      ENDDO
+
+C
+C------------------------------------------------------------
+C
+C
+C----------------------------------------------------------------
+C
+      RETURN
+      END
+
+

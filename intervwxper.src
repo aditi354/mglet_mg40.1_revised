@@ -1,0 +1,62 @@
+      SUBROUTINE INTERVWX_PER(KK,JJ,II,KSTART,JSTART,ISTART,KSTOP,JSTOP,
+     $                   ISTOP,COEFFX,RSGS,F,FINI,LCOL,DIAG,RCOL,UZ,RSP)
+C*MGLET***************************************************************
+C        I N T E R V W X P E R
+C                  = = =
+C        INTERPOLIERT F IN X-RICHTUNG (VINI,WINI) PERIODISCHE RB
+C*MGLET***************************************************************
+C
+C PARAM: F(K,J,I)       - ZU INTERPOLIERENDE GROESSE(V,W)
+C      : FINI (K,J,I)   - INTERPOLIERTE V und W IN I(X)-RICHTUNG
+C
+C      : COEFFX(I,1)    - ENTHAELT KOEFFIZIENTEN DER "LINKEN SPALTE"
+C                         PARALLEL ZUR HAUPTDIAGONALEN
+C      : COEFFX(I,2)    - ENTHAELT KOEFFIZIENTEN DER HAUPTDIAGONALEN
+C      : COEFFX(I,3)    - ENTHAELT KOEFFIZIENTEN DER "RECHTEN SPALTE"
+C                         PARALLEL ZUR HAUPTDIAGONALEN
+C      : COEFFX(I,4),   - KOEFFIZIENTEN AUF DER RECHTEN SEITE DES 
+C        COEFFX(I,5),     GLEICHUNGSSYSTEMS
+C        COEFFX(I,6)
+C
+C DEFINIE DIREKTIVEN     : KEINE 
+C
+C UPROG                 : TRIZYK
+C
+C VERS:  07.10.97 (AM)  : ORIGINAL        (KOMPAKT 4. ORDNUNG)
+C
+C*MGLET***************************************************************
+C
+
+      REAL       LCOL(II),DIAG(II),RCOL(II),UZ(II),RSP(II),
+     $           F(KK,JJ,II),FINI(KK,JJ,II),COEFFX(ISTART:ISTOP+1,12),
+     $           RSGS(KK,JJ,II)
+C
+       DO 30 J = JSTART, JSTOP
+       DO 40 K = KSTART, KSTOP
+C
+C                                     KOMPAKTER ANSATZ IM GEBIET
+ 	 DO 20 I = ISTART, ISTOP+1
+C
+         RSGS(K,J,I) = (2./3.) * (F(K,J,I) + F(K,J,I-1))
+C
+	 LCOL(I) = 1./6.       
+	 DIAG(I) = 1.          
+	 RCOL(I) = 1./6.       
+C
+   20    CONTINUE                
+
+       UZ (1) = 1./6.
+       RSP(1) = 1./6.
+
+C
+       CALL TRIZYK (II,ISTART,ISTOP+1,LCOL,DIAG,RCOL,
+     $              RSGS(K,J,1),FINI(K,J,1),UZ,RSP)
+
+   40  CONTINUE                
+   30  CONTINUE                
+C
+C*MGLET***************************************************************
+C
+       RETURN
+       END
+

@@ -1,0 +1,352 @@
+      SUBROUTINE BLOCKBP (
+     $             DDX,DDY,DDZ,
+     $             DX,DY,DZ,
+     $             X,Y,Z,
+     $             BP, HILF,
+     $     IDIM3D,IDIM2D,IDIM1D)
+
+C*MGLET*****************************************************************
+C   B L O C K B P    BELEGT DAS KOERPERERKENNUNGSFELD BEI FREDBODY
+C                    (BP-FELD)
+C*MGLET*****************************************************************
+C
+C  KREUZINGER UND MANHART TURBULENZ GmbH
+C  JK      11. 8.2005
+C
+C  PARAMETER
+C             X              - KOORDINATEN IN X-RICHTUNG
+C             Y              - KOORDINATEN IN Y-RICHTUNG
+C             Z              - KOORDINATEN IN Z-RICHTUNG
+C             DDX            - X-KANTENLAENGE DER KONTROLLVOLUMINA
+C             DDY            - Y-KANTENLAENGE DER KONTROLLVOLUMINA
+C             DDZ            - Z-KANTENLAENGE DER KONTROLLVOLUMINA
+C             DX             - X-ABSTAND DER GITTERPUNKTE
+C             DY             - Y-ABSTAND DER GITTERPUNKTE
+C             BP             - BLOCKINGFELD FUER DEN DRUCK
+C             HILF           - HILFSFELD          
+C             IDIM3D,IDIM2D,IDIM1D - DIMENSIONIERUNGEN
+C
+C***********************************************************************
+
+#include "mgpar.h"
+#include "comgrid.h"
+#include "colevel.h"
+#include "cogrdcon.h"
+#include "cogrdpro.h"
+#ifdef _MPI_
+C
+C               MPI-INCLUDE
+C
+#include "compi.h"
+#include "mpif.h"
+#endif
+
+      REAL        X(IDIM1D),         Y(IDIM1D),         Z(IDIM1D),
+     $           DX(IDIM1D),        DY(IDIM1D),        DZ(IDIM1D),
+     $          DDX(IDIM1D),       DDY(IDIM1D),       DDZ(IDIM1D),
+     $          BP( IDIM3D ),   HILF( IDIM3D ),
+     $          NSINGLE, NALL
+C
+
+C SCHLEIFE UEBER ALLE NEUEN GITTER, BZW. DEREN SLICES
+      DO IGRID=NGRDOLD+1,NGRDDFD
+      DO ISUB = 1,MAX(1,NOFSLCHILDS(IGRID))
+         IF (LSLICE(IGRID)) THEN
+            IGRIDNUM = IGRDOFSLCHILD(ISUB,IGRID)
+         ELSE
+            IGRIDNUM = IGRID
+         ENDIF
+#ifdef _MPI_
+         IPROC  = IDPROCOFGRD(IGRIDNUM)
+         IPPAR  = IDPROCOFGRD(IPARENT(IGRIDNUM))
+#else
+         MYID   = 0
+         IPROC  = 0
+         IPPAR  = 0
+#endif
+         IF(MYID .EQ. IPROC) THEN
+            write(*,*) 'BLOCKBP: FIND CELLS INTERSECTED BY TRIANGLES'
+            write(*,*) 'BLOCKBP: IGRIDNUM',IGRIDNUM
+            CALL MGPOINT (IP3,IP2,IP1,IBB,IB3,IBU,IGRIDNUM)
+            CALL MGDIMS  (KK,JJ,II,IGRIDNUM)
+            CALL MGBASB(NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB,IGRIDNUM)
+C  hier werden die einzelnen Gitter bearbeitet, ANFANG               
+C           Feld umspeichern : KJI -> IJK
+            DO K=1,KK
+            DO J=1,JJ
+            DO I=1,II
+               HILF(IP3-1 + I + II*(J-1) + II*JJ*(K-1))
+     $              = BP(IP3-1 + K + KK*(J-1) + KK*JJ*(I-1))
+            ENDDO
+            ENDDO
+            ENDDO
+C     call bp fuer einen Prozessor (BP(IP3), Koordinaten(IP1), KK,JJ,II)
+            CALL BLOCKGRID(II,JJ,KK,0,X(IP1),Y(IP1),Z(IP1),
+     $           DX(IP1),DY(IP1),DZ(IP1),
+     $           DDX(IP1),DDY(IP1),DDZ(IP1),
+     $           IGRIDNUM,NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,
+     $           HILF(IP3),-1)
+
+C           Feld umspeichern : IJK -> KJI
+            DO K=1,KK
+            DO J=1,JJ
+            DO I=1,II
+               BP(IP3-1 + K + KK*(J-1) + KK*JJ*(I-1))
+     $              = HILF(IP3-1 + I + II*(J-1) + II*JJ*(K-1))
+            ENDDO
+            ENDDO
+            ENDDO
+
+            rmeanbp = 0.0
+            do I = 1,II*JJ*KK
+               rmeanbp = rmeanbp + abs(BP(IP3-1+I))
+            enddo
+            rmeanbp = rmeanbp/(II*JJ*KK)
+            write(*,*) 'BLOCKBP rmeanbp A',rmeanbp,IGRIDNUM
+C  einzelne Gitter, ENDE
+         ENDIF
+      ENDDO
+      ENDDO              
+
+      IF (NGRDOLD.LT.NGRDDFD) THEN
+
+      DO ILOOP = 1,10
+C tausche BP Randschichten aus, damit Fuellalgorithmus ueber 
+C Gittergrenzen wirken kann 
+         write(*,*) 'BLOCKBP: ADDITIONAL BLOCKING'
+         write(*,*) 'BLOCKBP: LOOP',ILOOP
+         DO ILEVEL = MINLEVEL,MAXLEVEL
+#ifdef _MPI_
+         CALL MPI_BARRIER (MPI_COMM_WORLD,IERR)
+#endif
+
+            CALL CONFROMGBP 
+     $           (IDIM3D,IDIM2D,IDIM1D,
+     $           X,Y,Z,DX,DY,DZ,DDX,DDY,DDZ,
+     $           BP,
+     $           NOFTST(ILEVEL),IGRDOFTST(1,ILEVEL))
+            CALL CONBACMGBP 
+     $           (IDIM3D,IDIM2D,IDIM1D,
+     $           X,Y,Z,DX,DY,DZ,DDX,DDY,DDZ,
+     $           BP,
+     $           NOFTST(ILEVEL),IGRDOFTST(1,ILEVEL))
+            CALL CONRGTMGBP 
+     $           (IDIM3D,IDIM2D,IDIM1D,
+     $           X,Y,Z,DX,DY,DZ,DDX,DDY,DDZ,
+     $           BP,
+     $           NOFTST(ILEVEL),IGRDOFTST(1,ILEVEL))
+            CALL CONLFTMGBP 
+     $           (IDIM3D,IDIM2D,IDIM1D,
+     $           X,Y,Z,DX,DY,DZ,DDX,DDY,DDZ,
+     $           BP,
+     $           NOFTST(ILEVEL),IGRDOFTST(1,ILEVEL))
+         END DO
+
+#ifdef _MPI_
+         CALL MPI_BARRIER (MPI_COMM_WORLD,IERR)
+#endif
+
+
+C Schleife ueber alle feinen Gitter, 
+C ob Fuellalgorithmus nochmal aktiv war
+         NSINGLE = 0.0
+         NALL = 0.0
+         DO IGRID=NGRDOLD+1,NGRDDFD
+         DO ISUB = 1,MAX(1,NOFSLCHILDS(IGRID))
+            IF (LSLICE(IGRID)) THEN
+               IGRIDNUM = IGRDOFSLCHILD(ISUB,IGRID)
+            ELSE
+               IGRIDNUM = IGRID
+            ENDIF
+#ifdef _MPI_
+            IPROC  = IDPROCOFGRD(IGRIDNUM)
+            IPPAR  = IDPROCOFGRD(IPARENT(IGRIDNUM))
+#else
+            MYID   = 0
+            IPROC  = 0
+            IPPAR  = 0
+#endif
+            IF(MYID .EQ. IPROC) THEN
+C     hier werden die einzelnen Gitter bearbeitet, ANFANG               
+            CALL MGPOINT (IP3,IP2,IP1,IBB,IB3,IBU,IGRIDNUM)
+            CALL MGDIMS  (KK,JJ,II,IGRIDNUM)
+            CALL MGBASB(NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB,IGRIDNUM)
+
+            rmeanbp = 0.0
+            do I = 1,II*JJ*KK
+               rmeanbp = rmeanbp + abs(BP(IP3-1+I))
+            enddo
+            rmeanbp = rmeanbp/(II*JJ*KK)
+            write(*,*) 'BLOCKBP rmeanbp B',rmeanbp,IGRIDNUM
+
+            DO K = 3,KK-2
+               DO J = 3,JJ-2
+                  I = 2
+                  IF ((BP(IP3-1+K+KK*(J-1)+KK*JJ*(I-1)) .EQ. 1)
+     $                 .AND. (BP(IP3-1+K+KK*(J-1)+KK*JJ*(I)) .EQ. 0))
+     $                 THEN
+                     NSINGLE = NSINGLE + 1.0
+C                     write(*,*) 'BBB',IGRIDNUM, I,J,K
+                  END IF
+
+                  I = II-2
+                  IF ((BP(IP3-1+K+KK*(J-1)+KK*JJ*(I-1)) .EQ. 0)
+     $                 .AND. (BP(IP3-1+K+KK*(J-1)+KK*JJ*(I)) .EQ. 1))
+     $                 THEN
+                     NSINGLE = NSINGLE + 1.0
+C                     write(*,*) 'BBB',IGRIDNUM, I,J,K
+                  END IF
+               ENDDO
+            ENDDO
+            DO K = 3,KK-2
+               DO I = 3,II-2
+                  J = 2
+                  IF ((BP(IP3-1+K+KK*(J-1)+KK*JJ*(I-1)) .EQ. 1)
+     $                 .AND. (BP(IP3-1+K+KK*(J)+KK*JJ*(I-1)) .EQ. 0))
+     $                 THEN
+                     NSINGLE = NSINGLE + 1.0
+C                     write(*,*) 'BBB',IGRIDNUM, I,J,K
+                  END IF
+                  J = JJ-2
+                  IF ((BP(IP3-1+K+KK*(J-1)+KK*JJ*(I-1)) .EQ. 0)
+     $                 .AND. (BP(IP3-1+K+KK*(J)+KK*JJ*(I-1)) .EQ. 1))
+     $                 THEN
+                     NSINGLE = NSINGLE + 1.0
+C                     write(*,*) 'BBB',IGRIDNUM, I,J,K
+                  END IF
+               ENDDO
+            ENDDO
+
+C  auskommentiert, da CONNECT in z-Richtung nicht implementiert
+C            DO J = 3,JJ-2
+C               DO I = 3,II-2
+C                  K = 2
+C                  IF ((BP(IP3-1+K+KK*(J-1)+KK*JJ*(I-1)) .EQ. 1)
+C     $                 .AND.(BP(IP3-1+K+1+KK*(J-1)+KK*JJ*(I-1)) .EQ. 0))
+C     $                 then
+C                     NSINGLE = NSINGLE + 1.0
+C                     end if
+C                  K = KK-2
+C                  IF ((BP(IP3-1+K+KK*(J-1)+KK*JJ*(I-1)) .EQ. 0)
+C     $                 .AND.(BP(IP3-1+K+1+KK*(J-1)+KK*JJ*(I-1)) .EQ. 1))
+C     $               then
+C                     NSINGLE = NSINGLE + 1.0
+C                     end if
+C               ENDDO
+C            ENDDO
+               
+C     einzelne Gitter, ENDE
+            ENDIF
+         ENDDO
+         ENDDO              
+#ifdef _MPI_
+          CALL MPI_ALLREDUCE (NSINGLE,NALL,1,
+     $                        MPI_DOUBLE_PRECISION,
+     $                        MPI_SUM,MPI_COMM_WORLD, IERR)
+#else
+          NALL = NSINGLE
+#endif
+          IF (NALL .LT. 0.1) EXIT
+
+
+C Schleife über alle neuen feinen Gitter fuer Fuellalgorithmus
+         DO IGRID=NGRDOLD+1,NGRDDFD
+         DO ISUB = 1,MAX(1,NOFSLCHILDS(IGRID))
+            IF (LSLICE(IGRID)) THEN
+               IGRIDNUM = IGRDOFSLCHILD(ISUB,IGRID)
+            ELSE
+               IGRIDNUM = IGRID
+            ENDIF
+#ifdef _MPI_
+            IPROC  = IDPROCOFGRD(IGRIDNUM)
+            IPPAR  = IDPROCOFGRD(IPARENT(IGRIDNUM))
+#else
+            MYID   = 0
+            IPROC  = 0
+            IPPAR  = 0
+#endif
+            IF(MYID .EQ. IPROC) THEN
+C     hier werden die einzelnen Gitter bearbeitet, ANFANG               
+            CALL MGPOINT (IP3,IP2,IP1,IBB,IB3,IBU,IGRIDNUM)
+            CALL MGDIMS  (KK,JJ,II,IGRIDNUM)
+            CALL MGBASB(NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB,IGRIDNUM)
+C           Feld umspeichern : KJI -> IJK
+            DO K=1,KK
+            DO J=1,JJ
+            DO I=1,II
+               HILF(IP3-1 + I + II*(J-1) + II*JJ*(K-1))
+     $              = BP(IP3-1 + K + KK*(J-1) + KK*JJ*(I-1))
+            ENDDO
+            ENDDO
+            ENDDO
+C     call bp fuer einen Prozessor (BP(IP3), Koordinaten(IP1), KK,JJ,II)
+            CALL BLOCKGRID(II,JJ,KK,0,X(IP1),Y(IP1),Z(IP1),
+     $           DX(IP1),DY(IP1),DZ(IP1),
+     $           DDX(IP1),DDY(IP1),DDZ(IP1),
+     $           IGRIDNUM,NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,
+     $           HILF(IP3),0)
+
+C           Feld umspeichern : IJK -> KJI
+            DO K=1,KK
+            DO J=1,JJ
+            DO I=1,II
+               BP(IP3-1 + K + KK*(J-1) + KK*JJ*(I-1))
+     $              = HILF(IP3-1 + I + II*(J-1) + II*JJ*(K-1))
+            ENDDO
+            ENDDO
+            ENDDO
+
+               
+C     einzelne Gitter, ENDE
+            ENDIF
+         ENDDO
+         ENDDO              
+
+
+
+      END DO
+      WRITE(*,*) 'BLOCKBP: ADDITIONAL BLOCKING FINISHED'
+      WRITE(*,*) 'BLOCKBP: Iterationen ueber Gitter', ILOOP
+      IF (ILOOP.EQ.10+1) CALL ERRR (583,'BLOCKBP')
+
+
+C Schleife über alle neuen feinen Gitter, um Werte -999 auf Null zu setzten
+C (s. Subroutine blockingadd)
+
+      DO IGRID=NGRDOLD+1,NGRDDFD
+         DO ISUB = 1,MAX(1,NOFSLCHILDS(IGRID))
+            IF (LSLICE(IGRID)) THEN
+               IGRIDNUM = IGRDOFSLCHILD(ISUB,IGRID)
+            ELSE
+               IGRIDNUM = IGRID
+            ENDIF
+#ifdef _MPI_
+            IPROC  = IDPROCOFGRD(IGRIDNUM)
+            IPPAR  = IDPROCOFGRD(IPARENT(IGRIDNUM))
+#else
+            MYID   = 0
+            IPROC  = 0
+            IPPAR  = 0
+#endif
+            IF(MYID .EQ. IPROC) THEN
+C     hier werden die einzelnen Gitter bearbeitet, ANFANG               
+            CALL MGPOINT (IP3,IP2,IP1,IBB,IB3,IBU,IGRIDNUM)
+            CALL MGDIMS  (KK,JJ,II,IGRIDNUM)
+
+            DO K=1,KK
+            DO J=1,JJ
+            DO I=1,II
+               IF (BP(IP3-1 + K + KK*(J-1) + KK*JJ*(I-1)).LE.-990.0)
+     $              BP(IP3-1 + K + KK*(J-1) + KK*JJ*(I-1)) = 0.0
+            ENDDO
+            ENDDO
+            ENDDO
+               
+C     einzelne Gitter, ENDE
+            ENDIF
+         ENDDO
+      ENDDO              
+
+      END IF
+      
+      END

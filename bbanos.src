@@ -1,0 +1,84 @@
+      SUBROUTINE BBANOS (KMX,JMX,IMX,
+     $                    U,V,W,P,G,
+     $                    JSTART,JSTOP,KSTART,KSTOP,ITYP)
+C*STARLET***************************************************************
+C        B F R F I X   SETZEN DER RANDBEDINGUNGEN FUER DIE
+C                         GESCHWINDIGKEITSFELDER.
+C                         (LARGE-EDDY-SIMULATION)
+C*STARLET***************************************************************
+C
+C PARAM: 
+C        KMX, JMX, IMX  - DIMENSIONEN DES GITTERS 
+C        U(KMX,JMX,IMX) + GESCHWINDIGKEITSFELD
+C        V(KMX,JMX,IMX) + GESCHWINDIGKEITSFELD
+C        W(KMX,JMX,IMX) + GESCHWINDIGKEITSFELD
+C        P(KMX,JMX,IMX) - DRUCKFELD
+C        G(KMX,JMX,IMX) - EFFEKTIVE DYNAMISCHE VISKOSITAET (= MUE)
+C        ITYP           - HOLLERITH-KONSTANTE:
+C                         'P'  VOR DER DRUCKKORREKTUR
+C                         'T'  VOR DEM ZEITSCHRITT
+C
+C VERS:   5. 5.99 (AO)  : ORIGINAL
+C                         AUS BFRNOS (BFROL) ABGELEITET
+C        11.08.03 (TB)  : POISSONITER IMPLEMENTED
+C
+C DEFINE-DIREKTIVEN     : QUD 
+C
+C*STARLET***************************************************************
+C
+#include "konsta.h"
+C
+      CHARACTER (LEN=1)  ITYP
+C
+      REAL
+     $            U(KMX,JMX,IMX),   V(KMX,JMX,IMX),   W(KMX,JMX,IMX),
+     $            P(KMX,JMX,IMX),   G(KMX,JMX,IMX)
+C     REAL        UFR(KMX,JMX, 2 ), VFR(KMX,JMX, 2 ), WFR(KMX,JMX, 2 )
+C
+C
+C
+C                                 **************************************
+C                                 NOSLIP-CONDITION AN DER BACK-FLAECHE
+C                                 **************************************
+C
+C
+C
+      IM1 = IMX-1
+      IM2 = IMX-2
+      IM3 = IMX-3
+      IM4 = IMX-4
+
+      IF ( ITYP .EQ. 'T' ) THEN
+       
+         DO J=JSTART,JSTOP
+         DO K=KSTART,KSTOP
+
+            U(K,J, IM2 ) = 0.0
+            U(K,J, IM1 ) = 0.0
+            V(K,J, IM1 ) = 0.0
+            W(K,J, IM1 ) = 0.0
+#ifdef _POISSONITER_
+            P(K,J,IM1) = P(K,J,IM2)
+#else
+            P(K,J, IM1 ) = 0.0
+#endif
+            G(K,J, IM1 ) = -SMALL
+
+         ENDDO
+         ENDDO
+
+      ELSEIF ( ITYP .EQ. 'P') THEN
+       
+         DO J=JSTART,JSTOP
+         DO K=KSTART,KSTOP
+
+            U(K,J,  IM2 ) = 0.0
+
+         ENDDO
+        ENDDO
+
+      ENDIF
+
+      RETURN
+      END
+

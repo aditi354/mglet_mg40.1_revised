@@ -1,0 +1,246 @@
+      SUBROUTINE WRITESLICED (KKA,JJA,IIA,PHI,HILF,IGRID,
+     $     KANAL,MODUS,IDIM3D)
+C-MGLET---------------------------------------------------------------
+C
+C-MGLET---------------------------------------------------------------
+      CHARACTER (LEN=8)   MODUS
+      REAL PHI(IDIM3D),HILF(IDIM3D)
+
+#ifdef _MPI_
+C
+C               MPI-INCLUDE
+#include "mpif.h"
+C
+#endif
+C
+#include "mgpar.h"
+#include "colevel.h"
+#include "cogrdpro.h"
+#include "cogrdcon.h"
+#include "compi.h"
+C------------------------------------------------------------ POINTER-  
+         CALL MGDPB (KK,JJ,II,IP3,IP2,IP1,IBB,IBU,
+     $               NFRO,NBAC,NRGT,NLFT,NBOT,NTOP,NCUB,IGRID)
+
+C---------------------------------------------------------- CONSISTENCY?
+
+               IF (ZHOMOG(IGRID)) THEN
+                  CALL ERRR (501,' WRITESLICED ')
+               ELSE
+                  IF (KKA .NE. KK)  CALL ERRR (601,' WRITESLICED ') 
+               ENDIF
+               
+               IF (YHOMOG(IGRID)) THEN
+                  IF (JJA .NE.  1 .AND. JJA .NE. JJ)  
+     $                 CALL ERRR (502,' WRITESLICED ')
+               ELSE
+                  IF (JJA .NE. JJ)  CALL ERRR (602,' WRITESLICED ') 
+               ENDIF
+               
+               IF (XHOMOG(IGRID)) THEN
+                  IF (IIA .NE. 1 .AND. IIA .NE. II) THEN
+                  CALL ERRR (503,' WRITESLICED ')
+                  ENDIF
+               ELSE
+                  IF (IIA .NE. II)  CALL ERRR (603,' WRITESLICED ') 
+               ENDIF
+
+C---------------------------------------------------------------------
+C                           BLOCK-WISE READING OF FIELD
+C                           BLOCK MUST BE SMALLER THAN ONE SUBGRID
+
+      IF (LSLICE(IGRID)) THEN
+CC           IMBLOCK = IIA / (NXSLICE(IGRID)*NYSLICE(IGRID)) + 1
+         IMBLOCK = IDIM_MG_BIG / (KKA*JJA)
+      ELSE
+         IMBLOCK = IIA
+      ENDIF
+      NBLOCK  = IIA/IMBLOCK + 1
+C      NBLOCK = 1
+      ISTOP   = 0
+      ILENGTH = 0
+      IF(IIA .EQ. 1) NBLOCK = 1 
+
+C-MGLET---------------------------------------------------------------
+
+CCC         DO 700 I = 0,IIA-1
+
+      DO 700 IBLOCK = 1,NBLOCK
+
+         ISTART  = ISTOP+1
+         ILENGTH = MIN ( IMBLOCK , (IIA-ISTART+1))
+         ISTOP   = ISTART + ILENGTH - 1
+C-MGLET---------------------------- INITIALIZING BIGBUF --------------
+      CALL SETS   (IDIM_MG_BIG,1,1,IDIM_MG_BIG,1,1,BIGBUF,0.0)                  
+
+C-MGLET-------------------------- SAMPLING DATA FROM PROCESSORS ------
+C
+
+
+         DO ICHILD=1,MAX(1,NOFSLCHILDS(IGRID))
+            ISUB = ICHILD
+            IF (LSLICE(IGRID)) THEN
+               ISUB = IGRDOFSLCHILD(ICHILD,IGRID)
+            ELSE
+               ISUB = IGRID
+            ENDIF
+               
+C------------------------------------------------------------ POINTER  
+         CALL MGDPB (KKS,JJS,IIS,IP3S,IP2S,IP1S,IBBS,IBUS,
+     $               NFROS,NBACS,NRGTS,NLFTS,NBOTS,NTOPS,NCUBS,ISUB)
+
+
+C--------------------------------------------- J-DIRECTION HOMOGENEOUS?
+                     IF (JJA .EQ. 1 .OR. IIA .EQ. 1) THEN
+                        FAVERAGE = 1.0/(FLOAT(NYSLICE(IGRID))
+     $                                 *FLOAT(NXSLICE(IGRID)))
+                        IF(JJA .EQ. 1) JJS = JJA
+                        IF(IIA .EQ. 1) IIS = IIA
+                        CALL MGPOINA (IP3S,I1L,I2L,ISUB)
+                     ELSE
+                        FAVERAGE = 1.0
+                     ENDIF
+
+C------------------------------------------------ POSITIONS      -----
+
+               IF (LSLICE(IGRID)) THEN
+                  IPOS = ISLPOS(ISUB)
+                  JPOS = JSLPOS(ISUB)
+                  KPOS = KSLPOS(ISUB)
+               ELSE
+                  IPOS = 3
+                  JPOS = 3
+                  KPOS = 3
+               ENDIF
+
+                     IF (JJA .EQ. 1) JPOS=3
+                     IF (IIA .EQ. 1) IPOS=3
+
+C----------------------------------------------------- OVERLAPPING ?
+               IF ( ((ISTART .LE. IPOS-3+IIS) .AND.  
+     $              (ISTOP  .GT. IPOS-1)) .OR.
+     $               (IIA .EQ. 1)) THEN
+
+#ifdef _MPI_
+                  IPROC = IDPROCOFGRD(ISUB)
+                  IF ((MYID .EQ. IPROC) .OR. (MYID .EQ. 0)) THEN
+#else
+                     IPROC = 0
+                     MYID  = 0
+#endif
+
+C------------------------------------------ OVERLAPPING INDICES ------
+
+                     KA=1
+                     KE=KKA
+                     JA=3
+                     JE=JJS-2
+
+C------------------------------------------ CORRECTION, IF AT END-----
+
+
+                     IF (JPOS       .EQ.  3) JA=2
+                     IF (JPOS-3+JJS .EQ. JJ) JE=JJS-1
+
+C------------------------------------- J-DIRECTION HOMOGENEOUS?
+
+                     IF (JJA .EQ. 1) THEN
+                        JA=1
+                        JE=1
+                     ENDIF
+
+C-------------------------------------------- I-DIRECTION ------------
+                     
+                     IGLOBAL_START = MAX(IPOS,ISTART)
+                     IF (IPOS .EQ. 3) IGLOBAL_START = MAX(2,ISTART)
+C         write (6,*) 'writesliced',istart,ipos,iglobal_start
+
+                     IGLOBAL_STOP = MIN(IPOS-3+IIS-2,ISTOP)
+                     IF (IPOS-3+IIS .EQ. II) 
+     $                          IGLOBAL_STOP = MIN(ISTOP,II-1)
+
+                     IA = IGLOBAL_START - IPOS + 3
+                     IE = IGLOBAL_STOP  - IPOS + 3
+                     
+                     IF (IIA .EQ. 1) THEN
+                         IA = 1
+                         IE = 1
+                     ENDIF
+ 
+                     ISHIFT = IPOS - ISTART - 2
+                     JSHIFT=JPOS-3
+                     KSHIFT=KPOS-3
+
+C---------------------------------------------------------------------
+
+                     IF (IE .GE. IA ) THEN
+C           write (6,*) myid,'calling addregion',iproc,ip3s
+
+               IP3S = MAX (IP3S,1)
+
+                     CALL ADDREGION(KKS,JJS,IIS,PHI(IP3S),
+     $                    IPROC,KA,KE,JA,JE,IA,IE,
+     $                    KKA,JJA,ILENGTH,BIGBUF,0,
+     $                    KSHIFT,JSHIFT,ISHIFT,
+     $                    HILF,MYID,FAVERAGE)
+
+C           write (6,*) myid,'called addregion'
+
+
+                     ENDIF
+                  
+
+#ifdef _MPI_
+                  ENDIF
+#endif
+               ENDIF
+            ENDDO
+
+C-MGLET------------------------- DATA SAMPLED ------------------------
+C-MGLET------------------------- WRITING DATA BLOCK ------------------
+#ifdef _MPI_
+            IF (MYID .EQ. 0) THEN
+#endif
+               DO IGLOBAL=ISTART,ISTOP
+               
+                  I = IGLOBAL - ISTART 
+C                  I = IGLOBAL-1
+
+C-MGLET---------------------------------------------------------------
+                  IF(MODUS .EQ. 'BINAER  ') THEN
+
+#ifdef _HITACHI_
+           ISTARTB = I*JJA*KKA+1
+            IENDB   = I*JJA*KKA+KKA*JJA
+            WRITE(KANAL)
+     $           (BIGBUF( K ),K=ISTARTB,IENDB)
+#else
+            WRITE (KANAL) 
+     $           ((BIGBUF( K + J*KKA + I*JJA*KKA),K=1,KKA),
+     $           J=0,JJA-1)
+#endif
+                  ELSEIF(MODUS .EQ. 'CODIERT ') THEN
+
+                     WRITE (KANAL,6040) 
+     $                    ((BIGBUF( K + J*KKA + I*JJA*KKA),
+     $                    K=1,KKA),J=0,JJA-1)
+                  
+                  ELSE
+                     IFAIL = 501
+                  ENDIF
+
+               ENDDO
+#ifdef _MPI_
+            ENDIF
+#endif
+            
+
+#ifdef _MPI_
+      CALL MPI_BARRIER (MPI_COMM_WORLD,IERR)
+#endif
+
+  700 CONTINUE
+
+      RETURN
+ 6040 FORMAT (6(E12.5E3,1X))
+      END

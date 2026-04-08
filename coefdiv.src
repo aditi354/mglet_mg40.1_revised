@@ -1,0 +1,222 @@
+      SUBROUTINE COEFDIV  (II,DX,DDX,NFRO,NBAC,COEFDX)
+
+C*MGLET***************************************************************
+C        C A L C O E F D          
+C        BERECHNUNG DER KOEFFIZIENTEN FUER DIE DIFFUSIVEN TERME
+C        FUER DAS KOMPAKTVERFAHREN VIERTER ORDNUNG IN EINER
+C        KOORDIANTENRICHTUNG
+C*MGLET***************************************************************
+C
+C PARAM: COEFDX         - FELD FUER DIE KOEFFIZIENTEN IN X-RICHTUNG 
+C 
+C     ISTAG = 1:        : Ableitung In Koordinatenrichtung
+C     ISTAG = 0:        : Ableitung In andere Koordinatenrichtung
+C
+C DEFINE DIREKTIVEN     : KEINE 
+C
+C UNTERPROGRAMME      : INTERCOEF3, INTERCOEF5,RANDWERTIJDW,
+C                     : RANDWERTAND,RANDWERTD,RANDWERTIJAND,RANDWERTIJD
+C
+C VERS:  02.12.96 (AM)  : ORIGINAL        (KOMPAKT 4. ORDNUNG)
+C        08.04.03 (FS)  : Komplett ueberarbeitet
+C        22.01.03 (NP)  : FRED_BODY eingefuehrt
+C
+C*MGLET***************************************************************
+
+      IMPLICIT NONE
+      LOGICAL    STAG
+      INTEGER    I,II,NFRO,NBAC
+
+#ifndef _FRED_BODY_
+
+      REAL       DX(II), DDX(II), COEFDX(II,12)
+
+#else
+ 
+      REAL       DX(II), DDX(II), COEFDX(II,12*3)
+
+#endif
+
+
+C************************  ISTAG = 1  **************************
+
+      WRITE(6,*) ''
+      WRITE(6,*)'VORBELEGUNG COEFDIV STAG'
+      WRITE(6,*)''
+
+      DO I = 2,II-1
+
+         CALL INTERCOEF3(II,I,DX,DDX,COEFDX(I,1),COEFDX(I,2),
+     $        COEFDX(I,3),COEFDX(I,4),COEFDX(I,5),COEFDX(I,6))
+
+C	 WRITE (6,6000) I,COEFDX(I,1),COEFDX(I,2),COEFDX(I,3),
+C     $                    COEFDX(I,4),COEFDX(I,5),COEFDX(I,6)
+#ifdef _FRED_BODY_
+
+      STAG = .TRUE.
+c      NFRO, also rechter Koerperrand -->12
+         CALL RANDWERTAND(II,I,DX,DDX,STAG,
+     $        COEFDX(I,12+1),COEFDX(I,12+2),
+     $        COEFDX(I,12+3),COEFDX(I,12+4),
+     $        COEFDX(I,12+5),COEFDX(I,12+6))
+c      NBAC, also linker Koerperrand -->24
+         CALL RANDWERTDW (II,I,DX,DDX,STAG,
+     $        COEFDX(I,24+1),COEFDX(I,24+2),
+     $        COEFDX(I,24+3),COEFDX(I,24+4),
+     $        COEFDX(I,24+5),COEFDX(I,24+6))
+
+
+#endif
+
+
+      ENDDO
+
+C             ********** No-SLIP(5) **********
+
+      IF (NFRO .EQ.5 .OR. NFRO .EQ. 11) THEN
+         WRITE (6,*) ' ERSTE ABLEITUNG FUER PUNKT 3'
+         WRITE (6,*) ' RANDBEDIINGUNG NO-SLIP/FLU'
+         I = 2
+         COEFDX(I,1) = 0.0
+	 COEFDX(I,2) = 0.0
+         COEFDX(I,3) = 0.0 
+	 COEFDX(I,4) = 0.0
+         COEFDX(I,5) = 0.0
+         COEFDX(I,6) = 0.0
+         I = 3
+         STAG = .TRUE.
+      	 CALL RANDWERTAND(II,I,DX,DDX,STAG,COEFDX(I,1),COEFDX(I,2),
+     $        COEFDX(I,3),COEFDX(I,4),COEFDX(I,5),COEFDX(I,6))
+	 WRITE (6,6000) I,COEFDX(I,1),COEFDX(I,2),COEFDX(I,3),
+     $        COEFDX(I,4),COEFDX(I,5),COEFDX(I,6)
+     
+      ENDIF
+
+      IF (NBAC .EQ.5) THEN
+         WRITE (6,*) ' LETZTER ZU INTERPOLIERENDER PUNKT', II-2
+         WRITE (6,*) ' RANDBEDIINGUNG NO-SLIP'
+         I = II-1
+         COEFDX(I,1) = 0.0
+	 COEFDX(I,2) = 0.0
+         COEFDX(I,3) = 0.0 
+	 COEFDX(I,4) = 0.0
+         COEFDX(I,5) = 0.0
+	 COEFDX(I,6) = 0.0
+         I = II-2
+         STAG = .TRUE.
+         CALL RANDWERTDW (II,I,DX,DDX,STAG,COEFDX(I,1),COEFDX(I,2),
+     $        COEFDX(I,3),COEFDX(I,4),COEFDX(I,5),COEFDX(I,6))
+	 WRITE (6,6000) I,COEFDX(I,1),COEFDX(I,2),COEFDX(I,3),
+     $        COEFDX(I,4),COEFDX(I,5),COEFDX(I,6)
+
+      ENDIF
+
+C     ********** OP1 **********
+      IF (NBAC .EQ. 3 .OR. NBAC .EQ. 4) THEN
+         WRITE (6,*) ' LETZTER PUNKT ABLEITUNG', II-2
+         WRITE (6,*) ' RANDBEDIINGUNG  OP1/OP2' 
+         I = II-2
+         STAG = .TRUE.
+         CALL RANDWERTDW(II,I,DX,DDX,STAG,COEFDX(I,1),COEFDX(I,2),
+     $        COEFDX(I,3),COEFDX(I,4),COEFDX(I,5),COEFDX(I,6))
+         WRITE (6,6000) I,COEFDX(I,1),COEFDX(I,2),COEFDX(I,3),
+     $        COEFDX(I,4),COEFDX(I,5),COEFDX(I,6)
+
+         WRITE (6,*) ' ZU EXTRAPOLIERENDER PUNKT', II-1
+         WRITE (6,*) ' RANDBEDINGUNG  OP1/OP2'
+         I = II-1
+         STAG = .TRUE.
+         CALL RANDWERTD (II,I,DX,STAG,COEFDX(I,1),COEFDX(I,2),
+     $        COEFDX(I,3),COEFDX(I,4),COEFDX(I,5),COEFDX(I,6))
+	 WRITE (6,6000) I,COEFDX(I,1),COEFDX(I,2),COEFDX(I,3),
+     $        COEFDX(I,4),COEFDX(I,5),COEFDX(I,6) 
+      ENDIF
+
+C************************  ISTAG = 0  **************************
+
+      WRITE(6,*) ''
+      WRITE(6,*)'VORBELEGUNG COEFDIV NONSTAG'
+      WRITE(6,*)''
+
+      DO I = 2,II-1
+
+	 CALL INTERCOEF5(II,I,DX,DDX,COEFDX(I,7),COEFDX(I,8),
+     $        COEFDX(I,9),COEFDX(I,10),COEFDX(I,11),COEFDX(I,12))
+C	 WRITE (6,6000) I,COEFDX(I,7),COEFDX(I,8),COEFDX(I,9),
+C     $        COEFDX(I,10),COEFDX(I,11),COEFDX(I,12)
+
+#ifdef _FRED_BODY_
+
+      STAG = .FALSE.
+c      NFRO, also rechter Koerperrand -->12
+         CALL RANDWERTAND(II,I,DX,DDX,STAG,
+     $        COEFDX(I,12+7),COEFDX(I,12+8),
+     $        COEFDX(I,12+9),COEFDX(I,12+10),
+     $        COEFDX(I,12+11),COEFDX(I,12+12))
+c      NBAC, also linker Koerperrand -->24
+         CALL RANDWERTDW (II,I,DX,DDX,STAG,
+     $        COEFDX(I,24+7),COEFDX(I,24+8),
+     $        COEFDX(I,24+9),COEFDX(I,24+10),
+     $        COEFDX(I,24+11),COEFDX(I,24+12))
+
+
+#endif
+
+      ENDDO
+
+C             ********** No-SLIP(5) **********
+
+      IF (NFRO .EQ.5 .OR. NFRO .EQ. 11) THEN
+
+         WRITE (6,*) ' ERSTER PUNKT NO SLIP'
+         WRITE (6,*)''
+
+         I = 3
+	 CALL RANDWERTIJANDW(II,I,DX,DDX,COEFDX(I,7),COEFDX(I,8),
+     $        COEFDX(I,9),COEFDX(I,10),COEFDX(I,11),COEFDX(I,12))         
+         WRITE (6,6000) I,COEFDX(I,7),COEFDX(I,8),COEFDX(I,9),
+     $        COEFDX(I,10),COEFDX(I,11),COEFDX(I,12)
+         WRITE (6,*) ' DZ', 2,3,4 ,'and', 'DDZ'
+	 WRITE (6,*) '', DX(2),DX(3),DX(4),'and ',
+     $	                DDX(2),DDX(3),DDX(4) 
+
+      ENDIF
+      IF (NBAC .EQ.5) THEN
+         WRITE (6,*) ''
+         WRITE (6,*) ' LETZTER PUNKT ABLEITUNG NO-SLIP', II-2
+         I = II-1
+         CALL RANDWERTIJDW(II,I,DX,DDX,COEFDX(I,7),COEFDX(I,8),
+     $        COEFDX(I,9),COEFDX(I,10),COEFDX(I,11),COEFDX(I,12))
+         WRITE (6,6000) I,COEFDX(I,7),COEFDX(I,8),COEFDX(I,9),
+     $        COEFDX(I,10),COEFDX(I,11),COEFDX(I,12)
+          WRITE (6,*) ' DZ', I,I-1,I-2 ,'and', 'DDZ'
+	  WRITE (6,*) '', DX(I),DX(I-1),DX(I-2),'and ',
+     $	                DDX(I),DDX(I-1),DDX(I-2) 
+
+      ENDIF
+C*********************** OP1 (3) *******************************
+      IF (NBAC .EQ. 3 .OR. NBAC .EQ. 4) THEN
+         WRITE (6,*) ' LETZTER PUNKT ABLEITUNG', II-2
+         WRITE (6,*) ' RANDBEDINGUNG  OP1/OP2' 
+         I = II-2
+         STAG = .FALSE.
+         CALL RANDWERTDW (II,I,DX,DDX,STAG,COEFDX(I,7),COEFDX(I,8),
+     $        COEFDX(I,9),COEFDX(I,10),COEFDX(I,11),COEFDX(I,12))
+         WRITE (6,6000) I,COEFDX(I,7),COEFDX(I,8),COEFDX(I,9),
+     $        COEFDX(I,10),COEFDX(I,11),COEFDX(I,12)         
+ 
+         WRITE (6,*) ' ZU EXTRAPOLIERENDER PUNKT', II-1
+         WRITE (6,*) ' RANDBEDINGUNG  OP1/OP2'
+         I = II-1
+         STAG = .FALSE.
+         CALL RANDWERTD(II,I,DX,STAG,COEFDX(I,7),COEFDX(I,8),
+     $        COEFDX(I,9),COEFDX(I,10),COEFDX(I,11),COEFDX(I,12))
+         WRITE (6,6000) I,COEFDX(I,7),COEFDX(I,8),COEFDX(I,9),
+     $        COEFDX(I,10),COEFDX(I,11),COEFDX(I,12)
+      ENDIF
+         
+ 6000 FORMAT(1X,I3,6(F12.6))
+
+C***********************  E   N   D  ***************************
+      RETURN
+      END

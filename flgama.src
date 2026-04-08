@@ -1,0 +1,16 @@
+      REAL FUNCTION FLGAMA(DIM,IJKMX,IC,LA,LG,JUMP,NBND)
+
+      INTEGER DIM,IC,JUMP,NBND,IJKMX
+      REAL LA(DIM),LG(DIM)
+
+      IF ((IC .EQ. NBND) .OR. (IC .EQ. IJKMX-NBND+1)) THEN
+        FLGAMA = 0.0
+      ELSE
+        FLGAMA = LG(IC)*LG(MIN(IC+JUMP,IJKMX-NBND+1)) /
+     1           (LA(MIN(IC+JUMP,IJKMX-NBND+1)) +
+     2            LG(MIN(IC+JUMP,IJKMX-NBND+1)))
+      ENDIF
+        PRINT*,'FLGAMA = ',FLGAMA
+
+      RETURN
+      END

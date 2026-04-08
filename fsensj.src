@@ -1,0 +1,21 @@
+      REAL FUNCTION FSENSJ(KK,JJ,II,JMX,K,J,I,NBND,JDIR,JUMP,B)
+
+      INTEGER KK,JJ,II,K,J,I,JDIR,JUMP,NBND
+      REAL B(KK,JJ,II)
+
+      FSENSJ = 1.0
+      JDO = J + JDIR*JUMP
+      IF (B(K,J,I) .LT. 0.0) GOTO 99
+
+      DO ISENSJ = J,JDO,JDIR
+        IF ((ISENSJ .LE. NBND) .OR. (ISENSJ .GT. JMX-NBND)) GOTO 99
+        IF (B(K,ISENSJ,I) .LT. 0.0) THEN
+          FSENSJ = 0.0
+       	ENDIF
+      ENDDO
+
+   99    CONTINUE
+
+      RETURN
+      END
+

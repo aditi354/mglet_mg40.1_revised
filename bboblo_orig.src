@@ -1,0 +1,348 @@
+      SUBROUTINE BBOBLO (KMX,JMX,IMX,
+     $                      U,V,W,P,G,
+     $                      ISTART,ISTOP,JSTART,JSTOP,KSTART,KSTOP,
+     $                      FREQ,AU,AV,AW,ANIV,TIMEPHYS,
+     $                      X,Y,Z,FLOWTYP,UBO,VBO,WBO,
+     $                      WAVENUMBER)
+C*STARLET***************************************************************
+C        B B O B L O   SETZEN DER RANDBEDINGUNGEN FUER DIE STROEMUNGS-
+C                      MANIPULATION DURCH EINEN JETSTRAHL
+C
+C*STARLET***************************************************************
+C
+C PARAM: 
+C        U(KMX,JMX,IMX) + GESCHWINDIGKEITSFELD
+C        V(KMX,JMX,IMX) + GESCHWINDIGKEITSFELD
+C        W(KMX,JMX,IMX) + GESCHWINDIGKEITSFELD
+C        P(KMX,JMX,IMX) - DRUCKFELD
+C        G(KMX,JMX,IMX) - EFFEKTIVE DYNAMISCHE VISKOSITAET (= MUE)
+C        AUB            - AMPLITUDE DES STRAHLS IN X-RICHTUNG
+C        AVB            - AMPLITUDE DES STRAHLS IN Y-RICHTUNG
+C        AWB            - AMPLITUDE DES STRAHLS IN Z-RICHTUNG
+C        ANIV        - GIBT DAS NULLNIVEAU AN UM DAS DER COCOSUS SCHWINGT
+C        NUMJET         - NUMBER OF JETS
+C        FREQB          - EINSTROEMFREQUENZ 
+C        ITYP           - HOLLERITH-KONSTANTE:
+C                         'P'  VOR DER DRUCKKORREKTUR
+C                         'T'  VOR DEM ZEITSCHRITT
+C        WAVENUMBER       ANZAHL DER PERIODEN IN Y-RICHTUNG (LAMBDAWIRBEL) 
+C 
+C VERS:  25.02.94 (RK)  : ORIGINAL
+C VERS:  28.09.94 (AO)  : TOTALLY NEW VERSION AND ADAPTED TO MGLET
+C VERS:  21.04.98 (AO)  : KSTART, KSTOP ERMOEGLICHT MANIPULATION
+C                         AN STUFENKANTEN ODER IM RAUM SELBER
+C
+C
+C*STARLET***************************************************************
+C
+C
+C
+C
+#include "cophyspar.h"
+C
+      REAL
+     $            U(KMX,JMX,IMX),   V(KMX,JMX,IMX),   W(KMX,JMX,IMX),
+     $            P(KMX,JMX,IMX),   G(KMX,JMX,IMX),   TIMEPHYS,
+     $            X(IMX),           Y(JMX),           Z(KMX),
+     $        UBO(2,JMX,IMX),     VBO(2,JMX,IMX),      WBO(2,JMX,IMX) 
+      REAL RANF, WAVENUMBER
+      EXTERNAL RANF
+
+      CHARACTER (LEN=16) FLOWTYP
+C
+
+#ifdef _QUD_
+
+C                               QUADRATIC UPSTREAM IST DEFINIERT
+        DATA NQUD /1/
+#else
+
+C                               QUADRATIC UPSTREAM IST NICHT DEFINIERT
+        DATA NQUD /0/
+#endif
+
+
+
+C                                 ***********************************
+C                                 RECHTECKIGES EINSTROEMGEBIET BOTTOM
+C                                 ***********************************
+
+
+C                               LOOP OVER EVERY FREQUENCY OF THE JET
+C
+	 IF (FLOWTYP.EQ.'UNIFORM') THEN
+
+         VALUEK = 2.0 * 3.1415927 * FREQ * TIMEPHYS
+C
+C           AUF ORIGIN COMPILERFEHLER !!!
+C           COS(VALUEK) WIRD IMMER NULL
+C           DESWEGEN NUN MIT SINUS BELEGT  (AO 02.04.1998)
+         COSUS= SIN(VALUEK)
+         VALUEU = ANIV + AU * COSUS
+         VALUEV = ANIV + AV * COSUS
+         VALUEW = ANIV + AW * COSUS
+         VALUEG = GMOL
+	 YA = Y(JSTART)
+	 YB= Y(JSTOP)
+
+
+C----------- U - KOMPONENTE ------------------------------------------
+
+         DO I = ISTART, ISTOP
+         DO J = JSTART, JSTOP
+         DO K = KSTART, KSTOP
+C 	 ZETA =2.0* WAVENUMBER * 3.1415927 *(Y(J)-YA)/(YB-YA) 
+C    &         + 3.1415927/WAVENUMBER
+C	 VWY = SIN(ZETA) 
+         VWY = 1.0
+
+         U(K,J  ,I  ) = U(K+1,J  ,I  ) +  VALUEU*VWY
+
+         ENDDO
+         ENDDO
+         ENDDO
+
+C         DO J=JSTART,JSTOP
+C         U(2,J,ISTART-1)=-U(3,J,ISTART-1)+2.0*VALUEU
+C         U(2,J,ISTOP   )=-U(3,J,ISTOP   )+2.0*VALUEU
+C         ENDDO
+
+C----------- V - KOMPONENTE ------------------------------------------
+
+         DO I=ISTART,ISTOP
+         DO J=JSTART,JSTOP-1
+         DO K = KSTART, KSTOP
+
+C	 ZETA = 2.0*WAVENUMBER * 3.1415927 *(Y(J)-YA)/(YB-YA) 
+C    &         + 3.1415927/WAVENUMBER
+C	 VWY = SIN(ZETA) * (1-COS(ZETA))
+C	 VWY = SIN(ZETA)
+	 VWY = 1.0
+         V(K,J  ,I  ) = V(K+1,J  ,I  ) + VALUEV*VWY
+
+         ENDDO
+         ENDDO
+         ENDDO
+C         DO I=ISTART,ISTOP
+C         V(2,JSTART-1,I) =  - V(3,JSTART-1,I) + 2.0 *  VALUEV
+C         V(2,JSTOP   ,I) =  - V(3,JSTOP   ,I) + 2.0 *  VALUEV
+C         ENDDO
+
+C----------- W - UND G - KOMPONENTE ----------------------------------
+
+
+	 VALUEK = 2.0 * 3.1415927 * FREQ * TIMEPHYS
+         DO I=ISTART,ISTOP
+         DO J=JSTART,JSTOP
+         DO K = KSTART, KSTOP
+C	 ZETA = 2.0*WAVENUMBER * 3.1415927 *(Y(J)-YA)/(YB-YA) 
+C    &         + 3.1415927/WAVENUMBER
+C	  VWY = SIN(ZETA)
+	 VWY = 1.0
+
+
+        W(K,J  ,I  )     =   W(K,J  ,I  )+ VALUEW*VWY
+        G(K,J  ,I  )     =                   VALUEG
+
+        ENDDO
+        ENDDO
+        ENDDO
+
+C     ENDDO
+      ENDIF
+
+
+      IF (FLOWTYP.EQ.'WAVE') THEN
+C     DO IFREQ = 1 , NUMFREQ
+
+	 XA = X(ISTART)
+	 XB= X(ISTOP)
+	 YA = Y(JSTART)
+	 YB= Y(JSTOP)
+
+
+C----------- U - KOMPONENTE ------------------------------------------
+
+	 VALUEK = 2.0 * 3.1415927 * FREQ * TIMEPHYS
+         COSUS= COS(VALUEK)
+         DO J = JSTART, JSTOP
+         DO I = ISTART, ISTOP
+	 ZETAX = 2.0 * 3.1415927* (X(I)-XA)/(XB-XA)
+	 ZETAY =2.0* WAVENUMBER * 3.1415927*(Y(J)-YA)/(YB-YA) 
+C	 VWX = SIN(ZETAX) * (1-COS(ZETAX))
+	 VWX = SIN(ZETAX)
+	 VWY = SIN(ZETAY)
+         VALUEU = ANIV + AU * COSUS
+
+            U(2,J  ,I  ) = U(2,J  ,I ) + VALUEU * VWX*VWY
+
+         ENDDO
+         ENDDO
+
+C----------- V - KOMPONENTE ------------------------------------------
+
+	 VALUEK = 2.0 * 3.1415927 * FREQ * TIMEPHYS
+         COSUS= COS(VALUEK)
+         DO J=JSTART,JSTOP
+         DO I=ISTART,ISTOP
+	 ZETAX = 2.0 * 3.1415927* (X(I)-XA)/(XB-XA)
+	 ZETAY =2.0* WAVENUMBER * 3.1415927*(Y(J)-YA)/(YB-YA) 
+C	 VWX = SIN(ZETAX) * (1-COS(ZETAX))
+	 VWX = SIN(ZETAX)
+	 VWY = SIN(ZETAY)
+C	 VWX = SIN(ZETAY)*(1-COS(ZETAY)) 
+         VALUEV = ANIV + AV * COSUS
+C         DO J=JSTART,JSTOP
+
+            V(2,J  ,I  ) = V(2,J  ,I ) + VALUEV * VWX*VWY
+
+         ENDDO
+         ENDDO
+ 
+C----------- W - UND G - KOMPONENTE ----------------------------------
+
+	 VALUEK = 2.0 * 3.1415927 * FREQ * TIMEPHYS
+         COSUS= COS(VALUEK)
+	 DO J=JSTART,JSTOP
+         DO I=ISTART,ISTOP
+	 ZETAX = 2.0 * 3.1415927* (X(I)-XA)/(XB-XA)
+	 ZETAY = 2.0*WAVENUMBER * 3.1415927*(Y(J)-YA)/(YB-YA) 
+C	 VWX = SIN(ZETAX) * (1-COS(ZETAX))
+	 VWX = SIN(ZETAX)
+	 VWY = SIN(ZETAY)
+         VALUEW = ANIV + AW * COSUS
+C         VALUEW = ANIV + AW *  VWX 
+         VALUEG = GMOL
+
+            W(2,J  ,I  )     =W(2,J  ,I  ) +  VALUEW*VWX*VWY
+            G(2,J  ,I  )     =                   VALUEG
+
+         ENDDO
+         ENDDO
+ 
+C     ENDDO
+      ENDIF
+C------------------PARABELFOERMIGER JET----------------------------
+
+      IF (FLOWTYP.EQ.'PARABEL') THEN
+C     DO IFREQ = 1 , NUMFREQ
+
+	 XA = X(ISTART)
+	 XB= X(ISTOP)
+	 YA = Y(JSTART)
+	 YB= Y(JSTOP)
+
+
+C----------- U - KOMPONENTE ------------------------------------------
+
+	 VALUEK = 2.0 * 3.1415927 * FREQ * TIMEPHYS
+         COSUS= COS(VALUEK)
+         DO I = ISTART, ISTOP
+           DO J = JSTART, JSTOP
+	 ZETAX = 2.0 * 3.1415927* (X(I)-XA)/(XB-XA)
+	 ZETAY = 2.0*WAVENUMBER * 3.1415927*(Y(J)-YA)/(YB-YA) 
+C	 VWX = SIN(ZETA) * (1-COS(ZETA))
+	 VWX = SIN(ZETAX)
+	 VWY = SIN(ZETAY)
+         VALUEU = ANIV + AU * COSUS
+           U(2,J  ,I  ) = U(2,J  ,I  ) + VALUEU*VWX * VWY
+           ENDDO
+         ENDDO
+
+
+C----------- V - KOMPONENTE ------------------------------------------
+
+	 VALUEK = 2.0 * 3.1415927 * FREQ * TIMEPHYS
+         COSUS= COS(VALUEK)
+         VALUEV = ANIV + AV * COSUS
+         DO I=ISTART,ISTOP
+         DO J=JSTART,JSTOP
+	 ZETAX = 2.0 * 3.1415927* (X(I)-XA)/(XB-XA)
+	 ZETAY = 2.0*WAVENUMBER * 3.1415927*(Y(J)-YA)/(YB-YA) 
+C	 VWX = SIN(ZETA) * (1-COS(ZETA))
+	 VWX = SIN(ZETAX)
+	 VWY = SIN(ZETAY)
+         VALUEV = ANIV + AV * COSUS
+            V(2,J  ,I  ) = V(2,J  ,I  ) + VALUEV*VWX*VWY
+         ENDDO
+         ENDDO
+ 
+C----------- W - UND G - KOMPONENTE ----------------------------------
+
+	 VALUEK = 2.0 * 3.1415927 * FREQ * TIMEPHYS
+         COSUS= COS(VALUEK)
+         DO I=ISTART,ISTOP
+         DO J=JSTART,JSTOP
+	 ZETAY = 2.0*WAVENUMBER * 3.1415927*(Y(J)-YA)/(YB-YA) 
+	 VWY = SIN(ZETAY)
+	 VWX =(((XA-XB)/2)**2-(X(I)-(XB+XA)/2)**2)/((XA-XB)/2)**2
+         VALUEW = ANIV + AW * COSUS
+         VALUEG = GMOL
+C         DO J=JSTART,JSTOP
+
+            W(2,J  ,I  )     = W(2,J  ,I  ) + VALUEW*VWX*VWY
+            G(2,J  ,I  )     =                   VALUEG
+
+         ENDDO
+         ENDDO
+ 
+      ENDIF
+
+C--------RANDOM GENERATOR UNIFORM OVER A SPECIFIED SCALE ----------
+
+      IF (FLOWTYP.EQ.'RANDOM') THEN
+
+
+C----------- U - KOMPONENTE ------------------------------------------
+
+         DO I = ISTART, ISTOP
+         DO J = JSTART, JSTOP
+
+         VALUEU = ANIV + AU * RANF()
+
+         U(2,J  ,I  ) = - U(3,J  ,I  ) + 2.0  *  VALUEU
+
+         ENDDO
+         ENDDO
+
+         DO J=JSTART,JSTOP
+         VALUEU = ANIV + AU * RANF()
+         U(2,J,ISTART-1)=-U(3,J,ISTART-1)+2.0*VALUEU
+         U(2,J,ISTOP   )=-U(3,J,ISTOP   )+2.0*VALUEU
+         ENDDO
+
+C----------- V - KOMPONENTE ------------------------------------------
+
+         DO I=ISTART,ISTOP
+         DO J=JSTART,JSTOP-1
+
+         VALUEV = ANIV + AV * RANF()
+         V(2,J  ,I  ) = - V(3,J  ,I  ) + 2.0 *  VALUEV
+
+         ENDDO
+         ENDDO
+         DO I=ISTART,ISTOP
+         VALUEV = ANIV + AV * RANF()
+         V(2,JSTART-1,I) =  - V(3,JSTART-1,I) + 2.0 *  VALUEV
+         V(2,JSTOP   ,I) =  - V(3,JSTOP   ,I) + 2.0 *  VALUEV
+         ENDDO
+
+C----------- W - UND G - KOMPONENTE ----------------------------------
+
+         VALUEG = GMOL
+         DO I=ISTART,ISTOP
+         DO J=JSTART,JSTOP
+         VALUEW = ANIV + AW * RANF()
+
+        W(2,J  ,I  )     =                   VALUEW
+        G(2,J  ,I  )     =                   VALUEG
+
+        ENDDO
+        ENDDO
+
+C     ENDDO
+      ENDIF
+      
+      RETURN
+      END
+
