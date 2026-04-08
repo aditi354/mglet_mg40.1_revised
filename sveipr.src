@@ -42,11 +42,13 @@ C        FUNCTION RANEQU
 C
 C*STARLET***************************************************************
 C
+#include "shear.h"
 #include "mgpar.h"
 #include "cophyspar.h"
 C
 #include "konsta.h"
 #include "conles.h"
+
 C
       REAL 
      $           UFR(KK,JJ, 2),  VFR(KK,JJ, 2),  WFR(KK,JJ, 2),
@@ -60,7 +62,6 @@ C
      $           FAKTOR,         REX,         XIKDELTA
      $           R
 C
-
       UEIN  (ZWAND)  = (1.0+EXPON)/(2.0-RTURB)*VREF*((1.0-RTURB)
      $               + SIGN(1.0,(RTURB-0.5))*(ABS(HK2*(1.0-RTURB)
      $               - ABS(ZWAND))/HK2)**EXPON) * SIGN(1.0,ZWAND)
@@ -194,6 +195,8 @@ C         DATA-STATEMENT FOR BLASIUS-PROFILE
        DATA           DF(40)       /0.999998/
        DATA           DF(41)       /0.999999/
 C
+
+
 CTEST      WRITE (0,*) 
 CTEST     $                    YBANF,YBEND,ZBANF,ZBEND,FREQB,ANIVEAU,
 CTEST     $                    AUB,AVB,AWB
@@ -253,7 +256,9 @@ C
    70 CONTINUE
 C
 CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC   BEI 'UNIFORM' KEIN RANDOM!
-      RETURN
+      RETURN   
+
+
 C      IF(MTURB .EQ. 0) RETURN
 
       DO  71 I=1,2
@@ -263,6 +268,64 @@ C      IF(MTURB .EQ. 0) RETURN
    73    CONTINUE
    72 CONTINUE
    71 CONTINUE
+
+      RETURN
+C
+C
+C
+C--------------------------------------------------------------------------------------------------------------------------
+C----------------shear flow inlet boundary conditon---------written by Zhiyong.Huang (sjtu)-------------------------------- 
+
+C--------------
+
+  
+
+         ELSEIF(CIDUFR(1:5).EQ.'SHEAR') THEN
+           A_GRAD=K_SHEAR_Z*VC_MEAN/D_DIAMETER
+    
+         DO 125 I=1,2
+          DO 124 J=2,JM1
+             DO 123 K=2,KM1        
+             UFR(K,J,I)= VC_MEAN+A_GRAD*(Z(K)-Z_CENTER)
+  123    CONTINUE
+  124    CONTINUE    
+  125    CONTINUE       
+
+
+          
+
+         DO 128 I=1,2
+         
+             DO 127 J=2,JM1
+             
+               DO 126 K=2,KM1
+               UFR(K,J,I)= UFR(K,J,I)+K_SHEAR_Y*(Y(J)-Y_CENTER)
+  126    CONTINUE
+  127    CONTINUE
+  128    CONTINUE
+
+
+
+
+
+
+
+
+
+C---------------------------------- END OF THE SHEAR INLET BOUNDARY CONDITION
+        RETURN
+     
+     
+
+C      IF(MTURB .EQ. 0) RETURN
+
+      DO  771 I=1,2
+      DO  772 J=3,JM2
+         DO  773 K=3,KM1
+            UFR(K,J,I) = UFR(K,J,I)+SQRT(2.0*RANEQU(0.123)*TU)*VORZ(1)
+  773    CONTINUE
+  772 CONTINUE
+  771 CONTINUE
 
       RETURN
 C
@@ -658,6 +721,10 @@ C
 C
       ENDIF
 C
+
+
+C--------------------------------------------------------------------------------------------------------------------------
+
       ELSEIF(CIDUFR(1:5).EQ.'PDE1D') THEN
 C
           DO I=1,2
